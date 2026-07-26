@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@preact/signals": "^2.9.4",
-    "@kar-mi/spirit-vale-tools-logging": "^0.2.1",
+    "@kar-mi/spirit-vale-tools-logging": "^0.2.2",
     "electrobun": "1.18.1",
     "preact": "^10.29.7"
   }
