@@ -1,0 +1,158 @@
+/* Mob Rewards — app layout on top of the shared Material 3 theme (theme.css).
+   Tokens only; no raw hex here. */
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+#root {
+  display: grid;
+  grid-template-rows: 40px minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-width: 620px;
+}
+
+.titlebar {
+  z-index: 10;
+}
+
+main {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 16px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.toolbar .status-readout { flex: 1; justify-content: flex-end; }
+
+.toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+#replay-banner, #storage-warning { margin-bottom: 12px; }
+
+.totals {
+  margin-bottom: 14px;
+}
+
+.rewards-total-table { min-width: 100%; table-layout: fixed; }
+.rewards-total-table :is(th, td) { width: 25%; overflow: hidden; text-overflow: ellipsis; }
+.rewards-table-scroll { width: 100%; }
+.rewards-table { min-width: 100%; table-layout: fixed; }
+.rewards-table :is(th, td) { overflow: hidden; padding: 5px 6px; text-overflow: ellipsis; }
+.rewards-table :is(th, td):first-child { width: 22%; }
+.rewards-table :is(th, td):nth-child(2), .rewards-table :is(th, td):nth-child(3), .rewards-table :is(th, td):nth-child(7) { width: 10%; }
+.rewards-table :is(th, td):nth-child(4), .rewards-table :is(th, td):nth-child(5), .rewards-table :is(th, td):nth-child(6) { width: 16%; }
+.rewards-table thead th.sortable-column { padding: 0; }
+.recent-rewards-table :is(th, td):first-child { width: 20%; }
+.recent-rewards-table :is(th, td):nth-child(2), .recent-rewards-table :is(th, td):nth-child(6) { width: 9%; }
+.recent-rewards-table :is(th, td):nth-child(3), .recent-rewards-table :is(th, td):nth-child(4), .recent-rewards-table :is(th, td):nth-child(5) { width: 14%; }
+.recent-rewards-table :is(th, td):nth-child(7) { width: 20%; }
+
+#identity-warning { margin-bottom: 14px; }
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.section-head h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.section-head p { margin: 0; color: var(--on-surface-variant); font-size: 12px; }
+
+.trend-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+#trend-reset { margin-left: auto; }
+
+.trend-chart {
+  position: relative;
+  min-height: 330px;
+  height: min(52vh, 520px);
+  overflow: hidden;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--shape-md);
+  background: var(--surface-container-low);
+  touch-action: none;
+  user-select: none;
+}
+
+.trend-chart:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+#trend-svg { display: block; width: 100%; height: 100%; }
+
+.trend-grid { stroke: var(--outline-variant); stroke-width: 1; opacity: .55; }
+.trend-axis-label { fill: var(--on-surface-variant); font-size: 11px; }
+.trend-line { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.trend-area { fill: color-mix(in srgb, var(--primary) 12%, transparent); }
+.trend-crosshair { stroke: var(--outline); stroke-width: 1; stroke-dasharray: 4 4; }
+.trend-marker { fill: var(--primary); stroke: var(--surface-container-low); stroke-width: 2; }
+.trend-selection { fill: color-mix(in srgb, var(--primary) 18%, transparent); stroke: var(--primary); stroke-width: 1; }
+
+.trend-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.trend-tooltip {
+  position: absolute;
+  z-index: 2;
+  min-width: 150px;
+  padding: 8px 10px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--shape-sm);
+  background: var(--surface-container-highest);
+  color: var(--on-surface);
+  font-size: 11px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.trend-empty[hidden] { display: none; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 740px) {
+  .toolbar { flex-wrap: wrap; }
+  .trend-chart { height: 360px; }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@spiritvale/ui-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared UI platform utilities, Material 3 theme, and frameless window chrome for the Spirit Vale desktop apps.",
+  "exports": {
+    "./theme.css": "./theme.css",
+    "./win32": "./win32.ts",
+    "./window-chrome": "./window-chrome.ts",
+    "./title-bar": "./title-bar.tsx",
+    "./status-dot": "./status-dot.tsx",
+    "./safe-save": "./safe-save.ts",
+    "./json-settings": "./json-settings.ts",
+    "./format": "./format.ts",
+    "./session-picker": "./session-picker.ts",
+    "./session-picker-types": "./session-picker-types.ts",
+    "./window-rpc": "./window-rpc.ts",
+    "./window-publish": "./window-publish.ts",
+    "./window-placement": "./window-placement.ts",
+    "./ui-scale": "./ui-scale.ts",
+    "./local-storage": "./local-storage.ts"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.9.4",
+    "@kar-mi/spirit-vale-tools-logging": "^0.2.1",
+    "electrobun": "1.18.1",
+    "preact": "^10.29.7"
+  }
+}

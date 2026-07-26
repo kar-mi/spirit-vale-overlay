@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Spirit Vale</title>
+    <link rel="stylesheet" href="views://launcherview/theme.css" />
+    <link rel="stylesheet" href="views://launcherview/index.css" />
+    <script type="module" src="views://launcherview/index.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header id="titlebar" class="titlebar">
+        <div class="brand"><img class="brand-icon" src="views://assets/app-icon.png" alt="" /><span>Spirit Vale</span><span class="brand-tag">Tools</span></div>
+        <div class="window-controls">
+          <button id="settings-button" class="icon-button" type="button" aria-label="Packet capture settings" title="Packet capture settings">⚙</button>
+          <button id="minimize-button" class="icon-button" type="button" aria-label="Minimize" title="Minimize">−</button>
+          <button id="close-button" class="icon-button close-button" type="button" aria-label="Close" title="Close">×</button>
+        </div>
+      </header>
+
+      <section class="launcher-content">
+        <div id="capture-status" class="capture-status" aria-live="polite">
+          <span id="status-dot" class="status-dot is-idle"></span>
+          <div><strong>Central capture</strong><p id="status-text">Starting centralized capture…</p></div>
+        </div>
+
+        <div id="storage-warning" class="banner is-warn" aria-live="polite" hidden></div>
+
+        <div class="tool-grid" aria-label="Spirit Vale tools">
+          <button class="tool-button" data-tool="combat" type="button"><strong>Combat</strong><span>Live DPS and combat replay</span></button>
+          <button class="tool-button" data-tool="overlay" type="button"><strong>Overlay Settings</strong><span>In-game Overlay and layout (DPS/Stats)</span></button>
+          <button class="tool-button" data-tool="rewards" type="button"><strong>Rewards</strong><span>Mob rewards and catalog</span></button>
+          <button class="tool-button" data-tool="market" type="button"><strong>Market</strong><span>Captured listings and filters</span></button>
+          <button class="tool-button" data-tool="character" type="button"><strong>Character</strong><span>Your build and calculated stats</span></button>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "name": "@spiritvale/ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "electrobun dev",
+    "build": "electrobun build",
+    "build:stable": "electrobun build --env=stable"
+  },
+  "dependencies": {
+    "@kar-mi/spirit-vale-tools-character": "^0.1.3",
+    "@kar-mi/spirit-vale-tools-combat": "^0.2.1",
+    "@spiritvale/combat-ui": "workspace:*",
+    "@kar-mi/spirit-vale-tools-capture": "^0.2.1",
+    "@kar-mi/spirit-vale-tools-items": "^0.1.3",
+    "@kar-mi/spirit-vale-tools-logging": "^0.2.1",
+    "@kar-mi/spirit-vale-tools-market": "^0.1.3",
+    "@spiritvale/market-ui": "workspace:*",
+    "@spiritvale/overlay": "workspace:*",
+    "@kar-mi/spirit-vale-tools-rewards": "^0.1.3",
+    "@spiritvale/rewards-ui": "workspace:*",
+    "@kar-mi/spirit-vale-tools-skills": "^0.1.3",
+    "@spiritvale/ui-core": "workspace:*"
+  },
+  "devDependencies": {
+    "electrobun": "1.18.1"
+  }
+}

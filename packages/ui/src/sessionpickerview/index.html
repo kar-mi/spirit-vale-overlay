@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Recent sessions</title>
+  <link rel="stylesheet" href="views://sessionpickerview/theme.css">
+  <link rel="stylesheet" href="views://sessionpickerview/index.css">
+  <script type="module" src="views://sessionpickerview/index.js"></script>
+</head>
+<body>
+  <div class="picker-shell">
+    <header id="titlebar" class="titlebar">
+      <div class="brand"><img class="brand-icon" src="views://assets/app-icon.png" alt="" /><span>Spirit Vale</span><span id="picker-title" class="brand-tag">Recent sessions</span></div>
+      <div class="window-controls">
+        <button id="minimize-button" class="icon-button" type="button" aria-label="Minimize" title="Minimize">−</button>
+        <button id="close-button" class="icon-button close-button" type="button" aria-label="Close" title="Close">×</button>
+      </div>
+    </header>
+    <main>
+      <div class="picker-intro">
+        <div><h1>Recent sessions</h1><p id="picker-status" class="picker-status" aria-live="polite">Scanning recent sessions…</p></div>
+        <button id="refresh-button" class="btn" type="button">Refresh</button>
+      </div>
+      <div id="session-list" class="session-list" role="listbox" aria-label="Recent sessions"></div>
+      <div class="picker-actions">
+        <button id="choose-file-button" class="btn btn-ghost" type="button">Choose JSON file…</button>
+        <button id="open-log-folder-button" class="btn btn-ghost" type="button" hidden>Open log folder</button>
+        <button id="open-button" class="btn btn-primary" type="button" disabled>Open</button>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

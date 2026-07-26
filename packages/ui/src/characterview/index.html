@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Spirit Vale Character</title>
+    <link rel="stylesheet" href="views://characterview/theme.css" />
+    <link rel="stylesheet" href="views://characterview/index.css" />
+    <script type="module" src="views://characterview/index.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header id="titlebar" class="titlebar">
+        <div class="brand"><img class="brand-icon" src="views://assets/app-icon.png" alt="" /><span>Character</span><span id="source-badge" class="brand-tag">Waiting</span></div>
+        <div class="window-controls">
+          <button id="minimize-button" class="icon-button" type="button" aria-label="Minimize">−</button>
+          <button id="close-button" class="icon-button close-button" type="button" aria-label="Close">×</button>
+        </div>
+      </header>
+      <div class="content">
+        <section id="empty-state" class="empty-state"><strong>Waiting for your character</strong><p>Open or switch to a character in Spirit Vale while capture is active.</p></section>
+        <div id="character-content" hidden>
+          <section class="hero card">
+            <div><p class="eyebrow">Current character</p><h1 id="character-name">—</h1><p id="character-class" class="muted">—</p></div>
+            <div class="progression"><div><span>Level</span><strong id="level">—</strong></div><div><span>Job</span><strong id="job-level">—</strong></div><div><span>XP</span><strong id="experience">—</strong></div><div><span>Job XP</span><strong id="job-experience">—</strong></div><div id="record-health-tile" class="record-tile" hidden><span>HP · live</span><strong id="record-health">—</strong></div><div id="record-mana-tile" class="record-tile" hidden><span>MP · live</span><strong id="record-mana">—</strong></div><div id="record-speed-tile" class="record-tile" hidden><span>Speed · live</span><strong id="record-speed">—</strong></div></div>
+          </section>
+          <p id="status-detail" class="status-detail"></p>
+          <div class="tab-bar" role="tablist" aria-label="Character information"><button class="tab-button" type="button" data-tab="basic" role="tab">Basic</button><button class="tab-button" type="button" data-tab="gear" role="tab">Gear</button><button class="tab-button" type="button" data-tab="advanced" role="tab">Advanced</button><button class="tab-button" type="button" data-tab="skills" role="tab">Skills</button></div>
+          <div id="basic-panel" class="tab-panel" role="tabpanel">
+            <section class="card"><h2>Attributes</h2><div id="attributes" class="attribute-grid"></div></section>
+            <section id="history-card" class="card" hidden><h2>Character history</h2><div id="history" class="attribute-grid history-grid"></div></section>
+            <section class="card"><div class="section-heading"><div><h2>Calculated stats</h2><p>Static, unbuffed values from the current saved build.</p></div></div><div id="basic-stat-groups" class="stat-groups"></div></section>
+          </div>
+          <div id="gear-panel" class="tab-panel" role="tabpanel" hidden>
+            <section class="card"><div class="section-heading"><div><h2>Build</h2><p id="loadout-label">Active loadout</p></div></div><div class="build-columns"><div><h3>Equipment</h3><div id="equipment" class="build-list"></div></div><div><h3>Artifacts</h3><div id="artifacts" class="build-list"></div></div></div></section>
+            <section class="card"><h2>Gear totals</h2><div id="gear-totals" class="gear-totals"></div></section>
+          </div>
+          <div id="advanced-panel" class="tab-panel" role="tabpanel" hidden>
+            <section class="card"><div class="section-heading"><div><h2>Advanced stats</h2><p>Gear-granted values only; no base formula is known for these effects.</p></div></div><div id="advanced-stat-groups" class="stat-groups"></div></section>
+          </div>
+          <div id="skills-panel" class="tab-panel" role="tabpanel" hidden>
+            <section class="card"><h2>Skills</h2><div id="skills" class="gear-totals"></div></section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
