@@ -13,15 +13,21 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.13
+      - name: Configure GitHub Packages registry
+        shell: pwsh
+        run: |
+          '@kar-mi:registry=https://npm.pkg.github.com' | Out-File -FilePath .npmrc -Encoding ascii
+          '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' | Add-Content -Path .npmrc -Encoding ascii
       - name: Install Bun dependencies
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --verbose
       - name: Typecheck
         run: bun run typecheck
       - name: Test
