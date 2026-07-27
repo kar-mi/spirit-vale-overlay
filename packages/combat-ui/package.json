@@ -7,8 +7,8 @@
   },
   "dependencies": {
     "@preact/signals": "^2.9.4",
-    "@kar-mi/spirit-vale-tools-combat": "^0.2.3",
-    "@kar-mi/spirit-vale-tools-logging": "^0.2.2",
+    "@kar-mi/spirit-vale-tools-combat": "0.2.4",
+    "@kar-mi/spirit-vale-tools-logging": "0.2.2",
     "@spiritvale/ui-core": "workspace:*",
     "electrobun": "1.18.1",
     "preact": "^10.29.7"

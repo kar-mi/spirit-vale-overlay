@@ -35,7 +35,8 @@ const DEFAULT_ELEMENTS: Record<OverlayElementId, OverlayElementSettings> = {
   mana: { enabled: true, opacity: 1, x: 1377, y: 921, width: 338, height: 40 },
   weight: { enabled: true, opacity: 1, x: 794, y: 787, width: 160, height: 40 },
   buffs: { enabled: false, opacity: 1, x: 1037, y: 20, width: 330, height: 80 },
-  debuffs: { enabled: false, opacity: 1, x: 1037, y: 108, width: 330, height: 80 }
+  debuffs: { enabled: false, opacity: 1, x: 1037, y: 108, width: 330, height: 80 },
+  toggles: { enabled: false, opacity: 1, x: 1037, y: 196, width: 330, height: 80 },
 };
 
 export function defaultOverlaySettings(bounds: DisplayBounds): OverlaySettings {
@@ -69,7 +70,7 @@ export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBoun
       ? sourceElements[id] as Record<string, unknown>
       : {};
     const width = clampNumber(value.width, defaults.width, 160, Math.max(160, bounds.width));
-    const minimumHeight = id === "health" || id === "mana" || id === "weight" || id === "buffs" || id === "debuffs" ? 40 : 100;
+    const minimumHeight = id === "health" || id === "mana" || id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" ? 40 : 100;
     const savedHeight = legacySettings && id === "weight" && value.height === 72
       ? defaults.height
       : value.height;

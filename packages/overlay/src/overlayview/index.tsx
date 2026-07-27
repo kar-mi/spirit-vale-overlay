@@ -97,6 +97,9 @@ function App() {
       <OverlayElement id="debuffs" settings={next.elements.debuffs} locked={next.locked}>
         <StatusGridElement statuses={next.debuffs} />
       </OverlayElement>
+      <OverlayElement id="toggles" settings={next.elements.toggles} locked={next.locked}>
+        <StatusGridElement statuses={next.toggles} />
+      </OverlayElement>
     </main>
   );
 }
@@ -233,7 +236,7 @@ function resizeRect(start: ElementRect, edge: ResizeEdge, dx: number, dy: number
   let top = start.y;
   let right = start.x + start.width;
   let bottom = start.y + start.height;
-  const minimumHeight = id === "health" || id === "mana" || id === "weight" || id === "buffs" || id === "debuffs"
+  const minimumHeight = id === "health" || id === "mana" || id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles"
     ? MIN_RESOURCE_HEIGHT
     : MIN_ELEMENT_HEIGHT;
   if (edge.includes("w")) left = clamp(start.x + dx, 0, right - MIN_ELEMENT_WIDTH);
@@ -400,14 +403,14 @@ function StatusCell({ status }: { status: FishNetActiveStatus }) {
     ? Math.max(0, Math.min(1, status.remainingMs / totalMs))
     : undefined;
   return (
-    <div
-      class="status-cell"
-      style={remainingFraction === undefined ? undefined : `--status-remaining:${Math.round(remainingFraction * 100)}%`}
-      title={status.displayName}
-    >
-      <img class="status-icon" src={statusIcon(status.spriteId)} alt="" aria-hidden="true" />
-      {remainingFraction !== undefined && <span class="status-timer-fill" aria-hidden="true" />}
-      {status.level > 1 && <span class="status-level">{status.level}</span>}
+    <div class="status-cell" title={status.displayName}>
+      <div
+        class="status-icon-frame"
+        style={remainingFraction === undefined ? undefined : `--status-remaining:${Math.round(remainingFraction * 100)}%`}
+      >
+        <img class="status-icon" src={statusIcon(status.spriteId)} alt="" aria-hidden="true" />
+        {remainingFraction !== undefined && <span class="status-timer-fill" aria-hidden="true" />}
+      </div>
       {status.remainingMs !== undefined && <span class="status-remaining">{formatRemaining(status.remainingMs)}</span>}
     </div>
   );

@@ -19,6 +19,7 @@ const LABELS: Record<OverlayElementId, string> = {
   weight: "Weight",
   buffs: "Buffs",
   debuffs: "Debuffs",
+  toggles: "Toggles (no timer)",
 };
 const state = signal<OverlayState | undefined>(undefined);
 const recordingResetShortcut = signal(false);
