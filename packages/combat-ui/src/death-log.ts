@@ -10,8 +10,10 @@ export interface DeathLogHit {
   id: string;
   /** Milliseconds before the associated death; zero is the lethal hit. */
   beforeDeathMs: number;
+  attackerActorId: number;
   sourceLabel: string;
   attackerLabel: string;
+  attackerIsMonster: boolean;
   damage: number;
   critical: boolean;
 }
@@ -92,7 +94,9 @@ export async function loadDeathLogReplay(filePath: string): Promise<DeathLogRepl
         id: `${nextId}-${index}`,
         beforeDeathMs: Math.max(0, atMs - hit.atMs),
         sourceLabel: hit.event.sourceLabel,
+        attackerActorId: hit.event.actorId,
         attackerLabel: identities.get(hit.event.actorId) ?? mobIdentities.get(hit.event.actorId) ?? `Actor ${hit.event.actorId}`,
+        attackerIsMonster: mobIdentities.has(hit.event.actorId),
         damage: hit.event.value,
         critical: hit.event.hitResult === "critical",
       }))
