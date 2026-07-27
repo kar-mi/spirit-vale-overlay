@@ -53,6 +53,16 @@ function App() {
             </button>
           </div>
           <p>Locked mode lets mouse clicks pass through to the game. Unlock to drag overlay elements. Press F11 at any time to toggle the lock.</p>
+          <p>
+            Known limitation: on borderless-fullscreen games, having the overlay window on
+            screen can cause a very slight, unavoidable blur in the game's own rendering.
+            Windows normally presents a fullscreen-covering game directly to the display
+            (a fast path called Independent Flip); any overlapping window, including this
+            fully click-through overlay, disqualifies that fast path and forces Windows to
+            composite the frame instead, which introduces the softness. This is a Windows
+            display-compositing behavior triggered by any on-screen overlay tool, not
+            something this app can fix from a separate window.
+          </p>
         </section>
         <section class="settings-section">
           <h2>Visible elements</h2>

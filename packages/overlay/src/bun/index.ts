@@ -3,7 +3,8 @@ import path from "node:path";
 import { DpsLogFollower, DpsSessionLogFollower, FishNetStatusTracker } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
-import { applyRoundedCorners, hideWindowFromTaskbar, setWindowClickThrough } from "@spiritvale/ui-core/win32";
+import { applyRoundedCorners, hideWindowFromTaskbar, setWindowClickThrough, setWindowIcon } from "@spiritvale/ui-core/win32";
+import { appIconPath } from "@spiritvale/ui-core/window-publish";
 import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale";
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
 import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/bun";
@@ -454,6 +455,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     settingsWindow = nextWindow;
     nextWindow.setAlwaysOnTop(true);
     applyRoundedCorners(nextWindow.ptr);
+    setWindowIcon(nextWindow.ptr, appIconPath);
     registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
     options.placements?.track("overlay-settings", nextWindow);
     nextWindow.show();

@@ -70,6 +70,9 @@
   overflow: hidden;
   border-radius: inherit;
   background: rgb(10 12 18 / var(--element-background-alpha, .76));
+}
+
+.overlay-root.editing .overlay-surface {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.38);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
 }

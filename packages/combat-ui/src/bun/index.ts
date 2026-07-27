@@ -1,7 +1,8 @@
 import path from "node:path";
 
 import Electrobun, { BrowserView, BrowserWindow } from "electrobun/bun";
-import { applyRoundedCorners } from "@spiritvale/ui-core/win32";
+import { applyRoundedCorners, setWindowIcon } from "@spiritvale/ui-core/win32";
+import { appIconPath } from "@spiritvale/ui-core/window-publish";
 
 import {
   FishNetDpsMeter,
@@ -137,6 +138,7 @@ window = new BrowserWindow({
   rpc,
 });
 applyRoundedCorners(window.ptr);
+setWindowIcon(window.ptr, appIconPath);
 registerUiScaleWindow(window, { scaleInitialFrame: false });
 
 Electrobun.events.on(`move-${window.id}`, (event: { data: typeof settings.frame }) => {
