@@ -4,11 +4,62 @@ import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { formatDuration } from "@spiritvale/ui-core/format";
+import { EnemyFilterControl } from "@spiritvale/ui-core/enemy-filter";
 
-import type { FishNetDpsTimelinePoint } from "@kar-mi/spirit-vale-tools-combat";
+import type { FishNetDpsSkillRow, FishNetDpsTimelinePoint } from "@kar-mi/spirit-vale-tools-combat";
 import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState } from "../app-types.ts";
 
 type Metric = "cumulative" | "dps";
+
+interface SkillFold {
+  skills: FishNetDpsSkillRow[];
+  damage: number;
+  dps: number;
+  hits: number;
+  criticalHits: number;
+  critRate?: number;
+}
+
+function foldSkillsByEnemy(next: CombatAnalysisDetailState, selectedEnemyIds: ReadonlySet<number>): SkillFold {
+  if (selectedEnemyIds.size === 0) {
+    const player = next.player;
+    return { skills: player.skills, damage: player.damage, dps: player.dps, hits: player.hits, criticalHits: player.criticalHits, critRate: player.critRate };
+  }
+  const durationSeconds = Math.max(1, next.encounterDurationMs) / 1000;
+  const merged = new Map<string, { sourceLabel: string; damage: number; hits: number; criticalHits: number }>();
+  for (const targetId of selectedEnemyIds) {
+    for (const row of next.skillsByEnemy[targetId] ?? []) {
+      const existing = merged.get(row.sourceId) ?? { sourceLabel: row.sourceLabel, damage: 0, hits: 0, criticalHits: 0 };
+      existing.damage += row.damage;
+      existing.hits += row.hits;
+      existing.criticalHits += row.criticalHits;
+      merged.set(row.sourceId, existing);
+    }
+  }
+  const totalDamage = [...merged.values()].reduce((sum, row) => sum + row.damage, 0);
+  const totalHits = [...merged.values()].reduce((sum, row) => sum + row.hits, 0);
+  const totalCriticalHits = [...merged.values()].reduce((sum, row) => sum + row.criticalHits, 0);
+  const skills: FishNetDpsSkillRow[] = [...merged.entries()]
+    .map(([sourceId, row]) => ({
+      sourceId,
+      sourceLabel: row.sourceLabel,
+      damage: row.damage,
+      dps: row.damage / durationSeconds,
+      contribution: totalDamage > 0 ? row.damage / totalDamage : 0,
+      hits: row.hits,
+      criticalHits: row.criticalHits,
+      ...(row.hits > 0 ? { critRate: row.criticalHits / row.hits } : {}),
+    }))
+    .sort((left, right) => right.damage - left.damage);
+  return {
+    skills,
+    damage: totalDamage,
+    dps: totalDamage / durationSeconds,
+    hits: totalHits,
+    criticalHits: totalCriticalHits,
+    critRate: totalHits > 0 ? totalCriticalHits / totalHits : undefined,
+  };
+}
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
@@ -25,17 +76,19 @@ void electroview.rpc?.request.getState({}).then((next) => { state.value = next; 
 
 function App() {
   const [metric, setMetric] = useState<Metric>("dps");
+  const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
   const next = state.value;
   if (!next) return <main class="app-shell" />;
   const player = next.player;
+  const fold = foldSkillsByEnemy(next, selectedEnemyIds);
 
   const metrics: [string, string][] = [
-    ["Damage", compactFormat.format(player.damage)],
-    ["DPS", numberFormat.format(player.dps)],
-    ["Hits", numberFormat.format(player.hits)],
+    ["Damage", compactFormat.format(fold.damage)],
+    ["DPS", numberFormat.format(fold.dps)],
+    ["Hits", numberFormat.format(fold.hits)],
     ["Kills", numberFormat.format(player.kills)],
-    ["Crit hits", numberFormat.format(player.criticalHits)],
-    ["Crit rate", player.critRate === undefined ? "—" : percentFormat.format(player.critRate)],
+    ["Crit hits", numberFormat.format(fold.criticalHits)],
+    ["Crit rate", fold.critRate === undefined ? "—" : percentFormat.format(fold.critRate)],
   ];
 
   return (
@@ -55,6 +108,7 @@ function App() {
             <h1>{player.displayName}</h1>
             <p>{next.fileName} · {next.encounterLabel}</p>
           </div>
+          <EnemyFilterControl enemies={next.enemies} selected={selectedEnemyIds} onChange={setSelectedEnemyIds} />
           <div class="seg">
             <button type="button" class={metric === "dps" ? "active" : undefined} onClick={() => setMetric("dps")}>DPS / 5 sec</button>
             <button type="button" class={metric === "cumulative" ? "active" : undefined} onClick={() => setMetric("cumulative")}>Cumulative</button>
@@ -80,12 +134,12 @@ function App() {
             <h2>Skill breakdown</h2>
             <p>Damage, DPS, hits, and critical-hit performance.</p>
           </div>
-          {player.skills.length === 0
+          {fold.skills.length === 0
             ? <p class="empty-state">No skill damage was found for this player.</p>
             : <div class="table-scroll">
                 <table class="data-table combat-table" aria-label="Skill breakdown">
                   <thead><tr><th>Skill</th><th>Damage</th><th>DPS</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th></tr></thead>
-                  <tbody>{player.skills.map((skill) => (
+                  <tbody>{fold.skills.map((skill) => (
                     <tr key={skill.sourceId}>
                       <th scope="row">{skill.sourceLabel}</th>
                       <td>{compactFormat.format(skill.damage)}</td>

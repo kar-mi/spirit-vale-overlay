@@ -2,6 +2,9 @@
 
 Spirit Vale is a passive Windows companion app for live combat, character, reward, market, and in-game overlay information. It uses your existing Npcap installation in non-promiscuous mode and never sends, modifies, drops, or injects game traffic.
 
+> Looking for the pacakges to use for development? See
+> [spirit-vale-tools](https://github.com/kar-mi/spirit-vale-tools).
+
 ## Installation
 
 ### Portable release

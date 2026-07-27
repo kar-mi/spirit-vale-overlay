@@ -2,7 +2,7 @@ import path from "node:path";
 
 import Electrobun, { BrowserView, BrowserWindow } from "electrobun/bun";
 import { loadDpsReplay } from "@kar-mi/spirit-vale-tools-combat";
-import type { FishNetDpsEncounterSnapshot } from "@kar-mi/spirit-vale-tools-combat";
+import type { FishNetDpsActorRow, FishNetDpsEncounterSnapshot, FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
 import { formatDuration } from "@spiritvale/ui-core/format";
 import { applyRoundedCorners } from "@spiritvale/ui-core/win32";
 import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale";
@@ -18,6 +18,8 @@ import type {
   DpsEncounterOption,
 } from "../app-types.ts";
 import { loadDeathLogReplay } from "../death-log.ts";
+import { loadEnemyBreakdown } from "../enemy-breakdown.ts";
+import type { EnemyBreakdownEncounter, EnemyDamageRow, EnemySkillStats } from "../enemy-breakdown.ts";
 
 const ANALYSIS_FRAME = { x: 140, y: 120, width: 920, height: 680 };
 const DETAIL_FRAME = { x: 190, y: 160, width: 880, height: 720 };
@@ -47,6 +49,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
   let detailState: CombatAnalysisDetailState | undefined;
   let deathLogState: CombatDeathLogState | undefined;
   let snapshots: FishNetDpsEncounterSnapshot[] = [];
+  let enemyBreakdowns: EnemyBreakdownEncounter[] = [];
   let loadedPath: string | undefined;
 
   const detailRpc = BrowserView.defineRPC<CombatAnalysisDetailRpc>({
@@ -119,7 +122,14 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
           if (state.snapshot?.id !== id && state.encounters.some((encounter) => encounter.id === id)) {
             detailWindow?.close();
             detailState = undefined;
-            state = { ...state, selectedEncounterId: id, snapshot: selectedSnapshot(id) };
+            const snapshot = selectedSnapshot(id);
+            state = {
+              ...state,
+              selectedEncounterId: id,
+              snapshot,
+              enemies: enemyBreakdownFor(id)?.enemies ?? [],
+              actorEnemyBreakdown: snapshot ? buildActorEnemyBreakdown(id, snapshot) : {},
+            };
             publish();
           }
           return state;
@@ -159,20 +169,25 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     detailState = undefined;
     deathLogState = undefined;
     snapshots = [];
+    enemyBreakdowns = [];
     loadedPath = selectedPath;
     state = loadingState(path.basename(selectedPath));
     publish();
     try {
       const replay = await loadDpsReplay(selectedPath);
       snapshots = replay.meter.getSnapshots();
+      enemyBreakdowns = (await loadEnemyBreakdown(selectedPath, snapshots)).encounters;
       const selectedEncounterId = snapshots.at(-1)?.id;
+      const lastSnapshot = snapshots.at(-1);
       state = {
         status: "ready",
         statusDetail: snapshots.length === 0 ? "This log contains no player damage." : `${snapshots.length} encounter${snapshots.length === 1 ? "" : "s"} loaded`,
         fileName: path.basename(selectedPath),
         invalidLines: replay.invalidLines,
         encounters: encounterOptions(snapshots),
-        ...(selectedEncounterId === undefined ? {} : { selectedEncounterId, snapshot: snapshots.at(-1) }),
+        enemies: enemyBreakdownFor(selectedEncounterId)?.enemies ?? [],
+        actorEnemyBreakdown: lastSnapshot && selectedEncounterId ? buildActorEnemyBreakdown(selectedEncounterId, lastSnapshot) : {},
+        ...(selectedEncounterId === undefined ? {} : { selectedEncounterId, snapshot: lastSnapshot }),
       };
       publish();
     } catch {
@@ -182,8 +197,11 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
         fileName: path.basename(selectedPath),
         invalidLines: 0,
         encounters: [],
+        enemies: [],
+        actorEnemyBreakdown: {},
       };
       snapshots = [];
+      enemyBreakdowns = [];
       publish();
       throw new Error("combat analysis log could not be loaded");
     }
@@ -241,11 +259,15 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     const snapshot = state.snapshot;
     const player = snapshot?.actors.find((actor) => actor.actorIds.includes(actorId));
     if (!snapshot || !player || !state.fileName) return;
+    const breakdown = enemyBreakdownFor(snapshot.id);
+    const skillsByEnemy = buildSkillsByEnemy(snapshot.id, player, snapshot.durationMs);
     detailState = {
       fileName: state.fileName,
       encounterLabel: state.encounters.find((encounter) => encounter.id === snapshot.id)?.label ?? "Encounter",
       encounterDurationMs: snapshot.durationMs,
       player,
+      enemies: breakdown?.enemies.filter((enemy) => enemy.targetId in skillsByEnemy) ?? [],
+      skillsByEnemy,
     };
     if (detailWindow) {
       publishDetail();
@@ -323,6 +345,74 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     return snapshots.find((snapshot) => snapshot.id === id);
   }
 
+  function enemyBreakdownFor(encounterId: string | undefined): EnemyBreakdownEncounter | undefined {
+    return encounterId === undefined ? undefined : enemyBreakdowns.find((entry) => entry.encounterId === encounterId);
+  }
+
+  function buildActorEnemyBreakdown(encounterId: string, snapshot: FishNetDpsEncounterSnapshot): Record<number, EnemyDamageRow[]> {
+    const breakdown = enemyBreakdownFor(encounterId);
+    const result: Record<number, EnemyDamageRow[]> = {};
+    if (!breakdown) return result;
+    for (const actor of snapshot.actors) {
+      const byTarget = new Map<number, EnemyDamageRow>();
+      for (const actorId of actor.actorIds) {
+        const targets = breakdown.bySkill.get(actorId);
+        if (!targets) continue;
+        for (const [targetId, skills] of targets) {
+          const row = byTarget.get(targetId) ?? { targetId, damage: 0, hits: 0, criticalHits: 0 };
+          for (const stats of skills.values()) {
+            row.damage += stats.damage;
+            row.hits += stats.hits;
+            row.criticalHits += stats.criticalHits;
+          }
+          byTarget.set(targetId, row);
+        }
+      }
+      result[actor.actorIds[0]!] = [...byTarget.values()];
+    }
+    return result;
+  }
+
+  function buildSkillsByEnemy(encounterId: string, player: FishNetDpsActorRow, durationMs: number): Record<number, FishNetDpsSkillRow[]> {
+    const breakdown = enemyBreakdownFor(encounterId);
+    const result: Record<number, FishNetDpsSkillRow[]> = {};
+    if (!breakdown) return result;
+    const durationSeconds = Math.max(1, durationMs) / 1000;
+    const byTarget = new Map<number, Map<string, EnemySkillStats>>();
+    for (const actorId of player.actorIds) {
+      const targets = breakdown.bySkill.get(actorId);
+      if (!targets) continue;
+      for (const [targetId, skills] of targets) {
+        const merged = byTarget.get(targetId) ?? new Map<string, EnemySkillStats>();
+        for (const [sourceId, stats] of skills) {
+          const existing = merged.get(sourceId) ?? { sourceLabel: stats.sourceLabel, damage: 0, hits: 0, criticalHits: 0 };
+          existing.damage += stats.damage;
+          existing.hits += stats.hits;
+          existing.criticalHits += stats.criticalHits;
+          merged.set(sourceId, existing);
+        }
+        byTarget.set(targetId, merged);
+      }
+    }
+    for (const [targetId, merged] of byTarget) {
+      const totalDamage = [...merged.values()].reduce((sum, stats) => sum + stats.damage, 0);
+      const rows: FishNetDpsSkillRow[] = [...merged.entries()]
+        .map(([sourceId, stats]) => ({
+          sourceId,
+          sourceLabel: stats.sourceLabel,
+          damage: stats.damage,
+          dps: stats.damage / durationSeconds,
+          contribution: totalDamage > 0 ? stats.damage / totalDamage : 0,
+          hits: stats.hits,
+          criticalHits: stats.criticalHits,
+          ...(stats.hits > 0 ? { critRate: stats.criticalHits / stats.hits } : {}),
+        }))
+        .sort((left, right) => right.damage - left.damage);
+      result[targetId] = rows;
+    }
+    return result;
+  }
+
   function publish(): void {
     try { rpc.send.stateChanged(state); } catch { /* The view may still be connecting. */ }
   }
@@ -345,6 +435,8 @@ function loadingState(fileName?: string): CombatAnalysisState {
     ...(fileName === undefined ? {} : { fileName }),
     invalidLines: 0,
     encounters: [],
+    enemies: [],
+    actorEnemyBreakdown: {},
   };
 }
 

@@ -10,6 +10,7 @@
     "./window-chrome": "./window-chrome.ts",
     "./title-bar": "./title-bar.tsx",
     "./status-dot": "./status-dot.tsx",
+    "./enemy-filter": "./enemy-filter.tsx",
     "./safe-save": "./safe-save.ts",
     "./json-settings": "./json-settings.ts",
     "./format": "./format.ts",

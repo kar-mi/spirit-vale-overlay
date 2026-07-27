@@ -463,6 +463,46 @@ select.input option { background: var(--surface-container-high); }
 
 input[type="checkbox"] { accent-color: var(--primary); }
 
+/* ---- enemy filter (searchable multi-select) ---- */
+
+.enemy-filter { position: relative; }
+
+.enemy-filter-toggle { min-width: 140px; }
+
+.enemy-filter-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  max-height: 320px;
+  padding: 10px;
+  border-radius: var(--shape-md);
+  background: var(--surface-container-high);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.enemy-filter-search { margin-bottom: 8px; }
+
+.enemy-filter-list { min-height: 0; overflow-y: auto; }
+
+.enemy-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  color: var(--on-surface);
+  font-size: 12px;
+}
+
+.enemy-filter-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.enemy-filter-empty { margin: 8px 4px; color: var(--on-surface-variant); font-size: 12px; }
+
+.enemy-filter-clear { margin-top: 8px; align-self: flex-start; }
+
 /* ---- dialogs ---- */
 
 .modal-layer {
