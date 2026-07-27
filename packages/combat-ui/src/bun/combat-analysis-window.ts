@@ -11,17 +11,23 @@ import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement"
 import type {
   CombatAnalysisDetailRpc,
   CombatAnalysisDetailState,
+  CombatDeathLogRpc,
+  CombatDeathLogState,
   CombatAnalysisRpc,
   CombatAnalysisState,
   DpsEncounterOption,
 } from "../app-types.ts";
+import { loadDeathLogReplay } from "../death-log.ts";
 
 const ANALYSIS_FRAME = { x: 140, y: 120, width: 920, height: 680 };
 const DETAIL_FRAME = { x: 190, y: 160, width: 880, height: 720 };
+const DEATH_LOG_FRAME = { x: 220, y: 180, width: 900, height: 680 };
 const MINIMUM_ANALYSIS_WIDTH = 680;
 const MINIMUM_ANALYSIS_HEIGHT = 460;
 const MINIMUM_DETAIL_WIDTH = 620;
 const MINIMUM_DETAIL_HEIGHT = 500;
+const MINIMUM_DEATH_LOG_WIDTH = 680;
+const MINIMUM_DEATH_LOG_HEIGHT = 500;
 
 export interface CombatAnalysisWindow {
   open(path: string): Promise<void>;
@@ -36,9 +42,12 @@ export interface CombatAnalysisWindowOptions {
 export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions = {}): CombatAnalysisWindow {
   let window: BrowserWindow | undefined;
   let detailWindow: BrowserWindow | undefined;
+  let deathLogWindow: BrowserWindow | undefined;
   let state: CombatAnalysisState = loadingState();
   let detailState: CombatAnalysisDetailState | undefined;
+  let deathLogState: CombatDeathLogState | undefined;
   let snapshots: FishNetDpsEncounterSnapshot[] = [];
+  let loadedPath: string | undefined;
 
   const detailRpc = BrowserView.defineRPC<CombatAnalysisDetailRpc>({
     handlers: {
@@ -69,6 +78,39 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     },
   });
 
+  const deathLogRpc = BrowserView.defineRPC<CombatDeathLogRpc>({
+    handlers: {
+      requests: {
+        getState: () => {
+          if (!deathLogState) throw new Error("No death log is loaded");
+          return deathLogState;
+        },
+        selectDeath: ({ id }) => {
+          if (deathLogState?.deaths.some((death) => death.id === id)) {
+            deathLogState = { ...deathLogState, selectedDeathId: id };
+            publishDeathLog();
+          }
+          if (!deathLogState) throw new Error("No death log is loaded");
+          return deathLogState;
+        },
+        windowAction: ({ action }) => {
+          if (action === "minimize") deathLogWindow?.minimize();
+          else deathLogWindow?.close();
+        },
+        getWindowFrame: () => deathLogWindow?.getFrame()
+          ?? options.placements?.frame("combat-death-log", DEATH_LOG_FRAME, { width: MINIMUM_DEATH_LOG_WIDTH, height: MINIMUM_DEATH_LOG_HEIGHT })
+          ?? DEATH_LOG_FRAME,
+        setWindowFrame: (frame) => deathLogWindow?.setFrame(
+          frame.x,
+          frame.y,
+          Math.max(scaledSize(MINIMUM_DEATH_LOG_WIDTH), frame.width),
+          Math.max(scaledSize(MINIMUM_DEATH_LOG_HEIGHT), frame.height),
+        ),
+      },
+      messages: {},
+    },
+  });
+
   const rpc = BrowserView.defineRPC<CombatAnalysisRpc>({
     handlers: {
       requests: {
@@ -83,6 +125,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
           return state;
         },
         openPlayerDetails: ({ actorId }) => { openPlayerDetails(actorId); },
+        openDeathLog: async () => { await openDeathLog(); },
         windowAction: ({ action }) => {
           if (action === "minimize") window?.minimize();
           else window?.close();
@@ -112,8 +155,11 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     window?.show();
     window?.activate();
     detailWindow?.close();
+    deathLogWindow?.close();
     detailState = undefined;
+    deathLogState = undefined;
     snapshots = [];
+    loadedPath = selectedPath;
     state = loadingState(path.basename(selectedPath));
     publish();
     try {
@@ -145,8 +191,12 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
 
   function close(): void {
     detailWindow?.close();
+    deathLogWindow?.close();
     detailWindow = undefined;
+    deathLogWindow = undefined;
     detailState = undefined;
+    deathLogState = undefined;
+    loadedPath = undefined;
     window?.close();
     window = undefined;
   }
@@ -177,8 +227,12 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     nextWindow.on("close", () => {
       if (window !== nextWindow) return;
       detailWindow?.close();
+      deathLogWindow?.close();
       detailWindow = undefined;
+      deathLogWindow = undefined;
       detailState = undefined;
+      deathLogState = undefined;
+      loadedPath = undefined;
       window = undefined;
     });
   }
@@ -228,6 +282,43 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     });
   }
 
+  async function openDeathLog(): Promise<void> {
+    if (!state.fileName || !loadedPath) return;
+    const replay = await loadDeathLogReplay(loadedPath);
+    deathLogState = {
+      fileName: state.fileName,
+      deaths: replay.deaths,
+      invalidLines: replay.invalidLines,
+      ...(replay.deaths[0] === undefined ? {} : { selectedDeathId: replay.deaths[0].id }),
+    };
+    if (deathLogWindow) {
+      publishDeathLog();
+      deathLogWindow.show();
+      deathLogWindow.activate();
+      return;
+    }
+    const nextWindow = new BrowserWindow({
+      title: "Combat Death Log",
+      url: "views://deathlogview/index.html",
+      frame: options.placements?.frame("combat-death-log", DEATH_LOG_FRAME, { width: MINIMUM_DEATH_LOG_WIDTH, height: MINIMUM_DEATH_LOG_HEIGHT }) ?? DEATH_LOG_FRAME,
+      titleBarStyle: "hidden",
+      transparent: false,
+      rpc: deathLogRpc,
+    });
+    deathLogWindow = nextWindow;
+    applyRoundedCorners(nextWindow.ptr);
+    registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
+    options.placements?.track("combat-death-log", nextWindow);
+    Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {
+      const width = Math.max(scaledSize(MINIMUM_DEATH_LOG_WIDTH), event.data.width);
+      const height = Math.max(scaledSize(MINIMUM_DEATH_LOG_HEIGHT), event.data.height);
+      if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
+    });
+    nextWindow.on("close", () => {
+      if (deathLogWindow === nextWindow) deathLogWindow = undefined;
+    });
+  }
+
   function selectedSnapshot(id: string): FishNetDpsEncounterSnapshot | undefined {
     return snapshots.find((snapshot) => snapshot.id === id);
   }
@@ -239,6 +330,11 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
   function publishDetail(): void {
     if (!detailState) return;
     try { detailRpc.send.stateChanged(detailState); } catch { /* The view may still be connecting. */ }
+  }
+
+  function publishDeathLog(): void {
+    if (!deathLogState) return;
+    try { deathLogRpc.send.stateChanged(deathLogState); } catch { /* The view may still be connecting. */ }
   }
 }
 

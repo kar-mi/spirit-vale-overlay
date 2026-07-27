@@ -241,6 +241,48 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("writes a resolved victim identity before a player-death event", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-death-identity-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet(ownedSpawnPacket(2, 40, 7, "PlayerController"));
+      capture.packet(ownedSpawnPacket(3, 140, 7, "HealthComponent"));
+      capture.packet(identityPacket(4, 40, "Fallen Aster", "test-connection"));
+      capture.packet(monsterIdentityPacket(5, 900));
+      const death = damagePacket(6, 140, 900);
+      death.rpcName = "Death_C";
+      const team = death.decodedFields?.find((field) => field.name === "dmg.Team");
+      if (team) team.value = 1;
+      capture.packet(death);
+      await coordinator.stop();
+
+      const combatPointer = await readCurrentLogStream("combat", directory);
+      const combat = records(await readFile(combatPointer!.path, "utf8")) as Array<{
+        type: string;
+        data?: { kind?: string; actorId?: number; displayName?: string; sourceLabel?: string; targetId?: number };
+      }>;
+      const identityIndex = combat.findIndex((record) => record.type === "combat.actorIdentity"
+        && record.data?.actorId === 140 && record.data.displayName === "Fallen Aster");
+      const deathIndex = combat.findIndex((record) => record.type === "combat.event"
+        && record.data?.kind === "death" && record.data.targetId === 140);
+      const mobIdentityIndex = combat.findIndex((record) => record.type === "combat.event"
+        && record.data?.actorId === 900 && record.data.sourceLabel === "Abomination");
+      expect(identityIndex).toBeGreaterThan(-1);
+      expect(mobIdentityIndex).toBeGreaterThan(-1);
+      expect(mobIdentityIndex).toBeLessThan(deathIndex);
+      expect(deathIndex).toBeGreaterThan(identityIndex);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("keeps new-connection actor identities when a stale connection trails a map change", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reconnect-"));
     const capture = new FakeCapture();
@@ -703,6 +745,22 @@ function damagePacket(tick: number, targetId: number, actorId: number): TestPack
       { name: "dmg.Range", codec: "packedInt32", value: 2 },
       { name: "position", codec: "vector3", value: [1, 2, 3] },
       { name: "origin", codec: "vector3", value: [4, 5, 6] },
+    ],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+  };
+}
+
+function monsterIdentityPacket(tick: number, objectId: number): TestPacket {
+  return {
+    tick,
+    packetId: 901,
+    packetName: "syncType",
+    objectId,
+    networkBehaviourType: "MonsterController",
+    decodedFields: [
+      { name: "Data.Id", codec: "stringUtf8Packed", value: "Abomination" },
+      { name: "Data.Level", codec: "packedInt32", value: 60 },
     ],
     raw: Buffer.alloc(0),
     payload: Buffer.alloc(0),

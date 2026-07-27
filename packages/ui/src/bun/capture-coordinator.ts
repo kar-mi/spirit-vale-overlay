@@ -7,7 +7,7 @@ import type { CapturedFishNetPacket, CaptureTargetStatus } from "@kar-mi/spirit-
 import { activateLogSession, createLogSession, readCurrentLogStream, writeCurrentLogStreamPointer } from "@kar-mi/spirit-vale-tools-logging";
 import type { CurrentLogStream, JsonData, JsonLinesLogger, JsonObject, LogSession, LogStream, LogWriteFailure } from "@kar-mi/spirit-vale-tools-logging";
 import { FishNetMarketTracker, marketEventLogData } from "@kar-mi/spirit-vale-tools-market";
-import { FishNetMobRewardTracker } from "@kar-mi/spirit-vale-tools-rewards";
+import { FishNetMobDirectory, FishNetMobRewardTracker } from "@kar-mi/spirit-vale-tools-rewards";
 
 import type { CaptureStatus, LauncherState } from "../launcher-types.ts";
 
@@ -41,6 +41,7 @@ export class CaptureCoordinator {
     actorIdentityResolver: (actorId) => this.actors.getAttribution(actorId),
   });
   private readonly rewards = new FishNetMobRewardTracker();
+  private readonly mobs = new FishNetMobDirectory();
   private readonly market = new FishNetMarketTracker();
   private readonly character = new FishNetCharacterTracker();
   private session?: LogSession;
@@ -60,6 +61,7 @@ export class CaptureCoordinator {
   private resettingSession?: Promise<void>;
   private handoff = false;
   private packetBuffer: CapturedFishNetPacket[] = [];
+  private readonly loggedMobIdentities = new Map<number, string>();
   /** Serializes stop() and resetSession() so their bodies never interleave. */
   private lifecycleChain: Promise<void> = Promise.resolve();
 
@@ -171,6 +173,8 @@ export class CaptureCoordinator {
     this.actors.reset();
     this.combat.reset();
     this.rewards.reset();
+    this.mobs.reset();
+    this.loggedMobIdentities.clear();
     this.market.reset();
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
@@ -376,15 +380,25 @@ export class CaptureCoordinator {
     }
     let handled = characterHandled;
     try {
+      this.mobs.consume(packet);
+      if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
+        this.loggedMobIdentities.clear();
+      }
       const identities = this.actors.consume(packet);
       const events = this.combat.consume(packet);
       for (const event of events) {
         if ((event.kind === "damage" || event.kind === "death") && event.team === 0) {
           identities.push(...this.actors.observePlayerActor(event.actorId, event.tick));
         }
+        if (event.kind === "death" && event.team !== 0) {
+          // The target is the player who died. Resolve and persist its identity before the
+          // death event so replay analysis can identify every victim, not only attackers.
+          identities.push(...this.actors.observePlayerActor(event.targetId, event.tick));
+        }
       }
       handled ||= identities.length > 0 || events.length > 0;
       for (const event of identities) this.combatLog?.log("combat.actorIdentity", jsonObject(event));
+      for (const event of events) this.logMobIdentity(event.actorId, event.tick);
       for (const event of events) this.combatLog?.log("combat.event", jsonObject(event));
       // Spawn diagnostics contain raw protocol payloads and are intentionally not written to combat logs.
     } catch (error) {
@@ -413,6 +427,25 @@ export class CaptureCoordinator {
     }
 
     if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
+  }
+
+  private logMobIdentity(actorId: number, tick: number): void {
+    const mob = this.mobs.get(actorId);
+    if (!mob) return;
+    const fingerprint = `${mob.mobId}\u0000${mob.level}\u0000${mob.displayName}`;
+    if (this.loggedMobIdentities.get(actorId) === fingerprint) return;
+    this.loggedMobIdentities.set(actorId, fingerprint);
+    // Combat-log sanitization permits only known record types. An activation is inert to the
+    // DPS meter, so carry the catalog mapping in a reserved activation source that replays can
+    // recognize without introducing a new unsanitized log record type.
+    this.combatLog?.log("combat.event", jsonObject({
+      kind: "activation",
+      tick,
+      actorId,
+      sourceId: `__spiritvaleMobIdentity:${mob.mobId}`,
+      sourceLabel: mob.displayName,
+      level: mob.level,
+    }));
   }
 
   /**

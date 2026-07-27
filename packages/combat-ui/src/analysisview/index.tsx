@@ -58,6 +58,7 @@ function App() {
             </select>
           </label>
           <div class="toolbar-meta">
+            <button class="btn" type="button" disabled={next.status !== "ready"} onClick={() => void electroview.rpc?.request.openDeathLog({})}>Death log</button>
             <span class="pill">{next.fileName ?? "Loading…"}</span>
             <span id="status" class="status-readout" aria-live="polite">{next.statusDetail}</span>
           </div>

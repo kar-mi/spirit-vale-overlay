@@ -91,7 +91,6 @@ const combatWindow = new WindowSlot((onClosed) => createDpsWindow({
   settingsPath: storagePaths.dpsSettingsPath,
   placements,
   onClosed,
-  onOpenOverlay: () => overlayWindow.open(),
   onReset: () => capture.resetSession(),
 }));
 const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({

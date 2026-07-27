@@ -43,6 +43,7 @@ export default {
       sessionpickerview: { entrypoint: "src/sessionpickerview/index.ts" },
       analysisview: { entrypoint: "../combat-ui/src/analysisview/index.tsx" },
       analysisdetailview: { entrypoint: "../combat-ui/src/analysisdetailview/index.tsx" },
+      deathlogview: { entrypoint: "../combat-ui/src/deathlogview/index.tsx" },
     },
     copy: {
       "../../static/icon/eggplant_icon_320px.png": "views/assets/app-icon.png",
@@ -247,6 +248,9 @@ export default {
       "../combat-ui/src/analysisdetailview/index.html": "views/analysisdetailview/index.html",
       "../combat-ui/src/analysisdetailview/index.css": "views/analysisdetailview/index.css",
       [themeCssSource(11)]: "views/analysisdetailview/theme.css",
+      "../combat-ui/src/deathlogview/index.html": "views/deathlogview/index.html",
+      "../combat-ui/src/deathlogview/index.css": "views/deathlogview/index.css",
+      [themeCssSource(14)]: "views/deathlogview/theme.css",
     },
     buildFolder: "dist/electrobun",
     artifactFolder: "dist/artifacts",
