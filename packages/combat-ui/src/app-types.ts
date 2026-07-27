@@ -2,8 +2,9 @@ import type { RPCSchema } from "electrobun";
 
 /** Typed renderer contracts for the combat UI windows. */
 
-import type { FishNetDpsActorRow, FishNetDpsEncounterSnapshot } from "@kar-mi/spirit-vale-tools-combat";
+import type { FishNetDpsActorRow, FishNetDpsEncounterSnapshot, FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
 import type { DeathLogEntry } from "./death-log.ts";
+import type { EnemyDamageRow, EnemyOption } from "./enemy-breakdown.ts";
 
 export type DpsAppTab = "all" | "personal";
 export type DpsAppStatus = "waiting" | "capturing" | "loading" | "ready" | "stopped" | "error";
@@ -53,6 +54,10 @@ export interface CombatAnalysisState {
   encounters: DpsEncounterOption[];
   selectedEncounterId?: string;
   snapshot?: FishNetDpsEncounterSnapshot;
+  /** Enemies fought during the selected encounter, for the enemy filter control. */
+  enemies: EnemyOption[];
+  /** Per-enemy damage for each actor row, keyed by that row's actorIds[0]. */
+  actorEnemyBreakdown: Record<number, EnemyDamageRow[]>;
 }
 
 export interface CombatAnalysisDetailState {
@@ -60,6 +65,10 @@ export interface CombatAnalysisDetailState {
   encounterLabel: string;
   encounterDurationMs: number;
   player: FishNetDpsActorRow;
+  /** Enemies this player damaged during the encounter, for the enemy filter control. */
+  enemies: EnemyOption[];
+  /** This player's skill breakdown scoped to a single enemy, keyed by targetId. */
+  skillsByEnemy: Record<number, FishNetDpsSkillRow[]>;
 }
 
 export interface CombatDeathLogState {

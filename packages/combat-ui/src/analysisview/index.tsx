@@ -1,11 +1,14 @@
 import { render } from "preact";
 import type { JSX } from "preact";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { formatDuration } from "@spiritvale/ui-core/format";
+import { EnemyFilterControl } from "@spiritvale/ui-core/enemy-filter";
 
 import type { CombatAnalysisRpc, CombatAnalysisState } from "../app-types.ts";
+import type { FishNetDpsActorRow } from "@kar-mi/spirit-vale-tools-combat";
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
@@ -26,11 +29,63 @@ function activateRow(event: JSX.TargetedKeyboardEvent<HTMLTableRowElement>, acti
   activate();
 }
 
+interface FilteredRow {
+  actor: FishNetDpsActorRow;
+  damage: number;
+  dps: number;
+  hits: number;
+  criticalHits: number;
+  critRate?: number;
+  contribution: number;
+}
+
+function applyEnemyFilter(next: CombatAnalysisState, rows: FishNetDpsActorRow[], selectedEnemyIds: ReadonlySet<number>): FilteredRow[] {
+  if (selectedEnemyIds.size === 0) {
+    return rows.map((actor) => ({
+      actor,
+      damage: actor.damage,
+      dps: actor.dps,
+      hits: actor.hits,
+      criticalHits: actor.criticalHits,
+      critRate: actor.critRate,
+      contribution: actor.contribution,
+    }));
+  }
+  const durationMs = next.snapshot?.durationMs ?? 0;
+  const durationSeconds = Math.max(1, durationMs) / 1000;
+  const partial = rows.map((actor) => {
+    const breakdown = next.actorEnemyBreakdown[actor.actorIds[0]!] ?? [];
+    const filtered = breakdown.filter((row) => selectedEnemyIds.has(row.targetId));
+    const damage = filtered.reduce((sum, row) => sum + row.damage, 0);
+    const hits = filtered.reduce((sum, row) => sum + row.hits, 0);
+    const criticalHits = filtered.reduce((sum, row) => sum + row.criticalHits, 0);
+    return { actor, damage, hits, criticalHits, dps: damage / durationSeconds, critRate: hits > 0 ? criticalHits / hits : undefined };
+  });
+  const totalDamage = partial.reduce((sum, row) => sum + row.damage, 0);
+  return partial.map((row) => ({ ...row, contribution: totalDamage > 0 ? row.damage / totalDamage : 0 }));
+}
+
 function App() {
   const next = state.value;
+  const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
+  const lastEncounterId = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (next?.selectedEncounterId !== lastEncounterId.current) {
+      lastEncounterId.current = next?.selectedEncounterId;
+      setSelectedEnemyIds(new Set());
+    }
+  }, [next?.selectedEncounterId]);
+
   if (!next) return <main class="app-shell" />;
 
   const rows = next.snapshot?.actors ?? [];
+  const filteredRows = applyEnemyFilter(next, rows, selectedEnemyIds);
+  const hasFilter = selectedEnemyIds.size > 0;
+  const partyDamage = hasFilter ? filteredRows.reduce((sum, row) => sum + row.damage, 0) : (next.snapshot?.totalDamage ?? 0);
+  const partyDps = hasFilter
+    ? (next.snapshot ? partyDamage / (Math.max(1, next.snapshot.durationMs) / 1000) : 0)
+    : (next.snapshot?.partyDps ?? 0);
 
   return (
     <main class="app-shell">
@@ -57,6 +112,7 @@ function App() {
               {next.encounters.map((encounter) => <option key={encounter.id} value={encounter.id}>{encounter.label}</option>)}
             </select>
           </label>
+          <EnemyFilterControl enemies={next.enemies} selected={selectedEnemyIds} onChange={setSelectedEnemyIds} />
           <div class="toolbar-meta">
             <button class="btn" type="button" disabled={next.status !== "ready"} onClick={() => void electroview.rpc?.request.openDeathLog({})}>Death log</button>
             <span class="pill">{next.fileName ?? "Loading…"}</span>
@@ -70,8 +126,8 @@ function App() {
           <table class="data-table summary-table" aria-label="Encounter totals">
             <thead><tr><th>Party DPS</th><th>Total damage</th><th>Duration</th><th>Players</th></tr></thead>
             <tbody><tr>
-              <td>{numberFormat.format(next.snapshot?.partyDps ?? 0)}</td>
-              <td>{compactFormat.format(next.snapshot?.totalDamage ?? 0)}</td>
+              <td>{numberFormat.format(partyDps)}</td>
+              <td>{compactFormat.format(partyDamage)}</td>
               <td>{next.snapshot ? formatDuration(next.snapshot.durationMs) : "—"}</td>
               <td>{numberFormat.format(rows.length)}</td>
             </tr></tbody>
@@ -79,10 +135,10 @@ function App() {
         </div>
         <section class="players-section" aria-label="Player analysis">
           <div class="section-head"><h1>Player damage</h1><p>Double-click a player for skills and damage over time.</p></div>
-          {rows.length > 0 && <div class="table-scroll">
+          {filteredRows.length > 0 && <div class="table-scroll">
             <table class="data-table combat-table" aria-label="Player damage">
               <thead><tr><th>Player</th><th>Damage</th><th>DPS</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th><th>Kills</th></tr></thead>
-              <tbody>{rows.map((player) => {
+              <tbody>{filteredRows.map(({ actor: player, damage, dps, hits, criticalHits, critRate, contribution }) => {
                 const activate = () => void electroview.rpc?.request.openPlayerDetails({ actorId: player.actorIds[0]! });
                 return <tr
                   key={player.actorIds[0]}
@@ -93,12 +149,12 @@ function App() {
                   onKeyDown={(event) => activateRow(event, activate)}
                 >
                   <th scope="row">{player.displayName}</th>
-                  <td>{compactFormat.format(player.damage)}</td>
-                  <td>{numberFormat.format(player.dps)}</td>
-                  <td>{percentFormat.format(player.contribution)}</td>
-                  <td>{numberFormat.format(player.hits)}</td>
-                  <td>{numberFormat.format(player.criticalHits)}</td>
-                  <td>{player.critRate === undefined ? "—" : percentFormat.format(player.critRate)}</td>
+                  <td>{compactFormat.format(damage)}</td>
+                  <td>{numberFormat.format(dps)}</td>
+                  <td>{percentFormat.format(contribution)}</td>
+                  <td>{numberFormat.format(hits)}</td>
+                  <td>{numberFormat.format(criticalHits)}</td>
+                  <td>{critRate === undefined ? "—" : percentFormat.format(critRate)}</td>
                   <td>{numberFormat.format(player.kills)}</td>
                 </tr>;
               })}</tbody>

@@ -4,7 +4,7 @@ import { isRecord, parseLogRecord } from "@kar-mi/spirit-vale-tools-logging";
 
 const DEATH_LOOKBACK_MS = 10_000;
 const REPLAY_TICKS_PER_SECOND = 30;
-const MOB_IDENTITY_PREFIX = "__spiritvaleMobIdentity:";
+export const MOB_IDENTITY_PREFIX = "__spiritvaleMobIdentity:";
 
 export interface DeathLogHit {
   id: string;
@@ -113,7 +113,7 @@ export async function loadDeathLogReplay(filePath: string): Promise<DeathLogRepl
   return { deaths: deaths.reverse(), invalidLines };
 }
 
-function parseMobIdentityEvent(type: string, data: Record<string, unknown>): { actorId: number; displayName: string } | undefined {
+export function parseMobIdentityEvent(type: string, data: Record<string, unknown>): { actorId: number; displayName: string } | undefined {
   if (type !== "combat.event" || !isRecord(data) || data["kind"] !== "activation") return undefined;
   if (!isFiniteNumber(data["actorId"]) || typeof data["sourceId"] !== "string" || typeof data["sourceLabel"] !== "string") return undefined;
   if (!data["sourceId"].startsWith(MOB_IDENTITY_PREFIX)) return undefined;
@@ -129,7 +129,7 @@ function consumeIdentity(identities: Map<number, string>, mobIdentities: Map<num
   else identities.set(event.actorId, event.displayName);
 }
 
-function isPositiveHit(event: FishNetCombatDamageEvent | FishNetCombatDeathEvent): boolean {
+export function isPositiveHit(event: FishNetCombatDamageEvent | FishNetCombatDeathEvent): boolean {
   return event.value > 0 && (event.kind === "damage" || !event.duplicatesDamageEvent);
 }
 
@@ -137,7 +137,7 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function replayTime(
+export function replayTime(
   tick: number,
   recordedAt: string,
   getOriginTick: () => number | undefined,
@@ -162,7 +162,7 @@ function replayTime(
   return ((tick - origin) * 1_000) / REPLAY_TICKS_PER_SECOND;
 }
 
-async function* readLines(stream: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+export async function* readLines(stream: ReadableStream<Uint8Array>): AsyncGenerator<string> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let pending = "";
