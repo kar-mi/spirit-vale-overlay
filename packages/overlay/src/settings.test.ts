@@ -3,7 +3,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { defaultOverlaySettings, loadOverlaySettings, normalizeOverlaySettings, saveOverlaySettings } from "./settings.ts";
+import {
+  defaultOverlaySettings,
+  loadOverlaySettings,
+  normalizeOverlaySettings,
+  saveOverlaySettings,
+} from "./settings.ts";
 
 let temporaryRoot: string | undefined;
 const bounds = { x: 0, y: 0, width: 1280, height: 720 };
@@ -29,6 +34,7 @@ describe("overlay settings", () => {
     const settings = await loadOverlaySettings(settingsPath, bounds);
     expect(settings.locked).toBe(true);
     expect(settings.resetShortcut).toBe("F5");
+    expect(settings.overlayVisibleShortcut).toBe("F9");
     expect(Object.values(settings.elements).every((element) => element.opacity === 0.55)).toBe(true);
     expect(settings).not.toHaveProperty("personalName");
     expect(settings.elements.dpsChart).toEqual({ enabled: false, opacity: 0.55, x: 780, y: 0, width: 500, height: 200 });
@@ -71,6 +77,24 @@ describe("overlay settings", () => {
     expect(normalizeOverlaySettings({ resetShortcut: "F11" }, bounds).resetShortcut).toBe("F5");
     await saveOverlaySettings(settings, settingsPath);
     expect((await loadOverlaySettings(settingsPath, bounds)).resetShortcut).toBe("Ctrl+Shift+F8");
+  });
+
+  test("normalizes and persists the overlay visible shortcut", async () => {
+    const settingsPath = await createSettingsPath();
+    const settings = normalizeOverlaySettings({ schemaVersion: 3, overlayVisibleShortcut: "shift+ctrl+f8" }, bounds);
+    expect(settings.overlayVisibleShortcut).toBe("Ctrl+Shift+F8");
+    expect(normalizeOverlaySettings({ overlayVisibleShortcut: "F11" }, bounds).overlayVisibleShortcut).toBe("F9");
+    await saveOverlaySettings(settings, settingsPath);
+    expect((await loadOverlaySettings(settingsPath, bounds)).overlayVisibleShortcut).toBe("Ctrl+Shift+F8");
+  });
+
+  test("falls back the overlay visible shortcut when it collides with the reset shortcut", () => {
+    const settings = normalizeOverlaySettings(
+      { schemaVersion: 3, resetShortcut: "F8", overlayVisibleShortcut: "F8" },
+      bounds,
+    );
+    expect(settings.resetShortcut).toBe("F8");
+    expect(settings.overlayVisibleShortcut).toBe("F9");
   });
 });
 
