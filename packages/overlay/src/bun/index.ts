@@ -13,6 +13,7 @@ import { createPersonalDpsMeter, detectedPersonalName, syncPersonalCharacter } f
 import { personalResources } from "../personal-resources.ts";
 import {
   loadOverlaySettings,
+  normalizeOverlayVisibleShortcut,
   normalizeResetShortcut,
   normalizeOverlaySettings,
   saveOverlaySettings,
@@ -61,6 +62,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   let closedCallbackSent = false;
   let resetShortcutRegistered = false;
   let resetShortcutError: string | undefined;
+  let overlayVisible = true;
+  let overlayVisibleShortcutRegistered = false;
+  let overlayVisibleShortcutError: string | undefined;
   let lastEventObservedAtMs: number | undefined;
   let lastEventWallMs: number | undefined;
   let unsubscribeCharacter = () => {};
@@ -119,6 +123,11 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
           return appState();
         },
         setResetShortcut: ({ shortcut }) => setResetShortcut(shortcut),
+        setOverlayVisible: ({ visible }) => {
+          updateOverlayVisible(visible);
+          return appState();
+        },
+        setOverlayVisibleShortcut: ({ shortcut }) => setOverlayVisibleShortcut(shortcut),
       },
       messages: {},
     },
@@ -135,6 +144,11 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
         },
         setElementEnabled: ({ id, enabled }) => setElementEnabled(id, enabled),
         setResetShortcut: ({ shortcut }) => setResetShortcut(shortcut),
+        setOverlayVisible: ({ visible }) => {
+          updateOverlayVisible(visible);
+          return appState();
+        },
+        setOverlayVisibleShortcut: ({ shortcut }) => setOverlayVisibleShortcut(shortcut),
         closeOverlay: async () => {
           await shutdown();
           overlayWindow.close();
@@ -187,6 +201,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     console.warn(`[overlay] could not register ${LOCK_SHORTCUT}; it may already be in use`);
   }
   resetShortcutRegistered = registerResetShortcut(settings.resetShortcut);
+  overlayVisibleShortcutRegistered = registerOverlayVisibleShortcut(settings.overlayVisibleShortcut);
 
   const pollTimer = setInterval(() => void pollLiveLog(), LIVE_LOG_POLL_MS);
   unsubscribeCharacter = options.subscribeCharacter((next) => {
@@ -229,6 +244,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       elements: settings.elements,
       resetShortcut: settings.resetShortcut,
       ...(resetShortcutError ? { resetShortcutError } : {}),
+      overlayVisible,
+      overlayVisibleShortcut: settings.overlayVisibleShortcut,
+      ...(overlayVisibleShortcutError ? { overlayVisibleShortcutError } : {}),
       ...(snapshot ? { snapshot, snapshotNowMs: snapshotNowMs ?? snapshot.lastDamageAtMs } : {}),
       ...resources,
       ...(characterState.weight ? { weight: characterState.weight } : {}),
@@ -257,8 +275,10 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
 
   function setResetShortcut(shortcut: string): OverlayState {
     const normalized = normalizeResetShortcut(shortcut);
-    if (normalized !== shortcut) {
-      resetShortcutError = "Choose a supported shortcut other than F11.";
+    if (normalized !== shortcut || normalized === settings.overlayVisibleShortcut) {
+      resetShortcutError = normalized === settings.overlayVisibleShortcut
+        ? "Choose a shortcut that isn't already used to show/hide the overlay."
+        : "Choose a supported shortcut other than F11.";
       publish();
       return appState();
     }
@@ -277,6 +297,47 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     }
     publish();
     return appState();
+  }
+
+  function updateOverlayVisible(visible: boolean): void {
+    overlayVisible = visible;
+    if (visible) overlayWindow.showInactive();
+    else overlayWindow.hide();
+    publish();
+  }
+
+  function setOverlayVisibleShortcut(shortcut: string): OverlayState {
+    const normalized = normalizeOverlayVisibleShortcut(shortcut);
+    if (normalized !== shortcut || normalized === settings.resetShortcut) {
+      overlayVisibleShortcutError = normalized === settings.resetShortcut
+        ? "Choose a shortcut that isn't already used for reset."
+        : "Choose a supported shortcut other than F11.";
+      publish();
+      return appState();
+    }
+    if (normalized === settings.overlayVisibleShortcut && overlayVisibleShortcutRegistered) return appState();
+
+    const previousShortcut = settings.overlayVisibleShortcut;
+    if (overlayVisibleShortcutRegistered) GlobalShortcut.unregister(previousShortcut);
+    overlayVisibleShortcutRegistered = registerOverlayVisibleShortcut(normalized);
+    if (overlayVisibleShortcutRegistered) {
+      settings = { ...settings, overlayVisibleShortcut: normalized };
+      overlayVisibleShortcutError = undefined;
+      persist();
+    } else {
+      overlayVisibleShortcutRegistered = registerOverlayVisibleShortcut(previousShortcut);
+      overlayVisibleShortcutError = `${normalized} is unavailable; the previous shortcut was restored.`;
+    }
+    publish();
+    return appState();
+  }
+
+  function registerOverlayVisibleShortcut(shortcut: string): boolean {
+    const registered = GlobalShortcut.register(shortcut, () => {
+      if (!shuttingDown) updateOverlayVisible(!overlayVisible);
+    });
+    if (!registered) overlayVisibleShortcutError = `${shortcut} is unavailable; it may already be in use.`;
+    return registered;
   }
 
   function registerResetShortcut(shortcut: string): boolean {
@@ -411,6 +472,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     unsubscribeCharacter = () => {};
     if (shortcutRegistered) GlobalShortcut.unregister(LOCK_SHORTCUT);
     if (resetShortcutRegistered) GlobalShortcut.unregister(settings.resetShortcut);
+    if (overlayVisibleShortcutRegistered) GlobalShortcut.unregister(settings.overlayVisibleShortcut);
     settingsWindow?.close();
     settingsWindow = undefined;
     await persistence.flush(settings);

@@ -32,6 +32,9 @@ export interface OverlayState {
   snapshotNowMs?: number;
   resetShortcut: string;
   resetShortcutError?: string;
+  overlayVisible: boolean;
+  overlayVisibleShortcut: string;
+  overlayVisibleShortcutError?: string;
   health?: OverlayResource;
   mana?: OverlayResource;
   weight?: CharacterWeight;
@@ -46,6 +49,8 @@ type OverlaySharedRequests = {
     params: { id: OverlayElementId; enabled: boolean };
     response: OverlayState;
   };
+  setOverlayVisible: { params: { visible: boolean }; response: OverlayState };
+  setOverlayVisibleShortcut: { params: { shortcut: string }; response: OverlayState };
 };
 
 export type OverlayRpc = {

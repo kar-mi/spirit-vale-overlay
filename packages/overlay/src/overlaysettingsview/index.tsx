@@ -22,6 +22,7 @@ const LABELS: Record<OverlayElementId, string> = {
 };
 const state = signal<OverlayState | undefined>(undefined);
 const recordingResetShortcut = signal(false);
+const recordingOverlayVisibleShortcut = signal(false);
 const rpc = Electroview.defineRPC<OverlaySettingsRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
 });
@@ -81,6 +82,27 @@ function App() {
             : "Click the shortcut to record a replacement.")}</p>
         </section>
         <section class="settings-section">
+          <h2>Show/hide overlay</h2>
+          <div class="toggle-row">
+            <span><strong>{next.overlayVisible ? "Overlay shown" : "Overlay hidden"}</strong></span>
+            <button class="btn" type="button" onClick={() => void setOverlayVisible(!next.overlayVisible)}>
+              {next.overlayVisible ? "Hide overlay" : "Show overlay"}
+            </button>
+          </div>
+          <p>Fully shows or hides the overlay. This does not persist across restarts.</p>
+          <button
+            class="btn"
+            type="button"
+            onClick={() => { recordingOverlayVisibleShortcut.value = true; }}
+            onKeyDown={(event) => void captureOverlayVisibleShortcut(event)}
+          >
+            {recordingOverlayVisibleShortcut.value ? "Press a shortcut…" : next.overlayVisibleShortcut}
+          </button>
+          <p aria-live="polite">{next.overlayVisibleShortcutError ?? (recordingOverlayVisibleShortcut.value
+            ? "Press a key, optionally with Ctrl, Alt, Shift, or Meta. Press Escape to cancel."
+            : "Click the shortcut to record a replacement.")}</p>
+        </section>
+        <section class="settings-section">
           <h2>Personal character</h2>
           <p>{next.personalName
             ? <>Detected automatically: <strong>{next.personalName}</strong></>
@@ -113,6 +135,23 @@ function captureResetShortcut(event: KeyboardEvent): Promise<void> {
   if (!shortcut) return Promise.resolve();
   recordingResetShortcut.value = false;
   return electroview.rpc?.request.setResetShortcut({ shortcut }).then((next) => { state.value = next; }) ?? Promise.resolve();
+}
+
+function setOverlayVisible(visible: boolean): Promise<void> {
+  return electroview.rpc?.request.setOverlayVisible({ visible }).then((next) => { state.value = next; }) ?? Promise.resolve();
+}
+
+function captureOverlayVisibleShortcut(event: KeyboardEvent): Promise<void> {
+  if (!recordingOverlayVisibleShortcut.value) return Promise.resolve();
+  event.preventDefault();
+  if (event.key === "Escape" && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) {
+    recordingOverlayVisibleShortcut.value = false;
+    return Promise.resolve();
+  }
+  const shortcut = shortcutFromKeyboardEvent(event);
+  if (!shortcut) return Promise.resolve();
+  recordingOverlayVisibleShortcut.value = false;
+  return electroview.rpc?.request.setOverlayVisibleShortcut({ shortcut }).then((next) => { state.value = next; }) ?? Promise.resolve();
 }
 
 function shortcutFromKeyboardEvent(event: KeyboardEvent): string | undefined {
