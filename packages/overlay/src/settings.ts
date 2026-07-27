@@ -4,21 +4,28 @@ import { resolveLocalStorageRoot } from "@spiritvale/ui-core/local-storage";
 import { loadJsonSettings } from "@spiritvale/ui-core/json-settings";
 
 import {
+  KEYBIND_ACTIONS,
   OVERLAY_ELEMENT_IDS,
+  type KeybindAction,
   type OverlayElementId,
   type OverlayElementSettings,
 } from "./app-types.ts";
 
-export { OVERLAY_ELEMENT_IDS };
-export type { OverlayElementId, OverlayElementSettings };
+export { KEYBIND_ACTIONS, OVERLAY_ELEMENT_IDS };
+export type { KeybindAction, OverlayElementId, OverlayElementSettings };
 
 export interface OverlaySettings {
-  schemaVersion: 3;
+  schemaVersion: 4;
   locked: boolean;
-  resetShortcut: string;
-  overlayVisibleShortcut: string;
+  shortcuts: Record<KeybindAction, string>;
   elements: Record<OverlayElementId, OverlayElementSettings>;
 }
+
+const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
+  toggleLock: "F11",
+  resetSession: "F5",
+  toggleOverlayVisible: "F9",
+};
 
 export interface DisplayBounds {
   x: number;
@@ -60,7 +67,7 @@ export async function saveOverlaySettings(settings: OverlaySettings, settingsPat
 
 export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBounds): OverlaySettings {
   const source = candidate && typeof candidate === "object" ? candidate as Record<string, unknown> : {};
-  const legacySettings = source.schemaVersion !== 2 && source.schemaVersion !== 3;
+  const legacySettings = source.schemaVersion !== 2 && source.schemaVersion !== 3 && source.schemaVersion !== 4;
   const sourceElements = source.elements && typeof source.elements === "object"
     ? source.elements as Record<string, unknown>
     : {};
@@ -84,24 +91,36 @@ export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBoun
       height,
     }];
   })) as unknown as Record<OverlayElementId, OverlayElementSettings>;
-  const resetShortcut = normalizeResetShortcut(source.resetShortcut);
-  let overlayVisibleShortcut = normalizeOverlayVisibleShortcut(source.overlayVisibleShortcut);
-  if (overlayVisibleShortcut === resetShortcut) overlayVisibleShortcut = "F9";
+  const shortcuts = normalizeShortcuts(source);
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     locked: typeof source.locked === "boolean" ? source.locked : false,
-    resetShortcut,
-    overlayVisibleShortcut,
+    shortcuts,
     elements,
   };
 }
 
-export function normalizeResetShortcut(value: unknown): string {
-  return normalizeShortcut(value, "F5");
+export function normalizeSingleShortcut(action: KeybindAction, value: unknown): string {
+  return normalizeShortcut(value, DEFAULT_SHORTCUTS[action]);
 }
 
-export function normalizeOverlayVisibleShortcut(value: unknown): string {
-  return normalizeShortcut(value, "F9");
+export function normalizeShortcuts(source: Record<string, unknown>): Record<KeybindAction, string> {
+  const shortcutsSource = source.shortcuts && typeof source.shortcuts === "object"
+    ? source.shortcuts as Record<string, unknown>
+    : {};
+  // Legacy (schemaVersion <= 3) files stored resetSession/toggleOverlayVisible as flat
+  // fields and never persisted toggleLock at all (it was hardcoded to F11).
+  const rawByAction: Record<KeybindAction, unknown> = {
+    toggleLock: shortcutsSource.toggleLock,
+    resetSession: shortcutsSource.resetSession ?? source.resetShortcut,
+    toggleOverlayVisible: shortcutsSource.toggleOverlayVisible ?? source.overlayVisibleShortcut,
+  };
+  const shortcuts = {} as Record<KeybindAction, string>;
+  for (const action of KEYBIND_ACTIONS) {
+    const normalized = normalizeShortcut(rawByAction[action], DEFAULT_SHORTCUTS[action]);
+    shortcuts[action] = Object.values(shortcuts).includes(normalized) ? DEFAULT_SHORTCUTS[action] : normalized;
+  }
+  return shortcuts;
 }
 
 function normalizeShortcut(value: unknown, fallback: string): string {
@@ -109,7 +128,7 @@ function normalizeShortcut(value: unknown, fallback: string): string {
   const tokens = value.split("+").map((token) => token.trim()).filter(Boolean);
   if (tokens.length === 0) return fallback;
   const key = tokens.at(-1)?.toUpperCase();
-  if (!key || key === "F11" || !/^(F(?:[1-9]|1[0-9]|2[0-4])|[A-Z0-9]|SPACE|ENTER|ESCAPE|TAB|BACKSPACE|DELETE|HOME|END|PAGEUP|PAGEDOWN|ARROWUP|ARROWDOWN|ARROWLEFT|ARROWRIGHT)$/.test(key)) {
+  if (!key || !/^(F(?:[1-9]|1[0-9]|2[0-4])|[A-Z0-9]|SPACE|ENTER|ESCAPE|TAB|BACKSPACE|DELETE|HOME|END|PAGEUP|PAGEDOWN|ARROWUP|ARROWDOWN|ARROWLEFT|ARROWRIGHT)$/.test(key)) {
     return fallback;
   }
   const modifiers = new Set(tokens.slice(0, -1).map((token) => token.toLowerCase()));

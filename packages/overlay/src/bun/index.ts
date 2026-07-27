@@ -9,13 +9,13 @@ import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale"
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
 import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/bun";
 
-import type { OverlayRpc, OverlaySettingsRpc, OverlayState, OverlayStatus } from "../app-types.ts";
+import type { KeybindAction, OverlayRpc, OverlaySettingsRpc, OverlayState, OverlayStatus } from "../app-types.ts";
+import { KEYBIND_ACTIONS } from "../app-types.ts";
 import { createPersonalDpsMeter, detectedPersonalName, syncPersonalCharacter } from "../personal-character.ts";
 import { personalResources } from "../personal-resources.ts";
 import {
   loadOverlaySettings,
-  normalizeOverlayVisibleShortcut,
-  normalizeResetShortcut,
+  normalizeSingleShortcut,
   normalizeOverlaySettings,
   saveOverlaySettings,
   type OverlayElementId,
@@ -26,7 +26,11 @@ const SETTINGS_WIDTH = 798;
 const SETTINGS_HEIGHT = 680;
 const MINIMUM_SETTINGS_WIDTH = 560;
 const MINIMUM_SETTINGS_HEIGHT = 420;
-const LOCK_SHORTCUT = "F11";
+const KEYBIND_LABELS: Record<KeybindAction, string> = {
+  toggleLock: "lock/unlock",
+  resetSession: "reset",
+  toggleOverlayVisible: "show/hide",
+};
 
 export interface OverlayWindowOptions {
   logDirectory: string;
@@ -61,11 +65,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   let publishing = false;
   let shuttingDown = false;
   let closedCallbackSent = false;
-  let resetShortcutRegistered = false;
-  let resetShortcutError: string | undefined;
   let overlayVisible = true;
-  let overlayVisibleShortcutRegistered = false;
-  let overlayVisibleShortcutError: string | undefined;
+  const shortcutRegistered = new Map<KeybindAction, boolean>();
+  const shortcutErrors = new Map<KeybindAction, string>();
   let lastEventObservedAtMs: number | undefined;
   let lastEventWallMs: number | undefined;
   let unsubscribeCharacter = () => {};
@@ -123,12 +125,11 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
           publish();
           return appState();
         },
-        setResetShortcut: ({ shortcut }) => setResetShortcut(shortcut),
         setOverlayVisible: ({ visible }) => {
           updateOverlayVisible(visible);
           return appState();
         },
-        setOverlayVisibleShortcut: ({ shortcut }) => setOverlayVisibleShortcut(shortcut),
+        setShortcut: ({ action, shortcut }) => setShortcut(action, shortcut),
       },
       messages: {},
     },
@@ -144,12 +145,11 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
           return appState();
         },
         setElementEnabled: ({ id, enabled }) => setElementEnabled(id, enabled),
-        setResetShortcut: ({ shortcut }) => setResetShortcut(shortcut),
         setOverlayVisible: ({ visible }) => {
           updateOverlayVisible(visible);
           return appState();
         },
-        setOverlayVisibleShortcut: ({ shortcut }) => setOverlayVisibleShortcut(shortcut),
+        setShortcut: ({ action, shortcut }) => setShortcut(action, shortcut),
         closeOverlay: async () => {
           await shutdown();
           overlayWindow.close();
@@ -195,14 +195,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     void shutdown();
     notifyClosed();
   });
-  const shortcutRegistered = GlobalShortcut.register(LOCK_SHORTCUT, () => {
-    if (!shuttingDown) updateLocked(!settings.locked);
-  });
-  if (!shortcutRegistered) {
-    console.warn(`[overlay] could not register ${LOCK_SHORTCUT}; it may already be in use`);
+  for (const action of KEYBIND_ACTIONS) {
+    shortcutRegistered.set(action, registerShortcut(action, settings.shortcuts[action]));
   }
-  resetShortcutRegistered = registerResetShortcut(settings.resetShortcut);
-  overlayVisibleShortcutRegistered = registerOverlayVisibleShortcut(settings.overlayVisibleShortcut);
 
   const pollTimer = setInterval(() => void pollLiveLog(), LIVE_LOG_POLL_MS);
   unsubscribeCharacter = options.subscribeCharacter((next) => {
@@ -243,11 +238,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       status,
       statusDetail,
       elements: settings.elements,
-      resetShortcut: settings.resetShortcut,
-      ...(resetShortcutError ? { resetShortcutError } : {}),
+      shortcuts: settings.shortcuts,
+      shortcutErrors: Object.fromEntries(shortcutErrors),
       overlayVisible,
-      overlayVisibleShortcut: settings.overlayVisibleShortcut,
-      ...(overlayVisibleShortcutError ? { overlayVisibleShortcutError } : {}),
       ...(snapshot ? { snapshot, snapshotNowMs: snapshotNowMs ?? snapshot.lastDamageAtMs } : {}),
       ...resources,
       ...(characterState.weight ? { weight: characterState.weight } : {}),
@@ -275,28 +268,30 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     return appState();
   }
 
-  function setResetShortcut(shortcut: string): OverlayState {
-    const normalized = normalizeResetShortcut(shortcut);
-    if (normalized !== shortcut || normalized === settings.overlayVisibleShortcut) {
-      resetShortcutError = normalized === settings.overlayVisibleShortcut
-        ? "Choose a shortcut that isn't already used to show/hide the overlay."
-        : "Choose a supported shortcut other than F11.";
+  function setShortcut(action: KeybindAction, shortcut: string): OverlayState {
+    const normalized = normalizeSingleShortcut(action, shortcut);
+    const collidingAction = KEYBIND_ACTIONS.find((other) => other !== action && settings.shortcuts[other] === normalized);
+    if (normalized !== shortcut || collidingAction) {
+      shortcutErrors.set(action, collidingAction
+        ? `Choose a shortcut that isn't already used for ${KEYBIND_LABELS[collidingAction]}.`
+        : "Choose a supported shortcut.");
       publish();
       return appState();
     }
-    if (normalized === settings.resetShortcut && resetShortcutRegistered) return appState();
+    if (normalized === settings.shortcuts[action] && shortcutRegistered.get(action)) return appState();
 
-    const previousShortcut = settings.resetShortcut;
-    if (resetShortcutRegistered) GlobalShortcut.unregister(previousShortcut);
-    resetShortcutRegistered = registerResetShortcut(normalized);
-    if (resetShortcutRegistered) {
-      settings = { ...settings, resetShortcut: normalized };
-      resetShortcutError = undefined;
+    const previousShortcut = settings.shortcuts[action];
+    if (shortcutRegistered.get(action)) GlobalShortcut.unregister(previousShortcut);
+    let registered = registerShortcut(action, normalized);
+    if (registered) {
+      settings = { ...settings, shortcuts: { ...settings.shortcuts, [action]: normalized } };
+      shortcutErrors.delete(action);
       persist();
     } else {
-      resetShortcutRegistered = registerResetShortcut(previousShortcut);
-      resetShortcutError = `${normalized} is unavailable; the previous shortcut was restored.`;
+      registered = registerShortcut(action, previousShortcut);
+      shortcutErrors.set(action, `${normalized} is unavailable; the previous shortcut was restored.`);
     }
+    shortcutRegistered.set(action, registered);
     publish();
     return appState();
   }
@@ -308,49 +303,19 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     publish();
   }
 
-  function setOverlayVisibleShortcut(shortcut: string): OverlayState {
-    const normalized = normalizeOverlayVisibleShortcut(shortcut);
-    if (normalized !== shortcut || normalized === settings.resetShortcut) {
-      overlayVisibleShortcutError = normalized === settings.resetShortcut
-        ? "Choose a shortcut that isn't already used for reset."
-        : "Choose a supported shortcut other than F11.";
-      publish();
-      return appState();
-    }
-    if (normalized === settings.overlayVisibleShortcut && overlayVisibleShortcutRegistered) return appState();
-
-    const previousShortcut = settings.overlayVisibleShortcut;
-    if (overlayVisibleShortcutRegistered) GlobalShortcut.unregister(previousShortcut);
-    overlayVisibleShortcutRegistered = registerOverlayVisibleShortcut(normalized);
-    if (overlayVisibleShortcutRegistered) {
-      settings = { ...settings, overlayVisibleShortcut: normalized };
-      overlayVisibleShortcutError = undefined;
-      persist();
-    } else {
-      overlayVisibleShortcutRegistered = registerOverlayVisibleShortcut(previousShortcut);
-      overlayVisibleShortcutError = `${normalized} is unavailable; the previous shortcut was restored.`;
-    }
-    publish();
-    return appState();
-  }
-
-  function registerOverlayVisibleShortcut(shortcut: string): boolean {
+  function registerShortcut(action: KeybindAction, shortcut: string): boolean {
     const registered = GlobalShortcut.register(shortcut, () => {
-      if (!shuttingDown) updateOverlayVisible(!overlayVisible);
+      if (shuttingDown) return;
+      if (action === "toggleLock") updateLocked(!settings.locked);
+      else if (action === "toggleOverlayVisible") updateOverlayVisible(!overlayVisible);
+      else if (options.onReset) {
+        void options.onReset().catch(() => {
+          shortcutErrors.set(action, "Could not reset the capture session.");
+          publish();
+        });
+      }
     });
-    if (!registered) overlayVisibleShortcutError = `${shortcut} is unavailable; it may already be in use.`;
-    return registered;
-  }
-
-  function registerResetShortcut(shortcut: string): boolean {
-    const registered = GlobalShortcut.register(shortcut, () => {
-      if (shuttingDown || !options.onReset) return;
-      void options.onReset().catch(() => {
-        resetShortcutError = "Could not reset the capture session.";
-        publish();
-      });
-    });
-    if (!registered) resetShortcutError = `${shortcut} is unavailable; it may already be in use.`;
+    if (!registered) shortcutErrors.set(action, `${shortcut} is unavailable; it may already be in use.`);
     return registered;
   }
 
@@ -473,9 +438,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     clearInterval(pollTimer);
     unsubscribeCharacter();
     unsubscribeCharacter = () => {};
-    if (shortcutRegistered) GlobalShortcut.unregister(LOCK_SHORTCUT);
-    if (resetShortcutRegistered) GlobalShortcut.unregister(settings.resetShortcut);
-    if (overlayVisibleShortcutRegistered) GlobalShortcut.unregister(settings.overlayVisibleShortcut);
+    for (const action of KEYBIND_ACTIONS) {
+      if (shortcutRegistered.get(action)) GlobalShortcut.unregister(settings.shortcuts[action]);
+    }
     settingsWindow?.close();
     settingsWindow = undefined;
     await persistence.flush(settings);
