@@ -1,5 +1,6 @@
 import Electrobun, { BrowserView, BrowserWindow, Tray, Utils } from "electrobun/bun";
-import { applyRoundedCorners, makeProcessDpiAware } from "@spiritvale/ui-core/win32";
+import { applyRoundedCorners, makeProcessDpiAware, setWindowIcon } from "@spiritvale/ui-core/win32";
+import { appIconPath } from "@spiritvale/ui-core/window-publish";
 import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/spirit-vale-tools-capture/capture";
 
 import { createMarketWindow } from "@spiritvale/market-ui";
@@ -201,6 +202,7 @@ launcherWindow = new BrowserWindow({
   rpc,
 });
 applyRoundedCorners(launcherWindow.ptr);
+setWindowIcon(launcherWindow.ptr, appIconPath);
 registerUiScaleWindow(launcherWindow, { scaleInitialFrame: false });
 placements.track("launcher", launcherWindow);
 
@@ -323,6 +325,7 @@ function openSettings(): void {
   });
   settingsWindow = nextWindow;
   applyRoundedCorners(nextWindow.ptr);
+  setWindowIcon(nextWindow.ptr, appIconPath);
   registerUiScaleWindow(nextWindow, { scaleInitialFrame: false });
   placements.track("launcher-settings", nextWindow);
   Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {

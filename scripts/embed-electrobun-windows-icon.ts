@@ -3,6 +3,7 @@ import { copyFile } from "node:fs/promises";
 import path from "node:path";
 
 import { replaceWindowsExecutableIcon } from "./windows-executable-icon.ts";
+import { setWindowsExecutableProductName } from "./windows-executable-metadata.ts";
 
 function requiredEnvironmentValue(name: string): string {
   const value = Bun.env[name];
@@ -29,6 +30,11 @@ if (Bun.env["ELECTROBUN_OS"] === "win") {
 
   await Promise.all(
     executablePaths.map((executablePath) => replaceWindowsExecutableIcon(executablePath, iconPath)),
+  );
+  await Promise.all(
+    executablePaths.map((executablePath) =>
+      setWindowsExecutableProductName(executablePath, "karmispiritvaleoverlay"),
+    ),
   );
   await copyFile(iconPath, buildIconPath);
   console.log(`Embedded the application icon into ${executablePaths.length} Windows executables.`);

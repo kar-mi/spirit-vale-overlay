@@ -1,5 +1,6 @@
 import Electrobun, { BrowserView, BrowserWindow } from "electrobun/bun";
-import { applyRoundedCorners } from "@spiritvale/ui-core/win32";
+import { applyRoundedCorners, setWindowIcon } from "@spiritvale/ui-core/win32";
+import { appIconPath } from "@spiritvale/ui-core/window-publish";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterRpc } from "../character-types.ts";
 import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale";
@@ -43,6 +44,7 @@ export async function createCharacterWindow(options: CharacterWindowOptions) {
     rpc,
   });
   applyRoundedCorners(window.ptr);
+  setWindowIcon(window.ptr, appIconPath);
   registerUiScaleWindow(window, { scaleInitialFrame: !options.placements });
   options.placements?.track("character", window);
   const unsubscribe = options.subscribe((state) => {

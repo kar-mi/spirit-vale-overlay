@@ -4,7 +4,8 @@ import Electrobun, { BrowserView, BrowserWindow } from "electrobun/bun";
 import { loadDpsReplay } from "@kar-mi/spirit-vale-tools-combat";
 import type { FishNetDpsActorRow, FishNetDpsEncounterSnapshot, FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
 import { formatDuration } from "@spiritvale/ui-core/format";
-import { applyRoundedCorners } from "@spiritvale/ui-core/win32";
+import { applyRoundedCorners, setWindowIcon } from "@spiritvale/ui-core/win32";
+import { appIconPath } from "@spiritvale/ui-core/window-publish";
 import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale";
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
 
@@ -235,6 +236,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     });
     window = nextWindow;
     applyRoundedCorners(nextWindow.ptr);
+    setWindowIcon(nextWindow.ptr, appIconPath);
     registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
     options.placements?.track("combat-analysis", nextWindow);
     Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {
@@ -289,6 +291,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     });
     detailWindow = nextWindow;
     applyRoundedCorners(nextWindow.ptr);
+    setWindowIcon(nextWindow.ptr, appIconPath);
     registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
     options.placements?.track("combat-analysis-detail", nextWindow);
     Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {
@@ -329,6 +332,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     });
     deathLogWindow = nextWindow;
     applyRoundedCorners(nextWindow.ptr);
+    setWindowIcon(nextWindow.ptr, appIconPath);
     registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
     options.placements?.track("combat-death-log", nextWindow);
     Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {

@@ -3,7 +3,8 @@ import path from "node:path";
 import Electrobun, { BrowserView, BrowserWindow, Utils } from "electrobun/bun";
 import { listLogSessions } from "@kar-mi/spirit-vale-tools-logging";
 import type { LogStream } from "@kar-mi/spirit-vale-tools-logging";
-import { applyRoundedCorners } from "./win32.ts";
+import { applyRoundedCorners, setWindowIcon } from "./win32.ts";
+import { appIconPath } from "./window-publish.ts";
 import { registerUiScaleWindow, scaledSize } from "./ui-scale.ts";
 import type { WindowPlacementStore } from "./window-placement.ts";
 
@@ -74,6 +75,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         });
         window = nextWindow;
         applyRoundedCorners(nextWindow.ptr);
+        setWindowIcon(nextWindow.ptr, appIconPath);
         registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
         if (options.placementKey) options.placements?.track(options.placementKey, nextWindow);
         Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {
