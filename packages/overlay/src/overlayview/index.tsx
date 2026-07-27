@@ -361,7 +361,7 @@ function PartyRankingElement({ state: next }: { state: OverlayState }) {
           <h2 class="element-title">Map encounter DPS</h2>
           <span class="party-duration">{formatDuration(duration)}</span>
         </div>
-        <span class="party-reset-hint">{next.resetShortcut} to reset</span>
+        <span class="party-reset-hint">{next.shortcuts.resetSession} to reset</span>
       </div>
       {actors.length ? <div class="ranking">{actors.map((actor, index) => (
         <div

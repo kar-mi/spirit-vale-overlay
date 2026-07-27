@@ -4,7 +4,9 @@ import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
 
 import {
+  KEYBIND_ACTIONS,
   OVERLAY_ELEMENT_IDS,
+  type KeybindAction,
   type OverlayElementId,
   type OverlaySettingsRpc,
   type OverlayState,
@@ -21,9 +23,18 @@ const LABELS: Record<OverlayElementId, string> = {
   debuffs: "Debuffs",
   toggles: "Toggles (no timer)",
 };
+const KEYBIND_LABELS: Record<KeybindAction, string> = {
+  toggleLock: "Lock/unlock overlay",
+  resetSession: "Reset session",
+  toggleOverlayVisible: "Show/hide overlay",
+};
+const KEYBIND_DESCRIPTIONS: Record<KeybindAction, string> = {
+  toggleLock: "Toggle edit mode to drag overlay elements.",
+  resetSession: "Resets the capture session, including combat, rewards, and market data.",
+  toggleOverlayVisible: "Fully shows or hides the overlay. This does not persist across restarts.",
+};
 const state = signal<OverlayState | undefined>(undefined);
-const recordingResetShortcut = signal(false);
-const recordingOverlayVisibleShortcut = signal(false);
+const recordingAction = signal<KeybindAction | undefined>(undefined);
 const rpc = Electroview.defineRPC<OverlaySettingsRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
 });
@@ -52,7 +63,7 @@ function App() {
               {next.locked ? "Unlock overlay" : "Lock overlay"}
             </button>
           </div>
-          <p>Locked mode lets mouse clicks pass through to the game. Unlock to drag overlay elements. Press F11 at any time to toggle the lock.</p>
+          <p>Locked mode lets mouse clicks pass through to the game. Unlock to drag overlay elements. Press {next.shortcuts.toggleLock} at any time to toggle the lock.</p>
           <p>
             Known limitation: on borderless-fullscreen games, having the overlay window on
             screen can cause a very slight, unavoidable blur in the game's own rendering.
@@ -63,6 +74,38 @@ function App() {
             display-compositing behavior triggered by any on-screen overlay tool, not
             something this app can fix from a separate window.
           </p>
+        </section>
+        <section class="settings-section">
+          <h2>Show/hide overlay</h2>
+          <div class="toggle-row">
+            <span><strong>{next.overlayVisible ? "Overlay shown" : "Overlay hidden"}</strong></span>
+            <button class="btn" type="button" onClick={() => void setOverlayVisible(!next.overlayVisible)}>
+              {next.overlayVisible ? "Hide overlay" : "Show overlay"}
+            </button>
+          </div>
+          <p>Fully shows or hides the overlay. This does not persist across restarts.</p>
+        </section>
+        <section class="settings-section">
+          <h2>Keybinds</h2>
+          {KEYBIND_ACTIONS.map((action) => (
+            <div key={action}>
+              <div class="toggle-row">
+                <span><strong>{KEYBIND_LABELS[action]}</strong></span>
+                <button
+                  class="btn"
+                  type="button"
+                  onClick={() => { recordingAction.value = action; }}
+                  onKeyDown={(event) => void captureShortcut(action, event)}
+                >
+                  {recordingAction.value === action ? "Press a shortcut…" : next.shortcuts[action]}
+                </button>
+              </div>
+              <p>{KEYBIND_DESCRIPTIONS[action]}</p>
+              <p aria-live="polite">{next.shortcutErrors[action] ?? (recordingAction.value === action
+                ? "Press a key, optionally with Ctrl, Alt, Shift, or Meta. Press Escape to cancel."
+                : "Click the shortcut to record a replacement.")}</p>
+            </div>
+          ))}
         </section>
         <section class="settings-section">
           <h2>Visible elements</h2>
@@ -76,42 +119,6 @@ function App() {
               />
             </label>
           ))}
-        </section>
-        <section class="settings-section">
-          <h2>Reset shortcut</h2>
-          <p>Resets the capture session, including combat, rewards, and market data.</p>
-          <button
-            class="btn"
-            type="button"
-            onClick={() => { recordingResetShortcut.value = true; }}
-            onKeyDown={(event) => void captureResetShortcut(event)}
-          >
-            {recordingResetShortcut.value ? "Press a shortcut…" : next.resetShortcut}
-          </button>
-          <p aria-live="polite">{next.resetShortcutError ?? (recordingResetShortcut.value
-            ? "Press a key, optionally with Ctrl, Alt, Shift, or Meta. Press Escape to cancel."
-            : "Click the shortcut to record a replacement.")}</p>
-        </section>
-        <section class="settings-section">
-          <h2>Show/hide overlay</h2>
-          <div class="toggle-row">
-            <span><strong>{next.overlayVisible ? "Overlay shown" : "Overlay hidden"}</strong></span>
-            <button class="btn" type="button" onClick={() => void setOverlayVisible(!next.overlayVisible)}>
-              {next.overlayVisible ? "Hide overlay" : "Show overlay"}
-            </button>
-          </div>
-          <p>Fully shows or hides the overlay. This does not persist across restarts.</p>
-          <button
-            class="btn"
-            type="button"
-            onClick={() => { recordingOverlayVisibleShortcut.value = true; }}
-            onKeyDown={(event) => void captureOverlayVisibleShortcut(event)}
-          >
-            {recordingOverlayVisibleShortcut.value ? "Press a shortcut…" : next.overlayVisibleShortcut}
-          </button>
-          <p aria-live="polite">{next.overlayVisibleShortcutError ?? (recordingOverlayVisibleShortcut.value
-            ? "Press a key, optionally with Ctrl, Alt, Shift, or Meta. Press Escape to cancel."
-            : "Click the shortcut to record a replacement.")}</p>
         </section>
         <section class="settings-section">
           <h2>Personal character</h2>
@@ -135,34 +142,21 @@ function setEnabled(id: OverlayElementId, enabled: boolean): Promise<void> {
   return electroview.rpc?.request.setElementEnabled({ id, enabled }).then((next) => { state.value = next; }) ?? Promise.resolve();
 }
 
-function captureResetShortcut(event: KeyboardEvent): Promise<void> {
-  if (!recordingResetShortcut.value) return Promise.resolve();
-  event.preventDefault();
-  if (event.key === "Escape" && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) {
-    recordingResetShortcut.value = false;
-    return Promise.resolve();
-  }
-  const shortcut = shortcutFromKeyboardEvent(event);
-  if (!shortcut) return Promise.resolve();
-  recordingResetShortcut.value = false;
-  return electroview.rpc?.request.setResetShortcut({ shortcut }).then((next) => { state.value = next; }) ?? Promise.resolve();
-}
-
 function setOverlayVisible(visible: boolean): Promise<void> {
   return electroview.rpc?.request.setOverlayVisible({ visible }).then((next) => { state.value = next; }) ?? Promise.resolve();
 }
 
-function captureOverlayVisibleShortcut(event: KeyboardEvent): Promise<void> {
-  if (!recordingOverlayVisibleShortcut.value) return Promise.resolve();
+function captureShortcut(action: KeybindAction, event: KeyboardEvent): Promise<void> {
+  if (recordingAction.value !== action) return Promise.resolve();
   event.preventDefault();
   if (event.key === "Escape" && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) {
-    recordingOverlayVisibleShortcut.value = false;
+    recordingAction.value = undefined;
     return Promise.resolve();
   }
   const shortcut = shortcutFromKeyboardEvent(event);
   if (!shortcut) return Promise.resolve();
-  recordingOverlayVisibleShortcut.value = false;
-  return electroview.rpc?.request.setOverlayVisibleShortcut({ shortcut }).then((next) => { state.value = next; }) ?? Promise.resolve();
+  recordingAction.value = undefined;
+  return electroview.rpc?.request.setShortcut({ action, shortcut }).then((next) => { state.value = next; }) ?? Promise.resolve();
 }
 
 function shortcutFromKeyboardEvent(event: KeyboardEvent): string | undefined {

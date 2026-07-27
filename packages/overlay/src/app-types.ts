@@ -6,6 +6,9 @@ import type { WindowChromeRequests } from "@spiritvale/ui-core/window-rpc";
 export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "weight", "buffs", "debuffs", "toggles"] as const;
 export type OverlayElementId = (typeof OVERLAY_ELEMENT_IDS)[number];
 
+export const KEYBIND_ACTIONS = ["toggleLock", "resetSession", "toggleOverlayVisible"] as const;
+export type KeybindAction = (typeof KEYBIND_ACTIONS)[number];
+
 export interface OverlayElementSettings {
   enabled: boolean;
   opacity: number;
@@ -30,11 +33,9 @@ export interface OverlayState {
   elements: Record<OverlayElementId, OverlayElementSettings>;
   snapshot?: FishNetDpsEncounterSnapshot;
   snapshotNowMs?: number;
-  resetShortcut: string;
-  resetShortcutError?: string;
+  shortcuts: Record<KeybindAction, string>;
+  shortcutErrors: Partial<Record<KeybindAction, string>>;
   overlayVisible: boolean;
-  overlayVisibleShortcut: string;
-  overlayVisibleShortcutError?: string;
   health?: OverlayResource;
   mana?: OverlayResource;
   weight?: CharacterWeight;
@@ -51,7 +52,7 @@ type OverlaySharedRequests = {
     response: OverlayState;
   };
   setOverlayVisible: { params: { visible: boolean }; response: OverlayState };
-  setOverlayVisibleShortcut: { params: { shortcut: string }; response: OverlayState };
+  setShortcut: { params: { action: KeybindAction; shortcut: string }; response: OverlayState };
 };
 
 export type OverlayRpc = {
@@ -69,7 +70,6 @@ export type OverlayRpc = {
         params: { id: OverlayElementId; opacity: number };
         response: OverlayState;
       };
-      setResetShortcut: { params: { shortcut: string }; response: OverlayState };
     };
   }>;
   webview: RPCSchema<{ messages: { stateChanged: OverlayState } }>;
@@ -78,7 +78,6 @@ export type OverlayRpc = {
 export type OverlaySettingsRpc = {
   bun: RPCSchema<{
     requests: OverlaySharedRequests & WindowChromeRequests & {
-      setResetShortcut: { params: { shortcut: string }; response: OverlayState };
       closeOverlay: { params: Record<string, never>; response: void };
     };
   }>;
