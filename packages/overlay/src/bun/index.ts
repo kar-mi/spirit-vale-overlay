@@ -250,8 +250,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       ...(snapshot ? { snapshot, snapshotNowMs: snapshotNowMs ?? snapshot.lastDamageAtMs } : {}),
       ...resources,
       ...(characterState.weight ? { weight: characterState.weight } : {}),
-      buffs: activeStatuses.filter((activeStatus) => !activeStatus.isDebuff),
-      debuffs: activeStatuses.filter((activeStatus) => activeStatus.isDebuff),
+      buffs: activeStatuses.filter((activeStatus) => !activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined),
+      debuffs: activeStatuses.filter((activeStatus) => activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined),
+      toggles: activeStatuses.filter((activeStatus) => activeStatus.expiresAtMs === undefined),
     };
   }
 
