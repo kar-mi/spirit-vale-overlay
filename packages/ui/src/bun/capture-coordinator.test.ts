@@ -241,6 +241,43 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("writes a resolved victim identity before a player-death event", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-death-identity-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet(ownedSpawnPacket(2, 40, 7, "PlayerController"));
+      capture.packet(ownedSpawnPacket(3, 140, 7, "HealthComponent"));
+      capture.packet(identityPacket(4, 40, "Fallen Aster", "test-connection"));
+      const death = damagePacket(5, 140, 900);
+      death.rpcName = "Death_C";
+      const team = death.decodedFields?.find((field) => field.name === "dmg.Team");
+      if (team) team.value = 1;
+      capture.packet(death);
+      await coordinator.stop();
+
+      const combatPointer = await readCurrentLogStream("combat", directory);
+      const combat = records(await readFile(combatPointer!.path, "utf8")) as Array<{
+        type: string;
+        data?: { kind?: string; actorId?: number; displayName?: string; targetId?: number };
+      }>;
+      const identityIndex = combat.findIndex((record) => record.type === "combat.actorIdentity"
+        && record.data?.actorId === 140 && record.data.displayName === "Fallen Aster");
+      const deathIndex = combat.findIndex((record) => record.type === "combat.event"
+        && record.data?.kind === "death" && record.data.targetId === 140);
+      expect(identityIndex).toBeGreaterThan(-1);
+      expect(deathIndex).toBeGreaterThan(identityIndex);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("keeps new-connection actor identities when a stale connection trails a map change", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reconnect-"));
     const capture = new FakeCapture();

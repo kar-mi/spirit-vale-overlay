@@ -8,3 +8,5 @@ data/
 logs/
 .local/
 .npmrc
+
+.agents/

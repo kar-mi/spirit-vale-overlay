@@ -382,6 +382,11 @@ export class CaptureCoordinator {
         if ((event.kind === "damage" || event.kind === "death") && event.team === 0) {
           identities.push(...this.actors.observePlayerActor(event.actorId, event.tick));
         }
+        if (event.kind === "death" && event.team !== 0) {
+          // The target is the player who died. Resolve and persist its identity before the
+          // death event so replay analysis can identify every victim, not only attackers.
+          identities.push(...this.actors.observePlayerActor(event.targetId, event.tick));
+        }
       }
       handled ||= identities.length > 0 || events.length > 0;
       for (const event of identities) this.combatLog?.log("combat.actorIdentity", jsonObject(event));
