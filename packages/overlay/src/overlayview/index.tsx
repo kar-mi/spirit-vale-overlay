@@ -256,7 +256,7 @@ function DpsChartElement({ state: next }: { state: OverlayState }) {
   const duration = personal?.durationMs ?? next.snapshot?.durationMs ?? 0;
   return (
     <div class="element-content">
-      <h2 class="element-title">{personal ? "Personal DPS over time" : "Party DPS over time"}</h2>
+      <h2 class="element-title">{personal ? "Personal DPS over time" : "Map DPS over time"}</h2>
       {points.length ? <DamageChart points={points} durationMs={duration} /> : <WaitingForDps />}
     </div>
   );
@@ -293,7 +293,7 @@ function PersonalDpsElement({ state: next }: { state: OverlayState }) {
     <div class="element-content">
       <div class="personal-heading">
         <img class="personal-class-icon" src={classIcon(personal?.archetype)} alt="" aria-hidden="true" />
-        <h2 class="element-title">Personal DPS</h2>
+        <h2 class="element-title">Rolling 5s DPS</h2>
       </div>
       {personal ? (
         <>
@@ -358,7 +358,7 @@ function PartyRankingElement({ state: next }: { state: OverlayState }) {
     <div class="element-content">
       <div class="party-heading">
         <div>
-          <h2 class="element-title">Party encounter DPS</h2>
+          <h2 class="element-title">Map encounter DPS</h2>
           <span class="party-duration">{formatDuration(duration)}</span>
         </div>
         <span class="party-reset-hint">{next.resetShortcut} to reset</span>
