@@ -1,9 +1,10 @@
 import { parseDpsLogRecord } from "@kar-mi/spirit-vale-tools-combat";
 import type { FishNetActorIdentityEvent, FishNetCombatDamageEvent, FishNetCombatDeathEvent } from "@kar-mi/spirit-vale-tools-combat";
-import { parseLogRecord } from "@kar-mi/spirit-vale-tools-logging";
+import { isRecord, parseLogRecord } from "@kar-mi/spirit-vale-tools-logging";
 
 const DEATH_LOOKBACK_MS = 10_000;
 const REPLAY_TICKS_PER_SECOND = 30;
+const MOB_IDENTITY_PREFIX = "__spiritvaleMobIdentity:";
 
 export interface DeathLogHit {
   id: string;
@@ -37,6 +38,7 @@ interface TimedHit {
 /** Reads player-death timelines directly from a combat JSONL replay. */
 export async function loadDeathLogReplay(filePath: string): Promise<DeathLogReplay> {
   const identities = new Map<number, string>();
+  const mobIdentities = new Map<number, string>();
   const hitsByTarget = new Map<number, TimedHit[]>();
   const deaths: DeathLogEntry[] = [];
   let invalidLines = 0;
@@ -58,6 +60,11 @@ export async function loadDeathLogReplay(filePath: string): Promise<DeathLogRepl
       invalidLines += 1;
       continue;
     }
+    const mobIdentity = parseMobIdentityEvent(record.type, record.data);
+    if (mobIdentity) {
+      mobIdentities.set(mobIdentity.actorId, mobIdentity.displayName);
+      continue;
+    }
     const event = parseDpsLogRecord(record.type, record.data);
     if (event === null) continue;
     if (!event) {
@@ -66,7 +73,7 @@ export async function loadDeathLogReplay(filePath: string): Promise<DeathLogRepl
     }
     const atMs = replayTime(event.tick, record.recordedAt, () => originTick, (value) => { originTick = value; }, () => recordedAtOriginMs, (value) => { recordedAtOriginMs = value; });
     if (event.kind === "actorIdentity") {
-      consumeIdentity(identities, event);
+      consumeIdentity(identities, mobIdentities, event);
       continue;
     }
     if (event.kind !== "damage" && event.kind !== "death") continue;
@@ -85,7 +92,7 @@ export async function loadDeathLogReplay(filePath: string): Promise<DeathLogRepl
         id: `${nextId}-${index}`,
         beforeDeathMs: Math.max(0, atMs - hit.atMs),
         sourceLabel: hit.event.sourceLabel,
-        attackerLabel: identities.get(hit.event.actorId) ?? `Actor ${hit.event.actorId}`,
+        attackerLabel: identities.get(hit.event.actorId) ?? mobIdentities.get(hit.event.actorId) ?? `Actor ${hit.event.actorId}`,
         damage: hit.event.value,
         critical: hit.event.hitResult === "critical",
       }))
@@ -102,14 +109,28 @@ export async function loadDeathLogReplay(filePath: string): Promise<DeathLogRepl
   return { deaths: deaths.reverse(), invalidLines };
 }
 
-function consumeIdentity(identities: Map<number, string>, event: FishNetActorIdentityEvent): void {
-  if (event.operation === "reset") identities.clear();
+function parseMobIdentityEvent(type: string, data: Record<string, unknown>): { actorId: number; displayName: string } | undefined {
+  if (type !== "combat.event" || !isRecord(data) || data["kind"] !== "activation") return undefined;
+  if (!isFiniteNumber(data["actorId"]) || typeof data["sourceId"] !== "string" || typeof data["sourceLabel"] !== "string") return undefined;
+  if (!data["sourceId"].startsWith(MOB_IDENTITY_PREFIX)) return undefined;
+  return { actorId: data["actorId"], displayName: data["sourceLabel"] };
+}
+
+function consumeIdentity(identities: Map<number, string>, mobIdentities: Map<number, string>, event: FishNetActorIdentityEvent): void {
+  if (event.operation === "reset") {
+    identities.clear();
+    mobIdentities.clear();
+  }
   else if (event.operation === "remove") identities.delete(event.actorId);
   else identities.set(event.actorId, event.displayName);
 }
 
 function isPositiveHit(event: FishNetCombatDamageEvent | FishNetCombatDeathEvent): boolean {
   return event.value > 0 && (event.kind === "damage" || !event.duplicatesDamageEvent);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function replayTime(

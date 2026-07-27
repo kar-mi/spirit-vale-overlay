@@ -40,6 +40,21 @@ describe("combat death log replay", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  test("uses the recorded monster identity for an incoming attacker", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-death-log-"));
+    const logPath = path.join(directory, "combat.jsonl");
+    try {
+      await writeFile(logPath, [
+        record("combat.event", { kind: "activation", tick: 1, actorId: 700, sourceId: "__spiritvaleMobIdentity:Abomination", sourceLabel: "Abomination", level: 60 }, 0),
+        record("combat.event", death(2, 700, 40, 25, "Basic Attack", false), 2_000),
+      ].join("\n"));
+      const replay = await loadDeathLogReplay(logPath);
+      expect(replay.deaths[0]?.hits[0]?.attackerLabel).toBe("Abomination");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 function record(type: string, data: Record<string, unknown>, elapsedMs: number): string {
