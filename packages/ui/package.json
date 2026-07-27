@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@kar-mi/spirit-vale-tools-character": "0.1.4",
-    "@kar-mi/spirit-vale-tools-combat": "0.2.4",
+    "@kar-mi/spirit-vale-tools-combat": "0.2.5",
     "@spiritvale/combat-ui": "workspace:*",
     "@kar-mi/spirit-vale-tools-capture": "0.2.2",
     "@kar-mi/spirit-vale-tools-items": "0.1.4",
