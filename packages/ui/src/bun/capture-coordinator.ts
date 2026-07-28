@@ -398,7 +398,7 @@ export class CaptureCoordinator {
       }
       handled ||= identities.length > 0 || events.length > 0;
       for (const event of identities) this.combatLog?.log("combat.actorIdentity", jsonObject(event));
-      for (const event of events) this.logMobIdentity(event.actorId, event.tick);
+      for (const event of events) if (event.actorId !== undefined) this.logMobIdentity(event.actorId, event.tick);
       for (const event of events) this.combatLog?.log("combat.event", jsonObject(event));
       // Spawn diagnostics contain raw protocol payloads and are intentionally not written to combat logs.
     } catch (error) {
@@ -539,9 +539,23 @@ function unclassifiedPacket(packet: CapturedFishNetPacket): JsonObject {
     rpcName: packet.rpcName,
     rpcResolution: packet.rpcResolution,
     networkBehaviourType: packet.networkBehaviourType,
+    networkBehaviourIndex: packet.networkBehaviourIndex,
     decodedFields: packet.decodedFields,
     syncName: packet.syncName,
     broadcastName: packet.broadcastName,
+    // TEMP DEBUG (heal-tracking investigation): raw bytes so a resolved-but-incomplete Recover_C
+    // can be inspected byte-for-byte instead of guessing why `amount` failed to decode. Remove once
+    // the rpcLink payload-length issue is understood.
+    linkId: packet.linkId,
+    linkResolved: packet.linkResolved,
+    registeredObjectId: packet.registeredObjectId,
+    registeredComponentIndex: packet.registeredComponentIndex,
+    registeredRpcHash: packet.registeredRpcHash,
+    rpcHash: packet.rpcHash,
+    rpcPayloadLength: packet.rpcPayloadLength,
+    payloadHex: packet.payload,
+    undecodedPayloadHex: packet.undecodedPayload,
+    rawHex: packet.raw,
   });
 }
 

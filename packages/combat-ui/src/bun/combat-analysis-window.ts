@@ -17,10 +17,14 @@ import type {
   CombatAnalysisRpc,
   CombatAnalysisState,
   DpsEncounterOption,
+  MeterEncounterSnapshot,
+  StatType,
 } from "../app-types.ts";
 import { loadDeathLogReplay } from "../death-log.ts";
 import { loadEnemyBreakdown } from "../enemy-breakdown.ts";
 import type { EnemyBreakdownEncounter, EnemyDamageRow, EnemySkillStats } from "../enemy-breakdown.ts";
+import { loadTpsReplay } from "../tps-replay.ts";
+import { loadHpsReplay } from "../hps-replay.ts";
 
 const ANALYSIS_FRAME = { x: 140, y: 120, width: 920, height: 680 };
 const DETAIL_FRAME = { x: 190, y: 160, width: 880, height: 720 };
@@ -51,6 +55,8 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
   let deathLogState: CombatDeathLogState | undefined;
   let snapshots: FishNetDpsEncounterSnapshot[] = [];
   let enemyBreakdowns: EnemyBreakdownEncounter[] = [];
+  let tpsSnapshots: MeterEncounterSnapshot[] = [];
+  let healSnapshots: MeterEncounterSnapshot[] = [];
   let loadedPath: string | undefined;
 
   const detailRpc = BrowserView.defineRPC<CombatAnalysisDetailRpc>({
@@ -128,11 +134,18 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
               ...state,
               selectedEncounterId: id,
               snapshot,
+              tankedSnapshot: tpsSnapshotFor(id),
+              healSnapshot: healSnapshotFor(id),
               enemies: enemyBreakdownFor(id)?.enemies ?? [],
               actorEnemyBreakdown: snapshot ? buildActorEnemyBreakdown(id, snapshot) : {},
             };
             publish();
           }
+          return state;
+        },
+        setStatType: ({ statType }) => {
+          state = { ...state, statType };
+          publish();
           return state;
         },
         openPlayerDetails: ({ actorId }) => { openPlayerDetails(actorId); },
@@ -171,13 +184,17 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     deathLogState = undefined;
     snapshots = [];
     enemyBreakdowns = [];
+    tpsSnapshots = [];
+    healSnapshots = [];
     loadedPath = selectedPath;
-    state = loadingState(path.basename(selectedPath));
+    state = loadingState(path.basename(selectedPath), state.statType);
     publish();
     try {
       const replay = await loadDpsReplay(selectedPath);
       snapshots = replay.meter.getSnapshots();
       enemyBreakdowns = (await loadEnemyBreakdown(selectedPath, snapshots)).encounters;
+      tpsSnapshots = (await loadTpsReplay(selectedPath, snapshots)).snapshots;
+      healSnapshots = (await loadHpsReplay(selectedPath, snapshots)).snapshots;
       const selectedEncounterId = snapshots.at(-1)?.id;
       const lastSnapshot = snapshots.at(-1);
       state = {
@@ -186,9 +203,15 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
         fileName: path.basename(selectedPath),
         invalidLines: replay.invalidLines,
         encounters: encounterOptions(snapshots),
+        statType: state.statType,
         enemies: enemyBreakdownFor(selectedEncounterId)?.enemies ?? [],
         actorEnemyBreakdown: lastSnapshot && selectedEncounterId ? buildActorEnemyBreakdown(selectedEncounterId, lastSnapshot) : {},
-        ...(selectedEncounterId === undefined ? {} : { selectedEncounterId, snapshot: lastSnapshot }),
+        ...(selectedEncounterId === undefined ? {} : {
+          selectedEncounterId,
+          snapshot: lastSnapshot,
+          tankedSnapshot: tpsSnapshotFor(selectedEncounterId),
+          healSnapshot: healSnapshotFor(selectedEncounterId),
+        }),
       };
       publish();
     } catch {
@@ -198,11 +221,14 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
         fileName: path.basename(selectedPath),
         invalidLines: 0,
         encounters: [],
+        statType: state.statType,
         enemies: [],
         actorEnemyBreakdown: {},
       };
       snapshots = [];
       enemyBreakdowns = [];
+      tpsSnapshots = [];
+      healSnapshots = [];
       publish();
       throw new Error("combat analysis log could not be loaded");
     }
@@ -263,11 +289,16 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     if (!snapshot || !player || !state.fileName) return;
     const breakdown = enemyBreakdownFor(snapshot.id);
     const skillsByEnemy = buildSkillsByEnemy(snapshot.id, player, snapshot.durationMs);
+    const tankedSnapshot = tpsSnapshotFor(snapshot.id);
+    const healSnapshot = healSnapshotFor(snapshot.id);
     detailState = {
       fileName: state.fileName,
       encounterLabel: state.encounters.find((encounter) => encounter.id === snapshot.id)?.label ?? "Encounter",
       encounterDurationMs: snapshot.durationMs,
+      statType: state.statType,
       player,
+      tankedPlayer: tankedSnapshot?.actors.find((actor) => actor.actorIds.includes(actorId)),
+      healPlayer: healSnapshot?.actors.find((actor) => actor.actorIds.includes(actorId)),
       enemies: breakdown?.enemies.filter((enemy) => enemy.targetId in skillsByEnemy) ?? [],
       skillsByEnemy,
     };
@@ -353,6 +384,14 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     return encounterId === undefined ? undefined : enemyBreakdowns.find((entry) => entry.encounterId === encounterId);
   }
 
+  function tpsSnapshotFor(encounterId: string | undefined): MeterEncounterSnapshot | undefined {
+    return encounterId === undefined ? undefined : tpsSnapshots.find((snapshot) => snapshot.id === encounterId);
+  }
+
+  function healSnapshotFor(encounterId: string | undefined): MeterEncounterSnapshot | undefined {
+    return encounterId === undefined ? undefined : healSnapshots.find((snapshot) => snapshot.id === encounterId);
+  }
+
   function buildActorEnemyBreakdown(encounterId: string, snapshot: FishNetDpsEncounterSnapshot): Record<number, EnemyDamageRow[]> {
     const breakdown = enemyBreakdownFor(encounterId);
     const result: Record<number, EnemyDamageRow[]> = {};
@@ -432,13 +471,14 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
   }
 }
 
-function loadingState(fileName?: string): CombatAnalysisState {
+function loadingState(fileName?: string, statType: StatType = "damage"): CombatAnalysisState {
   return {
     status: "loading",
     statusDetail: "Loading combat log…",
     ...(fileName === undefined ? {} : { fileName }),
     invalidLines: 0,
     encounters: [],
+    statType,
     enemies: [],
     actorEnemyBreakdown: {},
   };

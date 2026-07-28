@@ -18,6 +18,7 @@ describe("DPS app settings", () => {
     const settings = {
       personalName: "Fictional Hero",
       tab: "personal" as const,
+      statType: "tanked" as const,
       frame: { x: 120, y: 140, width: 840, height: 900 },
     };
 
@@ -31,6 +32,7 @@ describe("DPS app settings", () => {
     const settings = {
       personalName: "",
       tab: "all" as const,
+      statType: "damage" as const,
       frame: { x: 120, y: 140, width: 700, height: 600 },
     };
 
@@ -44,6 +46,7 @@ describe("DPS app settings", () => {
     await saveDpsAppSettings({
       personalName: "",
       tab: "all",
+      statType: "damage",
       frame: { x: 120, y: 140, width: 619, height: 519 },
     }, settingsPath);
 
