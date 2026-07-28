@@ -106,6 +106,23 @@ describe("overlay settings", () => {
     expect(settings.shortcuts.resetSession).toBe("F5");
     expect(settings.shortcuts.toggleOverlayVisible).toBe("F9");
   });
+
+  test("defaults the party meter cycle shortcut to F7 and allows reassigning it", () => {
+    const settings = normalizeOverlaySettings({}, bounds);
+    expect(settings.shortcuts.cycleMeterStatType).toBe("F7");
+    const reassigned = normalizeOverlaySettings(
+      { schemaVersion: 4, shortcuts: { cycleMeterStatType: "Ctrl+F7" } },
+      bounds,
+    );
+    expect(reassigned.shortcuts.cycleMeterStatType).toBe("Ctrl+F7");
+  });
+
+  test("defaults the party meter stat type to damage and normalizes invalid values", () => {
+    expect(normalizeOverlaySettings({}, bounds).meterStatType).toBe("damage");
+    expect(normalizeOverlaySettings({ meterStatType: "heal" }, bounds).meterStatType).toBe("heal");
+    expect(normalizeOverlaySettings({ meterStatType: "tanked" }, bounds).meterStatType).toBe("tanked");
+    expect(normalizeOverlaySettings({ meterStatType: "not-a-real-type" }, bounds).meterStatType).toBe("damage");
+  });
 });
 
 async function createSettingsPath(): Promise<string> {

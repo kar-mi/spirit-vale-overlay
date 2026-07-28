@@ -27,11 +27,13 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   toggleLock: "Lock/unlock overlay",
   resetSession: "Reset session",
   toggleOverlayVisible: "Show/hide overlay",
+  cycleMeterStatType: "Cycle party meter",
 };
 const KEYBIND_DESCRIPTIONS: Record<KeybindAction, string> = {
   toggleLock: "Toggle edit mode to drag overlay elements.",
   resetSession: "Resets the capture session, including combat, rewards, and market data.",
   toggleOverlayVisible: "Fully shows or hides the overlay. This does not persist across restarts.",
+  cycleMeterStatType: "Switches the party/map meter between damage (DPS), healing (HPS), and damage taken (TPS).",
 };
 const state = signal<OverlayState | undefined>(undefined);
 const recordingAction = signal<KeybindAction | undefined>(undefined);

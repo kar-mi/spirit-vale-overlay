@@ -4,7 +4,8 @@ import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { formatDps, formatDuration } from "@spiritvale/ui-core/format";
 
-import type { FishNetActiveStatus, FishNetDpsTimelinePoint } from "@kar-mi/spirit-vale-tools-combat";
+import type { FishNetActiveStatus, FishNetDpsEncounterSnapshot, FishNetDpsTimelinePoint } from "@kar-mi/spirit-vale-tools-combat";
+import type { MeterEncounterSnapshot } from "@spiritvale/combat-ui/app-types";
 import type {
   OverlayElementId,
   OverlayElementSettings,
@@ -250,19 +251,36 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, Math.round(value)));
 }
 
+type MeterSnapshot = FishNetDpsEncounterSnapshot | MeterEncounterSnapshot;
+
+/** The party/map meter (dpsChart, partyRanking) cycles through this via its keybind (default F7). */
+function activeMeterSnapshot(next: OverlayState): MeterSnapshot | undefined {
+  return next.meterStatType === "tanked" ? next.tankedSnapshot
+    : next.meterStatType === "heal" ? next.healSnapshot
+    : next.snapshot;
+}
+
+function meterMetricLabel(next: OverlayState): string {
+  return next.meterStatType === "tanked" ? "TPS" : next.meterStatType === "heal" ? "HPS" : "DPS";
+}
+
 function DpsChartElement({ state: next }: { state: OverlayState }) {
-  const personal = next.snapshot?.personal;
-  const points = personal?.timeline ?? partyTimeline(next);
-  const duration = personal?.durationMs ?? next.snapshot?.durationMs ?? 0;
+  const snapshot = activeMeterSnapshot(next);
+  const metricLabel = meterMetricLabel(next);
+  const personal = snapshot?.personal;
+  const points = personal?.timeline ?? partyTimeline(snapshot);
+  const duration = personal?.durationMs ?? snapshot?.durationMs ?? 0;
   return (
     <div class="element-content">
-      <h2 class="element-title">{personal ? "Personal DPS over time" : "Map DPS over time"}</h2>
-      {points.length ? <DamageChart points={points} durationMs={duration} /> : <WaitingForDps />}
+      <h2 class="element-title">{personal ? `Personal ${metricLabel} over time` : `Map ${metricLabel} over time`}</h2>
+      {points.length ? <DamageChart points={points} durationMs={duration} metricLabel={metricLabel} /> : <WaitingForDps />}
     </div>
   );
 }
 
-function DamageChart({ points, durationMs }: { points: readonly FishNetDpsTimelinePoint[]; durationMs: number }) {
+function DamageChart(
+  { points, durationMs, metricLabel }: { points: readonly FishNetDpsTimelinePoint[]; durationMs: number; metricLabel: string },
+) {
   const width = 640;
   const height = 220;
   const left = 42;
@@ -277,7 +295,7 @@ function DamageChart({ points, durationMs }: { points: readonly FishNetDpsTimeli
     return `${x},${y}`;
   }).join(" ");
   return (
-    <svg class="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="DPS over time chart">
+    <svg class="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${metricLabel} over time chart`}>
       <line class="chart-grid" x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} />
       <polyline class="chart-line" points={linePoints} />
       <text class="chart-label" x="0" y={top + 4}>{compactFormat.format(maxValue)}</text>
@@ -348,20 +366,22 @@ function ResourceElement({ kind, resource }: { kind: "health" | "mana"; resource
 }
 
 function PartyRankingElement({ state: next }: { state: OverlayState }) {
+  const snapshot = activeMeterSnapshot(next);
+  const metricLabel = meterMetricLabel(next);
   const actors = visiblePartyActors(
-    next.snapshot?.actors ?? [],
-    next.snapshotNowMs ?? next.snapshot?.lastDamageAtMs ?? 0,
+    snapshot?.actors ?? [],
+    next.snapshotNowMs ?? snapshot?.lastDamageAtMs ?? 0,
   );
   const maxDps = Math.max(1, ...actors.map((actor) => actor.dps));
-  const duration = next.snapshot?.durationMs ?? 0;
+  const duration = snapshot?.durationMs ?? 0;
   return (
     <div class="element-content">
       <div class="party-heading">
         <div>
-          <h2 class="element-title">Map encounter DPS</h2>
+          <h2 class="element-title">Map encounter {metricLabel}</h2>
           <span class="party-duration">{formatDuration(duration)}</span>
         </div>
-        <span class="party-reset-hint">{next.shortcuts.resetSession} to reset</span>
+        <span class="party-reset-hint">{next.shortcuts.resetSession} to reset · {next.shortcuts.cycleMeterStatType} to switch</span>
       </div>
       {actors.length ? <div class="ranking">{actors.map((actor, index) => (
         <div
@@ -440,9 +460,9 @@ function classIcon(archetype: number | undefined): string {
   return `views://assets/class-icons/class-${icon}.webp`;
 }
 
-function partyTimeline(next: OverlayState): FishNetDpsTimelinePoint[] {
+function partyTimeline(snapshot: MeterSnapshot | undefined): FishNetDpsTimelinePoint[] {
   const buckets = new Map<number, FishNetDpsTimelinePoint>();
-  for (const actor of next.snapshot?.actors ?? []) {
+  for (const actor of snapshot?.actors ?? []) {
     for (const point of actor.timeline) {
       const current = buckets.get(point.elapsedMs);
       buckets.set(point.elapsedMs, {
