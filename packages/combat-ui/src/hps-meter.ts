@@ -19,7 +19,8 @@ export interface HpsEncounterWindow {
 
 interface HpsHit {
   targetId: number;
-  healerActorId?: number;
+  healerActorId: number;
+  healerIdentity?: IdentityInfo;
   sourceId?: string;
   sourceLabel?: string;
   value: number;
@@ -67,9 +68,12 @@ export class HpsMeter {
   consumeCombat(event: FishNetCombatEvent, observedAtMs: number): void {
     if (event.kind !== "heal") return;
     if (!Number.isFinite(event.value) || event.value <= 0) return;
+    const healerActorId = event.actorId ?? event.targetId;
+    const healerIdentity = this.identities.get(healerActorId);
     this.hits.push({
       targetId: event.targetId,
-      healerActorId: event.actorId,
+      healerActorId,
+      ...(healerIdentity === undefined ? {} : { healerIdentity: { ...healerIdentity } }),
       sourceId: event.sourceId,
       sourceLabel: event.sourceLabel,
       value: event.value,
@@ -90,26 +94,23 @@ export class HpsMeter {
   }
 
   getSnapshot(window: HpsEncounterWindow, nowMs: number): MeterEncounterSnapshot {
-    // Heals with no identified healer (ambient regen, or ambiguous overlapping casters) are
-    // credited to the recipient's own output instead — regen is the character's own passive
-    // recovery (not cast by anyone else), and leech mechanics work the same way, so crediting
-    // the recipient keeps those visible in their HPS rather than silently dropping them. Only
-    // dropped if the recipient itself isn't a known party member (e.g. monster self-regen).
+    // Heals with no identified healer are credited to the recipient's own output. Preserve the
+    // identity present at the time of the hit so later party/map identity resets do not erase it.
+    // Unknown recipients (such as monster self-healing) remain excluded.
     const scoped = this.hits
       .filter((hit) => hit.atMs >= window.startedAtMs && hit.atMs <= window.endedAtMs)
-      .map((hit) => ({ hit, healerActorId: hit.healerActorId ?? hit.targetId }))
-      .filter(({ healerActorId }) => this.identities.has(healerActorId));
+      .filter((hit) => hit.healerIdentity !== undefined);
     const durationSeconds = Math.max(1, window.durationMs) / 1000;
 
     const groups = new Map<number, HpsHit[]>();
-    for (const { hit, healerActorId } of scoped) {
-      const group = groups.get(healerActorId) ?? [];
+    for (const hit of scoped) {
+      const group = groups.get(hit.healerActorId) ?? [];
       group.push(hit);
-      groups.set(healerActorId, group);
+      groups.set(hit.healerActorId, group);
     }
 
     const actors: MeterActorRow[] = [...groups.entries()].map(([healerActorId, hits]) => {
-      const identity = this.identities.get(healerActorId);
+      const identity = hits[0]?.healerIdentity;
       const damage = hits.reduce((sum, hit) => sum + hit.value, 0);
       const currentDamage = hits
         .filter((hit) => hit.atMs > nowMs - this.currentWindowMs && hit.atMs <= nowMs)

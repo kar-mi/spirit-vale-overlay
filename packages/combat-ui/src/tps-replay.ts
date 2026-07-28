@@ -18,6 +18,27 @@ export async function loadTpsReplay(filePath: string, dpsSnapshots: readonly Fis
   let invalidLines = 0;
   let originTick: number | undefined;
   let recordedAtOriginMs: number | undefined;
+  const snapshots: MeterEncounterSnapshot[] = new Array(dpsSnapshots.length);
+  const pendingSnapshots = dpsSnapshots
+    // The DPS meter closes an encounter after an inactivity timeout. Identity reset/removal
+    // records often arrive during that timeout, so preserve the identity state at its final
+    // damaging event rather than at the later display end time.
+    .map((snapshot, index) => ({ snapshot, index, identityAtMs: snapshot.lastDamageAtMs }))
+    .sort((left, right) => left.identityAtMs - right.identityAtMs);
+  let nextSnapshotIndex = 0;
+
+  const captureCompletedSnapshots = (beforeMs: number): void => {
+    while (nextSnapshotIndex < pendingSnapshots.length && pendingSnapshots[nextSnapshotIndex]!.identityAtMs < beforeMs) {
+      const { snapshot, index } = pendingSnapshots[nextSnapshotIndex++]!;
+      const endedAtMs = snapshot.endedAtMs ?? snapshot.lastDamageAtMs;
+      snapshots[index] = meter.getSnapshot({
+        id: snapshot.id,
+        startedAtMs: snapshot.startedAtMs,
+        endedAtMs,
+        durationMs: snapshot.durationMs,
+      }, endedAtMs);
+    }
+  };
 
   for await (const line of readLines(Bun.file(filePath).stream())) {
     if (!line.trim()) continue;
@@ -41,6 +62,9 @@ export async function loadTpsReplay(filePath: string, dpsSnapshots: readonly Fis
       continue;
     }
     const atMs = replayTime(event.tick, record.recordedAt, () => originTick, (value) => { originTick = value; }, () => recordedAtOriginMs, (value) => { recordedAtOriginMs = value; });
+    // Snapshot before applying a later record, so identity removals/resets after an
+    // encounter cannot turn its victims into unidentified TPS rows.
+    captureCompletedSnapshots(atMs);
     if (event.kind === "actorIdentity") {
       meter.consumeIdentity(event);
       continue;
@@ -48,15 +72,6 @@ export async function loadTpsReplay(filePath: string, dpsSnapshots: readonly Fis
     meter.consumeCombat(event, atMs);
   }
 
-  const snapshots = dpsSnapshots.map((snapshot) =>
-    meter.getSnapshot(
-      {
-        id: snapshot.id,
-        startedAtMs: snapshot.startedAtMs,
-        endedAtMs: snapshot.endedAtMs ?? snapshot.lastDamageAtMs,
-        durationMs: snapshot.durationMs,
-      },
-      snapshot.endedAtMs ?? snapshot.lastDamageAtMs,
-    ));
+  captureCompletedSnapshots(Number.POSITIVE_INFINITY);
   return { snapshots, invalidLines };
 }

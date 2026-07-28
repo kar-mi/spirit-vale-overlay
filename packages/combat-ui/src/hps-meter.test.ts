@@ -7,6 +7,10 @@ function identity(actorId: number, displayName: string): FishNetActorIdentityEve
   return { kind: "actorIdentity", operation: "upsert", tick: 1, actorId, displayName };
 }
 
+function removeIdentity(actorId: number): FishNetActorIdentityEvent {
+  return { kind: "actorIdentity", operation: "remove", tick: 2, actorId };
+}
+
 function heal(
   targetId: number,
   value: number,
@@ -81,6 +85,15 @@ describe("HpsMeter", () => {
 
     const snapshot = meter.getSnapshot(window, 10_000);
     expect(snapshot.actors).toHaveLength(0);
+  });
+
+  test("retains the identity present when a heal was recorded", () => {
+    const meter = new HpsMeter();
+    meter.consumeIdentity(identity(20, "Tank"));
+    meter.consumeCombat(heal(20, 40, "unattributed"), 1_000);
+    meter.consumeIdentity(removeIdentity(20));
+
+    expect(meter.getSnapshot(window, 10_000).actors).toMatchObject([{ displayName: "Tank", damage: 40 }]);
   });
 
   test("groups a healer's output by skill", () => {
