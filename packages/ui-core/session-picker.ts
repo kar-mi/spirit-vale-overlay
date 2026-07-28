@@ -157,7 +157,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
   async function chooseFile(): Promise<void> {
     const [selectedPath] = await Utils.openFileDialog({
       startingFolder: Utils.paths.documents,
-      allowedFileTypes: "jsonl,json",
+      allowedFileTypes: "jsonl",
       canChooseFiles: true,
       canChooseDirectory: false,
       allowsMultipleSelection: false,
