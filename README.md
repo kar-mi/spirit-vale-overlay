@@ -9,7 +9,7 @@ Spirit Vale is a passive Windows companion app for live combat, character, rewar
 
 > **Overlay hotkeys:** `F5` resets/refreshes the overlay, `F9` shows or hides
 > the overlay, and `F11` unlocks the overlay for editing (drag and resize
-> elements, then press `F11` again to lock).
+> elements, then press `F11` again to lock. These can re-bound).
 
 ## Features
 
