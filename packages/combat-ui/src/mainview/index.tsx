@@ -84,6 +84,7 @@ function App() {
     next.snapshot;
   const metricLabel = next.statType === "tanked" ? "TPS" : next.statType === "heal" ? "HPS" : "DPS";
   const isHeal = next.statType === "heal";
+  const amountLabel = isHeal ? "HEAL" : "DMG";
 
   const actors = activeSnapshot?.actors ?? [];
   const sortedActors = [...actors].sort((left, right) => {
@@ -156,8 +157,8 @@ function App() {
                 <thead><tr>
                   <th>IGN</th>
                   <SortableHeader label={metricLabel} sortKey="dps" sort={actorSort} onSort={sortActorsBy} />
-                  <SortableHeader label="DMG" sortKey="damage" sort={actorSort} onSort={sortActorsBy} />
-                  <SortableHeader label="DMG %" sortKey="contribution" sort={actorSort} onSort={sortActorsBy} />
+                  <SortableHeader label={amountLabel} sortKey="damage" sort={actorSort} onSort={sortActorsBy} />
+                  <SortableHeader label={`${amountLabel} %`} sortKey="contribution" sort={actorSort} onSort={sortActorsBy} />
                   <SortableHeader label="CRT %" sortKey="critRate" sort={actorSort} onSort={sortActorsBy} />
                   <SortableHeader label="Kills" sortKey="kills" sort={actorSort} onSort={sortActorsBy} />
                   <SortableHeader label="Mobs hit" sortKey="mobsHit" sort={actorSort} onSort={sortActorsBy} />
@@ -221,7 +222,7 @@ function App() {
           ? <div class="empty-state">{personalMatch === "matched" ? "No personal skill damage yet." : "Personal skills appear after your character is matched."}</div>
           : <div class="table-scroll meter-table-scroll">
               <table class="data-table meter-table" aria-label="Personal skill damage">
-                <thead><tr><th>{next.statType === "tanked" ? "Attacker skill" : "Skill"}</th><th>{metricLabel}</th><th>Damage</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th></tr></thead>
+                <thead><tr><th>{next.statType === "tanked" ? "Attacker skill" : "Skill"}</th><th>{metricLabel}</th><th>{amountLabel}</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th></tr></thead>
                 <tbody>{personalSkills.map((skill) => (
                   <tr key={skill.sourceId} class="meter-table-row" style={`--row-fill:${Math.max(0, Math.min(100, skill.contribution * 100))}%`}>
                     <th scope="row">{skill.sourceLabel}</th>
