@@ -184,7 +184,7 @@ function OverlayElement({ id, settings, locked, children }: OverlayElementProps)
           <output>{Math.round(settings.opacity * 100)}%</output>
           <input
             type="range"
-            min="0.2"
+            min="0"
             max="1"
             step="0.05"
             value={settings.opacity}
