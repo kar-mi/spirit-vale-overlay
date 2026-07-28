@@ -7,6 +7,10 @@ function identity(actorId: number, displayName: string): FishNetActorIdentityEve
   return { kind: "actorIdentity", operation: "upsert", tick: 1, actorId, displayName };
 }
 
+function removeIdentity(actorId: number): FishNetActorIdentityEvent {
+  return { kind: "actorIdentity", operation: "remove", tick: 2, actorId };
+}
+
 function hit(
   targetId: number,
   actorId: number,
@@ -96,6 +100,15 @@ describe("TpsMeter", () => {
 
     const snapshot = meter.getSnapshot(window, 10_000);
     expect(snapshot.actors[0]).toMatchObject({ displayName: "Unidentified", isUnidentified: true });
+  });
+
+  test("retains the identity present when a hit was recorded", () => {
+    const meter = new TpsMeter();
+    meter.consumeIdentity(identity(10, "Tank"));
+    meter.consumeCombat(hit(10, 300, 40, 1), 1_000);
+    meter.consumeIdentity(removeIdentity(10));
+
+    expect(meter.getSnapshot(window, 10_000).actors).toMatchObject([{ displayName: "Tank", isUnidentified: false, damage: 40 }]);
   });
 
   test("groups skill rows by the attacking source", () => {

@@ -51,13 +51,31 @@ describe("tps replay", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  test("keeps the victim identity when it is removed after the encounter", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-tps-replay-"));
+    const logPath = path.join(directory, "combat.jsonl");
+    try {
+      await writeFile(logPath, [
+        record("combat.actorIdentity", { kind: "actorIdentity", operation: "upsert", tick: 1, actorId: 10, displayName: "Tank" }, 0),
+        record("combat.event", damage(2, 300, 10, 40, 1), 1_000),
+        record("combat.actorIdentity", { kind: "actorIdentity", operation: "reset", tick: 4 }, 3_000),
+      ].join("\n"));
+
+      const snapshot = makeSnapshot("enc-1", 0, 10_000, 2_000);
+      const replay = await loadTpsReplay(logPath, [snapshot]);
+      expect(replay.snapshots[0]!.actors).toMatchObject([{ displayName: "Tank", isUnidentified: false, damage: 40 }]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
-function makeSnapshot(id: string, startedAtMs: number, endedAtMs: number): FishNetDpsEncounterSnapshot {
+function makeSnapshot(id: string, startedAtMs: number, endedAtMs: number, lastDamageAtMs = endedAtMs): FishNetDpsEncounterSnapshot {
   return {
     id,
     startedAtMs,
-    lastDamageAtMs: endedAtMs,
+    lastDamageAtMs,
     endedAtMs,
     durationMs: endedAtMs - startedAtMs,
     totalDamage: 0,

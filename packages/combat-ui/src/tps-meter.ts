@@ -19,6 +19,7 @@ export interface TpsEncounterWindow {
 
 interface TpsHit {
   targetId: number;
+  targetIdentity?: IdentityInfo;
   sourceActorId: number;
   sourceId: string;
   sourceLabel: string;
@@ -69,8 +70,10 @@ export class TpsMeter {
     if (event.actorId === event.targetId) return;
     if (!Number.isFinite(event.value) || event.value <= 0) return;
     if (event.kind === "death" && event.duplicatesDamageEvent) return;
+    const targetIdentity = this.identities.get(event.targetId);
     this.hits.push({
       targetId: event.targetId,
+      ...(targetIdentity === undefined ? {} : { targetIdentity: { ...targetIdentity } }),
       sourceActorId: event.actorId,
       sourceId: event.sourceId,
       sourceLabel: event.sourceLabel,
@@ -98,7 +101,7 @@ export class TpsMeter {
 
     const groups = new Map<string, { targetIds: Set<number>; hits: TpsHit[] }>();
     for (const hit of scoped) {
-      const identity = this.identities.get(hit.targetId);
+      const identity = hit.targetIdentity;
       const key = identity ? `name:${identity.displayName}` : `id:${hit.targetId}`;
       const group = groups.get(key) ?? { targetIds: new Set<number>(), hits: [] };
       group.targetIds.add(hit.targetId);
@@ -107,8 +110,7 @@ export class TpsMeter {
     }
 
     const actors: MeterActorRow[] = [...groups.values()].map((group) => {
-      const [firstTargetId] = group.targetIds;
-      const identity = firstTargetId === undefined ? undefined : this.identities.get(firstTargetId);
+      const identity = group.hits[0]?.targetIdentity;
       const damage = group.hits.reduce((sum, hit) => sum + hit.value, 0);
       const hits = group.hits.length;
       const criticalHits = group.hits.filter((hit) => hit.hitResult === "critical").length;
