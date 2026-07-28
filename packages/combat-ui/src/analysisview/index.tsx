@@ -6,6 +6,7 @@ import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { formatDuration } from "@spiritvale/ui-core/format";
 import { EnemyFilterControl } from "@spiritvale/ui-core/enemy-filter";
+import { CustomSelect } from "@spiritvale/ui-core/custom-select";
 import { StatTypeSelect } from "@spiritvale/ui-core/stat-type-select";
 
 import type { CombatAnalysisRpc, CombatAnalysisState, MeterActorRow, MeterEncounterSnapshot } from "../app-types.ts";
@@ -109,15 +110,13 @@ function App() {
         <section class="toolbar">
           <label class="encounter-picker">
             <span class="t-label">Encounter</span>
-            <select
-              class="input"
-              aria-label="Encounter"
+            <CustomSelect
+              ariaLabel="Encounter"
               disabled={next.status !== "ready" || next.encounters.length < 2}
               value={next.selectedEncounterId ?? ""}
-              onChange={(event) => void electroview.rpc?.request.selectEncounter({ id: (event.target as HTMLSelectElement).value })}
-            >
-              {next.encounters.map((encounter) => <option key={encounter.id} value={encounter.id}>{encounter.label}</option>)}
-            </select>
+              options={next.encounters.map((encounter) => ({ value: encounter.id, label: encounter.label }))}
+              onChange={(id) => void electroview.rpc?.request.selectEncounter({ id })}
+            />
           </label>
           <StatTypeSelect
             value={next.statType}

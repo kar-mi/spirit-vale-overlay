@@ -6,6 +6,7 @@ import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { StatusDot } from "@spiritvale/ui-core/status-dot";
 import type { StatusTone } from "@spiritvale/ui-core/status-dot";
 import { formatDps, formatDuration } from "@spiritvale/ui-core/format";
+import { CustomSelect } from "@spiritvale/ui-core/custom-select";
 import { StatTypeSelect } from "@spiritvale/ui-core/stat-type-select";
 
 import type { DpsAppRpc, DpsAppState, DpsAppTab, MeterEncounterSnapshot, StatType } from "../app-types.ts";
@@ -193,21 +194,21 @@ function App() {
             <button class="btn" type="submit">Save</button>
           </div>
           <label class="t-label actor-label" for="personal-actor">Damage actor</label>
-          <select
+          <CustomSelect
             id="personal-actor"
-            class="input"
-            aria-label="Personal damage actor"
+            ariaLabel="Personal damage actor"
             value={next.personalActorId === undefined ? "auto" : String(next.personalActorId)}
-            onChange={(event) => {
-              const value = (event.target as HTMLSelectElement).value;
+            onChange={(value) => {
               void electroview.rpc?.request.setPersonalActor({ actorId: value === "auto" ? null : Number(value) });
             }}
-          >
-            <option value="auto">Automatic (name or local actions)</option>
-            {actors.flatMap((actor) => actor.actorIds.map((actorId) => (
-              <option key={actorId} value={String(actorId)}>{actor.displayName} · {compactFormat.format(actor.damage)} damage</option>
-            )))}
-          </select>
+            options={[
+              { value: "auto", label: "Automatic (name or local actions)" },
+              ...actors.flatMap((actor) => actor.actorIds.map((actorId) => ({
+                value: String(actorId),
+                label: `${actor.displayName} · ${compactFormat.format(actor.damage)} damage`,
+              }))),
+            ]}
+          />
         </form>
         <p class="personal-hint">
           {personalMatch === "unconfigured"
