@@ -22,19 +22,19 @@ test("launcher settings default safely and reject unsupported UI scales", async 
   expect((await loadLauncherSettings(settingsPath)).minimizeToTray).toBe(false);
 
   await writeFile(settingsPath, "{}", "utf8");
-  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: false });
+  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: false, skippedUpdateVersion: undefined });
 });
 
 test("launcher settings round-trip with capture settings", async () => {
   const settingsPath = await createSettingsPath();
-  await saveLauncherSettings({ captureAdapter: "auto", uiScale: 2, minimizeToTray: true }, settingsPath);
-  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 2, minimizeToTray: true });
+  await saveLauncherSettings({ captureAdapter: "auto", uiScale: 2, minimizeToTray: true, skippedUpdateVersion: "0.6.5" }, settingsPath);
+  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 2, minimizeToTray: true, skippedUpdateVersion: "0.6.5" });
 });
 
 test("legacy close-to-tray setting migrates to minimize-to-tray", async () => {
   const settingsPath = await createSettingsPath();
   await writeFile(settingsPath, JSON.stringify({ closeToTray: true }), "utf8");
-  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: true });
+  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: true, skippedUpdateVersion: undefined });
 });
 
 async function createSettingsPath(): Promise<string> {

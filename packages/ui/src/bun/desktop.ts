@@ -33,10 +33,12 @@ import type { WindowFrame } from "@spiritvale/ui-core/window-chrome";
 import { registerUiScaleWindow, scaledSize, setUiScale } from "@spiritvale/ui-core/ui-scale";
 import { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
 import { launcherMinimizeAction, trayAction } from "./launcher-tray-actions.ts";
+import { findAvailableUpdate } from "../update-check.ts";
 
 makeProcessDpiAware();
 
 const localRoot = resolveLocalRoot();
+const appVersion = (await Electrobun.Updater.getLocalInfo()).version;
 const storagePaths = resolveDesktopStoragePaths({
   root: localRoot,
   workspaceDev: isWorkspaceDevelopmentRoot(localRoot),
@@ -54,6 +56,7 @@ const placements = await WindowPlacementStore.load(storagePaths.windowPlacements
 let launcherWindow: BrowserWindow;
 let settingsWindow: BrowserWindow | undefined;
 let launcherState: LauncherState = {
+  appVersion,
   captureStatus: "starting",
   statusDetail: "Checking Npcap…",
   npcapAvailability: "checking",
@@ -170,6 +173,19 @@ const rpc = BrowserView.defineRPC<LauncherRpc>({
         return launcherState;
       },
       openSettings: () => { openSettings(); },
+      openUpdateRelease: () => { if (launcherState.update) Utils.openExternal(launcherState.update.url); },
+      skipUpdateVersion: async () => {
+        if (!launcherState.update) return;
+        settings.skippedUpdateVersion = launcherState.update.version;
+        await launcherSettingsPersistence.flush(settings);
+        launcherState = { ...launcherState, update: undefined };
+        publish();
+      },
+      dismissUpdateNotification: () => {
+        if (!launcherState.update) return;
+        launcherState = { ...launcherState, update: undefined };
+        publish();
+      },
       windowAction: async ({ action }) => {
         if (action === "minimize") minimizeLauncher();
         else await closeLauncher();
@@ -241,9 +257,25 @@ launcherWindow.on("close", () => void shutdown());
 process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
 void initializeCapture();
+void checkForUpdate();
 void overlayWindow.open().catch((error) => {
   console.error(`[overlay] startup failed: ${error instanceof Error ? error.message : String(error)}`);
 });
+
+async function checkForUpdate(): Promise<void> {
+  try {
+    const update = await findAvailableUpdate(appVersion);
+    if (!update || update.version === settings.skippedUpdateVersion) return;
+    launcherState = { ...launcherState, update };
+    publish();
+    Utils.showNotification({
+      title: "Spirit Vale update available",
+      body: `Version ${update.version} is ready to download.`,
+    });
+  } catch {
+    // Update checks are opportunistic: offline use must remain uninterrupted.
+  }
+}
 
 async function initializeCapture(): Promise<void> {
   await refreshCaptureDevices();
