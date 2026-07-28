@@ -9,6 +9,7 @@ export interface LauncherSettings {
   captureAdapter: "auto" | string;
   uiScale: UiScale;
   minimizeToTray: boolean;
+  skippedUpdateVersion?: string;
 }
 
 const defaults: LauncherSettings = { captureAdapter: "auto", uiScale: 1, minimizeToTray: false };
@@ -21,6 +22,9 @@ export async function loadLauncherSettings(file = defaultSettingsFile()): Promis
         : defaults.captureAdapter,
       uiScale: normalizeUiScale(candidate.uiScale),
       minimizeToTray: candidate.minimizeToTray === true || (candidate.minimizeToTray !== false && candidate.closeToTray === true),
+      skippedUpdateVersion: typeof candidate.skippedUpdateVersion === "string" && candidate.skippedUpdateVersion.trim()
+        ? candidate.skippedUpdateVersion
+        : undefined,
     };
   }, () => ({ ...defaults }));
 }

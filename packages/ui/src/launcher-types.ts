@@ -12,6 +12,7 @@ export interface CaptureAdapterOption {
 }
 
 export interface LauncherState {
+  appVersion: string;
   captureStatus: CaptureStatus;
   statusDetail: string;
   storageWarning?: string;
@@ -24,6 +25,10 @@ export interface LauncherState {
   adapters: CaptureAdapterOption[];
   uiScale: UiScale;
   minimizeToTray: boolean;
+  update?: {
+    version: string;
+    url: string;
+  };
 }
 
 type LauncherSharedRequests = {
@@ -43,6 +48,9 @@ export type LauncherRpc = {
     requests: LauncherSharedRequests & {
       openTool: { params: { tool: ToolWindow }; response: LauncherState };
       openSettings: { params: Record<string, never>; response: void };
+      openUpdateRelease: { params: Record<string, never>; response: void };
+      skipUpdateVersion: { params: Record<string, never>; response: void };
+      dismissUpdateNotification: { params: Record<string, never>; response: void };
     };
   }>;
   webview: RPCSchema<{ messages: { stateChanged: LauncherState } }>;

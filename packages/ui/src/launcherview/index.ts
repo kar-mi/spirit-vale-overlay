@@ -17,6 +17,9 @@ const statusPanel = element("capture-status");
 const statusDot = element("status-dot");
 const statusText = element("status-text");
 const storageWarning = element("storage-warning");
+const updateNotification = element("update-notification");
+const updateText = element("update-text");
+const appVersion = element("app-version");
 
 for (const candidate of document.querySelectorAll<HTMLButtonElement>("[data-tool]")) {
   candidate.addEventListener("click", () => {
@@ -28,6 +31,9 @@ for (const candidate of document.querySelectorAll<HTMLButtonElement>("[data-tool
 button("minimize-button").addEventListener("click", () => void electroview.rpc?.request.windowAction({ action: "minimize" }));
 button("close-button").addEventListener("click", () => void electroview.rpc?.request.windowAction({ action: "close" }));
 button("settings-button").addEventListener("click", () => void electroview.rpc?.request.openSettings({}));
+button("update-download-button").addEventListener("click", () => void electroview.rpc?.request.openUpdateRelease({}));
+button("update-skip-button").addEventListener("click", () => void electroview.rpc?.request.skipUpdateVersion({}));
+button("update-dismiss-button").addEventListener("click", () => void electroview.rpc?.request.dismissUpdateNotification({}));
 
 initWindowChrome({
   titlebar: element("titlebar"),
@@ -52,12 +58,15 @@ async function ensureInitialWindowSize(): Promise<void> {
 }
 
 function render(state: LauncherState): void {
+  appVersion.textContent = `v${state.appVersion}`;
   const unavailable = state.captureStatus === "unavailable";
   statusPanel.classList.toggle("is-error", unavailable);
   statusDot.className = `status-dot ${unavailable ? "is-err" : state.captureStatus === "capturing" ? "is-ok" : "is-idle"}`;
   statusText.textContent = state.statusDetail;
   storageWarning.hidden = state.storageWarning === undefined;
   storageWarning.textContent = state.storageWarning ?? "";
+  updateNotification.hidden = state.update === undefined;
+  updateText.textContent = state.update ? `Version ${state.update.version} is available on GitHub.` : "";
 }
 
 function element(id: string): HTMLElement {

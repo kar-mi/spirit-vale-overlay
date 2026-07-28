@@ -38,6 +38,28 @@ html, body {
 .capture-status strong { font-size: 13px; }
 .capture-status p { margin: 3px 0 0; color: var(--on-surface-variant); font-size: 12px; }
 
+.brand-version { color: var(--on-surface-variant); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.update-notification {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--primary);
+  border-radius: var(--shape-md);
+  background: var(--primary-container);
+}
+
+.update-notification strong { font-size: 13px; }
+.update-notification p { margin: 3px 0 0; color: var(--on-primary-container); font-size: 12px; }
+.update-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.update-button, .update-skip-button, .update-dismiss-button { border: 1px solid var(--outline-variant); border-radius: var(--shape-sm); background: var(--surface-container); color: var(--on-surface); }
+.update-button { padding: 7px 10px; font-size: 12px; }
+.update-skip-button { padding: 7px 8px; font-size: 12px; }
+.update-button:hover, .update-skip-button:hover, .update-dismiss-button:hover { border-color: var(--primary); }
+.update-dismiss-button { width: 28px; height: 28px; font-size: 18px; line-height: 1; }
+
 .tool-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 
 .tool-button {

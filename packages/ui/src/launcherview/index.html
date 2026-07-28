@@ -12,7 +12,7 @@
   <body>
     <main class="app-shell">
       <header id="titlebar" class="titlebar">
-        <div class="brand"><img class="brand-icon" src="views://assets/app-icon.png" alt="" /><span>Spirit Vale</span><span class="brand-tag">Tools</span></div>
+        <div class="brand"><img class="brand-icon" src="views://assets/app-icon.png" alt="" /><span>Spirit Vale</span><span id="app-version" class="brand-version"></span><span class="brand-tag">Tools</span></div>
         <div class="window-controls">
           <button id="settings-button" class="icon-button" type="button" aria-label="Packet capture settings" title="Packet capture settings">⚙</button>
           <button id="minimize-button" class="icon-button" type="button" aria-label="Minimize" title="Minimize">−</button>
@@ -27,6 +27,15 @@
         </div>
 
         <div id="storage-warning" class="banner is-warn" aria-live="polite" hidden></div>
+
+        <div id="update-notification" class="update-notification" aria-live="polite" hidden>
+          <div><strong id="update-title">Update available</strong><p id="update-text"></p></div>
+          <div class="update-actions">
+            <button id="update-download-button" class="update-button" type="button">View download</button>
+            <button id="update-skip-button" class="update-skip-button" type="button">Skip version</button>
+            <button id="update-dismiss-button" class="update-dismiss-button" type="button" aria-label="Dismiss update notification" title="Dismiss">×</button>
+          </div>
+        </div>
 
         <div class="tool-grid" aria-label="Spirit Vale tools">
           <button class="tool-button" data-tool="combat" type="button"><strong>Combat</strong><span>Live DPS and combat replay</span></button>
