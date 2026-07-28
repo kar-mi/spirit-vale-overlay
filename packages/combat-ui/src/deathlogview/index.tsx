@@ -3,7 +3,7 @@ import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
-import { formatDuration } from "@spiritvale/ui-core/format";
+import { formatDuration, normalizeSearchText } from "@spiritvale/ui-core/format";
 
 import type { CombatDeathLogRpc, CombatDeathLogState } from "../app-types.ts";
 
@@ -21,8 +21,11 @@ void electroview.rpc?.request.getState({}).then((next) => { state.value = next; 
 function App() {
   const next = state.value;
   const [tab, setTab] = useState<DeathLogTab>("summary");
+  const [victimQuery, setVictimQuery] = useState("");
   if (!next) return <main class="app-shell" />;
   const selected = next.deaths.find((death) => death.id === next.selectedDeathId) ?? next.deaths[0];
+  const needle = normalizeSearchText(victimQuery);
+  const visibleDeaths = needle ? next.deaths.filter((death) => normalizeSearchText(death.victimName).includes(needle)) : next.deaths;
   const attackerLabels = numberedMonsterLabels(next);
   const summary = summarize(selected === undefined ? [] : [selected], attackerLabels);
   return <main class="app-shell">
@@ -43,13 +46,27 @@ function App() {
       {next.invalidLines > 0 && <p class="banner is-warn">{next.invalidLines} malformed record{next.invalidLines === 1 ? " was" : "s were"} skipped.</p>}
       {next.deaths.length === 0 ? <p class="empty-state">No player deaths were found in this log.</p> : <>
         <section class="death-list-section">
-          <div class="section-head"><h2>Deaths</h2><p>Most recent first.</p></div>
-          <div class="table-scroll">
+          <div class="section-head">
+            <div><h2>Deaths</h2><p>Most recent first.</p></div>
+            <label class="field" for="death-victim-query">
+              <span aria-hidden="true">⌕</span>
+              <input
+                id="death-victim-query"
+                type="search"
+                autocomplete="off"
+                placeholder="Search player"
+                value={victimQuery}
+                onInput={(event) => setVictimQuery((event.target as HTMLInputElement).value)}
+              />
+            </label>
+          </div>
+          <div class="table-scroll death-list-scroll">
             <table class="data-table death-table" aria-label="Player deaths"><thead><tr><th>Player</th><th>Damage</th><th>Hits</th></tr></thead>
-              <tbody>{next.deaths.map((death) => <tr key={death.id} class={death.id === selected?.id ? "selected" : undefined} onClick={() => void electroview.rpc?.request.selectDeath({ id: death.id })}>
+              <tbody>{visibleDeaths.map((death) => <tr key={death.id} class={death.id === selected?.id ? "selected" : undefined} onClick={() => void electroview.rpc?.request.selectDeath({ id: death.id })}>
                 <th scope="row">{death.victimName}</th><td>{compactFormat.format(death.totalDamage)}</td><td>{numberFormat.format(death.hits.length)}</td>
               </tr>)}</tbody>
             </table>
+            {visibleDeaths.length === 0 && <p class="empty-state">No deaths match "{victimQuery}".</p>}
           </div>
         </section>
         {selected && <section class="death-detail-section">
