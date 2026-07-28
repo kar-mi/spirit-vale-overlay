@@ -2,6 +2,7 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .app-shell { display: grid; grid-template-rows: 40px minmax(0, 1fr); width: 100%; height: 100%; min-width: 620px; background: var(--surface); }
 .detail-content { min-height: 0; overflow-y: auto; padding: 14px 16px 16px; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.stat-type-picker { display: grid; gap: 4px; min-width: 140px; }
 .toolbar h1 { margin: 0; font-size: 18px; font-weight: 500; }.toolbar p { margin: 4px 0 0; color: var(--on-surface-variant); font-size: 12px; }
 .totals { margin-bottom: 16px; }.totals .summary-table { min-width: 540px; }
 .chart-section, .skills-section { margin-bottom: 18px; }.section-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }.section-head h2 { margin: 0; font-size: 14px; font-weight: 500; }.section-head p { margin: 0; color: var(--on-surface-variant); font-size: 12px; }

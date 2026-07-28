@@ -6,8 +6,10 @@ import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { StatusDot } from "@spiritvale/ui-core/status-dot";
 import type { StatusTone } from "@spiritvale/ui-core/status-dot";
 import { formatDps, formatDuration } from "@spiritvale/ui-core/format";
+import { CustomSelect } from "@spiritvale/ui-core/custom-select";
+import { StatTypeSelect } from "@spiritvale/ui-core/stat-type-select";
 
-import type { DpsAppRpc, DpsAppState, DpsAppTab } from "../app-types.ts";
+import type { DpsAppRpc, DpsAppState, DpsAppTab, MeterEncounterSnapshot, StatType } from "../app-types.ts";
 import {
   DPS_WINDOW_DEFAULT_HEIGHT,
   DPS_WINDOW_DEFAULT_WIDTH,
@@ -45,6 +47,11 @@ function setTab(tab: DpsAppTab): void {
   void electroview.rpc?.request.setTab({ tab });
 }
 
+function setStatType(statType: StatType): void {
+  if (state.value) state.value = { ...state.value, statType };
+  void electroview.rpc?.request.setStatType({ statType });
+}
+
 function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
@@ -53,7 +60,7 @@ function formatCritRate(critRate: number | undefined): string {
   return critRate === undefined ? "—" : formatPercent(critRate);
 }
 
-function actorSortValue(actor: NonNullable<DpsAppState["snapshot"]>["actors"][number], key: ActorSortKey): number {
+function actorSortValue(actor: MeterEncounterSnapshot["actors"][number], key: ActorSortKey): number {
   if (key === "critRate") return actor.critRate ?? 0;
   return actor[key];
 }
@@ -72,7 +79,15 @@ function App() {
 
   if (!next) return <main class="app-shell" />;
 
-  const actors = next.snapshot?.actors ?? [];
+  const activeSnapshot: MeterEncounterSnapshot | undefined =
+    next.statType === "tanked" ? next.tankedSnapshot :
+    next.statType === "heal" ? next.healSnapshot :
+    next.snapshot;
+  const metricLabel = next.statType === "tanked" ? "TPS" : next.statType === "heal" ? "HPS" : "DPS";
+  const isHeal = next.statType === "heal";
+  const amountLabel = isHeal ? "HEAL" : "DMG";
+
+  const actors = activeSnapshot?.actors ?? [];
   const sortedActors = [...actors].sort((left, right) => {
     const difference = actorSortValue(left, actorSort.key) - actorSortValue(right, actorSort.key);
     if (difference !== 0) return actorSort.direction === "ascending" ? difference : -difference;
@@ -84,8 +99,8 @@ function App() {
       direction: current.key === key && current.direction === "descending" ? "ascending" : "descending",
     }));
   };
-  const personalSkills = next.snapshot?.personal?.skills ?? [];
-  const personalMatch = next.snapshot?.personalMatch ?? (next.personalName ? "missing" : "unconfigured");
+  const personalSkills = activeSnapshot?.personal?.skills ?? [];
+  const personalMatch = activeSnapshot?.personalMatch ?? (next.personalName ? "missing" : "unconfigured");
   const allActive = next.tab === "all";
 
   return (
@@ -106,20 +121,23 @@ function App() {
       />
 
       <section class="command-bar">
-        <button class="btn" type="button" onClick={() => void electroview.rpc?.request.openReplayPicker({})}>Open log</button>
-        <button class="btn" type="button" disabled={next.resetting} onClick={() => void electroview.rpc?.request.resetSession({})}>Reset</button>
+        <StatTypeSelect value={next.statType} onChange={setStatType} />
+        <div class="command-bar-actions">
+          <button class="btn" type="button" onClick={() => void electroview.rpc?.request.openReplayPicker({})}>Open log</button>
+          <button class="btn" type="button" disabled={next.resetting} onClick={() => void electroview.rpc?.request.resetSession({})}>Reset</button>
+        </div>
       </section>
 
       <section class="status-strip" aria-live="polite">
         <StatusDot tone={STATUS_TONE[next.status]} detail={next.statusDetail} />
         <div class="table-scroll summary-table-scroll">
           <table class="data-table summary-table" aria-label="Encounter totals">
-            <thead><tr><th>Timer</th><th>Encounter DPS</th><th>Total damage</th><th>Total kills</th></tr></thead>
+            <thead><tr><th>Timer</th><th>Encounter {metricLabel}</th><th>{next.statType === "tanked" ? "Total damage taken" : next.statType === "heal" ? "Total healing" : "Total damage"}</th><th>Total kills</th></tr></thead>
             <tbody><tr>
-              <td>{next.snapshot ? formatDuration(next.snapshot.durationMs) : "—"}</td>
-              <td>{formatDps(next.snapshot?.partyDps ?? 0)}</td>
-              <td>{compactFormat.format(next.snapshot?.totalDamage ?? 0)}</td>
-              <td>{numberFormat.format(next.snapshot?.actors.reduce((total, actor) => total + actor.kills, 0) ?? 0)}</td>
+              <td>{activeSnapshot ? formatDuration(activeSnapshot.durationMs) : "—"}</td>
+              <td>{formatDps(activeSnapshot?.partyDps ?? 0)}</td>
+              <td>{compactFormat.format(activeSnapshot?.totalDamage ?? 0)}</td>
+              <td>{numberFormat.format(activeSnapshot?.actors.reduce((total, actor) => total + actor.kills, 0) ?? 0)}</td>
             </tr></tbody>
           </table>
         </div>
@@ -128,20 +146,20 @@ function App() {
       <div id="storage-warning" class="banner is-warn" aria-live="polite" hidden={next.storageWarning === undefined}>{next.storageWarning ?? ""}</div>
 
       <nav class="seg tabs" role="tablist" aria-label="Damage views">
-        <button type="button" role="tab" aria-controls="all-panel" class={allActive ? "active" : undefined} aria-selected={allActive} onClick={() => setTab("all")}>All DPS</button>
+        <button type="button" role="tab" aria-controls="all-panel" class={allActive ? "active" : undefined} aria-selected={allActive} onClick={() => setTab("all")}>All {metricLabel}</button>
         <button type="button" role="tab" aria-controls="personal-panel" class={allActive ? undefined : "active"} aria-selected={!allActive} onClick={() => setTab("personal")}>Personal</button>
       </nav>
 
       <section class="panel" role="tabpanel" hidden={!allActive}>
         {actors.length === 0
-          ? <div class="empty-state">Player damage will appear when combat begins and identities are visible.</div>
+          ? <div class="empty-state">{isHeal ? "Healing will appear once someone casts a heal." : "Player damage will appear when combat begins and identities are visible."}</div>
           : <div class="table-scroll meter-table-scroll">
               <table class="data-table meter-table party-meter-table" aria-label="Party damage">
                 <thead><tr>
                   <th>IGN</th>
-                  <SortableHeader label="DPS" sortKey="dps" sort={actorSort} onSort={sortActorsBy} />
-                  <SortableHeader label="DMG" sortKey="damage" sort={actorSort} onSort={sortActorsBy} />
-                  <SortableHeader label="DMG %" sortKey="contribution" sort={actorSort} onSort={sortActorsBy} />
+                  <SortableHeader label={metricLabel} sortKey="dps" sort={actorSort} onSort={sortActorsBy} />
+                  <SortableHeader label={amountLabel} sortKey="damage" sort={actorSort} onSort={sortActorsBy} />
+                  <SortableHeader label={`${amountLabel} %`} sortKey="contribution" sort={actorSort} onSort={sortActorsBy} />
                   <SortableHeader label="CRT %" sortKey="critRate" sort={actorSort} onSort={sortActorsBy} />
                   <SortableHeader label="Kills" sortKey="kills" sort={actorSort} onSort={sortActorsBy} />
                   <SortableHeader label="Mobs hit" sortKey="mobsHit" sort={actorSort} onSort={sortActorsBy} />
@@ -176,21 +194,21 @@ function App() {
             <button class="btn" type="submit">Save</button>
           </div>
           <label class="t-label actor-label" for="personal-actor">Damage actor</label>
-          <select
+          <CustomSelect
             id="personal-actor"
-            class="input"
-            aria-label="Personal damage actor"
+            ariaLabel="Personal damage actor"
             value={next.personalActorId === undefined ? "auto" : String(next.personalActorId)}
-            onChange={(event) => {
-              const value = (event.target as HTMLSelectElement).value;
+            onChange={(value) => {
               void electroview.rpc?.request.setPersonalActor({ actorId: value === "auto" ? null : Number(value) });
             }}
-          >
-            <option value="auto">Automatic (name or local actions)</option>
-            {actors.flatMap((actor) => actor.actorIds.map((actorId) => (
-              <option key={actorId} value={String(actorId)}>{actor.displayName} · {compactFormat.format(actor.damage)} damage</option>
-            )))}
-          </select>
+            options={[
+              { value: "auto", label: "Automatic (name or local actions)" },
+              ...actors.flatMap((actor) => actor.actorIds.map((actorId) => ({
+                value: String(actorId),
+                label: `${actor.displayName} · ${compactFormat.format(actor.damage)} damage`,
+              }))),
+            ]}
+          />
         </form>
         <p class="personal-hint">
           {personalMatch === "unconfigured"
@@ -205,7 +223,7 @@ function App() {
           ? <div class="empty-state">{personalMatch === "matched" ? "No personal skill damage yet." : "Personal skills appear after your character is matched."}</div>
           : <div class="table-scroll meter-table-scroll">
               <table class="data-table meter-table" aria-label="Personal skill damage">
-                <thead><tr><th>Skill</th><th>DPS</th><th>Damage</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th></tr></thead>
+                <thead><tr><th>{next.statType === "tanked" ? "Attacker skill" : "Skill"}</th><th>{metricLabel}</th><th>{amountLabel}</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th></tr></thead>
                 <tbody>{personalSkills.map((skill) => (
                   <tr key={skill.sourceId} class="meter-table-row" style={`--row-fill:${Math.max(0, Math.min(100, skill.contribution * 100))}%`}>
                     <th scope="row">{skill.sourceLabel}</th>

@@ -40,10 +40,15 @@ body {
 .command-bar {
   display: flex;
   justify-content: space-between;
+  align-items: end;
   padding: 4px 10px 0;
 }
 
+.command-bar-actions { display: flex; gap: 6px; }
+
 .command-bar .btn { padding: 4px 8px; font-size: 11px; }
+
+.stat-type-picker { display: grid; gap: 4px; min-width: 140px; }
 
 .status-strip {
   display: grid;

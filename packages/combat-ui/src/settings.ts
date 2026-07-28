@@ -3,7 +3,7 @@ import path from "node:path";
 import { resolveLocalStorageRoot } from "@spiritvale/ui-core/local-storage";
 import { loadJsonSettings } from "@spiritvale/ui-core/json-settings";
 
-import type { DpsAppTab } from "./app-types.ts";
+import type { DpsAppTab, StatType } from "./app-types.ts";
 import {
   DPS_WINDOW_DEFAULT_HEIGHT,
   DPS_WINDOW_DEFAULT_WIDTH,
@@ -14,12 +14,14 @@ import {
 export interface DpsAppSettings {
   personalName: string;
   tab: DpsAppTab;
+  statType: StatType;
   frame: { x: number; y: number; width: number; height: number };
 }
 
 const DEFAULT_SETTINGS: DpsAppSettings = {
   personalName: "",
   tab: "all",
+  statType: "damage",
   frame: { x: 80, y: 80, width: DPS_WINDOW_DEFAULT_WIDTH, height: DPS_WINDOW_DEFAULT_HEIGHT },
 };
 
@@ -30,6 +32,7 @@ export async function loadDpsAppSettings(settingsPath?: string): Promise<DpsAppS
     return {
       personalName: typeof candidate.personalName === "string" ? candidate.personalName.trim() : "",
       tab: candidate.tab === "personal" ? "personal" : "all",
+      statType: candidate.statType === "tanked" ? "tanked" : candidate.statType === "heal" ? "heal" : "damage",
       frame: validFrame(candidate.frame) ? candidate.frame : { ...DEFAULT_SETTINGS.frame },
     };
   }, () => ({ ...DEFAULT_SETTINGS, frame: { ...DEFAULT_SETTINGS.frame } }));

@@ -6,9 +6,10 @@ import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { formatDuration } from "@spiritvale/ui-core/format";
 import { EnemyFilterControl } from "@spiritvale/ui-core/enemy-filter";
+import { CustomSelect } from "@spiritvale/ui-core/custom-select";
+import { StatTypeSelect } from "@spiritvale/ui-core/stat-type-select";
 
-import type { CombatAnalysisRpc, CombatAnalysisState } from "../app-types.ts";
-import type { FishNetDpsActorRow } from "@kar-mi/spirit-vale-tools-combat";
+import type { CombatAnalysisRpc, CombatAnalysisState, MeterActorRow, MeterEncounterSnapshot } from "../app-types.ts";
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
@@ -30,7 +31,7 @@ function activateRow(event: JSX.TargetedKeyboardEvent<HTMLTableRowElement>, acti
 }
 
 interface FilteredRow {
-  actor: FishNetDpsActorRow;
+  actor: MeterActorRow;
   damage: number;
   dps: number;
   hits: number;
@@ -39,8 +40,8 @@ interface FilteredRow {
   contribution: number;
 }
 
-function applyEnemyFilter(next: CombatAnalysisState, rows: FishNetDpsActorRow[], selectedEnemyIds: ReadonlySet<number>): FilteredRow[] {
-  if (selectedEnemyIds.size === 0) {
+function applyEnemyFilter(next: CombatAnalysisState, rows: MeterActorRow[], selectedEnemyIds: ReadonlySet<number>): FilteredRow[] {
+  if (next.statType !== "damage" || selectedEnemyIds.size === 0) {
     return rows.map((actor) => ({
       actor,
       damage: actor.damage,
@@ -79,13 +80,20 @@ function App() {
 
   if (!next) return <main class="app-shell" />;
 
-  const rows = next.snapshot?.actors ?? [];
+  const activeSnapshot: MeterEncounterSnapshot | undefined =
+    next.statType === "tanked" ? next.tankedSnapshot :
+    next.statType === "heal" ? next.healSnapshot :
+    next.snapshot;
+  const metricLabel = next.statType === "tanked" ? "TPS" : next.statType === "heal" ? "HPS" : "DPS";
+  const damageLabel = next.statType === "tanked" ? "Damage taken" : next.statType === "heal" ? "Healing" : "Damage";
+
+  const rows = activeSnapshot?.actors ?? [];
   const filteredRows = applyEnemyFilter(next, rows, selectedEnemyIds);
-  const hasFilter = selectedEnemyIds.size > 0;
-  const partyDamage = hasFilter ? filteredRows.reduce((sum, row) => sum + row.damage, 0) : (next.snapshot?.totalDamage ?? 0);
+  const hasFilter = next.statType === "damage" && selectedEnemyIds.size > 0;
+  const partyDamage = hasFilter ? filteredRows.reduce((sum, row) => sum + row.damage, 0) : (activeSnapshot?.totalDamage ?? 0);
   const partyDps = hasFilter
-    ? (next.snapshot ? partyDamage / (Math.max(1, next.snapshot.durationMs) / 1000) : 0)
-    : (next.snapshot?.partyDps ?? 0);
+    ? (activeSnapshot ? partyDamage / (Math.max(1, activeSnapshot.durationMs) / 1000) : 0)
+    : (activeSnapshot?.partyDps ?? 0);
 
   return (
     <main class="app-shell">
@@ -102,21 +110,22 @@ function App() {
         <section class="toolbar">
           <label class="encounter-picker">
             <span class="t-label">Encounter</span>
-            <select
-              class="input"
-              aria-label="Encounter"
+            <CustomSelect
+              ariaLabel="Encounter"
               disabled={next.status !== "ready" || next.encounters.length < 2}
               value={next.selectedEncounterId ?? ""}
-              onChange={(event) => void electroview.rpc?.request.selectEncounter({ id: (event.target as HTMLSelectElement).value })}
-            >
-              {next.encounters.map((encounter) => <option key={encounter.id} value={encounter.id}>{encounter.label}</option>)}
-            </select>
+              options={next.encounters.map((encounter) => ({ value: encounter.id, label: encounter.label }))}
+              onChange={(id) => void electroview.rpc?.request.selectEncounter({ id })}
+            />
           </label>
-          <EnemyFilterControl enemies={next.enemies} selected={selectedEnemyIds} onChange={setSelectedEnemyIds} />
+          <StatTypeSelect
+            value={next.statType}
+            onChange={(statType) => void electroview.rpc?.request.setStatType({ statType })}
+            disabled={next.status !== "ready"}
+          />
+          <EnemyFilterControl enemies={next.statType === "damage" ? next.enemies : []} selected={selectedEnemyIds} onChange={setSelectedEnemyIds} />
           <div class="toolbar-meta">
             <button class="btn" type="button" disabled={next.status !== "ready"} onClick={() => void electroview.rpc?.request.openDeathLog({})}>Death log</button>
-            <span class="pill">{next.fileName ?? "Loading…"}</span>
-            <span id="status" class="status-readout" aria-live="polite">{next.statusDetail}</span>
           </div>
         </section>
         <p id="warning" class="banner is-warn" hidden={next.invalidLines === 0}>
@@ -124,20 +133,20 @@ function App() {
         </p>
         <div class="table-scroll totals">
           <table class="data-table summary-table" aria-label="Encounter totals">
-            <thead><tr><th>Party DPS</th><th>Total damage</th><th>Duration</th><th>Players</th></tr></thead>
+            <thead><tr><th>Party {metricLabel}</th><th>Total {damageLabel.toLowerCase()}</th><th>Duration</th><th>Players</th></tr></thead>
             <tbody><tr>
               <td>{numberFormat.format(partyDps)}</td>
               <td>{compactFormat.format(partyDamage)}</td>
-              <td>{next.snapshot ? formatDuration(next.snapshot.durationMs) : "—"}</td>
+              <td>{activeSnapshot ? formatDuration(activeSnapshot.durationMs) : "—"}</td>
               <td>{numberFormat.format(rows.length)}</td>
             </tr></tbody>
           </table>
         </div>
         <section class="players-section" aria-label="Player analysis">
-          <div class="section-head"><h1>Player damage</h1><p>Double-click a player for skills and damage over time.</p></div>
+          <div class="section-head"><h1>Player {damageLabel.toLowerCase()}</h1><p>Double-click a player for skills and damage over time.</p></div>
           {filteredRows.length > 0 && <div class="table-scroll">
-            <table class="data-table combat-table" aria-label="Player damage">
-              <thead><tr><th>Player</th><th>Damage</th><th>DPS</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th><th>Kills</th></tr></thead>
+            <table class="data-table combat-table" aria-label={`Player ${damageLabel.toLowerCase()}`}>
+              <thead><tr><th>Player</th><th>{damageLabel}</th><th>{metricLabel}</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th><th>Kills</th></tr></thead>
               <tbody>{filteredRows.map(({ actor: player, damage, dps, hits, criticalHits, critRate, contribution }) => {
                 const activate = () => void electroview.rpc?.request.openPlayerDetails({ actorId: player.actorIds[0]! });
                 return <tr
@@ -161,7 +170,7 @@ function App() {
             </table>
           </div>}
           {next.status === "ready" && rows.length === 0 && (
-            <p id="empty-state" class="empty-state">No player damage was found for this encounter.</p>
+            <p id="empty-state" class="empty-state">No {damageLabel.toLowerCase()} was found for this encounter.</p>
           )}
         </section>
       </section>

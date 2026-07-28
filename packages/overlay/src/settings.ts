@@ -9,6 +9,7 @@ import {
   type KeybindAction,
   type OverlayElementId,
   type OverlayElementSettings,
+  type StatType,
 } from "./app-types.ts";
 
 export { KEYBIND_ACTIONS, OVERLAY_ELEMENT_IDS };
@@ -19,12 +20,14 @@ export interface OverlaySettings {
   locked: boolean;
   shortcuts: Record<KeybindAction, string>;
   elements: Record<OverlayElementId, OverlayElementSettings>;
+  meterStatType: StatType;
 }
 
 const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
   toggleLock: "F11",
   resetSession: "F5",
   toggleOverlayVisible: "F9",
+  cycleMeterStatType: "F7",
 };
 
 export interface DisplayBounds {
@@ -97,7 +100,12 @@ export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBoun
     locked: typeof source.locked === "boolean" ? source.locked : false,
     shortcuts,
     elements,
+    meterStatType: normalizeMeterStatType(source.meterStatType),
   };
+}
+
+function normalizeMeterStatType(value: unknown): StatType {
+  return value === "tanked" || value === "heal" ? value : "damage";
 }
 
 export function normalizeSingleShortcut(action: KeybindAction, value: unknown): string {
@@ -114,6 +122,7 @@ export function normalizeShortcuts(source: Record<string, unknown>): Record<Keyb
     toggleLock: shortcutsSource.toggleLock,
     resetSession: shortcutsSource.resetSession ?? source.resetShortcut,
     toggleOverlayVisible: shortcutsSource.toggleOverlayVisible ?? source.overlayVisibleShortcut,
+    cycleMeterStatType: shortcutsSource.cycleMeterStatType,
   };
   const shortcuts = {} as Record<KeybindAction, string>;
   for (const action of KEYBIND_ACTIONS) {

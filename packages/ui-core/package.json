@@ -11,6 +11,8 @@
     "./title-bar": "./title-bar.tsx",
     "./status-dot": "./status-dot.tsx",
     "./enemy-filter": "./enemy-filter.tsx",
+    "./custom-select": "./custom-select.tsx",
+    "./stat-type-select": "./stat-type-select.tsx",
     "./safe-save": "./safe-save.ts",
     "./json-settings": "./json-settings.ts",
     "./format": "./format.ts",

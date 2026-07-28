@@ -3,11 +3,14 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./app-types": "./src/app-types.ts",
+    "./tps-meter": "./src/tps-meter.ts",
+    "./hps-meter": "./src/hps-meter.ts"
   },
   "dependencies": {
     "@preact/signals": "^2.9.4",
-    "@kar-mi/spirit-vale-tools-combat": "0.2.5",
+    "@kar-mi/spirit-vale-tools-combat": "0.2.7",
     "@kar-mi/spirit-vale-tools-logging": "0.2.2",
     "@spiritvale/ui-core": "workspace:*",
     "electrobun": "1.18.1",

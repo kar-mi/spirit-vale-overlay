@@ -2,6 +2,8 @@ import path from "node:path";
 
 import { DpsLogFollower, DpsSessionLogFollower, FishNetStatusTracker } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
+import { HpsMeter } from "@spiritvale/combat-ui/hps-meter";
+import { TpsMeter } from "@spiritvale/combat-ui/tps-meter";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { applyRoundedCorners, hideWindowFromTaskbar, setWindowClickThrough, setWindowIcon } from "@spiritvale/ui-core/win32";
 import { appIconPath } from "@spiritvale/ui-core/window-publish";
@@ -10,7 +12,7 @@ import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement"
 import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/bun";
 
 import type { KeybindAction, OverlayRpc, OverlaySettingsRpc, OverlayState, OverlayStatus } from "../app-types.ts";
-import { KEYBIND_ACTIONS } from "../app-types.ts";
+import { KEYBIND_ACTIONS, METER_STAT_TYPE_CYCLE } from "../app-types.ts";
 import { createPersonalDpsMeter, detectedPersonalName, syncPersonalCharacter } from "../personal-character.ts";
 import { personalResources } from "../personal-resources.ts";
 import {
@@ -30,6 +32,7 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   toggleLock: "lock/unlock",
   resetSession: "reset",
   toggleOverlayVisible: "show/hide",
+  cycleMeterStatType: "cycle party meter",
 };
 
 export interface OverlayWindowOptions {
@@ -50,6 +53,8 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   if (options.lockOnCreate) settings.locked = true;
   let characterState = options.getCharacterState();
   let meter = createPersonalDpsMeter(characterState);
+  let tpsMeter = new TpsMeter({ personalName: detectedPersonalName(characterState) });
+  let hpsMeter = new HpsMeter({ personalName: detectedPersonalName(characterState) });
   let statusTracker = new FishNetStatusTracker();
   const liveLogOverride = process.env.SPIRIT_VALE_COMBAT_LOG;
   const liveLog = liveLogOverride
@@ -203,6 +208,8 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   unsubscribeCharacter = options.subscribeCharacter((next) => {
     characterState = next;
     syncPersonalCharacter(meter, characterState);
+    tpsMeter.setPersonalName(detectedPersonalName(characterState));
+    hpsMeter.setPersonalName(detectedPersonalName(characterState));
     publish();
   });
 
@@ -226,6 +233,16 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   function appState(): OverlayState {
     const snapshotNowMs = relativeNowMs();
     const snapshot = meter.getLatestSnapshot(snapshotNowMs);
+    const encounterWindow = snapshot
+      ? {
+          id: snapshot.id,
+          startedAtMs: snapshot.startedAtMs,
+          endedAtMs: snapshot.endedAtMs ?? snapshotNowMs ?? snapshot.lastDamageAtMs,
+          durationMs: snapshot.durationMs,
+        }
+      : undefined;
+    const tankedSnapshot = encounterWindow ? tpsMeter.getSnapshot(encounterWindow, snapshotNowMs ?? encounterWindow.endedAtMs) : undefined;
+    const healSnapshot = encounterWindow ? hpsMeter.getSnapshot(encounterWindow, snapshotNowMs ?? encounterWindow.endedAtMs) : undefined;
     const resources = personalResources(characterState.records);
     const personalName = detectedPersonalName(characterState);
     // Statuses with no data-mine icon (a small upstream gap, e.g. SlowImmunity/BlindImmunity) are
@@ -238,10 +255,13 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       status,
       statusDetail,
       elements: settings.elements,
+      meterStatType: settings.meterStatType,
       shortcuts: settings.shortcuts,
       shortcutErrors: Object.fromEntries(shortcutErrors),
       overlayVisible,
       ...(snapshot ? { snapshot, snapshotNowMs: snapshotNowMs ?? snapshot.lastDamageAtMs } : {}),
+      ...(tankedSnapshot ? { tankedSnapshot } : {}),
+      ...(healSnapshot ? { healSnapshot } : {}),
       ...resources,
       ...(characterState.weight ? { weight: characterState.weight } : {}),
       buffs: activeStatuses.filter((activeStatus) => !activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined),
@@ -303,12 +323,21 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     publish();
   }
 
+  function cycleMeterStatType(): void {
+    const currentIndex = METER_STAT_TYPE_CYCLE.indexOf(settings.meterStatType);
+    const next = METER_STAT_TYPE_CYCLE[(currentIndex + 1) % METER_STAT_TYPE_CYCLE.length]!;
+    settings = { ...settings, meterStatType: next };
+    persist();
+    publish();
+  }
+
   function registerShortcut(action: KeybindAction, shortcut: string): boolean {
     const registered = GlobalShortcut.register(shortcut, () => {
       if (shuttingDown) return;
       if (action === "toggleLock") updateLocked(!settings.locked);
       else if (action === "toggleOverlayVisible") updateOverlayVisible(!overlayVisible);
-      else if (options.onReset) {
+      else if (action === "cycleMeterStatType") cycleMeterStatType();
+      else if (action === "resetSession" && options.onReset) {
         void options.onReset().catch(() => {
           shortcutErrors.set(action, "Could not reset the capture session.");
           publish();
@@ -329,7 +358,15 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     try {
       const state = appState();
       try { overlayRpc.send.stateChanged(state); } catch { /* View may still be connecting. */ }
-      try { settingsRpc.send.stateChanged(state); } catch { /* Settings may be closed. */ }
+      // Only send if a settings window is actually open. The settings window's own "close"
+      // handler calls updateLocked -> publish while it's mid-close; sending to its webview at
+      // that exact moment can be a native-level failure a JS try/catch can't recover from, not
+      // just a catchable RPC error, so skip the send entirely rather than relying on the catch.
+      if (settingsWindow) {
+        try { settingsRpc.send.stateChanged(state); } catch { /* Settings may be closed. */ }
+      }
+    } catch (error) {
+      console.error("[spiritvale-overlay] publish failed:", error);
     } finally {
       publishing = false;
     }
@@ -342,6 +379,8 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       const batch = await liveLog.poll();
       if (batch.reset) {
         meter = createPersonalDpsMeter(characterState);
+        tpsMeter = new TpsMeter({ personalName: detectedPersonalName(characterState) });
+        hpsMeter = new HpsMeter({ personalName: detectedPersonalName(characterState) });
         statusTracker = new FishNetStatusTracker();
         lastEventObservedAtMs = undefined;
         lastEventWallMs = undefined;
@@ -350,9 +389,13 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       for (const { event, observedAtMs } of batch.events) {
         if (event.kind === "actorIdentity") {
           meter.consumeIdentity(event, observedAtMs);
+          tpsMeter.consumeIdentity(event);
+          hpsMeter.consumeIdentity(event);
           statusTracker.consumeIdentity(event);
         } else {
           meter.consumeCombat(event, observedAtMs);
+          tpsMeter.consumeCombat(event, observedAtMs);
+          hpsMeter.consumeCombat(event, observedAtMs);
           statusTracker.consume(event, observedAtMs);
         }
         batchLastObservedAtMs = Math.max(batchLastObservedAtMs ?? observedAtMs, observedAtMs);

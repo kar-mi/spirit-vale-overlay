@@ -1,13 +1,14 @@
 import { render } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { formatDuration } from "@spiritvale/ui-core/format";
 import { EnemyFilterControl } from "@spiritvale/ui-core/enemy-filter";
+import { StatTypeSelect } from "@spiritvale/ui-core/stat-type-select";
 
-import type { FishNetDpsSkillRow, FishNetDpsTimelinePoint } from "@kar-mi/spirit-vale-tools-combat";
-import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState } from "../app-types.ts";
+import type { FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
+import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState, MeterActorRow, MeterTimelinePoint, StatType } from "../app-types.ts";
 
 type Metric = "cumulative" | "dps";
 
@@ -77,16 +78,37 @@ void electroview.rpc?.request.getState({}).then((next) => { state.value = next; 
 function App() {
   const [metric, setMetric] = useState<Metric>("dps");
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
+  const [statType, setStatType] = useState<StatType>("damage");
+  const statTypeSeeded = useRef(false);
   const next = state.value;
+
+  useEffect(() => {
+    if (next && !statTypeSeeded.current) {
+      statTypeSeeded.current = true;
+      setStatType(next.statType);
+    }
+  }, [next?.statType]);
+
   if (!next) return <main class="app-shell" />;
-  const player = next.player;
-  const fold = foldSkillsByEnemy(next, selectedEnemyIds);
+
+  const activePlayer: MeterActorRow | undefined =
+    statType === "tanked" ? next.tankedPlayer :
+    statType === "heal" ? next.healPlayer :
+    next.player;
+  const metricLabel = statType === "tanked" ? "TPS" : statType === "heal" ? "HPS" : "DPS";
+  const damageLabel = statType === "tanked" ? "Damage taken" : statType === "heal" ? "Healing" : "Damage";
+
+  const fold: SkillFold = statType === "damage"
+    ? foldSkillsByEnemy(next, selectedEnemyIds)
+    : activePlayer
+      ? { skills: activePlayer.skills, damage: activePlayer.damage, dps: activePlayer.dps, hits: activePlayer.hits, criticalHits: activePlayer.criticalHits, critRate: activePlayer.critRate }
+      : { skills: [], damage: 0, dps: 0, hits: 0, criticalHits: 0 };
 
   const metrics: [string, string][] = [
-    ["Damage", compactFormat.format(fold.damage)],
-    ["DPS", numberFormat.format(fold.dps)],
+    [damageLabel, compactFormat.format(fold.damage)],
+    [metricLabel, numberFormat.format(fold.dps)],
     ["Hits", numberFormat.format(fold.hits)],
-    ["Kills", numberFormat.format(player.kills)],
+    ["Kills", numberFormat.format(activePlayer?.kills ?? 0)],
     ["Crit hits", numberFormat.format(fold.criticalHits)],
     ["Crit rate", fold.critRate === undefined ? "—" : percentFormat.format(fold.critRate)],
   ];
@@ -105,12 +127,13 @@ function App() {
       <section class="detail-content">
         <section class="toolbar">
           <div>
-            <h1>{player.displayName}</h1>
+            <h1>{activePlayer?.displayName ?? next.player.displayName}</h1>
             <p>{next.fileName} · {next.encounterLabel}</p>
           </div>
-          <EnemyFilterControl enemies={next.enemies} selected={selectedEnemyIds} onChange={setSelectedEnemyIds} />
+          <EnemyFilterControl enemies={statType === "damage" ? next.enemies : []} selected={selectedEnemyIds} onChange={setSelectedEnemyIds} />
+          <StatTypeSelect value={statType} onChange={setStatType} />
           <div class="seg">
-            <button type="button" class={metric === "dps" ? "active" : undefined} onClick={() => setMetric("dps")}>DPS / 5 sec</button>
+            <button type="button" class={metric === "dps" ? "active" : undefined} onClick={() => setMetric("dps")}>{metricLabel} / 5 sec</button>
             <button type="button" class={metric === "cumulative" ? "active" : undefined} onClick={() => setMetric("cumulative")}>Cumulative</button>
           </div>
         </section>
@@ -122,23 +145,27 @@ function App() {
         </div>
         <section class="chart-section">
           <div class="section-head">
-            <h2>Damage over time</h2>
-            <p>{metric === "cumulative" ? "Cumulative damage across the encounter." : "Damage per second in five-second buckets."}</p>
+            <h2>{damageLabel} over time</h2>
+            <p>{metric === "cumulative" ? `Cumulative ${damageLabel.toLowerCase()} across the encounter.` : `${damageLabel} per second in five-second buckets.`}</p>
           </div>
           <div class="chart-card">
-            <DamageChart points={player.timeline} durationMs={next.encounterDurationMs} metric={metric} />
+            <DamageChart points={activePlayer?.timeline ?? []} durationMs={next.encounterDurationMs} metric={metric} damageLabel={damageLabel} />
           </div>
         </section>
         <section class="skills-section">
           <div class="section-head">
             <h2>Skill breakdown</h2>
-            <p>Damage, DPS, hits, and critical-hit performance.</p>
+            <p>{damageLabel}, {metricLabel}, hits, and critical-hit performance.</p>
           </div>
           {fold.skills.length === 0
-            ? <p class="empty-state">No skill damage was found for this player.</p>
+            ? <p class="empty-state">
+                {statType === "tanked" ? "No damage was taken by this player."
+                  : statType === "heal" ? "No healing was received by this player."
+                  : "No skill damage was found for this player."}
+              </p>
             : <div class="table-scroll">
                 <table class="data-table combat-table" aria-label="Skill breakdown">
-                  <thead><tr><th>Skill</th><th>Damage</th><th>DPS</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th></tr></thead>
+                  <thead><tr><th>{statType === "tanked" ? "Attacker skill" : "Skill"}</th><th>{damageLabel}</th><th>{metricLabel}</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th></tr></thead>
                   <tbody>{fold.skills.map((skill) => (
                     <tr key={skill.sourceId}>
                       <th scope="row">{skill.sourceLabel}</th>
@@ -159,12 +186,13 @@ function App() {
 }
 
 interface DamageChartProps {
-  points: readonly FishNetDpsTimelinePoint[];
+  points: readonly MeterTimelinePoint[];
   durationMs: number;
   metric: Metric;
+  damageLabel: string;
 }
 
-function DamageChart({ points, durationMs, metric }: DamageChartProps) {
+function DamageChart({ points, durationMs, metric, damageLabel }: DamageChartProps) {
   const width = 760;
   const height = 280;
   const left = 52;
@@ -183,7 +211,7 @@ function DamageChart({ points, durationMs, metric }: DamageChartProps) {
     .join(" ");
 
   return (
-    <svg id="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Damage over time chart">
+    <svg id="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${damageLabel} over time chart`}>
       <line class="chart-axis" x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} />
       <polyline class="chart-line" points={linePoints} />
       <text class="chart-label" x={0} y={top + 4}>{compactFormat.format(maxValue)}</text>

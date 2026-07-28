@@ -12,6 +12,8 @@ import {
 } from "@kar-mi/spirit-vale-tools-combat";
 import { loadDpsAppSettings, saveDpsAppSettings } from "../settings.ts";
 import type { DpsAppRpc, DpsAppState, DpsAppStatus } from "../app-types.ts";
+import { TpsMeter } from "../tps-meter.ts";
+import { HpsMeter } from "../hps-meter.ts";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { createSessionPicker } from "@spiritvale/ui-core/session-picker";
 import { Utils } from "electrobun/bun";
@@ -39,6 +41,8 @@ let window: BrowserWindow;
 let status: DpsAppStatus = "waiting";
 let statusDetail = liveLogOverride ? `Looking for ${path.basename(liveLogOverride)}…` : "Looking for a combat session…";
 let liveMeter = new FishNetDpsMeter({ personalName: settings.personalName });
+let tpsMeter = new TpsMeter({ personalName: settings.personalName });
+let hpsMeter = new HpsMeter({ personalName: settings.personalName });
 let manualPersonalActorId: number | undefined;
 const liveLog = liveLogOverride ? new DpsLogFollower(liveLogOverride) : new DpsSessionLogFollower(options.logDirectory);
 let liveLogPolling = false;
@@ -84,6 +88,14 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
               personalName: settings.personalName,
               ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
             });
+            tpsMeter = new TpsMeter({
+              personalName: settings.personalName,
+              ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
+            });
+            hpsMeter = new HpsMeter({
+              personalName: settings.personalName,
+              ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
+            });
             lastEventObservedAtMs = undefined;
             lastEventWallMs = undefined;
           } catch {
@@ -98,6 +110,8 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
       setPersonalName: ({ name }) => {
         settings.personalName = name.trim();
         liveMeter.setPersonalName(settings.personalName);
+        tpsMeter.setPersonalName(settings.personalName);
+        hpsMeter.setPersonalName(settings.personalName);
         scheduleSettingsSave();
         publish();
         return appState();
@@ -105,11 +119,19 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
       setPersonalActor: ({ actorId }) => {
         manualPersonalActorId = actorId ?? undefined;
         liveMeter.setPersonalActorId(manualPersonalActorId);
+        tpsMeter.setPersonalActorId(manualPersonalActorId);
+        hpsMeter.setPersonalActorId(manualPersonalActorId);
         publish();
         return appState();
       },
       setTab: ({ tab }) => {
         settings.tab = tab;
+        scheduleSettingsSave();
+        publish();
+        return appState();
+      },
+      setStatType: ({ statType }) => {
+        settings.statType = statType;
         scheduleSettingsSave();
         publish();
         return appState();
@@ -169,15 +191,24 @@ return {
 };
 
 function appState(): DpsAppState {
-  const snapshot = liveMeter.getLatestSnapshot(relativeNowMs());
+  const nowMs = relativeNowMs();
+  const snapshot = liveMeter.getLatestSnapshot(nowMs);
+  const encounterWindow = snapshot
+    ? { id: snapshot.id, startedAtMs: snapshot.startedAtMs, endedAtMs: snapshot.endedAtMs ?? nowMs ?? snapshot.lastDamageAtMs, durationMs: snapshot.durationMs }
+    : undefined;
+  const tankedSnapshot = encounterWindow ? tpsMeter.getSnapshot(encounterWindow, nowMs ?? encounterWindow.endedAtMs) : undefined;
+  const healSnapshot = encounterWindow ? hpsMeter.getSnapshot(encounterWindow, nowMs ?? encounterWindow.endedAtMs) : undefined;
   return {
     tab: settings.tab,
+    statType: settings.statType,
     status,
     statusDetail,
     ...(storageWarning ? { storageWarning } : {}),
     personalName: settings.personalName,
     ...(liveMeter.getPersonalActorId() === undefined ? {} : { personalActorId: liveMeter.getPersonalActorId() }),
     ...(snapshot ? { snapshot } : {}),
+    ...(tankedSnapshot ? { tankedSnapshot } : {}),
+    ...(healSnapshot ? { healSnapshot } : {}),
     resetting,
   };
 }
@@ -204,13 +235,28 @@ async function pollLiveLog(): Promise<void> {
         personalName: settings.personalName,
         ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
       });
+      tpsMeter = new TpsMeter({
+        personalName: settings.personalName,
+        ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
+      });
+      hpsMeter = new HpsMeter({
+        personalName: settings.personalName,
+        ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
+      });
       lastEventObservedAtMs = undefined;
       lastEventWallMs = undefined;
     }
     let batchLastObservedAtMs: number | undefined;
     for (const { event, observedAtMs } of batch.events) {
-      if (event.kind === "actorIdentity") liveMeter.consumeIdentity(event, observedAtMs);
-      else liveMeter.consumeCombat(event, observedAtMs);
+      if (event.kind === "actorIdentity") {
+        liveMeter.consumeIdentity(event, observedAtMs);
+        tpsMeter.consumeIdentity(event);
+        hpsMeter.consumeIdentity(event);
+      } else {
+        liveMeter.consumeCombat(event, observedAtMs);
+        tpsMeter.consumeCombat(event, observedAtMs);
+        hpsMeter.consumeCombat(event, observedAtMs);
+      }
       batchLastObservedAtMs = Math.max(batchLastObservedAtMs ?? observedAtMs, observedAtMs);
     }
     if (batchLastObservedAtMs !== undefined) {
