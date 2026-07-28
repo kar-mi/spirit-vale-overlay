@@ -17,6 +17,7 @@ import type {
   CombatAnalysisRpc,
   CombatAnalysisState,
   DpsEncounterOption,
+  MeterActorRow,
   MeterEncounterSnapshot,
   StatType,
 } from "../app-types.ts";
@@ -285,20 +286,29 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
 
   function openPlayerDetails(actorId: number): void {
     const snapshot = state.snapshot;
-    const player = snapshot?.actors.find((actor) => actor.actorIds.includes(actorId));
-    if (!snapshot || !player || !state.fileName) return;
-    const breakdown = enemyBreakdownFor(snapshot.id);
-    const skillsByEnemy = buildSkillsByEnemy(snapshot.id, player, snapshot.durationMs);
+    if (!snapshot || !state.fileName) return;
     const tankedSnapshot = tpsSnapshotFor(snapshot.id);
     const healSnapshot = healSnapshotFor(snapshot.id);
+    const dpsPlayer = snapshot.actors.find((actor) => actor.actorIds.includes(actorId));
+    const tankedPlayer = tankedSnapshot?.actors.find((actor) => actor.actorIds.includes(actorId));
+    const healPlayer = healSnapshot?.actors.find((actor) => actor.actorIds.includes(actorId));
+    // A player who never dealt damage (a dedicated healer/tank) has no row in the DPS
+    // snapshot — double-clicking them from the HPS/TPS tab must still open the detail
+    // window, using whichever row we do have for identity and a zero-value DPS row so
+    // the "damage" tab still renders instead of the window failing to open at all.
+    const identity = dpsPlayer ?? tankedPlayer ?? healPlayer;
+    if (!identity) return;
+    const player = dpsPlayer ?? emptyDpsRow(identity, snapshot.durationMs);
+    const breakdown = enemyBreakdownFor(snapshot.id);
+    const skillsByEnemy = buildSkillsByEnemy(snapshot.id, player, snapshot.durationMs);
     detailState = {
       fileName: state.fileName,
       encounterLabel: state.encounters.find((encounter) => encounter.id === snapshot.id)?.label ?? "Encounter",
       encounterDurationMs: snapshot.durationMs,
       statType: state.statType,
       player,
-      tankedPlayer: tankedSnapshot?.actors.find((actor) => actor.actorIds.includes(actorId)),
-      healPlayer: healSnapshot?.actors.find((actor) => actor.actorIds.includes(actorId)),
+      tankedPlayer,
+      healPlayer,
       enemies: breakdown?.enemies.filter((enemy) => enemy.targetId in skillsByEnemy) ?? [],
       skillsByEnemy,
     };
@@ -309,7 +319,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
       return;
     }
     const nextWindow = new BrowserWindow({
-      title: `${player.displayName} · Combat Analysis`,
+      title: `${identity.displayName} · Combat Analysis`,
       url: "views://analysisdetailview/index.html",
       frame: options.placements?.frame(
         "combat-analysis-detail",
@@ -469,6 +479,27 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     if (!deathLogState) return;
     try { deathLogRpc.send.stateChanged(deathLogState); } catch { /* The view may still be connecting. */ }
   }
+}
+
+/** Placeholder DPS row for a player with no damage-dealt data (a dedicated healer/tank), so the
+ * detail window can still open from the HPS/TPS tab and show their real tanked/heal rows. */
+function emptyDpsRow(identity: FishNetDpsActorRow | MeterActorRow, durationMs: number): FishNetDpsActorRow {
+  return {
+    actorIds: identity.actorIds,
+    displayName: identity.displayName,
+    ...(identity.archetype === undefined ? {} : { archetype: identity.archetype }),
+    durationMs,
+    damage: 0,
+    dps: 0,
+    currentDps: 0,
+    contribution: 0,
+    hits: 0,
+    criticalHits: 0,
+    kills: 0,
+    mobsHit: 0,
+    skills: [],
+    timeline: [],
+  };
 }
 
 function loadingState(fileName?: string, statType: StatType = "damage"): CombatAnalysisState {

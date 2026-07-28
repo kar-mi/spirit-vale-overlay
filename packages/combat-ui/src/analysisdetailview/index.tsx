@@ -133,7 +133,7 @@ function App() {
           <EnemyFilterControl enemies={statType === "damage" ? next.enemies : []} selected={selectedEnemyIds} onChange={setSelectedEnemyIds} />
           <StatTypeSelect value={statType} onChange={setStatType} />
           <div class="seg">
-            <button type="button" class={metric === "dps" ? "active" : undefined} onClick={() => setMetric("dps")}>DPS / 5 sec</button>
+            <button type="button" class={metric === "dps" ? "active" : undefined} onClick={() => setMetric("dps")}>{metricLabel} / 5 sec</button>
             <button type="button" class={metric === "cumulative" ? "active" : undefined} onClick={() => setMetric("cumulative")}>Cumulative</button>
           </div>
         </section>
@@ -149,7 +149,7 @@ function App() {
             <p>{metric === "cumulative" ? `Cumulative ${damageLabel.toLowerCase()} across the encounter.` : `${damageLabel} per second in five-second buckets.`}</p>
           </div>
           <div class="chart-card">
-            <DamageChart points={activePlayer?.timeline ?? []} durationMs={next.encounterDurationMs} metric={metric} />
+            <DamageChart points={activePlayer?.timeline ?? []} durationMs={next.encounterDurationMs} metric={metric} damageLabel={damageLabel} />
           </div>
         </section>
         <section class="skills-section">
@@ -189,9 +189,10 @@ interface DamageChartProps {
   points: readonly MeterTimelinePoint[];
   durationMs: number;
   metric: Metric;
+  damageLabel: string;
 }
 
-function DamageChart({ points, durationMs, metric }: DamageChartProps) {
+function DamageChart({ points, durationMs, metric, damageLabel }: DamageChartProps) {
   const width = 760;
   const height = 280;
   const left = 52;
@@ -210,7 +211,7 @@ function DamageChart({ points, durationMs, metric }: DamageChartProps) {
     .join(" ");
 
   return (
-    <svg id="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Damage over time chart">
+    <svg id="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${damageLabel} over time chart`}>
       <line class="chart-axis" x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} />
       <polyline class="chart-line" points={linePoints} />
       <text class="chart-label" x={0} y={top + 4}>{compactFormat.format(maxValue)}</text>

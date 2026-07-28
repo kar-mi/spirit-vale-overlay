@@ -358,7 +358,15 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     try {
       const state = appState();
       try { overlayRpc.send.stateChanged(state); } catch { /* View may still be connecting. */ }
-      try { settingsRpc.send.stateChanged(state); } catch { /* Settings may be closed. */ }
+      // Only send if a settings window is actually open. The settings window's own "close"
+      // handler calls updateLocked -> publish while it's mid-close; sending to its webview at
+      // that exact moment can be a native-level failure a JS try/catch can't recover from, not
+      // just a catchable RPC error, so skip the send entirely rather than relying on the catch.
+      if (settingsWindow) {
+        try { settingsRpc.send.stateChanged(state); } catch { /* Settings may be closed. */ }
+      }
+    } catch (error) {
+      console.error("[spiritvale-overlay] publish failed:", error);
     } finally {
       publishing = false;
     }
