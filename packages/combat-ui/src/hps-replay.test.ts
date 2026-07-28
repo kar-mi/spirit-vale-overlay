@@ -31,7 +31,7 @@ describe("hps replay", () => {
     }
   });
 
-  test("drops heals with no identified healer", async () => {
+  test("drops heals with no identified healer and no known recipient", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-hps-replay-"));
     const logPath = path.join(directory, "combat.jsonl");
     try {
@@ -42,6 +42,25 @@ describe("hps replay", () => {
       const snapshot = makeSnapshot("enc-1", 0, 10_000);
       const replay = await loadHpsReplay(logPath, [snapshot]);
       expect(replay.snapshots[0]!.actors).toHaveLength(0);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("credits unattributed heals (regen, leech) to a known recipient as self-healing", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-hps-replay-"));
+    const logPath = path.join(directory, "combat.jsonl");
+    try {
+      await writeFile(logPath, [
+        record("combat.actorIdentity", { kind: "actorIdentity", operation: "upsert", tick: 1, actorId: 20, displayName: "Tank" }, 0),
+        record("combat.event", heal(1, 20, 40), 1_000), // no actorId -> unattributed regen/leech
+      ].join("\n"));
+
+      const snapshot = makeSnapshot("enc-1", 0, 10_000);
+      const replay = await loadHpsReplay(logPath, [snapshot]);
+      const actors = replay.snapshots[0]!.actors;
+      expect(actors).toHaveLength(1);
+      expect(actors[0]).toMatchObject({ displayName: "Tank", damage: 40, hits: 1 });
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

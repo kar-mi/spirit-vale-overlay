@@ -90,19 +90,19 @@ export class HpsMeter {
   }
 
   getSnapshot(window: HpsEncounterWindow, nowMs: number): MeterEncounterSnapshot {
-    // Heals with no identified healer (unattributed ambient regen, or ambiguous overlapping
-    // casters) can't be credited to anyone's output and are dropped, same as TPS drops hits
-    // against unidentified recipients.
-    const scoped = this.hits.filter((hit) =>
-      hit.atMs >= window.startedAtMs
-      && hit.atMs <= window.endedAtMs
-      && hit.healerActorId !== undefined
-      && this.identities.has(hit.healerActorId));
+    // Heals with no identified healer (ambient regen, or ambiguous overlapping casters) are
+    // credited to the recipient's own output instead — regen is the character's own passive
+    // recovery (not cast by anyone else), and leech mechanics work the same way, so crediting
+    // the recipient keeps those visible in their HPS rather than silently dropping them. Only
+    // dropped if the recipient itself isn't a known party member (e.g. monster self-regen).
+    const scoped = this.hits
+      .filter((hit) => hit.atMs >= window.startedAtMs && hit.atMs <= window.endedAtMs)
+      .map((hit) => ({ hit, healerActorId: hit.healerActorId ?? hit.targetId }))
+      .filter(({ healerActorId }) => this.identities.has(healerActorId));
     const durationSeconds = Math.max(1, window.durationMs) / 1000;
 
     const groups = new Map<number, HpsHit[]>();
-    for (const hit of scoped) {
-      const healerActorId = hit.healerActorId!;
+    for (const { hit, healerActorId } of scoped) {
       const group = groups.get(healerActorId) ?? [];
       group.push(hit);
       groups.set(healerActorId, group);

@@ -55,11 +55,21 @@ describe("HpsMeter", () => {
     expect(snapshot.actors[0]).toMatchObject({ displayName: "Healer", damage: 100, hits: 2, mobsHit: 2 });
   });
 
-  test("drops heals with no identified healer (unattributed regen, ambiguous casters)", () => {
+  test("credits unattributed heals (regen, leech) to the recipient as self-healing", () => {
     const meter = new HpsMeter();
     meter.consumeIdentity(identity(20, "Tank"));
+    meter.consumeCombat(heal(20, 40, "unattributed"), 1_000);
+    meter.consumeCombat(heal(20, 30, "ambiguous"), 2_000);
+    meter.consumeCombat(heal(20, 60, "exact", 20, "Heal"), 3_000); // self-cast heal, same actor
+
+    const snapshot = meter.getSnapshot(window, 10_000);
+    expect(snapshot.actors).toHaveLength(1);
+    expect(snapshot.actors[0]).toMatchObject({ displayName: "Tank", damage: 130, hits: 3 });
+  });
+
+  test("drops unattributed heals whose recipient isn't a known party member", () => {
+    const meter = new HpsMeter();
     meter.consumeCombat(heal(999, 100, "unattributed"), 1_000);
-    meter.consumeCombat(heal(20, 50, "ambiguous"), 2_000);
 
     const snapshot = meter.getSnapshot(window, 10_000);
     expect(snapshot.actors).toHaveLength(0);
