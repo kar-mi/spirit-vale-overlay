@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { normalizeSearchText } from "./format";
 
 export interface EnemyFilterOption {
   targetId: number;
@@ -11,10 +12,6 @@ export interface EnemyFilterControlProps {
   onChange(selected: Set<number>): void;
 }
 
-function normalize(value: string): string {
-  return value.trim().toLocaleLowerCase().replace(/[\s_-]+/g, "");
-}
-
 /** Searchable multi-select of enemies, used to scope combat summaries to specific targets. */
 export function EnemyFilterControl({ enemies, selected, onChange }: EnemyFilterControlProps) {
   const [query, setQuery] = useState("");
@@ -22,8 +19,8 @@ export function EnemyFilterControl({ enemies, selected, onChange }: EnemyFilterC
 
   if (enemies.length === 0) return null;
 
-  const needle = normalize(query);
-  const visible = needle ? enemies.filter((enemy) => normalize(enemy.label).includes(needle)) : enemies;
+  const needle = normalizeSearchText(query);
+  const visible = needle ? enemies.filter((enemy) => normalizeSearchText(enemy.label).includes(needle)) : enemies;
 
   function toggle(targetId: number): void {
     const next = new Set(selected);

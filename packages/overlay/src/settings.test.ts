@@ -58,6 +58,18 @@ describe("overlay settings", () => {
     expect(await loadOverlaySettings(settingsPath, bounds)).toEqual(settings);
   });
 
+  test("allows fully transparent tiles and clamps opacity to the supported range", () => {
+    const transparent = normalizeOverlaySettings({ elements: { dpsChart: { opacity: 0 } } }, bounds);
+    const outOfRange = normalizeOverlaySettings({ elements: {
+      dpsChart: { opacity: -0.1 },
+      personalDps: { opacity: 1.1 },
+    } }, bounds);
+
+    expect(transparent.elements.dpsChart.opacity).toBe(0);
+    expect(outOfRange.elements.dpsChart.opacity).toBe(0);
+    expect(outOfRange.elements.personalDps.opacity).toBe(1);
+  });
+
   test("compacts the legacy weight default without overriding current custom heights", () => {
     const legacy = normalizeOverlaySettings({
       elements: { weight: { height: 72 } },

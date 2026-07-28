@@ -148,7 +148,7 @@ function normalizeShortcut(value: unknown, fallback: string): string {
 
 function normalizeOpacity(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return 1;
-  return Math.round(Math.max(0.2, Math.min(1, value)) * 20) / 20;
+  return Math.round(Math.max(0, Math.min(1, value)) * 20) / 20;
 }
 
 function clampNumber(value: unknown, fallback: number, minimum: number, maximum: number): number {

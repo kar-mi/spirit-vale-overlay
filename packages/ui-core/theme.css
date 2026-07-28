@@ -287,6 +287,8 @@ button { cursor: pointer; }
   background: var(--surface-container-low);
 }
 
+.death-list-scroll { max-height: 220px; }
+
 .data-table {
   width: 100%;
   min-width: 560px;

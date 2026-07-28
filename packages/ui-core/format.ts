@@ -9,3 +9,7 @@ export function formatDuration(milliseconds: number): string {
 export function formatDps(value: number): string {
   return value >= 10_000 ? compactFormat.format(value) : integerFormat.format(value);
 }
+
+export function normalizeSearchText(value: string): string {
+  return value.trim().toLocaleLowerCase().replace(/[\s_-]+/g, "");
+}
