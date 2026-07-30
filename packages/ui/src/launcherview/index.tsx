@@ -14,7 +14,6 @@ const MINIMUM_HEIGHT = 430;
 const TOOLS: Array<{ tool: ToolWindow; title: string; description: string }> = [
   { tool: "combat", title: "Combat", description: "Live DPS and combat replay" },
   { tool: "rewards", title: "Rewards", description: "Mob rewards and catalog" },
-  { tool: "market", title: "Market", description: "Captured listings and filters" },
   { tool: "character", title: "Character", description: "Your build and calculated stats" },
 ];
 

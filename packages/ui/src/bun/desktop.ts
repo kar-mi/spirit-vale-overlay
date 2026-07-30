@@ -284,7 +284,6 @@ tray.setMenu([
   { type: "normal", label: "Combat", action: "open-combat" },
   { type: "normal", label: "Overlay", action: "open-overlay" },
   { type: "normal", label: "Rewards", action: "open-rewards" },
-  { type: "normal", label: "Market", action: "open-market" },
   { type: "divider" },
   { type: "normal", label: "Exit", action: "exit" },
 ]);
@@ -294,7 +293,6 @@ tray.on("tray-clicked", (event) => {
   else if (action === "open-combat") void openTool("combat");
   else if (action === "open-overlay") void openTool("overlay");
   else if (action === "open-rewards") void openTool("rewards");
-  else if (action === "open-market") void openTool("market");
   else if (action === "exit") void shutdown();
 });
 
