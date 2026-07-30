@@ -13,6 +13,7 @@
     "packages/combat-ui": {
       "name": "@spiritvale/combat-ui",
       "dependencies": {
+        "@kar-mi/spirit-vale-tools-character": "0.2.0",
         "@kar-mi/spirit-vale-tools-combat": "1.0.1",
         "@kar-mi/spirit-vale-tools-logging": "0.2.3",
         "@preact/signals": "^2.9.4",

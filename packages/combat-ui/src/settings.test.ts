@@ -16,7 +16,6 @@ describe("DPS app settings", () => {
   test("round-trips DPS tool settings", async () => {
     const settingsPath = await createSettingsPath();
     const settings = {
-      personalName: "Fictional Hero",
       tab: "personal" as const,
       statType: "tanked" as const,
       frame: { x: 120, y: 140, width: 840, height: 900 },
@@ -30,7 +29,6 @@ describe("DPS app settings", () => {
   test("preserves a saved frame between the minimum and default combat window sizes", async () => {
     const settingsPath = await createSettingsPath();
     const settings = {
-      personalName: "",
       tab: "all" as const,
       statType: "damage" as const,
       frame: { x: 120, y: 140, width: 700, height: 600 },
@@ -44,7 +42,6 @@ describe("DPS app settings", () => {
   test("replaces a saved undersized frame with the default combat window size", async () => {
     const settingsPath = await createSettingsPath();
     await saveDpsAppSettings({
-      personalName: "",
       tab: "all",
       statType: "damage",
       frame: { x: 120, y: 140, width: 619, height: 519 },

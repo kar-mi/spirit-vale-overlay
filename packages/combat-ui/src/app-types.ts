@@ -4,6 +4,7 @@ import type { RPCSchema } from "electrobun";
 
 import type { FishNetDpsActorRow, FishNetDpsEncounterSnapshot, FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
 import type { DeathLogEntry } from "./death-log.ts";
+import type { SessionPickerState } from "@spiritvale/ui-core/session-picker-types";
 import type { EnemyDamageRow, EnemyOption } from "./enemy-breakdown.ts";
 
 export type { StatType } from "@spiritvale/ui-core/stat-type-select";
@@ -65,6 +66,7 @@ export interface MeterEncounterSnapshot {
 }
 
 export type DpsAppTab = "all" | "personal";
+export type CombatLogScreen = "live" | "past";
 export type DpsAppStatus = "waiting" | "capturing" | "loading" | "ready" | "stopped" | "error";
 
 export interface DpsEncounterOption {
@@ -73,6 +75,7 @@ export interface DpsEncounterOption {
 }
 
 export interface DpsAppState {
+  screen: CombatLogScreen;
   tab: DpsAppTab;
   statType: StatType;
   status: DpsAppStatus;
@@ -85,17 +88,30 @@ export interface DpsAppState {
   healSnapshot?: MeterEncounterSnapshot;
   resetting: boolean;
   liveDeathLogAvailable: boolean;
+  past:
+    | { view: "selector"; picker: SessionPickerState }
+    | { view: "analysis"; analysis: CombatAnalysisState };
 }
 
 export type DpsAppRpc = {
   bun: RPCSchema<{
     requests: {
       getState: { params: Record<string, never>; response: DpsAppState };
-      openReplayPicker: { params: Record<string, never>; response: void };
-      openLiveDeathLog: { params: Record<string, never>; response: void };
+      setScreen: { params: { screen: CombatLogScreen }; response: DpsAppState };
+      refreshPastSessions: { params: Record<string, never>; response: void };
+      openPastSession: { params: { id: string }; response: void };
+      choosePastFile: { params: Record<string, never>; response: void };
+      openPastLogFolder: { params: Record<string, never>; response: void };
+      backToPastSessions: { params: Record<string, never>; response: DpsAppState };
+      selectPastEncounter: { params: { id: string }; response: DpsAppState };
+      setPastStatType: { params: { statType: StatType }; response: DpsAppState };
+      openPlayerDetails: {
+        params: { source: CombatLogScreen; actorId: number; selectedEnemyIds: number[] };
+        response: void;
+      };
+      openActiveDeathLog: { params: Record<string, never>; response: void };
       openSettings: { params: Record<string, never>; response: void };
       resetSession: { params: Record<string, never>; response: DpsAppState };
-      setPersonalName: { params: { name: string }; response: DpsAppState };
       setPersonalActor: { params: { actorId: number | null }; response: DpsAppState };
       setTab: { params: { tab: DpsAppTab }; response: DpsAppState };
       setStatType: { params: { statType: StatType }; response: DpsAppState };
@@ -150,23 +166,6 @@ export interface CombatDeathLogState {
   selectedDeathId?: string;
   invalidLines: number;
 }
-
-export type CombatAnalysisRpc = {
-  bun: RPCSchema<{
-    requests: {
-      getState: { params: Record<string, never>; response: CombatAnalysisState };
-      selectEncounter: { params: { id: string }; response: CombatAnalysisState };
-      setStatType: { params: { statType: StatType }; response: CombatAnalysisState };
-      openPlayerDetails: { params: { actorId: number; selectedEnemyIds: number[] }; response: void };
-      openDeathLog: { params: Record<string, never>; response: void };
-      openSettings: { params: Record<string, never>; response: void };
-      windowAction: { params: { action: "minimize" | "close" }; response: void };
-      getWindowFrame: { params: Record<string, never>; response: { x: number; y: number; width: number; height: number } };
-      setWindowFrame: { params: { x: number; y: number; width: number; height: number }; response: void };
-    };
-  }>;
-  webview: RPCSchema<{ messages: { stateChanged: CombatAnalysisState } }>;
-};
 
 export type CombatDeathLogRpc = {
   bun: RPCSchema<{

@@ -20,6 +20,7 @@
     "./renderer-text": "./renderer-text.ts",
     "./session-picker": "./session-picker.ts",
     "./session-picker-types": "./session-picker-types.ts",
+    "./session-summary-cache": "./session-summary-cache.ts",
     "./window-rpc": "./window-rpc.ts",
     "./window-publish": "./window-publish.ts",
     "./window-placement": "./window-placement.ts",

@@ -12,7 +12,6 @@ import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement"
 import type {
   CombatAnalysisDetailRpc,
   CombatAnalysisDetailState,
-  CombatAnalysisRpc,
   CombatAnalysisState,
   DpsEncounterOption,
   MeterActorRow,
@@ -25,27 +24,45 @@ import type { EnemyBreakdownEncounter, EnemyDamageRow, EnemySkillStats } from ".
 import { loadTpsReplay } from "../tps-replay.ts";
 import { loadHpsReplay } from "../hps-replay.ts";
 import { validSelectedEnemyIds } from "../analysis-selection.ts";
+import { buildLivePlayerDetailState, emptyDpsRow } from "../live-player-detail.ts";
 
-const ANALYSIS_FRAME = { x: 140, y: 120, width: 920, height: 680 };
 const DETAIL_FRAME = { x: 190, y: 160, width: 880, height: 720 };
-const MINIMUM_ANALYSIS_WIDTH = 680;
-const MINIMUM_ANALYSIS_HEIGHT = 460;
 const MINIMUM_DETAIL_WIDTH = 620;
 const MINIMUM_DETAIL_HEIGHT = 500;
 
-export interface CombatAnalysisWindow {
+export interface CombatAnalysisController {
   open(path: string): Promise<void>;
   close(): void;
+  getState(): CombatAnalysisState;
+  selectEncounter(id: string): CombatAnalysisState;
+  setStatType(statType: StatType): CombatAnalysisState;
+  openPlayerDetails(actorId: number, selectedEnemyIds: readonly number[]): void;
+  openLivePlayerDetails(input: LivePlayerDetailInput): void;
+  refreshLivePlayerDetails(input: LivePlayerDetailRefresh): void;
+  closeDetails(): void;
+  openDeathLog(): Promise<void>;
 }
 
-export interface CombatAnalysisWindowOptions {
+export interface LivePlayerDetailInput extends LivePlayerDetailRefresh {
+  actorId: number;
+}
+
+export interface LivePlayerDetailRefresh {
+  fileName: string;
+  snapshot?: FishNetDpsEncounterSnapshot;
+  tankedSnapshot?: MeterEncounterSnapshot;
+  healSnapshot?: MeterEncounterSnapshot;
+  statType: StatType;
+}
+
+export interface CombatAnalysisControllerOptions {
   placements?: WindowPlacementStore;
   onOpenSettings?: () => void;
+  onStateChanged?: (state: CombatAnalysisState) => void;
 }
 
-/** Owns the reusable combat log analysis window and its selected-player detail child. */
-export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions = {}): CombatAnalysisWindow {
-  let window: BrowserWindow | undefined;
+/** Owns past-log analysis state plus the reusable live/past selected-player detail child. */
+export function createCombatAnalysisController(options: CombatAnalysisControllerOptions = {}): CombatAnalysisController {
   let detailWindow: BrowserWindow | undefined;
   const deathLogWindow = createDeathLogWindow({
     placements: options.placements,
@@ -59,6 +76,8 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
   let tpsSnapshots: MeterEncounterSnapshot[] = [];
   let healSnapshots: MeterEncounterSnapshot[] = [];
   let loadedPath: string | undefined;
+  let liveDetailActorId: number | undefined;
+  let loadSequence = 0;
 
   const detailRpc = BrowserView.defineRPC<CombatAnalysisDetailRpc>({
     handlers: {
@@ -90,67 +109,23 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     },
   });
 
-  const rpc = BrowserView.defineRPC<CombatAnalysisRpc>({
-    handlers: {
-      requests: {
-        getState: () => state,
-        selectEncounter: ({ id }) => {
-          if (state.snapshot?.id !== id && state.encounters.some((encounter) => encounter.id === id)) {
-            detailWindow?.close();
-            detailState = undefined;
-            const snapshot = selectedSnapshot(id);
-            state = {
-              ...state,
-              selectedEncounterId: id,
-              snapshot,
-              tankedSnapshot: tpsSnapshotFor(id),
-              healSnapshot: healSnapshotFor(id),
-              enemies: enemyBreakdownFor(id)?.enemies ?? [],
-              actorEnemyBreakdown: snapshot ? buildActorEnemyBreakdown(id, snapshot) : {},
-            };
-            publish();
-          }
-          return state;
-        },
-        setStatType: ({ statType }) => {
-          state = { ...state, statType };
-          publish();
-          return state;
-        },
-        openPlayerDetails: ({ actorId, selectedEnemyIds }) => { openPlayerDetails(actorId, selectedEnemyIds); },
-        openDeathLog: async () => { await openDeathLog(); },
-        openSettings: () => { options.onOpenSettings?.(); },
-        windowAction: ({ action }) => {
-          if (action === "minimize") window?.minimize();
-          else window?.close();
-        },
-        getWindowFrame: () => window?.getFrame()
-          ?? options.placements?.frame(
-            "combat-analysis",
-            ANALYSIS_FRAME,
-            { width: MINIMUM_ANALYSIS_WIDTH, height: MINIMUM_ANALYSIS_HEIGHT },
-          )
-          ?? ANALYSIS_FRAME,
-        setWindowFrame: (frame) => window?.setFrame(
-          frame.x,
-          frame.y,
-          Math.max(scaledSize(MINIMUM_ANALYSIS_WIDTH), frame.width),
-          Math.max(scaledSize(MINIMUM_ANALYSIS_HEIGHT), frame.height),
-        ),
-      },
-      messages: {},
-    },
-  });
-
-  return { open, close };
+  return {
+    open,
+    close,
+    getState: () => state,
+    selectEncounter,
+    setStatType,
+    openPlayerDetails,
+    openLivePlayerDetails,
+    refreshLivePlayerDetails,
+    closeDetails,
+    openDeathLog,
+  };
 
   async function open(selectedPath: string): Promise<void> {
-    ensureWindow();
-    window?.show();
-    window?.activate();
-    detailWindow?.close();
+    const sequence = ++loadSequence;
+    closeDetails();
     deathLogWindow.close();
-    detailState = undefined;
     snapshots = [];
     enemyBreakdowns = [];
     tpsSnapshots = [];
@@ -160,10 +135,15 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     publish();
     try {
       const replay = await loadDpsReplay(selectedPath);
-      snapshots = replay.meter.getSnapshots();
-      enemyBreakdowns = (await loadEnemyBreakdown(selectedPath, snapshots)).encounters;
-      tpsSnapshots = (await loadTpsReplay(selectedPath, snapshots)).snapshots;
-      healSnapshots = (await loadHpsReplay(selectedPath, snapshots)).snapshots;
+      const nextSnapshots = replay.meter.getSnapshots();
+      const nextEnemyBreakdowns = (await loadEnemyBreakdown(selectedPath, nextSnapshots)).encounters;
+      const nextTpsSnapshots = (await loadTpsReplay(selectedPath, nextSnapshots)).snapshots;
+      const nextHealSnapshots = (await loadHpsReplay(selectedPath, nextSnapshots)).snapshots;
+      if (sequence !== loadSequence) return;
+      snapshots = nextSnapshots;
+      enemyBreakdowns = nextEnemyBreakdowns;
+      tpsSnapshots = nextTpsSnapshots;
+      healSnapshots = nextHealSnapshots;
       const selectedEncounterId = snapshots.at(-1)?.id;
       const lastSnapshot = snapshots.at(-1);
       state = {
@@ -184,6 +164,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
       };
       publish();
     } catch {
+      if (sequence !== loadSequence) return;
       state = {
         status: "error",
         statusDetail: "The selected combat log could not be read.",
@@ -204,51 +185,38 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
   }
 
   function close(): void {
-    detailWindow?.close();
+    loadSequence += 1;
+    closeDetails();
     deathLogWindow.close();
-    detailWindow = undefined;
-    detailState = undefined;
     loadedPath = undefined;
-    window?.close();
-    window = undefined;
   }
 
-  function ensureWindow(): void {
-    if (window) return;
-    const nextWindow = new BrowserWindow({
-      title: "Spirit Vale Combat Analysis",
-      url: "views://analysisview/index.html",
-      frame: options.placements?.frame(
-        "combat-analysis",
-        ANALYSIS_FRAME,
-        { width: MINIMUM_ANALYSIS_WIDTH, height: MINIMUM_ANALYSIS_HEIGHT },
-      ) ?? ANALYSIS_FRAME,
-      titleBarStyle: "hidden",
-      transparent: false,
-      rpc,
-    });
-    window = nextWindow;
-    applyRoundedCorners(nextWindow.ptr);
-    setWindowIcon(nextWindow.ptr, appIconPath);
-    registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
-    options.placements?.track("combat-analysis", nextWindow);
-    Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {
-      const width = Math.max(scaledSize(MINIMUM_ANALYSIS_WIDTH), event.data.width);
-      const height = Math.max(scaledSize(MINIMUM_ANALYSIS_HEIGHT), event.data.height);
-      if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
-    });
-    nextWindow.on("close", () => {
-      if (window !== nextWindow) return;
-      detailWindow?.close();
-      deathLogWindow.close();
-      detailWindow = undefined;
-      detailState = undefined;
-      loadedPath = undefined;
-      window = undefined;
-    });
+  function selectEncounter(id: string): CombatAnalysisState {
+    if (state.snapshot?.id !== id && state.encounters.some((encounter) => encounter.id === id)) {
+      closeDetails();
+      const snapshot = selectedSnapshot(id);
+      state = {
+        ...state,
+        selectedEncounterId: id,
+        snapshot,
+        tankedSnapshot: tpsSnapshotFor(id),
+        healSnapshot: healSnapshotFor(id),
+        enemies: enemyBreakdownFor(id)?.enemies ?? [],
+        actorEnemyBreakdown: snapshot ? buildActorEnemyBreakdown(id, snapshot) : {},
+      };
+      publish();
+    }
+    return state;
+  }
+
+  function setStatType(statType: StatType): CombatAnalysisState {
+    state = { ...state, statType };
+    publish();
+    return state;
   }
 
   function openPlayerDetails(actorId: number, selectedEnemyIds: readonly number[]): void {
+    liveDetailActorId = undefined;
     const snapshot = state.snapshot;
     if (!snapshot || !state.fileName) return;
     const tankedSnapshot = tpsSnapshotFor(snapshot.id);
@@ -278,6 +246,38 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
       enemies,
       skillsByEnemy,
     };
+    showDetailWindow(identity);
+  }
+
+  function openLivePlayerDetails(input: LivePlayerDetailInput): void {
+    liveDetailActorId = input.actorId;
+    if (!setLiveDetailState(input, input.actorId)) {
+      liveDetailActorId = undefined;
+      return;
+    }
+    const identity = input.snapshot?.actors.find((actor) => actor.actorIds.includes(input.actorId))
+      ?? input.tankedSnapshot?.actors.find((actor) => actor.actorIds.includes(input.actorId))
+      ?? input.healSnapshot?.actors.find((actor) => actor.actorIds.includes(input.actorId));
+    if (identity) showDetailWindow(identity);
+  }
+
+  function refreshLivePlayerDetails(input: LivePlayerDetailRefresh): void {
+    if (liveDetailActorId === undefined || !detailWindow) return;
+    if (!setLiveDetailState(input, liveDetailActorId)) {
+      closeDetails();
+      return;
+    }
+    publishDetail();
+  }
+
+  function setLiveDetailState(input: LivePlayerDetailRefresh, actorId: number): boolean {
+    const next = buildLivePlayerDetailState(input, actorId);
+    if (!next) return false;
+    detailState = next;
+    return true;
+  }
+
+  function showDetailWindow(identity: FishNetDpsActorRow | MeterActorRow): void {
     if (detailWindow) {
       publishDetail();
       detailWindow.show();
@@ -310,8 +310,16 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
       if (detailWindow === nextWindow) {
         detailWindow = undefined;
         detailState = undefined;
+        liveDetailActorId = undefined;
       }
     });
+  }
+
+  function closeDetails(): void {
+    detailWindow?.close();
+    detailWindow = undefined;
+    detailState = undefined;
+    liveDetailActorId = undefined;
   }
 
   async function openDeathLog(): Promise<void> {
@@ -400,7 +408,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
   }
 
   function publish(): void {
-    try { rpc.send.stateChanged(state); } catch { /* The view may still be connecting. */ }
+    options.onStateChanged?.(state);
   }
 
   function publishDetail(): void {
@@ -408,27 +416,6 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     try { detailRpc.send.stateChanged(detailState); } catch { /* The view may still be connecting. */ }
   }
 
-}
-
-/** Placeholder DPS row for a player with no damage-dealt data (a dedicated healer/tank), so the
- * detail window can still open from the HPS/TPS tab and show their real tanked/heal rows. */
-function emptyDpsRow(identity: FishNetDpsActorRow | MeterActorRow, durationMs: number): FishNetDpsActorRow {
-  return {
-    actorIds: identity.actorIds,
-    displayName: identity.displayName,
-    ...(identity.archetype === undefined ? {} : { archetype: identity.archetype }),
-    durationMs,
-    damage: 0,
-    dps: 0,
-    currentDps: 0,
-    contribution: 0,
-    hits: 0,
-    criticalHits: 0,
-    kills: 0,
-    mobsHit: 0,
-    skills: [],
-    timeline: [],
-  };
 }
 
 function loadingState(fileName?: string, statType: StatType = "damage"): CombatAnalysisState {

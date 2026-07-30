@@ -1,5 +1,6 @@
 import { render } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import type { JSX } from "preact";
+import { useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
@@ -11,7 +12,9 @@ import { CustomSelect } from "@spiritvale/ui-core/custom-select";
 import { StatTypeSelect } from "@spiritvale/ui-core/stat-type-select";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
-import type { DpsAppRpc, DpsAppState, DpsAppTab, MeterEncounterSnapshot, StatType } from "../app-types.ts";
+import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppTab, MeterEncounterSnapshot, StatType } from "../app-types.ts";
+import { PastSessionPanel } from "./past-session-panel.tsx";
+import { PastAnalysisPanel } from "./past-analysis-panel.tsx";
 import {
   DPS_WINDOW_DEFAULT_HEIGHT,
   DPS_WINDOW_DEFAULT_WIDTH,
@@ -49,6 +52,17 @@ function setTab(tab: DpsAppTab): void {
   void electroview.rpc?.request.setTab({ tab });
 }
 
+function setScreen(screen: CombatLogScreen): void {
+  if (state.value) state.value = { ...state.value, screen };
+  void electroview.rpc?.request.setScreen({ screen });
+}
+
+function activateRow(event: JSX.TargetedKeyboardEvent<HTMLTableRowElement>, activate: () => void): void {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  activate();
+}
+
 function setStatType(statType: StatType): void {
   if (state.value) state.value = { ...state.value, statType };
   void electroview.rpc?.request.setStatType({ statType });
@@ -69,15 +83,7 @@ function actorSortValue(actor: MeterEncounterSnapshot["actors"][number], key: Ac
 
 function App() {
   const next = state.value;
-  const personalNameRef = useRef<HTMLInputElement>(null);
   const [actorSort, setActorSort] = useState<ActorSort>({ key: "dps", direction: "descending" });
-
-  // Only sync from server state when the user isn't actively editing the field —
-  // mirrors the original imperative guard against clobbering keystrokes.
-  useEffect(() => {
-    const input = personalNameRef.current;
-    if (input && next && document.activeElement !== input) input.value = next.personalName;
-  }, [next?.personalName]);
 
   if (!next) return <main class="app-shell" />;
 
@@ -123,11 +129,16 @@ function App() {
         extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
       />
 
+      <nav class="seg log-tabs" role="tablist" aria-label="Combat log source">
+        <button type="button" role="tab" aria-selected={next.screen === "live"} class={next.screen === "live" ? "active" : undefined} onClick={() => setScreen("live")}>Live</button>
+        <button type="button" role="tab" aria-selected={next.screen === "past"} class={next.screen === "past" ? "active" : undefined} onClick={() => setScreen("past")}>Past Log</button>
+      </nav>
+
+      {next.screen === "live" ? <section class="live-screen">
       <section class="command-bar">
         <StatTypeSelect value={next.statType} onChange={setStatType} />
         <div class="command-bar-actions">
-          <button class="btn" type="button" onClick={() => void electroview.rpc?.request.openReplayPicker({})}>Open log</button>
-          <button class="btn" type="button" disabled={!next.liveDeathLogAvailable} onClick={() => void electroview.rpc?.request.openLiveDeathLog({})}>Death log</button>
+          <button class="btn" type="button" disabled={!next.liveDeathLogAvailable} onClick={() => void electroview.rpc?.request.openActiveDeathLog({})}>Death log</button>
           <button class="btn" type="button" disabled={next.resetting} onClick={() => void electroview.rpc?.request.resetSession({})}>Reset</button>
         </div>
       </section>
@@ -168,8 +179,22 @@ function App() {
                   <SortableHeader label="Kills" sortKey="kills" sort={actorSort} onSort={sortActorsBy} />
                   <SortableHeader label="Mobs hit" sortKey="mobsHit" sort={actorSort} onSort={sortActorsBy} />
                 </tr></thead>
-                <tbody>{sortedActors.map((actor) => (
-                  <tr key={actor.actorIds[0]} class="meter-table-row" style={`--row-fill:${Math.max(0, Math.min(100, actor.contribution * 100))}%`}>
+                <tbody>{sortedActors.map((actor) => {
+                  const activate = () => void electroview.rpc?.request.openPlayerDetails({
+                    source: "live",
+                    actorId: actor.actorIds[0]!,
+                    selectedEnemyIds: [],
+                  });
+                  return (
+                  <tr
+                    key={actor.actorIds[0]}
+                    class="meter-table-row live-player-row"
+                    style={`--row-fill:${Math.max(0, Math.min(100, actor.contribution * 100))}%`}
+                    title="Double-click for live player detail"
+                    tabIndex={0}
+                    onDblClick={activate}
+                    onKeyDown={(event) => activateRow(event, activate)}
+                  >
                     <th scope="row">{actor.displayName}</th>
                     <td>{formatDps(actor.dps)}</td>
                     <td>{compactFormat.format(actor.damage)}</td>
@@ -178,25 +203,16 @@ function App() {
                     <td>{numberFormat.format(actor.kills)}</td>
                     <td>{numberFormat.format(actor.mobsHit)}</td>
                   </tr>
-                ))}</tbody>
+                  );
+                })}</tbody>
               </table>
             </div>}
       </section>
 
       <section class="panel" role="tabpanel" hidden={allActive}>
-        <form
-          class="personal-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void electroview.rpc?.request.setPersonalName({ name: personalNameRef.current?.value ?? "" });
-            personalNameRef.current?.blur();
-          }}
-        >
-          <label class="t-label" for="personal-name">Character</label>
-          <div class="input-row">
-            <input id="personal-name" ref={personalNameRef} class="input" type="text" maxLength={64} autocomplete="off" placeholder="Enter display name" defaultValue={next.personalName} />
-            <button class="btn" type="submit">Save</button>
-          </div>
+        <div class="personal-form">
+          <span class="t-label">Detected character</span>
+          <p class="detected-character" aria-live="polite">{next.personalName || "Waiting for character detection…"}</p>
           <label class="t-label actor-label" for="personal-actor">Damage actor</label>
           <CustomSelect
             id="personal-actor"
@@ -213,12 +229,12 @@ function App() {
               }))),
             ]}
           />
-        </form>
+        </div>
         <p class="personal-hint">
           {personalMatch === "unconfigured"
-            ? "Save your exact in-game display name to match personal damage."
+            ? "Waiting to detect your active character."
             : personalMatch === "missing"
-              ? "Waiting for a matching visible player identity."
+              ? `Waiting for ${next.personalName} to appear in the current encounter.`
               : personalMatch === "ambiguous"
                 ? "More than one visible player matches this name."
                 : "Matched to the current encounter."}
@@ -242,6 +258,26 @@ function App() {
               </table>
             </div>}
       </section>
+      </section> : next.past.view === "selector"
+        ? <PastSessionPanel
+            state={next.past.picker}
+            onRefresh={() => void electroview.rpc?.request.refreshPastSessions({})}
+            onOpenSession={(id) => void electroview.rpc?.request.openPastSession({ id })}
+            onChooseFile={() => void electroview.rpc?.request.choosePastFile({})}
+            onOpenLogFolder={() => void electroview.rpc?.request.openPastLogFolder({})}
+          />
+        : <PastAnalysisPanel
+            state={next.past.analysis}
+            onBack={() => void electroview.rpc?.request.backToPastSessions({})}
+            onSelectEncounter={(id) => void electroview.rpc?.request.selectPastEncounter({ id })}
+            onSetStatType={(statType) => void electroview.rpc?.request.setPastStatType({ statType })}
+            onOpenDeathLog={() => void electroview.rpc?.request.openActiveDeathLog({})}
+            onOpenPlayerDetails={(actorId, selectedEnemyIds) => void electroview.rpc?.request.openPlayerDetails({
+              source: "past",
+              actorId,
+              selectedEnemyIds,
+            })}
+          />}
     </main>
   );
 }

@@ -15,13 +15,22 @@ body {
 .app-shell {
   position: relative;
   display: grid;
-  grid-template-rows: 40px auto auto auto auto minmax(0, 1fr);
+  grid-template-rows: 40px auto minmax(0, 1fr);
   width: 100%;
   height: 100%;
   min-width: 620px;
   min-height: 520px;
   border: 1px solid var(--outline-variant);
   background: var(--surface);
+}
+
+.log-tabs { margin: 6px 12px; }
+.log-tabs > button { flex: 1; padding: 6px 10px; font-size: 12px; }
+
+.live-screen {
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  min-height: 0;
 }
 
 .titlebar {
@@ -84,24 +93,68 @@ body {
 .meter-table .sort-button { padding: 4px 7px; }
 .meter-table-row { background: linear-gradient(90deg, var(--primary-container) 0 var(--row-fill), var(--surface-container-low) var(--row-fill) 100%) !important; }
 .meter-table-row:nth-child(even) { background: linear-gradient(90deg, var(--primary-container) 0 var(--row-fill), var(--surface-container) var(--row-fill) 100%) !important; }
+.live-player-row { cursor: default; }
+.live-player-row:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
 
 @media (max-width: 380px) {
   .brand > span:not(.brand-tag) { display: none; }
 }
 
 .personal-form { margin: 10px 0 6px; }
-.personal-form label { display: block; margin: 0 0 5px 1px; }
+.personal-form .t-label { display: block; margin: 0 0 5px 1px; }
 .personal-form .actor-label { margin-top: 10px; }
-
-.input-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-}
+.detected-character { min-height: 20px; margin: 0; padding: 7px 10px; border-radius: var(--shape-sm); background: var(--surface-container-low); }
 
 .personal-hint {
   min-height: 14px;
   margin: 4px 1px 10px;
   color: var(--on-surface-variant);
   font-size: 11px;
+}
+
+.past-session-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  min-height: 0;
+  padding: 10px 16px 16px;
+}
+
+.picker-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.picker-intro h1 { margin: 0; font-size: 18px; font-weight: 500; }
+.picker-intro p { margin: 5px 0 0; color: var(--on-surface-variant); font-size: 12px; }
+.picker-status.is-error { color: var(--error); }
+.session-list { display: grid; align-content: start; gap: 7px; min-height: 0; overflow: auto; padding-right: 3px; }
+.session-list-item { min-width: 0; }
+.session-row { display: grid; gap: 6px; width: 100%; padding: 12px 14px; border: 1px solid transparent; border-radius: var(--shape-md); background: var(--surface-container-low); color: var(--on-surface); text-align: left; }
+.session-row:hover { background: var(--surface-container); }
+.session-row:disabled { cursor: default; opacity: .58; }
+.session-heading { display: flex; align-items: center; gap: 8px; }
+.session-time { font-size: 13px; font-weight: 500; }
+.active-badge { background: var(--primary-container); color: var(--on-primary-container); }
+.session-summary { color: var(--on-surface-variant); font-size: 12px; font-variant-numeric: tabular-nums; }
+.picker-actions { display: flex; justify-content: flex-start; gap: 8px; }
+
+.past-analysis-panel { min-height: 0; overflow-y: auto; padding: 10px 16px 16px; }
+.past-analysis-panel .toolbar { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 8px; }
+.past-analysis-panel .back-button { align-self: center; }
+.past-analysis-panel .encounter-picker { display: grid; flex: 0 1 240px; gap: 4px; min-width: 160px; }
+.past-analysis-panel .stat-type-picker { display: grid; gap: 4px; min-width: 130px; }
+.past-analysis-panel .toolbar-meta { display: flex; flex: 1; justify-content: flex-end; }
+.past-analysis-panel .analysis-status { margin: 0 0 10px; color: var(--on-surface-variant); font-size: 12px; }
+.past-analysis-panel .banner { margin-bottom: 10px; }
+.past-analysis-panel .totals { margin-bottom: 14px; }
+.past-analysis-panel .players-section { min-height: 0; }
+.past-analysis-panel .section-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.past-analysis-panel .section-head h1 { margin: 0; font-size: 14px; font-weight: 500; }
+.past-analysis-panel .section-head p { margin: 0; color: var(--on-surface-variant); font-size: 12px; }
+.past-analysis-panel .player-row { cursor: default; }
+.past-analysis-panel .combat-table .player-row:hover,
+.past-analysis-panel .combat-table .player-row:focus { outline: none; background: var(--secondary-container); }
+.past-analysis-panel .combat-table .player-row:hover > *,
+.past-analysis-panel .combat-table .player-row:focus > * { color: var(--on-secondary-container); }
+
+@media (max-width: 760px) {
+  .past-analysis-panel .toolbar { flex-wrap: wrap; }
+  .past-analysis-panel .toolbar-meta { flex: 0; justify-content: flex-start; }
 }
