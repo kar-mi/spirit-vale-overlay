@@ -98,6 +98,8 @@ const actorIdentityPersistence = new SafeSaveQueue<ActorIdentityCache>({
 
 const combatWindow = new WindowSlot((onClosed) => createDpsWindow({
   logDirectory,
+  getCharacterState: () => capture.characterState(),
+  subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
   settingsPath: storagePaths.dpsSettingsPath,
   placements,
   onClosed,

@@ -5,11 +5,13 @@
   "exports": {
     ".": "./src/index.ts",
     "./app-types": "./src/app-types.ts",
+    "./personal-character": "./src/personal-character.ts",
     "./tps-meter": "./src/tps-meter.ts",
     "./hps-meter": "./src/hps-meter.ts"
   },
   "dependencies": {
     "@preact/signals": "^2.9.4",
+    "@kar-mi/spirit-vale-tools-character": "0.2.0",
     "@kar-mi/spirit-vale-tools-combat": "1.0.1",
     "@kar-mi/spirit-vale-tools-logging": "0.2.3",
     "@spiritvale/ui-core": "workspace:*",

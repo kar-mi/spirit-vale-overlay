@@ -1,6 +1,6 @@
 import { render } from "preact";
 import type { JSX } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
@@ -83,15 +83,7 @@ function actorSortValue(actor: MeterEncounterSnapshot["actors"][number], key: Ac
 
 function App() {
   const next = state.value;
-  const personalNameRef = useRef<HTMLInputElement>(null);
   const [actorSort, setActorSort] = useState<ActorSort>({ key: "dps", direction: "descending" });
-
-  // Only sync from server state when the user isn't actively editing the field —
-  // mirrors the original imperative guard against clobbering keystrokes.
-  useEffect(() => {
-    const input = personalNameRef.current;
-    if (input && next && document.activeElement !== input) input.value = next.personalName;
-  }, [next?.personalName]);
 
   if (!next) return <main class="app-shell" />;
 
@@ -218,19 +210,9 @@ function App() {
       </section>
 
       <section class="panel" role="tabpanel" hidden={allActive}>
-        <form
-          class="personal-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void electroview.rpc?.request.setPersonalName({ name: personalNameRef.current?.value ?? "" });
-            personalNameRef.current?.blur();
-          }}
-        >
-          <label class="t-label" for="personal-name">Character</label>
-          <div class="input-row">
-            <input id="personal-name" ref={personalNameRef} class="input" type="text" maxLength={64} autocomplete="off" placeholder="Enter display name" defaultValue={next.personalName} />
-            <button class="btn" type="submit">Save</button>
-          </div>
+        <div class="personal-form">
+          <span class="t-label">Detected character</span>
+          <p class="detected-character" aria-live="polite">{next.personalName || "Waiting for character detection…"}</p>
           <label class="t-label actor-label" for="personal-actor">Damage actor</label>
           <CustomSelect
             id="personal-actor"
@@ -247,12 +229,12 @@ function App() {
               }))),
             ]}
           />
-        </form>
+        </div>
         <p class="personal-hint">
           {personalMatch === "unconfigured"
-            ? "Save your exact in-game display name to match personal damage."
+            ? "Waiting to detect your active character."
             : personalMatch === "missing"
-              ? "Waiting for a matching visible player identity."
+              ? `Waiting for ${next.personalName} to appear in the current encounter.`
               : personalMatch === "ambiguous"
                 ? "More than one visible player matches this name."
                 : "Matched to the current encounter."}

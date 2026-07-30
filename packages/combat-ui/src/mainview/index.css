@@ -101,14 +101,9 @@ body {
 }
 
 .personal-form { margin: 10px 0 6px; }
-.personal-form label { display: block; margin: 0 0 5px 1px; }
+.personal-form .t-label { display: block; margin: 0 0 5px 1px; }
 .personal-form .actor-label { margin-top: 10px; }
-
-.input-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-}
+.detected-character { min-height: 20px; margin: 0; padding: 7px 10px; border-radius: var(--shape-sm); background: var(--surface-container-low); }
 
 .personal-hint {
   min-height: 14px;

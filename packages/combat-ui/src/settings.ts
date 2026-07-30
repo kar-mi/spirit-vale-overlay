@@ -12,14 +12,12 @@ import {
 } from "./window-size.ts";
 
 export interface DpsAppSettings {
-  personalName: string;
   tab: DpsAppTab;
   statType: StatType;
   frame: { x: number; y: number; width: number; height: number };
 }
 
 const DEFAULT_SETTINGS: DpsAppSettings = {
-  personalName: "",
   tab: "all",
   statType: "damage",
   frame: { x: 80, y: 80, width: DPS_WINDOW_DEFAULT_WIDTH, height: DPS_WINDOW_DEFAULT_HEIGHT },
@@ -30,7 +28,6 @@ export async function loadDpsAppSettings(settingsPath?: string): Promise<DpsAppS
   return loadJsonSettings(resolvedSettingsPath, (value) => {
     const candidate = value as Partial<DpsAppSettings>;
     return {
-      personalName: typeof candidate.personalName === "string" ? candidate.personalName.trim() : "",
       tab: candidate.tab === "personal" ? "personal" : "all",
       statType: candidate.statType === "tanked" ? "tanked" : candidate.statType === "heal" ? "heal" : "damage",
       frame: validFrame(candidate.frame) ? candidate.frame : { ...DEFAULT_SETTINGS.frame },

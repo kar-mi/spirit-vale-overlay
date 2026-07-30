@@ -112,7 +112,6 @@ export type DpsAppRpc = {
       openActiveDeathLog: { params: Record<string, never>; response: void };
       openSettings: { params: Record<string, never>; response: void };
       resetSession: { params: Record<string, never>; response: DpsAppState };
-      setPersonalName: { params: { name: string }; response: DpsAppState };
       setPersonalActor: { params: { actorId: number | null }; response: DpsAppState };
       setTab: { params: { tab: DpsAppTab }; response: DpsAppState };
       setStatType: { params: { statType: StatType }; response: DpsAppState };
