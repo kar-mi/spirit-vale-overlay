@@ -206,6 +206,70 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("specializes drain healing only for the local character build", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-drain-healing-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+      });
+      const snapshot = syntheticCachedCharacter();
+      snapshot.equipment = [{
+        slot: "Rune",
+        itemId: "Fictional Leech Item",
+        refine: 0,
+        cards: [],
+        substats: [{ type: 98, name: "Health Leech", roll: 0, value: 4, percent: true }],
+      }];
+      coordinator.setCachedCharacter(snapshot);
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet({
+        tick: 2,
+        packetId: 2,
+        packetName: "serverRpc",
+        objectId: 80,
+        raw: Buffer.alloc(0),
+        payload: Buffer.alloc(0),
+      });
+      capture.packet(recoverPacket(3, 80, 200));
+      capture.packet(recoverPacket(4, 90, 300));
+      await coordinator.stop();
+
+      const combatPointer = await readCurrentLogStream("combat", directory);
+      const combat = records(await readFile(combatPointer!.path, "utf8")) as Array<{
+        type: string;
+        data?: Record<string, unknown>;
+      }>;
+      expect(combat).toContainEqual(expect.objectContaining({
+        type: "combat.event",
+        data: expect.objectContaining({
+          kind: "heal",
+          actorId: 80,
+          targetId: 80,
+          sourceId: "health-leech",
+          sourceLabel: "Health Leech",
+          value: 200,
+        }),
+      }));
+      expect(combat).toContainEqual(expect.objectContaining({
+        type: "combat.event",
+        data: expect.objectContaining({
+          kind: "heal",
+          actorId: 90,
+          targetId: 90,
+          sourceId: "siphon-health-leech",
+          sourceLabel: "Siphon / Health Leech",
+          value: 300,
+        }),
+      }));
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("writes an owner-resolved identity before damage from an observed player actor", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-combat-identity-"));
     const capture = new FakeCapture();
@@ -746,6 +810,21 @@ function damagePacket(tick: number, targetId: number, actorId: number): TestPack
       { name: "position", codec: "vector3", value: [1, 2, 3] },
       { name: "origin", codec: "vector3", value: [4, 5, 6] },
     ],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+  };
+}
+
+function recoverPacket(tick: number, targetId: number, amount: number): TestPacket {
+  return {
+    tick,
+    packetId: 902,
+    packetName: "rpcLink",
+    objectId: targetId,
+    rpcName: "Recover_C",
+    networkBehaviourType: "HealthComponent",
+    decodedFields: [{ name: "amount", codec: "packedInt32", value: amount }],
+    undecodedPayload: Buffer.from("0001ab020000403f", "hex"),
     raw: Buffer.alloc(0),
     payload: Buffer.alloc(0),
   };

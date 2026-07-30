@@ -89,10 +89,10 @@ describe("hps replay", () => {
     const logPath = path.join(directory, "combat.jsonl");
     try {
       await writeFile(logPath, [
-        record("combat.actorIdentity", { kind: "actorIdentity", operation: "upsert", tick: 1, actorId: 10, displayName: "rak" }, 0),
+        record("combat.actorIdentity", { kind: "actorIdentity", operation: "upsert", tick: 1, actorId: 10, displayName: "Ember Sage" }, 0),
         record("combat.event", heal(2, 10, 47_518), 1_000),
         record("combat.actorIdentity", { kind: "actorIdentity", operation: "reset", tick: 3 }, 2_000),
-        record("combat.actorIdentity", { kind: "actorIdentity", operation: "upsert", tick: 4, actorId: 20, displayName: " Rak " }, 3_000),
+        record("combat.actorIdentity", { kind: "actorIdentity", operation: "upsert", tick: 4, actorId: 20, displayName: " ember sage " }, 3_000),
         record("combat.event", heal(5, 20, 345_693), 4_000),
       ].join("\n"));
 
@@ -101,7 +101,7 @@ describe("hps replay", () => {
       expect(replay.invalidLines).toBe(0);
       expect(replay.snapshots[0]!.actors).toMatchObject([{
         actorIds: [10, 20],
-        displayName: "rak",
+        displayName: "Ember Sage",
         damage: 393_211,
         hits: 2,
       }]);

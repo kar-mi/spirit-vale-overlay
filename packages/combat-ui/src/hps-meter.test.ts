@@ -61,16 +61,16 @@ describe("HpsMeter", () => {
 
   test("merges respawned actor ids by trimmed, case-insensitive player name", () => {
     const meter = new HpsMeter();
-    meter.consumeIdentity(identity(10, "rak"));
+    meter.consumeIdentity(identity(10, "Ember Sage"));
     meter.consumeCombat(heal(10, 40, "unattributed"), 1_000);
-    meter.consumeIdentity(identity(20, " Rak "));
+    meter.consumeIdentity(identity(20, " ember sage "));
     meter.consumeCombat(heal(20, 60, "unattributed"), 2_000);
 
     const snapshot = meter.getSnapshot(window, 10_000);
     expect(snapshot.actors).toHaveLength(1);
     expect(snapshot.actors[0]).toMatchObject({
       actorIds: [10, 20],
-      displayName: "rak",
+      displayName: "Ember Sage",
       damage: 100,
       hits: 2,
       mobsHit: 2,
@@ -79,14 +79,14 @@ describe("HpsMeter", () => {
 
   test("keeps genuinely different player names separate", () => {
     const meter = new HpsMeter();
-    meter.consumeIdentity(identity(10, "rak"));
-    meter.consumeIdentity(identity(20, "rake"));
+    meter.consumeIdentity(identity(10, "Ember Sage"));
+    meter.consumeIdentity(identity(20, "Ember Seer"));
     meter.consumeCombat(heal(10, 40, "unattributed"), 1_000);
     meter.consumeCombat(heal(20, 60, "unattributed"), 2_000);
 
     const snapshot = meter.getSnapshot(window, 10_000);
     expect(snapshot.actors).toHaveLength(2);
-    expect(snapshot.actors.map((actor) => actor.displayName)).toEqual(["rak", "rake"]);
+    expect(snapshot.actors.map((actor) => actor.displayName)).toEqual(["Ember Sage", "Ember Seer"]);
   });
 
   test("credits unattributed heals (regen, leech) to the recipient as self-healing", () => {
@@ -155,6 +155,17 @@ describe("HpsMeter", () => {
 
     meter.setPersonalActorId(10);
     expect(meter.getSnapshot(window, 10_000).personal?.actorIds).toEqual([10]);
+  });
+
+  test("keeps classified regeneration and drain healing in separate rows", () => {
+    const meter = new HpsMeter();
+    meter.consumeIdentity(identity(20, "Tank"));
+    meter.consumeCombat(heal(20, 25, "inferred", 20, "passive-regeneration"), 1_000);
+    meter.consumeCombat(heal(20, 200, "inferred", 20, "health-leech"), 2_000);
+
+    const skills = meter.getSnapshot(window, 10_000).actors[0]!.skills;
+    expect(skills.find((skill) => skill.sourceId === "health-leech")).toMatchObject({ damage: 200, hits: 1 });
+    expect(skills.find((skill) => skill.sourceId === "passive-regeneration")).toMatchObject({ damage: 25, hits: 1 });
   });
 
   test("reset clears buffered hits", () => {

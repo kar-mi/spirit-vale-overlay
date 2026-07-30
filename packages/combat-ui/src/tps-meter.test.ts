@@ -64,6 +64,24 @@ describe("TpsMeter", () => {
     expect(snapshot.actors[0]).toMatchObject({ displayName: "Tank", damage: 80, hits: 2, mobsHit: 1 });
   });
 
+  test("merges respawned actor ids by trimmed, case-insensitive player name", () => {
+    const meter = new TpsMeter();
+    meter.consumeIdentity(identity(20, "Ember Sage"));
+    meter.consumeCombat(hit(20, 300, 50, 1), 1_000);
+    meter.consumeIdentity(identity(21, " ember sage "));
+    meter.consumeCombat(hit(21, 301, 30, 1), 2_000);
+
+    const snapshot = meter.getSnapshot(window, 10_000);
+    expect(snapshot.actors).toHaveLength(1);
+    expect(snapshot.actors[0]).toMatchObject({
+      actorIds: [20, 21],
+      displayName: "Ember Sage",
+      damage: 80,
+      hits: 2,
+      mobsHit: 2,
+    });
+  });
+
   test("excludes team-0 events (the party's own outgoing damage)", () => {
     const meter = new TpsMeter();
     meter.consumeIdentity(identity(20, "Tank"));
@@ -151,7 +169,7 @@ describe("TpsMeter", () => {
     expect(meter.getSnapshot(window, 10_000).personalMatch).toBe("matched");
 
     meter.setPersonalActorId(undefined);
-    meter.setPersonalName("Tank");
+    meter.setPersonalName(" tank ");
     expect(meter.getSnapshot(window, 10_000).personalMatch).toBe("matched");
 
     meter.setPersonalName("Nobody");
