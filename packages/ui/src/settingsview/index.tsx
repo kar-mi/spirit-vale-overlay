@@ -50,6 +50,7 @@ function App() {
         {next.storageWarning && <div class="banner is-warn" aria-live="polite">{next.storageWarning}</div>}
         <div class="settings-tabs" role="tablist" aria-label="Settings sections">
           <button
+            id="general-tab"
             class={tab === "general" ? "settings-tab is-active" : "settings-tab"}
             type="button"
             role="tab"
@@ -60,6 +61,7 @@ function App() {
             General
           </button>
           <button
+            id="network-tab"
             class={tab === "network" ? "settings-tab is-active" : "settings-tab"}
             type="button"
             role="tab"

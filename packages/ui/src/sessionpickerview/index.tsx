@@ -20,8 +20,12 @@ function App() {
 
   const validSelectedId = next.sessions.some((session) => session.id === selectedId && !session.disabled) ? selectedId : undefined;
 
+  function openSession(id: string): void {
+    if (id) electroview.rpc?.send.openSession({ id });
+  }
+
   function openSelected(): void {
-    if (validSelectedId) electroview.rpc?.send.openSession({ id: validSelectedId });
+    if (validSelectedId) openSession(validSelectedId);
   }
 
   return (
@@ -53,7 +57,7 @@ function App() {
                   key={session.id}
                   session={session}
                   selected={session.id === validSelectedId}
-                  onSelect={() => { setSelectedId(session.id); openSelected(); }}
+                  onSelect={() => { setSelectedId(session.id); openSession(session.id); }}
                 />
               ))}
         </div>
