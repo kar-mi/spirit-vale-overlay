@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
+import { useDismissable } from "./use-dismissable.ts";
 
 export interface CustomSelectOption {
   value: string;
@@ -21,21 +22,7 @@ export function CustomSelect({ value, options, onChange, disabled, ariaLabel, id
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent): void => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  useDismissable(rootRef, open, () => setOpen(false));
 
   const selected = options.find((option) => option.value === value);
 

@@ -8,6 +8,8 @@
     "build:stable": "electrobun build --env=stable"
   },
   "dependencies": {
+    "@preact/signals": "^2.9.4",
+    "preact": "^10.29.7",
     "@kar-mi/spirit-vale-tools-character": "0.1.4",
     "@kar-mi/spirit-vale-tools-combat": "0.2.7",
     "@spiritvale/combat-ui": "workspace:*",
