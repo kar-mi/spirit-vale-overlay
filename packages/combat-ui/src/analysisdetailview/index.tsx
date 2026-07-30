@@ -1,5 +1,5 @@
 import { render } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
@@ -80,15 +80,14 @@ function App() {
   const [metric, setMetric] = useState<Metric>("dps");
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
   const [statType, setStatType] = useState<StatType>("damage");
-  const statTypeSeeded = useRef(false);
   const next = state.value;
 
   useEffect(() => {
-    if (next && !statTypeSeeded.current) {
-      statTypeSeeded.current = true;
+    if (next) {
       setStatType(next.statType);
+      setSelectedEnemyIds(new Set(next.selectedEnemyIds));
     }
-  }, [next?.statType]);
+  }, [next]);
 
   if (!next) return <main class="app-shell" />;
 

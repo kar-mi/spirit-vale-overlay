@@ -149,7 +149,10 @@ function App() {
             <table class="data-table combat-table" aria-label={`Player ${damageLabel.toLowerCase()}`}>
               <thead><tr><th>Player</th><th>{damageLabel}</th><th>{metricLabel}</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th><th>Kills</th></tr></thead>
               <tbody>{filteredRows.map(({ actor: player, damage, dps, hits, criticalHits, critRate, contribution }) => {
-                const activate = () => void electroview.rpc?.request.openPlayerDetails({ actorId: player.actorIds[0]! });
+                const activate = () => void electroview.rpc?.request.openPlayerDetails({
+                  actorId: player.actorIds[0]!,
+                  selectedEnemyIds: [...selectedEnemyIds],
+                });
                 return <tr
                   key={player.actorIds[0]}
                   class="player-row"

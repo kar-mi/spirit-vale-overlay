@@ -26,6 +26,7 @@ import { loadEnemyBreakdown } from "../enemy-breakdown.ts";
 import type { EnemyBreakdownEncounter, EnemyDamageRow, EnemySkillStats } from "../enemy-breakdown.ts";
 import { loadTpsReplay } from "../tps-replay.ts";
 import { loadHpsReplay } from "../hps-replay.ts";
+import { validSelectedEnemyIds } from "../analysis-selection.ts";
 
 const ANALYSIS_FRAME = { x: 140, y: 120, width: 920, height: 680 };
 const DETAIL_FRAME = { x: 190, y: 160, width: 880, height: 720 };
@@ -149,7 +150,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
           publish();
           return state;
         },
-        openPlayerDetails: ({ actorId }) => { openPlayerDetails(actorId); },
+        openPlayerDetails: ({ actorId, selectedEnemyIds }) => { openPlayerDetails(actorId, selectedEnemyIds); },
         openDeathLog: async () => { await openDeathLog(); },
         windowAction: ({ action }) => {
           if (action === "minimize") window?.minimize();
@@ -284,7 +285,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     });
   }
 
-  function openPlayerDetails(actorId: number): void {
+  function openPlayerDetails(actorId: number, selectedEnemyIds: readonly number[]): void {
     const snapshot = state.snapshot;
     if (!snapshot || !state.fileName) return;
     const tankedSnapshot = tpsSnapshotFor(snapshot.id);
@@ -301,15 +302,17 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     const player = dpsPlayer ?? emptyDpsRow(identity, snapshot.durationMs);
     const breakdown = enemyBreakdownFor(snapshot.id);
     const skillsByEnemy = buildSkillsByEnemy(snapshot.id, player, snapshot.durationMs);
+    const enemies = breakdown?.enemies.filter((enemy) => enemy.targetId in skillsByEnemy) ?? [];
     detailState = {
       fileName: state.fileName,
       encounterLabel: state.encounters.find((encounter) => encounter.id === snapshot.id)?.label ?? "Encounter",
       encounterDurationMs: snapshot.durationMs,
       statType: state.statType,
+      selectedEnemyIds: validSelectedEnemyIds(selectedEnemyIds, new Set(enemies.map((enemy) => enemy.targetId))),
       player,
       tankedPlayer,
       healPlayer,
-      enemies: breakdown?.enemies.filter((enemy) => enemy.targetId in skillsByEnemy) ?? [],
+      enemies,
       skillsByEnemy,
     };
     if (detailWindow) {
