@@ -84,6 +84,32 @@ describe("hps replay", () => {
     }
   });
 
+  test("merges healing across respawned actor ids with the same normalized name", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-hps-replay-"));
+    const logPath = path.join(directory, "combat.jsonl");
+    try {
+      await writeFile(logPath, [
+        record("combat.actorIdentity", { kind: "actorIdentity", operation: "upsert", tick: 1, actorId: 10, displayName: "rak" }, 0),
+        record("combat.event", heal(2, 10, 47_518), 1_000),
+        record("combat.actorIdentity", { kind: "actorIdentity", operation: "reset", tick: 3 }, 2_000),
+        record("combat.actorIdentity", { kind: "actorIdentity", operation: "upsert", tick: 4, actorId: 20, displayName: " Rak " }, 3_000),
+        record("combat.event", heal(5, 20, 345_693), 4_000),
+      ].join("\n"));
+
+      const snapshot = makeSnapshot("enc-1", 0, 10_000);
+      const replay = await loadHpsReplay(logPath, [snapshot]);
+      expect(replay.invalidLines).toBe(0);
+      expect(replay.snapshots[0]!.actors).toMatchObject([{
+        actorIds: [10, 20],
+        displayName: "rak",
+        damage: 393_211,
+        hits: 2,
+      }]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
 });
 
 function makeSnapshot(id: string, startedAtMs: number, endedAtMs: number, lastDamageAtMs = endedAtMs): FishNetDpsEncounterSnapshot {

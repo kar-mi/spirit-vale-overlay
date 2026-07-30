@@ -102,37 +102,40 @@ export class HpsMeter {
       .filter((hit) => hit.healerIdentity !== undefined);
     const durationSeconds = Math.max(1, window.durationMs) / 1000;
 
-    const groups = new Map<number, HpsHit[]>();
+    const groups = new Map<string, { healerActorIds: Set<number>; hits: HpsHit[] }>();
     for (const hit of scoped) {
-      const group = groups.get(hit.healerActorId) ?? [];
-      group.push(hit);
-      groups.set(hit.healerActorId, group);
+      const identity = hit.healerIdentity!;
+      const key = normalizeName(identity.displayName);
+      const group = groups.get(key) ?? { healerActorIds: new Set<number>(), hits: [] };
+      group.healerActorIds.add(hit.healerActorId);
+      group.hits.push(hit);
+      groups.set(key, group);
     }
 
-    const actors: MeterActorRow[] = [...groups.entries()].map(([healerActorId, hits]) => {
-      const identity = hits[0]?.healerIdentity;
-      const damage = hits.reduce((sum, hit) => sum + hit.value, 0);
-      const currentDamage = hits
+    const actors: MeterActorRow[] = [...groups.values()].map((group) => {
+      const identity = group.hits[0]?.healerIdentity;
+      const damage = group.hits.reduce((sum, hit) => sum + hit.value, 0);
+      const currentDamage = group.hits
         .filter((hit) => hit.atMs > nowMs - this.currentWindowMs && hit.atMs <= nowMs)
         .reduce((sum, hit) => sum + hit.value, 0);
-      const targetsHealed = new Set(hits.map((hit) => hit.targetId));
+      const targetsHealed = new Set(group.hits.map((hit) => hit.targetId));
       return {
-        actorIds: [healerActorId],
-        displayName: identity?.displayName ?? `Actor ${healerActorId}`,
+        actorIds: [...group.healerActorIds],
+        displayName: identity?.displayName ?? "Unidentified",
         archetype: identity?.archetype,
         durationMs: window.durationMs,
-        lastDamageAtMs: hits.reduce((max, hit) => Math.max(max, hit.atMs), window.startedAtMs),
+        lastDamageAtMs: group.hits.reduce((max, hit) => Math.max(max, hit.atMs), window.startedAtMs),
         damage,
         dps: damage / durationSeconds,
         currentDps: currentDamage / (this.currentWindowMs / 1000),
         contribution: 0,
-        hits: hits.length,
+        hits: group.hits.length,
         criticalHits: 0,
         critRate: undefined,
         kills: 0,
         mobsHit: targetsHealed.size,
-        skills: buildSkillRows(hits, durationSeconds),
-        timeline: buildTimeline(hits, window, this.timelineBucketMs),
+        skills: buildSkillRows(group.hits, durationSeconds),
+        timeline: buildTimeline(group.hits, window, this.timelineBucketMs),
         isUnidentified: false,
       };
     });
@@ -210,9 +213,13 @@ function resolvePersonal(
     const match = actors.find((actor) => actor.actorIds.includes(personalActorId));
     return match ? { personalMatch: "matched", personal: match } : { personalMatch: "missing" };
   }
-  const needle = personalName.toLocaleLowerCase();
-  const matches = actors.filter((actor) => actor.displayName.toLocaleLowerCase() === needle);
+  const needle = normalizeName(personalName);
+  const matches = actors.filter((actor) => normalizeName(actor.displayName) === needle);
   if (matches.length === 0) return { personalMatch: "missing" };
   if (matches.length > 1) return { personalMatch: "ambiguous" };
   return { personalMatch: "matched", personal: matches[0] };
+}
+
+function normalizeName(name: string): string {
+  return name.trim().toLocaleLowerCase();
 }

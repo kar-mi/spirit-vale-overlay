@@ -59,6 +59,36 @@ describe("HpsMeter", () => {
     expect(snapshot.actors[0]).toMatchObject({ displayName: "Healer", damage: 100, hits: 2, mobsHit: 2 });
   });
 
+  test("merges respawned actor ids by trimmed, case-insensitive player name", () => {
+    const meter = new HpsMeter();
+    meter.consumeIdentity(identity(10, "rak"));
+    meter.consumeCombat(heal(10, 40, "unattributed"), 1_000);
+    meter.consumeIdentity(identity(20, " Rak "));
+    meter.consumeCombat(heal(20, 60, "unattributed"), 2_000);
+
+    const snapshot = meter.getSnapshot(window, 10_000);
+    expect(snapshot.actors).toHaveLength(1);
+    expect(snapshot.actors[0]).toMatchObject({
+      actorIds: [10, 20],
+      displayName: "rak",
+      damage: 100,
+      hits: 2,
+      mobsHit: 2,
+    });
+  });
+
+  test("keeps genuinely different player names separate", () => {
+    const meter = new HpsMeter();
+    meter.consumeIdentity(identity(10, "rak"));
+    meter.consumeIdentity(identity(20, "rake"));
+    meter.consumeCombat(heal(10, 40, "unattributed"), 1_000);
+    meter.consumeCombat(heal(20, 60, "unattributed"), 2_000);
+
+    const snapshot = meter.getSnapshot(window, 10_000);
+    expect(snapshot.actors).toHaveLength(2);
+    expect(snapshot.actors.map((actor) => actor.displayName)).toEqual(["rak", "rake"]);
+  });
+
   test("credits unattributed heals (regen, leech) to the recipient as self-healing", () => {
     const meter = new HpsMeter();
     meter.consumeIdentity(identity(20, "Tank"));
@@ -120,8 +150,11 @@ describe("HpsMeter", () => {
     meter.consumeIdentity(identity(10, "Healer"));
     meter.consumeCombat(heal(20, 40, "exact", 10, "Heal"), 1_000);
 
-    meter.setPersonalActorId(10);
+    meter.setPersonalName(" healer ");
     expect(meter.getSnapshot(window, 10_000).personalMatch).toBe("matched");
+
+    meter.setPersonalActorId(10);
+    expect(meter.getSnapshot(window, 10_000).personal?.actorIds).toEqual([10]);
   });
 
   test("reset clears buffered hits", () => {
