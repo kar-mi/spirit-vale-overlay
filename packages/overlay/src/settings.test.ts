@@ -22,11 +22,11 @@ describe("overlay settings", () => {
   test("normalizes values and clamps elements to the display", async () => {
     const settingsPath = await createSettingsPath();
     await writeFile(settingsPath, JSON.stringify({
+      schemaVersion: 4,
       locked: true,
-      opacity: 0.53,
       personalName: "  Fictional Hero  ",
       elements: {
-        dpsChart: { enabled: false, x: 5000, y: -50, width: 500, height: 200 },
+        dpsChart: { enabled: false, opacity: 0.53, x: 5000, y: -50, width: 500, height: 200 },
         personalDps: { x: Number.NaN, width: 10, height: 10 },
       },
     }), "utf8");
@@ -36,9 +36,9 @@ describe("overlay settings", () => {
     expect(settings.shortcuts.toggleLock).toBe("F11");
     expect(settings.shortcuts.resetSession).toBe("F5");
     expect(settings.shortcuts.toggleOverlayVisible).toBe("F9");
-    expect(Object.values(settings.elements).every((element) => element.opacity === 0.55)).toBe(true);
     expect(settings).not.toHaveProperty("personalName");
     expect(settings.elements.dpsChart).toEqual({ enabled: false, opacity: 0.55, x: 780, y: 0, width: 500, height: 200 });
+    expect(settings.elements.health.opacity).toBe(1);
     expect(settings.elements.personalDps.width).toBe(160);
     expect(settings.elements.personalDps.height).toBe(100);
     expect(settings.elements.health.enabled).toBe(true);
@@ -59,8 +59,8 @@ describe("overlay settings", () => {
   });
 
   test("allows fully transparent tiles and clamps opacity to the supported range", () => {
-    const transparent = normalizeOverlaySettings({ elements: { dpsChart: { opacity: 0 } } }, bounds);
-    const outOfRange = normalizeOverlaySettings({ elements: {
+    const transparent = normalizeOverlaySettings({ schemaVersion: 4, elements: { dpsChart: { opacity: 0 } } }, bounds);
+    const outOfRange = normalizeOverlaySettings({ schemaVersion: 4, elements: {
       dpsChart: { opacity: -0.1 },
       personalDps: { opacity: 1.1 },
     } }, bounds);
@@ -70,33 +70,34 @@ describe("overlay settings", () => {
     expect(outOfRange.elements.personalDps.opacity).toBe(1);
   });
 
-  test("compacts the legacy weight default without overriding current custom heights", () => {
-    const legacy = normalizeOverlaySettings({
-      elements: { weight: { height: 72 } },
+  test("ignores retired schemas without overriding current custom heights", () => {
+    const retired = normalizeOverlaySettings({
+      schemaVersion: 3,
+      elements: { weight: { enabled: false, height: 72 } },
     }, bounds);
     const current = normalizeOverlaySettings({
-      schemaVersion: 2,
+      schemaVersion: 4,
       elements: { weight: { height: 72 } },
     }, bounds);
 
-    expect(legacy.elements.weight.height).toBe(40);
+    expect(retired.elements.weight).toMatchObject({ enabled: true, height: 40 });
     expect(current.elements.weight.height).toBe(72);
   });
 
-  test("normalizes and persists the reset shortcut", async () => {
+  test("ignores the retired flat reset shortcut", async () => {
     const settingsPath = await createSettingsPath();
     const settings = normalizeOverlaySettings({ schemaVersion: 3, resetShortcut: "shift+ctrl+f8" }, bounds);
-    expect(settings.shortcuts.resetSession).toBe("Ctrl+Shift+F8");
+    expect(settings.shortcuts.resetSession).toBe("F5");
     await saveOverlaySettings(settings, settingsPath);
-    expect((await loadOverlaySettings(settingsPath, bounds)).shortcuts.resetSession).toBe("Ctrl+Shift+F8");
+    expect((await loadOverlaySettings(settingsPath, bounds)).shortcuts.resetSession).toBe("F5");
   });
 
-  test("normalizes and persists the overlay visible shortcut", async () => {
+  test("ignores the retired flat overlay-visible shortcut", async () => {
     const settingsPath = await createSettingsPath();
     const settings = normalizeOverlaySettings({ schemaVersion: 3, overlayVisibleShortcut: "shift+ctrl+f8" }, bounds);
-    expect(settings.shortcuts.toggleOverlayVisible).toBe("Ctrl+Shift+F8");
+    expect(settings.shortcuts.toggleOverlayVisible).toBe("F9");
     await saveOverlaySettings(settings, settingsPath);
-    expect((await loadOverlaySettings(settingsPath, bounds)).shortcuts.toggleOverlayVisible).toBe("Ctrl+Shift+F8");
+    expect((await loadOverlaySettings(settingsPath, bounds)).shortcuts.toggleOverlayVisible).toBe("F9");
   });
 
   test("defaults the lock shortcut to F11 and allows reassigning it", () => {
@@ -131,9 +132,9 @@ describe("overlay settings", () => {
 
   test("defaults the party meter stat type to damage and normalizes invalid values", () => {
     expect(normalizeOverlaySettings({}, bounds).meterStatType).toBe("damage");
-    expect(normalizeOverlaySettings({ meterStatType: "heal" }, bounds).meterStatType).toBe("heal");
-    expect(normalizeOverlaySettings({ meterStatType: "tanked" }, bounds).meterStatType).toBe("tanked");
-    expect(normalizeOverlaySettings({ meterStatType: "not-a-real-type" }, bounds).meterStatType).toBe("damage");
+    expect(normalizeOverlaySettings({ schemaVersion: 4, meterStatType: "heal" }, bounds).meterStatType).toBe("heal");
+    expect(normalizeOverlaySettings({ schemaVersion: 4, meterStatType: "tanked" }, bounds).meterStatType).toBe("tanked");
+    expect(normalizeOverlaySettings({ schemaVersion: 4, meterStatType: "not-a-real-type" }, bounds).meterStatType).toBe("damage");
   });
 });
 

@@ -1,5 +1,4 @@
 import path from "node:path";
-import { copyFile, mkdir, stat } from "node:fs/promises";
 
 export interface DesktopStoragePaths {
   readonly portable: boolean;
@@ -39,29 +38,4 @@ export function resolveDesktopStoragePaths(options: DesktopStoragePathOptions): 
     characterStatePath: path.join(dataDirectory, "character.json"),
     actorIdentitiesPath: path.join(dataDirectory, "actor-identities.json"),
   };
-}
-
-export async function migrateLegacyUserData(storagePaths: DesktopStoragePaths, legacyUserData: string): Promise<void> {
-  const migrations = [
-    [path.join(legacyUserData, "spirit-vale-overlay", "settings.json"), storagePaths.overlaySettingsPath],
-    [path.join(legacyUserData, "spirit-vale-dps", "settings.json"), storagePaths.dpsSettingsPath],
-    [path.join(legacyUserData, "spirit-vale-tools", "settings.json"), storagePaths.launcherSettingsPath],
-    [path.join(legacyUserData, "spirit-vale-tools", "windows.json"), storagePaths.windowPlacementsPath],
-    [path.join(legacyUserData, "spirit-vale-tools", "character.json"), storagePaths.characterStatePath],
-    [path.join(legacyUserData, "rewards-settings.json"), storagePaths.rewardsSettingsPath],
-  ] as const;
-
-  await Promise.all(migrations.map(async ([source, destination]) => {
-    if (await fileExists(destination) || !await fileExists(source)) return;
-    await mkdir(path.dirname(destination), { recursive: true });
-    await copyFile(source, destination);
-  }));
-}
-
-async function fileExists(file: string): Promise<boolean> {
-  try {
-    return (await stat(file)).isFile();
-  } catch {
-    return false;
-  }
 }

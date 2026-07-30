@@ -17,11 +17,12 @@ const WINDOWS_1252_BYTES = new Map<number, number>([
 ]);
 
 const MOJIBAKE_LEAD = /(?:\u00c2[\u0080-\u00ff\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d\u2018-\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178]|\u00c3[\u0080-\u00ff\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d\u2018-\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178]|\u00e2[\u0080-\u00ff\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d\u2018-\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178])/u;
+const HALFWIDTH_UTF8_SEQUENCE = /[\uffc2\uffc3\uffe2][\uff80-\uffbf]+/gu;
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 
 /** Repairs one or more layers of UTF-8 decoded as Windows-1252. */
 export function repairRendererText(value: string): string {
-  let repaired = value;
+  let repaired = repairHalfwidthUtf8(value);
   for (let attempt = 0; attempt < 3 && MOJIBAKE_LEAD.test(repaired); attempt += 1) {
     const bytes = windows1252Bytes(repaired);
     if (!bytes) break;
@@ -34,6 +35,17 @@ export function repairRendererText(value: string): string {
     }
   }
   return repaired;
+}
+
+function repairHalfwidthUtf8(value: string): string {
+  return value.replace(HALFWIDTH_UTF8_SEQUENCE, (sequence) => {
+    const bytes = Uint8Array.from(sequence, (character) => character.codePointAt(0)! & 0xff);
+    try {
+      return utf8.decode(bytes);
+    } catch {
+      return sequence;
+    }
+  });
 }
 
 /** Repairs every string in an RPC payload before it is rendered. */

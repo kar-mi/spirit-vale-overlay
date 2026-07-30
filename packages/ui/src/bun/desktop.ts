@@ -28,7 +28,7 @@ import { isWorkspaceDevelopmentRoot } from "@spiritvale/ui-core/local-storage";
 import { resolveLocalRoot } from "./paths.ts";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { WindowSlot } from "./window-slot.ts";
-import { migrateLegacyUserData, resolveDesktopStoragePaths } from "./portable-paths.ts";
+import { resolveDesktopStoragePaths } from "./portable-paths.ts";
 import type { WindowFrame } from "@spiritvale/ui-core/window-chrome";
 import { registerUiScaleWindow, scaledSize, setUiScale } from "@spiritvale/ui-core/ui-scale";
 import { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
@@ -45,7 +45,6 @@ const storagePaths = resolveDesktopStoragePaths({
   portable: Boolean(process.env.SPIRIT_VALE_PORTABLE_ROOT?.trim()),
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,
 });
-await migrateLegacyUserData(storagePaths, Utils.paths.userData);
 const logDirectory = storagePaths.logDirectory;
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);

@@ -15,13 +15,13 @@ export interface LauncherSettings {
 const defaults: LauncherSettings = { captureAdapter: "auto", uiScale: 1, minimizeToTray: false };
 export async function loadLauncherSettings(file = defaultSettingsFile()): Promise<LauncherSettings> {
   return loadJsonSettings(file, (value) => {
-    const candidate = value as Partial<LauncherSettings> & { closeToTray?: unknown };
+    const candidate = value as Partial<LauncherSettings>;
     return {
       captureAdapter: typeof candidate.captureAdapter === "string" && candidate.captureAdapter.trim()
         ? candidate.captureAdapter
         : defaults.captureAdapter,
       uiScale: normalizeUiScale(candidate.uiScale),
-      minimizeToTray: candidate.minimizeToTray === true || (candidate.minimizeToTray !== false && candidate.closeToTray === true),
+      minimizeToTray: candidate.minimizeToTray === true,
       skippedUpdateVersion: typeof candidate.skippedUpdateVersion === "string" && candidate.skippedUpdateVersion.trim()
         ? candidate.skippedUpdateVersion
         : undefined,

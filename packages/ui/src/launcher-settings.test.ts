@@ -31,10 +31,10 @@ test("launcher settings round-trip with capture settings", async () => {
   expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 2, minimizeToTray: true, skippedUpdateVersion: "0.6.5" });
 });
 
-test("legacy close-to-tray setting migrates to minimize-to-tray", async () => {
+test("ignores the retired close-to-tray setting", async () => {
   const settingsPath = await createSettingsPath();
   await writeFile(settingsPath, JSON.stringify({ closeToTray: true }), "utf8");
-  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: true, skippedUpdateVersion: undefined });
+  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: false, skippedUpdateVersion: undefined });
 });
 
 async function createSettingsPath(): Promise<string> {
