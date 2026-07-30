@@ -4,6 +4,7 @@ import { repairRendererPayload, repairRendererText } from "./renderer-text.ts";
 test("repairs Windows-1252 mojibake while preserving normal text", () => {
   expect(repairRendererText("USB Ã— adapter")).toBe("USB × adapter");
   expect(repairRendererText("Npcap Â· ready")).toBe("Npcap · ready");
+  expect(repairRendererText("combat.jsonl · Encounter 2 ￂﾷ 2:13")).toBe("combat.jsonl · Encounter 2 · 2:13");
   expect(repairRendererText("range â€” active")).toBe("range — active");
   expect(repairRendererText("plain × · — → é Ω 中文 😀")).toBe("plain × · — → é Ω 中文 😀");
 });
