@@ -82,6 +82,9 @@ bun run package:portable
 bun run verify:portable
 ```
 
+## VPN Issues
+![Potential solutions to vpn issues](VPN_ISSUES.md)
+
 ## Releases
 
 See [RELEASE.md](RELEASE.md) for GitHub setup and Windows release instructions.
