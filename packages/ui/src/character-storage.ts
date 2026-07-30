@@ -31,9 +31,7 @@ export async function loadCharacterCache(file = defaultFile): Promise<CharacterS
       return { characters, ...(activeName === undefined ? {} : { activeName }) };
     }
 
-    // Migrate the previous single-snapshot format in memory; the next save writes the cache.
-    const snapshot = normalizeSnapshot(value);
-    return snapshot ? { activeName: snapshot.name, characters: [snapshot] } : { characters: [] };
+    return { characters: [] };
   } catch {
     return { characters: [] };
   }
@@ -105,25 +103,19 @@ function normalizeSnapshot(value: unknown): CharacterSnapshot | undefined {
   if (candidate.schemaVersion !== 1 || candidate.buildFingerprint !== CURRENT_GAME_BUILD_FINGERPRINT) return undefined;
   if (typeof candidate.name !== "string"
     || typeof candidate.level !== "number"
+    || typeof candidate.experience !== "number"
+    || typeof candidate.jobLevel !== "number"
+    || typeof candidate.jobExperience !== "number"
     || !Array.isArray(candidate.archetypes)
     || !candidate.archetypes.every((entry) => typeof entry === "string")
-    || !validAttributes(candidate.attributes)) return undefined;
-  return {
-    ...candidate,
-    activeLoadout: candidate.activeLoadout ?? "Normal",
-    equipment: Array.isArray(candidate.equipment) ? candidate.equipment : [],
-    artifacts: Array.isArray(candidate.artifacts) ? candidate.artifacts.map((artifact) => ({
-      ...(artifact as unknown as Record<string, unknown>),
-      gems: Array.isArray((artifact as { gems?: unknown }).gems)
-        ? (artifact as { gems: unknown[] }).gems.flatMap((gem) => typeof gem === "string" ? [{ id: gem, refine: 0 }] : gem && typeof gem === "object" && typeof (gem as { id?: unknown }).id === "string" && typeof (gem as { refine?: unknown }).refine === "number" ? [gem] : [])
-        : [],
-    })) as CharacterSnapshot["artifacts"] : [],
-    skills: Array.isArray(candidate.skills) ? candidate.skills.map((skill) => ({
-      ...(skill as unknown as Record<string, unknown>),
-      effects: Array.isArray((skill as unknown as { effects?: unknown }).effects) ? (skill as unknown as { effects: unknown[] }).effects : [],
-    })) as CharacterSnapshot["skills"] : [],
-    source: "cached",
-  } as CharacterSnapshot;
+    || !validAttributes(candidate.attributes)
+    || (candidate.activeLoadout !== "Normal" && candidate.activeLoadout !== "Secondary" && candidate.activeLoadout !== "Heavy")
+    || !Array.isArray(candidate.equipment)
+    || !Array.isArray(candidate.artifacts)
+    || !Array.isArray(candidate.skills)
+    || typeof candidate.updatedAt !== "string"
+    || (candidate.source !== "live" && candidate.source !== "cached")) return undefined;
+  return sanitizeSnapshot(candidate as CharacterSnapshot);
 }
 
 function isPersistedCache(value: unknown): value is PersistedCharacterSnapshotCache {

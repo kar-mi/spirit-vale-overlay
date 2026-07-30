@@ -50,7 +50,7 @@ const DEFAULT_ELEMENTS: Record<OverlayElementId, OverlayElementSettings> = {
 };
 
 export function defaultOverlaySettings(bounds: DisplayBounds): OverlaySettings {
-  return normalizeOverlaySettings({}, bounds);
+  return normalizeOverlaySettings({ schemaVersion: 4 }, bounds);
 }
 
 export async function loadOverlaySettings(
@@ -69,8 +69,8 @@ export async function saveOverlaySettings(settings: OverlaySettings, settingsPat
 }
 
 export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBounds): OverlaySettings {
-  const source = candidate && typeof candidate === "object" ? candidate as Record<string, unknown> : {};
-  const legacySettings = source.schemaVersion !== 2 && source.schemaVersion !== 3 && source.schemaVersion !== 4;
+  const parsed = candidate && typeof candidate === "object" ? candidate as Record<string, unknown> : {};
+  const source = parsed.schemaVersion === 4 ? parsed : {};
   const sourceElements = source.elements && typeof source.elements === "object"
     ? source.elements as Record<string, unknown>
     : {};
@@ -81,13 +81,10 @@ export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBoun
       : {};
     const width = clampNumber(value.width, defaults.width, 160, Math.max(160, bounds.width));
     const minimumHeight = id === "health" || id === "mana" || id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" ? 40 : 100;
-    const savedHeight = legacySettings && id === "weight" && value.height === 72
-      ? defaults.height
-      : value.height;
-    const height = clampNumber(savedHeight, defaults.height, minimumHeight, Math.max(minimumHeight, bounds.height));
+    const height = clampNumber(value.height, defaults.height, minimumHeight, Math.max(minimumHeight, bounds.height));
     return [id, {
       enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,
-      opacity: normalizeOpacity(value.opacity ?? source.opacity),
+      opacity: normalizeOpacity(value.opacity),
       x: clampNumber(value.x, defaults.x, 0, Math.max(0, bounds.width - width)),
       y: clampNumber(value.y, defaults.y, 0, Math.max(0, bounds.height - height)),
       width,
@@ -116,12 +113,10 @@ export function normalizeShortcuts(source: Record<string, unknown>): Record<Keyb
   const shortcutsSource = source.shortcuts && typeof source.shortcuts === "object"
     ? source.shortcuts as Record<string, unknown>
     : {};
-  // Legacy (schemaVersion <= 3) files stored resetSession/toggleOverlayVisible as flat
-  // fields and never persisted toggleLock at all (it was hardcoded to F11).
   const rawByAction: Record<KeybindAction, unknown> = {
     toggleLock: shortcutsSource.toggleLock,
-    resetSession: shortcutsSource.resetSession ?? source.resetShortcut,
-    toggleOverlayVisible: shortcutsSource.toggleOverlayVisible ?? source.overlayVisibleShortcut,
+    resetSession: shortcutsSource.resetSession,
+    toggleOverlayVisible: shortcutsSource.toggleOverlayVisible,
     cycleMeterStatType: shortcutsSource.cycleMeterStatType,
   };
   const shortcuts = {} as Record<KeybindAction, string>;

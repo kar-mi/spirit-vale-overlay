@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -33,24 +33,14 @@ describe("character cache storage", () => {
     }
   });
 
-  test("loads the legacy single-character format into the new cache", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-character-legacy-"));
+  test("ignores the retired single-character format", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-character-retired-"));
     const file = path.join(directory, "character.json");
     try {
       await writeFile(file, JSON.stringify(snapshot("Fictional Ranger", ["Scout", "Ranger"])), "utf8");
 
       const restored = await loadCharacterCache(file);
-      expect(restored).toMatchObject({
-        activeName: "Fictional Ranger",
-        characters: [{ name: "Fictional Ranger", source: "cached" }],
-      });
-
-      await saveCharacterCache(restored, file);
-      expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject({
-        cacheVersion: 1,
-        activeName: "Fictional Ranger",
-        characters: [{ name: "Fictional Ranger" }],
-      });
+      expect(restored).toEqual({ characters: [] });
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

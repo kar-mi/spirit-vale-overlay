@@ -1,9 +1,7 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 
-import { migrateLegacyUserData, resolveDesktopStoragePaths } from "./portable-paths.ts";
+import { resolveDesktopStoragePaths } from "./portable-paths.ts";
 
 test("environment-root storage remains beneath the extracted application root", () => {
   const root = path.resolve("fictional-portable-app");
@@ -40,28 +38,4 @@ test("executable-adjacent storage uses packaged log layout and honors an overrid
   expect(paths.root).toBe(root);
   expect(paths.logDirectory).toBe(override);
   expect(paths.characterStatePath).toBe(path.join(root, "data", "character.json"));
-});
-
-test("migration copies missing legacy files without replacing local state", async () => {
-  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "spirit-vale-storage-"));
-  try {
-    const legacyUserData = path.join(temporaryDirectory, "legacy");
-    const root = path.join(temporaryDirectory, "local");
-    const paths = resolveDesktopStoragePaths({ root, workspaceDev: false });
-    const legacyLauncher = path.join(legacyUserData, "spirit-vale-tools", "settings.json");
-    const legacyDps = path.join(legacyUserData, "spirit-vale-dps", "settings.json");
-    await mkdir(path.dirname(legacyLauncher), { recursive: true });
-    await mkdir(path.dirname(legacyDps), { recursive: true });
-    await mkdir(path.dirname(paths.dpsSettingsPath), { recursive: true });
-    await writeFile(legacyLauncher, "legacy", "utf8");
-    await writeFile(legacyDps, "dps", "utf8");
-    await writeFile(paths.dpsSettingsPath, "local", "utf8");
-
-    await migrateLegacyUserData(paths, legacyUserData);
-
-    expect(await readFile(paths.launcherSettingsPath, "utf8")).toBe("legacy");
-    expect(await readFile(paths.dpsSettingsPath, "utf8")).toBe("local");
-  } finally {
-    await rm(temporaryDirectory, { recursive: true, force: true });
-  }
 });

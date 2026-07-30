@@ -251,6 +251,7 @@ describe("central capture coordinator", () => {
           targetId: 80,
           sourceId: "health-leech",
           sourceLabel: "Health Leech",
+          recoveryStyle: "drain",
           value: 200,
         }),
       }));
@@ -262,6 +263,7 @@ describe("central capture coordinator", () => {
           targetId: 90,
           sourceId: "siphon-health-leech",
           sourceLabel: "Siphon / Health Leech",
+          recoveryStyle: "drain",
           value: 300,
         }),
       }));
