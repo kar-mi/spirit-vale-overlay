@@ -82,13 +82,22 @@ function App() {
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
   const [statType, setStatType] = useState<StatType>("damage");
   const next = state.value;
+  const selectionScope = next
+    ? JSON.stringify([
+        next.fileName,
+        next.encounterLabel,
+        next.player.displayName,
+        next.statType,
+        next.selectedEnemyIds,
+      ])
+    : undefined;
 
   useEffect(() => {
     if (next) {
       setStatType(next.statType);
       setSelectedEnemyIds(new Set(next.selectedEnemyIds));
     }
-  }, [next]);
+  }, [selectionScope]);
 
   if (!next) return <main class="app-shell" />;
 

@@ -130,6 +130,7 @@ body {
 .picker-intro p { margin: 5px 0 0; color: var(--on-surface-variant); font-size: 12px; }
 .picker-status.is-error { color: var(--error); }
 .session-list { display: grid; align-content: start; gap: 7px; min-height: 0; overflow: auto; padding-right: 3px; }
+.session-list-item { min-width: 0; }
 .session-row { display: grid; gap: 6px; width: 100%; padding: 12px 14px; border: 1px solid transparent; border-radius: var(--shape-md); background: var(--surface-container-low); color: var(--on-surface); text-align: left; }
 .session-row:hover { background: var(--surface-container); }
 .session-row:disabled { cursor: default; opacity: .58; }

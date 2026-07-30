@@ -24,14 +24,15 @@ export function PastSessionPanel({
         </div>
         <button class="btn" type="button" onClick={onRefresh}>Refresh</button>
       </div>
-      <div class="session-list" role="listbox" aria-label="Recent combat sessions">
+      <div class="session-list" role="list" aria-label="Recent combat sessions">
         {state.sessions.length > 0
           ? state.sessions.map((session) => (
-              <SessionRow
-                key={session.id}
-                session={session}
-                onOpen={() => onOpenSession(session.id)}
-              />
+              <div class="session-list-item" role="listitem" key={session.id}>
+                <SessionRow
+                  session={session}
+                  onOpen={() => onOpenSession(session.id)}
+                />
+              </div>
             ))
           : state.status === "loading"
             ? <div class="empty-state">Loading recent sessions…</div>
