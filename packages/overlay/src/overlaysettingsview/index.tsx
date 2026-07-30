@@ -2,6 +2,7 @@ import { signal } from "@preact/signals";
 import { render } from "preact";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import {
   KEYBIND_ACTIONS,
@@ -38,10 +39,10 @@ const KEYBIND_DESCRIPTIONS: Record<KeybindAction, string> = {
 const state = signal<OverlayState | undefined>(undefined);
 const recordingAction = signal<KeybindAction | undefined>(undefined);
 const rpc = Electroview.defineRPC<OverlaySettingsRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const electroview = new Electroview({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function App() {
   const next = state.value;

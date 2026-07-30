@@ -10,34 +10,6 @@
     <script type="module" src="views://settingsview/index.js"></script>
   </head>
   <body>
-    <main class="app-shell">
-      <header id="titlebar" class="titlebar">
-        <div class="brand"><img class="brand-icon" src="views://assets/app-icon.png" alt="" /><span>Spirit Vale</span><span class="brand-tag">Settings</span></div>
-        <div class="window-controls">
-          <button id="minimize-button" class="icon-button" type="button" aria-label="Minimize" title="Minimize">−</button>
-          <button id="close-button" class="icon-button close-button" type="button" aria-label="Close" title="Close">×</button>
-        </div>
-      </header>
-      <section class="settings-content" aria-label="Packet capture settings">
-        <div id="storage-warning" class="banner is-warn" aria-live="polite" hidden></div>
-        <div class="settings-tabs" role="tablist" aria-label="Settings sections">
-          <button id="general-tab" class="settings-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="general-panel">General</button>
-          <button id="network-tab" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="network-panel">Network</button>
-        </div>
-        <section id="general-panel" class="settings-panel" role="tabpanel" aria-labelledby="general-tab">
-          <header class="settings-heading"><div><h1>General</h1><p>Configure launcher behavior and appearance.</p></div></header>
-          <label class="settings-field" for="ui-scale-select"><span>Interface scale</span><select id="ui-scale-select" class="input"><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="1.75">175%</option><option value="2">200%</option></select></label>
-          <label class="settings-check" for="minimize-to-tray-input"><input id="minimize-to-tray-input" type="checkbox" /><span>Minimize to tray</span></label>
-        </section>
-        <section id="network-panel" class="settings-panel" role="tabpanel" aria-labelledby="network-tab" hidden>
-          <header class="settings-heading"><div><h1>Network</h1><p>Npcap is provided by your system.</p></div></header>
-          <div class="settings-row"><span>Backend</span><strong>Npcap</strong></div>
-          <div class="settings-row settings-status"><span>Status</span><div><strong id="npcap-status">Checking…</strong><p id="npcap-detail"></p></div></div>
-          <label class="settings-field" for="adapter-select"><span>Network adapter</span><select id="adapter-select" class="input"><option value="auto">Automatic</option></select></label>
-          <p id="adapter-detail" class="settings-hint"></p>
-          <div class="settings-actions"><button id="refresh-adapters-button" class="btn" type="button">Refresh</button><button id="install-npcap-button" class="btn primary" type="button">Get Npcap</button></div>
-        </section>
-      </section>
-    </main>
+    <div id="root"></div>
   </body>
 </html>

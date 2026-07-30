@@ -1,5 +1,6 @@
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import { normalizeSearchText } from "./format";
+import { useDismissable } from "./use-dismissable.ts";
 
 export interface EnemyFilterOption {
   targetId: number;
@@ -16,6 +17,9 @@ export interface EnemyFilterControlProps {
 export function EnemyFilterControl({ enemies, selected, onChange }: EnemyFilterControlProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useDismissable(rootRef, open, () => setOpen(false));
 
   if (enemies.length === 0) return null;
 
@@ -36,14 +40,14 @@ export function EnemyFilterControl({ enemies, selected, onChange }: EnemyFilterC
       : `${selected.size} enemies`;
 
   return (
-    <div class="enemy-filter">
+    <div class="enemy-filter" ref={rootRef}>
       <button
         type="button"
-        class="btn enemy-filter-toggle"
+        class="input custom-select-toggle enemy-filter-toggle"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        {summary}
+        <span class="custom-select-value">{summary}</span>
       </button>
       {open && <div class="enemy-filter-panel">
         <label class="field enemy-filter-search" for="enemy-filter-query">

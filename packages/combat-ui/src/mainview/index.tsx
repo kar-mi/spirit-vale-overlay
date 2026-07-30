@@ -8,6 +8,7 @@ import type { StatusTone } from "@spiritvale/ui-core/status-dot";
 import { formatDps, formatDuration } from "@spiritvale/ui-core/format";
 import { CustomSelect } from "@spiritvale/ui-core/custom-select";
 import { StatTypeSelect } from "@spiritvale/ui-core/stat-type-select";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import type { DpsAppRpc, DpsAppState, DpsAppTab, MeterEncounterSnapshot, StatType } from "../app-types.ts";
 import {
@@ -36,11 +37,11 @@ interface ActorSort { key: ActorSortKey; direction: SortDirection }
 const state = signal<DpsAppState | undefined>(undefined);
 
 const rpc = Electroview.defineRPC<DpsAppRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const electroview = new Electroview({ rpc });
 
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function setTab(tab: DpsAppTab): void {
   if (state.value) state.value = { ...state.value, tab };

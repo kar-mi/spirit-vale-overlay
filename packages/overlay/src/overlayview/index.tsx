@@ -3,6 +3,7 @@ import { render, type ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { formatDps, formatDuration } from "@spiritvale/ui-core/format";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import type { FishNetActiveStatus, FishNetDpsEncounterSnapshot, FishNetDpsTimelinePoint } from "@kar-mi/spirit-vale-tools-combat";
 import type { MeterEncounterSnapshot } from "@spiritvale/combat-ui/app-types";
@@ -57,10 +58,10 @@ type PointerGesture =
 const state = signal<OverlayState | undefined>(undefined);
 
 const rpc = Electroview.defineRPC<OverlayRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const electroview = new Electroview({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function App() {
   const next = state.value;

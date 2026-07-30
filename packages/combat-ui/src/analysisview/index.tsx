@@ -8,6 +8,7 @@ import { formatDuration } from "@spiritvale/ui-core/format";
 import { EnemyFilterControl } from "@spiritvale/ui-core/enemy-filter";
 import { CustomSelect } from "@spiritvale/ui-core/custom-select";
 import { StatTypeSelect } from "@spiritvale/ui-core/stat-type-select";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import type { CombatAnalysisRpc, CombatAnalysisState, MeterActorRow, MeterEncounterSnapshot } from "../app-types.ts";
 
@@ -18,11 +19,11 @@ const percentFormat = new Intl.NumberFormat(undefined, { style: "percent", maxim
 const state = signal<CombatAnalysisState | undefined>(undefined);
 
 const rpc = Electroview.defineRPC<CombatAnalysisRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const electroview = new Electroview({ rpc });
 
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function activateRow(event: JSX.TargetedKeyboardEvent<HTMLTableRowElement>, activate: () => void): void {
   if (event.key !== "Enter" && event.key !== " ") return;
@@ -148,7 +149,10 @@ function App() {
             <table class="data-table combat-table" aria-label={`Player ${damageLabel.toLowerCase()}`}>
               <thead><tr><th>Player</th><th>{damageLabel}</th><th>{metricLabel}</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th><th>Kills</th></tr></thead>
               <tbody>{filteredRows.map(({ actor: player, damage, dps, hits, criticalHits, critRate, contribution }) => {
-                const activate = () => void electroview.rpc?.request.openPlayerDetails({ actorId: player.actorIds[0]! });
+                const activate = () => void electroview.rpc?.request.openPlayerDetails({
+                  actorId: player.actorIds[0]!,
+                  selectedEnemyIds: [...selectedEnemyIds],
+                });
                 return <tr
                   key={player.actorIds[0]}
                   class="player-row"

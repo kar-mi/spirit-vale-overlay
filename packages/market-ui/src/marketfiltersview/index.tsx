@@ -2,6 +2,7 @@ import { render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import type { MarketFiltersRpc, MarketFiltersState, MarketUiFilter } from "../app-types.ts";
 
@@ -40,7 +41,8 @@ function App() {
   const queryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    void electroview.rpc?.request.getState({}).then((next) => {
+    void electroview.rpc?.request.getState({}).then((response) => {
+      const next = repairRendererPayload(response);
       setState(next);
       setDraftFilters(new Map(next.filters.map((filter) => [filter.stat, {
         enabled: true,

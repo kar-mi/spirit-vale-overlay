@@ -130,6 +130,8 @@ export interface CombatAnalysisDetailState {
   encounterLabel: string;
   encounterDurationMs: number;
   statType: StatType;
+  /** Enemy filter inherited from the analysis overview when this player was opened. */
+  selectedEnemyIds: number[];
   player: FishNetDpsActorRow;
   tankedPlayer?: MeterActorRow;
   healPlayer?: MeterActorRow;
@@ -152,7 +154,7 @@ export type CombatAnalysisRpc = {
       getState: { params: Record<string, never>; response: CombatAnalysisState };
       selectEncounter: { params: { id: string }; response: CombatAnalysisState };
       setStatType: { params: { statType: StatType }; response: CombatAnalysisState };
-      openPlayerDetails: { params: { actorId: number }; response: void };
+      openPlayerDetails: { params: { actorId: number; selectedEnemyIds: number[] }; response: void };
       openDeathLog: { params: Record<string, never>; response: void };
       windowAction: { params: { action: "minimize" | "close" }; response: void };
       getWindowFrame: { params: Record<string, never>; response: { x: number; y: number; width: number; height: number } };

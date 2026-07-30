@@ -65,11 +65,13 @@
         "@kar-mi/spirit-vale-tools-market": "0.1.4",
         "@kar-mi/spirit-vale-tools-rewards": "0.1.4",
         "@kar-mi/spirit-vale-tools-skills": "0.1.4",
+        "@preact/signals": "^2.9.4",
         "@spiritvale/combat-ui": "workspace:*",
         "@spiritvale/market-ui": "workspace:*",
         "@spiritvale/overlay": "workspace:*",
         "@spiritvale/rewards-ui": "workspace:*",
         "@spiritvale/ui-core": "workspace:*",
+        "preact": "^10.29.7",
       },
       "devDependencies": {
         "electrobun": "1.18.1",

@@ -4,6 +4,7 @@ import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { StatusDot } from "@spiritvale/ui-core/status-dot";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import type { MarketUiRpc, MarketUiSortDirection, MarketUiSortKey, MarketUiState, MarketUiStat } from "../app-types.ts";
 
@@ -21,16 +22,16 @@ let queryTimer: ReturnType<typeof setTimeout> | undefined;
 const state = signal<MarketUiState | undefined>(undefined);
 
 const rpc = Electroview.defineRPC<MarketUiRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const electroview = new Electroview({ rpc });
 
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function setQuery(query: string): void {
   if (queryTimer) clearTimeout(queryTimer);
   queryTimer = setTimeout(() => {
-    void electroview.rpc?.request.setQuery({ query }).then((next) => { state.value = next; });
+    void electroview.rpc?.request.setQuery({ query }).then((next) => { state.value = repairRendererPayload(next); });
   }, 150);
 }
 

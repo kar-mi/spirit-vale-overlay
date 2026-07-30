@@ -4,6 +4,7 @@ import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { formatDuration, normalizeSearchText } from "@spiritvale/ui-core/format";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import type { CombatDeathLogRpc, CombatDeathLogState } from "../app-types.ts";
 
@@ -13,10 +14,10 @@ const state = signal<CombatDeathLogState | undefined>(undefined);
 type DeathLogTab = "summary" | "list";
 
 const rpc = Electroview.defineRPC<CombatDeathLogRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const electroview = new Electroview({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function App() {
   const next = state.value;
