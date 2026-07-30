@@ -1,6 +1,7 @@
 import type { RPCSchema } from "electrobun";
 import type { WindowFrame } from "@spiritvale/ui-core/window-chrome";
 import type { UiScale } from "@spiritvale/ui-core/ui-scale";
+import type { KeybindAction, OverlayElementId, OverlayState } from "@spiritvale/overlay/app-types";
 
 export type CaptureStatus = "starting" | "capturing" | "unavailable" | "stopped";
 export type ToolWindow = "combat" | "overlay" | "rewards" | "market" | "character";
@@ -31,6 +32,11 @@ export interface LauncherState {
   };
 }
 
+export interface SharedSettingsState {
+  launcher: LauncherState;
+  overlay: OverlayState;
+}
+
 type LauncherSharedRequests = {
   getState: { params: Record<string, never>; response: LauncherState };
   setCaptureAdapter: { params: { deviceName: string | null }; response: LauncherState };
@@ -57,6 +63,20 @@ export type LauncherRpc = {
 };
 
 export type LauncherSettingsRpc = {
-  bun: RPCSchema<{ requests: LauncherSharedRequests }>;
-  webview: RPCSchema<{ messages: { stateChanged: LauncherState } }>;
+  bun: RPCSchema<{ requests: {
+    getState: { params: Record<string, never>; response: SharedSettingsState };
+    setCaptureAdapter: { params: { deviceName: string | null }; response: SharedSettingsState };
+    setUiScale: { params: { uiScale: UiScale }; response: SharedSettingsState };
+    setMinimizeToTray: { params: { minimizeToTray: boolean }; response: SharedSettingsState };
+    refreshCaptureDevices: { params: Record<string, never>; response: SharedSettingsState };
+    openNpcapDownload: { params: Record<string, never>; response: void };
+    setOverlayLocked: { params: { locked: boolean }; response: SharedSettingsState };
+    setOverlayElementEnabled: { params: { id: OverlayElementId; enabled: boolean }; response: SharedSettingsState };
+    setOverlayVisible: { params: { visible: boolean }; response: SharedSettingsState };
+    setShortcut: { params: { action: KeybindAction; shortcut: string }; response: SharedSettingsState };
+    windowAction: { params: { action: "minimize" | "close" }; response: void };
+    getWindowFrame: { params: Record<string, never>; response: WindowFrame };
+    setWindowFrame: { params: WindowFrame; response: void };
+  } }>;
+  webview: RPCSchema<{ messages: { stateChanged: SharedSettingsState } }>;
 };

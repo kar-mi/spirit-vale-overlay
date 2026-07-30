@@ -31,6 +31,8 @@ export interface DpsWindowOptions {
   placements?: WindowPlacementStore;
   onClosed?: () => void;
   onReset?: () => Promise<void>;
+  onOpenSettings?: () => void;
+  onOpenLiveDeathLog?: () => Promise<void> | void;
 }
 
 export async function createDpsWindow(options: DpsWindowOptions) {
@@ -52,6 +54,7 @@ let storageWarning: string | undefined;
 let resetting = false;
 let lastEventObservedAtMs: number | undefined;
 let lastEventWallMs: number | undefined;
+let currentLiveLogPath: string | undefined;
 
 const settingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "DPS settings",
@@ -59,7 +62,10 @@ const settingsPersistence = new SafeSaveQueue<typeof settings>({
   onWarning: (warning) => { storageWarning = warning; publish(); },
 });
 
-const analysisWindow = createCombatAnalysisWindow({ placements: options.placements });
+const analysisWindow = createCombatAnalysisWindow({
+  placements: options.placements,
+  onOpenSettings: options.onOpenSettings,
+});
 
 const replayPicker = createSessionPicker({
   logDirectory: options.logDirectory,
@@ -70,6 +76,7 @@ const replayPicker = createSessionPicker({
   placements: options.placements,
   placementKey: "combat-session-picker",
   openLogFolder: () => { void Utils.openPath(options.logDirectory); },
+  onOpenSettings: options.onOpenSettings,
 });
 
 const rpc = BrowserView.defineRPC<DpsAppRpc>({
@@ -78,6 +85,8 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
     requests: {
       getState: () => appState(),
       openReplayPicker: () => { replayPicker.open(); },
+      openLiveDeathLog: async () => { await options.onOpenLiveDeathLog?.(); },
+      openSettings: () => { options.onOpenSettings?.(); },
       resetSession: async () => {
         if (!resetting && options.onReset) {
           resetting = true;
@@ -210,6 +219,7 @@ function appState(): DpsAppState {
     ...(tankedSnapshot ? { tankedSnapshot } : {}),
     ...(healSnapshot ? { healSnapshot } : {}),
     resetting,
+    liveDeathLogAvailable: currentLiveLogPath !== undefined,
   };
 }
 
@@ -230,6 +240,7 @@ async function pollLiveLog(): Promise<void> {
   liveLogPolling = true;
   try {
     const batch = await liveLog.poll();
+    currentLiveLogPath = batch.path ?? liveLogOverride ?? currentLiveLogPath;
     if (batch.reset) {
       liveMeter = new FishNetDpsMeter({
         personalName: settings.personalName,

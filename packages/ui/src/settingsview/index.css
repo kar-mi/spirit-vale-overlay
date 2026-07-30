@@ -1,6 +1,6 @@
-html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
-.app-shell { display: grid; grid-template-rows: 40px minmax(0, 1fr); width: 100%; height: 100%; min-width: 420px; min-height: 360px; background: var(--surface); }
-.settings-content { display: grid; align-content: start; gap: 13px; padding: 18px; }
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+.app-shell { display: grid; grid-template-rows: 40px minmax(0, 1fr); width: 100%; height: 100%; min-width: 560px; min-height: 420px; background: var(--surface); }
+.settings-content { display: grid; align-content: start; gap: 13px; overflow-y: auto; padding: 18px; }
 .settings-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--outline-variant); }
 .settings-tab { border: 0; border-bottom: 2px solid transparent; padding: 7px 10px; color: var(--on-surface-variant); background: transparent; font: inherit; font-size: 13px; cursor: pointer; }
 .settings-tab:hover { color: var(--on-surface); }
@@ -18,3 +18,6 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .settings-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .settings-hint { min-height: 30px; }
 .settings-actions { justify-content: flex-end; }
+.settings-card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--outline-variant); border-radius: var(--shape-md); background: var(--surface-container-low); }
+.settings-card h2 { margin: 0 0 4px; font-size: 14px; }
+.settings-element { min-height: 26px; }

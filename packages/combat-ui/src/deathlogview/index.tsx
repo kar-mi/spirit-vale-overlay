@@ -3,6 +3,7 @@ import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { SettingsButton } from "@spiritvale/ui-core/settings-button";
 import { formatDuration, normalizeSearchText } from "@spiritvale/ui-core/format";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
@@ -38,6 +39,7 @@ function App() {
       setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
       onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
       onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+      extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
     />
     <section class="death-log-content">
       <section class="toolbar">

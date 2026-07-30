@@ -29,6 +29,7 @@ export type SessionPickerRpc = {
       openLogFolder: Record<string, never>;
       chooseFile: Record<string, never>;
       windowAction: { action: "minimize" | "close" };
+      openSettings: Record<string, never>;
     };
   }>;
   webview: RPCSchema<{

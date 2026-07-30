@@ -52,6 +52,7 @@ function App() {
           <span class="brand-tag">{next?.status === "live" ? "Live" : next?.status === "cached" ? "Last known" : "Waiting"}</span>
         </div>
         <div class="window-controls">
+          <button class="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => void electroview.rpc?.request.openSettings({})}>⚙</button>
           <button class="icon-button" type="button" aria-label="Minimize" onClick={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}>−</button>
           <button class="icon-button close-button" type="button" aria-label="Close" onClick={() => void electroview.rpc?.request.windowAction({ action: "close" })}>×</button>
         </div>

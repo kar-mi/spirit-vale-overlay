@@ -5,13 +5,11 @@ import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { HpsMeter } from "@spiritvale/combat-ui/hps-meter";
 import { TpsMeter } from "@spiritvale/combat-ui/tps-meter";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
-import { applyRoundedCorners, hideWindowFromTaskbar, setWindowClickThrough, setWindowIcon } from "@spiritvale/ui-core/win32";
-import { appIconPath } from "@spiritvale/ui-core/window-publish";
-import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale";
+import { hideWindowFromTaskbar, setWindowClickThrough } from "@spiritvale/ui-core/win32";
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
 import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/bun";
 
-import type { KeybindAction, OverlayRpc, OverlaySettingsRpc, OverlayState, OverlayStatus } from "../app-types.ts";
+import type { KeybindAction, OverlayRpc, OverlayState, OverlayStatus } from "../app-types.ts";
 import { KEYBIND_ACTIONS, METER_STAT_TYPE_CYCLE } from "../app-types.ts";
 import { createPersonalDpsMeter, detectedPersonalName, syncPersonalCharacter } from "../personal-character.ts";
 import { personalResources } from "../personal-resources.ts";
@@ -24,15 +22,12 @@ import {
 } from "../settings.ts";
 
 const LIVE_LOG_POLL_MS = 1_000;
-const SETTINGS_WIDTH = 798;
-const SETTINGS_HEIGHT = 680;
-const MINIMUM_SETTINGS_WIDTH = 560;
-const MINIMUM_SETTINGS_HEIGHT = 420;
 const KEYBIND_LABELS: Record<KeybindAction, string> = {
   toggleLock: "lock/unlock",
   resetSession: "reset",
   toggleOverlayVisible: "show/hide",
   cycleMeterStatType: "cycle party meter",
+  openLiveDeathLog: "open live death log",
 };
 
 export interface OverlayWindowOptions {
@@ -41,9 +36,11 @@ export interface OverlayWindowOptions {
   subscribeCharacter: (listener: (state: CharacterViewState) => void) => () => void;
   settingsPath?: string;
   placements?: WindowPlacementStore;
-  showSettingsOnCreate?: boolean;
   lockOnCreate?: boolean;
   onReset?: () => Promise<void>;
+  onOpenLiveDeathLog?: () => Promise<void> | void;
+  onLiveLogPathChanged?: (path: string | undefined) => void;
+  onSettingsStateChanged?: (state: OverlayState) => void;
   onClosed?: () => void;
 }
 
@@ -65,7 +62,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     ? `Looking for ${path.basename(liveLogOverride)}…`
     : "Looking for a combat session…";
   let overlayWindow: BrowserWindow;
-  let settingsWindow: BrowserWindow | undefined;
   let polling = false;
   let publishing = false;
   let shuttingDown = false;
@@ -93,10 +89,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       requests: {
         getState: () => appState(),
         setLocked: ({ locked }) => {
-          // An unlock request may already be in flight when the settings
-          // window closes. Never allow that stale request to strand the
-          // full-screen overlay in edit mode.
-          updateLocked(locked || !settingsWindow);
+          updateLocked(locked);
           return appState();
         },
         setElementEnabled: ({ id, enabled }) => setElementEnabled(id, enabled),
@@ -140,49 +133,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     },
   });
 
-  const settingsRpc = BrowserView.defineRPC<OverlaySettingsRpc>({
-    maxRequestTime: 30_000,
-    handlers: {
-      requests: {
-        getState: () => appState(),
-        setLocked: ({ locked }) => {
-          updateLocked(locked);
-          return appState();
-        },
-        setElementEnabled: ({ id, enabled }) => setElementEnabled(id, enabled),
-        setOverlayVisible: ({ visible }) => {
-          updateOverlayVisible(visible);
-          return appState();
-        },
-        setShortcut: ({ action, shortcut }) => setShortcut(action, shortcut),
-        closeOverlay: async () => {
-          await shutdown();
-          overlayWindow.close();
-        },
-        windowAction: ({ action }) => {
-          if (action === "minimize") settingsWindow?.minimize();
-          else settingsWindow?.close();
-        },
-        getWindowFrame: () => settingsWindow?.getFrame()
-          ?? options.placements?.frame(
-            "overlay-settings",
-            { x: bounds.x + 80, y: bounds.y + 80, width: SETTINGS_WIDTH, height: SETTINGS_HEIGHT },
-            { width: MINIMUM_SETTINGS_WIDTH, height: MINIMUM_SETTINGS_HEIGHT },
-          )
-          ?? { x: bounds.x + 80, y: bounds.y + 80, width: SETTINGS_WIDTH, height: SETTINGS_HEIGHT },
-        setWindowFrame: ({ x, y, width, height }) => {
-          settingsWindow?.setFrame(
-            x,
-            y,
-            Math.max(scaledSize(MINIMUM_SETTINGS_WIDTH), width),
-            Math.max(scaledSize(MINIMUM_SETTINGS_HEIGHT), height),
-          );
-        },
-      },
-      messages: {},
-    },
-  });
-
   overlayWindow = new BrowserWindow({
     title: "Spirit Vale Overlay",
     url: "views://overlayview/index.html",
@@ -214,20 +164,21 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   });
 
   if (options.lockOnCreate) persistence.schedule(settings);
-  if (options.showSettingsOnCreate !== false) openSettings();
   void pollLiveLog();
 
   return {
-    show: () => openSettings(),
-    activate: () => {
-      openSettings();
-      settingsWindow?.activate();
-    },
+    show: () => updateOverlayVisible(true),
+    activate: () => updateOverlayVisible(true),
     close: async () => {
       await shutdown();
       overlayWindow.close();
       notifyClosed();
     },
+    getSettingsState: () => appState(),
+    setLocked: updateLocked,
+    setElementEnabled,
+    setOverlayVisible: updateOverlayVisible,
+    setShortcut,
   };
 
   function appState(): OverlayState {
@@ -337,6 +288,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       if (action === "toggleLock") updateLocked(!settings.locked);
       else if (action === "toggleOverlayVisible") updateOverlayVisible(!overlayVisible);
       else if (action === "cycleMeterStatType") cycleMeterStatType();
+      else if (action === "openLiveDeathLog") {
+        void options.onOpenLiveDeathLog?.();
+      }
       else if (action === "resetSession" && options.onReset) {
         void options.onReset().catch(() => {
           shortcutErrors.set(action, "Could not reset the capture session.");
@@ -358,13 +312,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     try {
       const state = appState();
       try { overlayRpc.send.stateChanged(state); } catch { /* View may still be connecting. */ }
-      // Only send if a settings window is actually open. The settings window's own "close"
-      // handler calls updateLocked -> publish while it's mid-close; sending to its webview at
-      // that exact moment can be a native-level failure a JS try/catch can't recover from, not
-      // just a catchable RPC error, so skip the send entirely rather than relying on the catch.
-      if (settingsWindow) {
-        try { settingsRpc.send.stateChanged(state); } catch { /* Settings may be closed. */ }
-      }
+      options.onSettingsStateChanged?.(state);
     } catch (error) {
       console.error("[spiritvale-overlay] publish failed:", error);
     } finally {
@@ -377,6 +325,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     polling = true;
     try {
       const batch = await liveLog.poll();
+      options.onLiveLogPathChanged?.(batch.path ?? liveLogOverride);
       if (batch.reset) {
         meter = createPersonalDpsMeter(characterState);
         tpsMeter = new TpsMeter({ personalName: detectedPersonalName(characterState) });
@@ -435,46 +384,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     return lastEventObservedAtMs + (Date.now() - lastEventWallMs);
   }
 
-  function openSettings(): void {
-    if (settingsWindow) {
-      settingsWindow.setAlwaysOnTop(true);
-      settingsWindow.show();
-      settingsWindow.activate();
-      return;
-    }
-    const nextWindow = new BrowserWindow({
-      title: "Spirit Vale Overlay Settings",
-      url: "views://overlaysettingsview/index.html",
-      frame: options.placements?.frame("overlay-settings", {
-        x: bounds.x + 80,
-        y: bounds.y + 80,
-        width: SETTINGS_WIDTH,
-        height: SETTINGS_HEIGHT,
-      }, { width: MINIMUM_SETTINGS_WIDTH, height: MINIMUM_SETTINGS_HEIGHT }) ?? {
-        x: bounds.x + 80,
-        y: bounds.y + 80,
-        width: SETTINGS_WIDTH,
-        height: SETTINGS_HEIGHT,
-      },
-      titleBarStyle: "hidden",
-      transparent: false,
-      rpc: settingsRpc,
-    });
-    settingsWindow = nextWindow;
-    nextWindow.setAlwaysOnTop(true);
-    applyRoundedCorners(nextWindow.ptr);
-    setWindowIcon(nextWindow.ptr, appIconPath);
-    registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
-    options.placements?.track("overlay-settings", nextWindow);
-    nextWindow.show();
-    nextWindow.activate();
-    nextWindow.on("close", () => {
-      if (settingsWindow !== nextWindow) return;
-      settingsWindow = undefined;
-      if (!shuttingDown) updateLocked(true);
-    });
-  }
-
   async function shutdown(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
@@ -484,8 +393,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     for (const action of KEYBIND_ACTIONS) {
       if (shortcutRegistered.get(action)) GlobalShortcut.unregister(settings.shortcuts[action]);
     }
-    settingsWindow?.close();
-    settingsWindow = undefined;
     await persistence.flush(settings);
   }
 

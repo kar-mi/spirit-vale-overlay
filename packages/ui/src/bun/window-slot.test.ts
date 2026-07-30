@@ -48,6 +48,16 @@ describe("window slot", () => {
     await Promise.all([opening, closing]);
     expect(window.closed).toBe(1);
   });
+
+  test("runs operations against the managed singleton", async () => {
+    const slot = new WindowSlot(() => new FakeWindow());
+    const result = await slot.withWindow((window) => {
+      window.show();
+      return 42;
+    });
+    expect(result).toBe(42);
+    await slot.close();
+  });
 });
 
 class FakeWindow {

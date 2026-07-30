@@ -12,8 +12,6 @@ import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement"
 import type {
   CombatAnalysisDetailRpc,
   CombatAnalysisDetailState,
-  CombatDeathLogRpc,
-  CombatDeathLogState,
   CombatAnalysisRpc,
   CombatAnalysisState,
   DpsEncounterOption,
@@ -21,7 +19,7 @@ import type {
   MeterEncounterSnapshot,
   StatType,
 } from "../app-types.ts";
-import { loadDeathLogReplay } from "../death-log.ts";
+import { createDeathLogWindow } from "./death-log-window.ts";
 import { loadEnemyBreakdown } from "../enemy-breakdown.ts";
 import type { EnemyBreakdownEncounter, EnemyDamageRow, EnemySkillStats } from "../enemy-breakdown.ts";
 import { loadTpsReplay } from "../tps-replay.ts";
@@ -30,13 +28,10 @@ import { validSelectedEnemyIds } from "../analysis-selection.ts";
 
 const ANALYSIS_FRAME = { x: 140, y: 120, width: 920, height: 680 };
 const DETAIL_FRAME = { x: 190, y: 160, width: 880, height: 720 };
-const DEATH_LOG_FRAME = { x: 220, y: 180, width: 900, height: 680 };
 const MINIMUM_ANALYSIS_WIDTH = 680;
 const MINIMUM_ANALYSIS_HEIGHT = 460;
 const MINIMUM_DETAIL_WIDTH = 620;
 const MINIMUM_DETAIL_HEIGHT = 500;
-const MINIMUM_DEATH_LOG_WIDTH = 680;
-const MINIMUM_DEATH_LOG_HEIGHT = 500;
 
 export interface CombatAnalysisWindow {
   open(path: string): Promise<void>;
@@ -45,16 +40,20 @@ export interface CombatAnalysisWindow {
 
 export interface CombatAnalysisWindowOptions {
   placements?: WindowPlacementStore;
+  onOpenSettings?: () => void;
 }
 
 /** Owns the reusable combat log analysis window and its selected-player detail child. */
 export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions = {}): CombatAnalysisWindow {
   let window: BrowserWindow | undefined;
   let detailWindow: BrowserWindow | undefined;
-  let deathLogWindow: BrowserWindow | undefined;
+  const deathLogWindow = createDeathLogWindow({
+    placements: options.placements,
+    placementKey: "combat-analysis-death-log",
+    onOpenSettings: options.onOpenSettings,
+  });
   let state: CombatAnalysisState = loadingState();
   let detailState: CombatAnalysisDetailState | undefined;
-  let deathLogState: CombatDeathLogState | undefined;
   let snapshots: FishNetDpsEncounterSnapshot[] = [];
   let enemyBreakdowns: EnemyBreakdownEncounter[] = [];
   let tpsSnapshots: MeterEncounterSnapshot[] = [];
@@ -68,6 +67,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
           if (!detailState) throw new Error("No player detail is selected");
           return detailState;
         },
+        openSettings: () => { options.onOpenSettings?.(); },
         windowAction: ({ action }) => {
           if (action === "minimize") detailWindow?.minimize();
           else detailWindow?.close();
@@ -84,39 +84,6 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
           frame.y,
           Math.max(scaledSize(MINIMUM_DETAIL_WIDTH), frame.width),
           Math.max(scaledSize(MINIMUM_DETAIL_HEIGHT), frame.height),
-        ),
-      },
-      messages: {},
-    },
-  });
-
-  const deathLogRpc = BrowserView.defineRPC<CombatDeathLogRpc>({
-    handlers: {
-      requests: {
-        getState: () => {
-          if (!deathLogState) throw new Error("No death log is loaded");
-          return deathLogState;
-        },
-        selectDeath: ({ id }) => {
-          if (deathLogState?.deaths.some((death) => death.id === id)) {
-            deathLogState = { ...deathLogState, selectedDeathId: id };
-            publishDeathLog();
-          }
-          if (!deathLogState) throw new Error("No death log is loaded");
-          return deathLogState;
-        },
-        windowAction: ({ action }) => {
-          if (action === "minimize") deathLogWindow?.minimize();
-          else deathLogWindow?.close();
-        },
-        getWindowFrame: () => deathLogWindow?.getFrame()
-          ?? options.placements?.frame("combat-death-log", DEATH_LOG_FRAME, { width: MINIMUM_DEATH_LOG_WIDTH, height: MINIMUM_DEATH_LOG_HEIGHT })
-          ?? DEATH_LOG_FRAME,
-        setWindowFrame: (frame) => deathLogWindow?.setFrame(
-          frame.x,
-          frame.y,
-          Math.max(scaledSize(MINIMUM_DEATH_LOG_WIDTH), frame.width),
-          Math.max(scaledSize(MINIMUM_DEATH_LOG_HEIGHT), frame.height),
         ),
       },
       messages: {},
@@ -152,6 +119,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
         },
         openPlayerDetails: ({ actorId, selectedEnemyIds }) => { openPlayerDetails(actorId, selectedEnemyIds); },
         openDeathLog: async () => { await openDeathLog(); },
+        openSettings: () => { options.onOpenSettings?.(); },
         windowAction: ({ action }) => {
           if (action === "minimize") window?.minimize();
           else window?.close();
@@ -181,9 +149,8 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     window?.show();
     window?.activate();
     detailWindow?.close();
-    deathLogWindow?.close();
+    deathLogWindow.close();
     detailState = undefined;
-    deathLogState = undefined;
     snapshots = [];
     enemyBreakdowns = [];
     tpsSnapshots = [];
@@ -238,11 +205,9 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
 
   function close(): void {
     detailWindow?.close();
-    deathLogWindow?.close();
+    deathLogWindow.close();
     detailWindow = undefined;
-    deathLogWindow = undefined;
     detailState = undefined;
-    deathLogState = undefined;
     loadedPath = undefined;
     window?.close();
     window = undefined;
@@ -275,11 +240,9 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     nextWindow.on("close", () => {
       if (window !== nextWindow) return;
       detailWindow?.close();
-      deathLogWindow?.close();
+      deathLogWindow.close();
       detailWindow = undefined;
-      deathLogWindow = undefined;
       detailState = undefined;
-      deathLogState = undefined;
       loadedPath = undefined;
       window = undefined;
     });
@@ -353,40 +316,7 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
 
   async function openDeathLog(): Promise<void> {
     if (!state.fileName || !loadedPath) return;
-    const replay = await loadDeathLogReplay(loadedPath);
-    deathLogState = {
-      fileName: state.fileName,
-      deaths: replay.deaths,
-      invalidLines: replay.invalidLines,
-      ...(replay.deaths[0] === undefined ? {} : { selectedDeathId: replay.deaths[0].id }),
-    };
-    if (deathLogWindow) {
-      publishDeathLog();
-      deathLogWindow.show();
-      deathLogWindow.activate();
-      return;
-    }
-    const nextWindow = new BrowserWindow({
-      title: "Combat Death Log",
-      url: "views://deathlogview/index.html",
-      frame: options.placements?.frame("combat-death-log", DEATH_LOG_FRAME, { width: MINIMUM_DEATH_LOG_WIDTH, height: MINIMUM_DEATH_LOG_HEIGHT }) ?? DEATH_LOG_FRAME,
-      titleBarStyle: "hidden",
-      transparent: false,
-      rpc: deathLogRpc,
-    });
-    deathLogWindow = nextWindow;
-    applyRoundedCorners(nextWindow.ptr);
-    setWindowIcon(nextWindow.ptr, appIconPath);
-    registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
-    options.placements?.track("combat-death-log", nextWindow);
-    Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {
-      const width = Math.max(scaledSize(MINIMUM_DEATH_LOG_WIDTH), event.data.width);
-      const height = Math.max(scaledSize(MINIMUM_DEATH_LOG_HEIGHT), event.data.height);
-      if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
-    });
-    nextWindow.on("close", () => {
-      if (deathLogWindow === nextWindow) deathLogWindow = undefined;
-    });
+    await deathLogWindow.open(loadedPath, false);
   }
 
   function selectedSnapshot(id: string): FishNetDpsEncounterSnapshot | undefined {
@@ -478,10 +408,6 @@ export function createCombatAnalysisWindow(options: CombatAnalysisWindowOptions 
     try { detailRpc.send.stateChanged(detailState); } catch { /* The view may still be connecting. */ }
   }
 
-  function publishDeathLog(): void {
-    if (!deathLogState) return;
-    try { deathLogRpc.send.stateChanged(deathLogState); } catch { /* The view may still be connecting. */ }
-  }
 }
 
 /** Placeholder DPS row for a player with no damage-dealt data (a dedicated healer/tank), so the

@@ -25,6 +25,11 @@ export class WindowSlot<T extends ManagedWindow> {
     }
   }
 
+  async withWindow<R>(callback: (window: T) => R | Promise<R>): Promise<R> {
+    if (!this.window) await this.open();
+    return callback(this.window!);
+  }
+
   async close(): Promise<void> {
     const pending = this.opening;
     if (!this.window && pending) {

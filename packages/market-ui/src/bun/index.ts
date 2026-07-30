@@ -30,6 +30,7 @@ export interface MarketWindowOptions {
   logDirectory: string;
   placements?: WindowPlacementStore;
   onClosed?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function createMarketWindow(options: MarketWindowOptions) {
@@ -70,6 +71,7 @@ const rpc = BrowserView.defineRPC<MarketUiRpc>({
         return appState();
       },
       openFilters: () => { openFilters(); },
+      openSettings: () => { options.onOpenSettings?.(); },
       loadMore: () => {
         visibleLimit += PAGE_SIZE;
         return appState();
@@ -99,6 +101,7 @@ const filterRpc = BrowserView.defineRPC<MarketFiltersRpc>({
   handlers: {
     requests: {
       getState: () => filtersState(),
+      openSettings: () => { options.onOpenSettings?.(); },
       setFilters: ({ filters: nextFilters }) => {
         filters = validateMarketUiFilters(nextFilters, FISHNET_MARKET_STAT_NAMES.length);
         visibleLimit = PAGE_SIZE;

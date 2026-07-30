@@ -32,6 +32,15 @@ export interface DeathLogReplay {
   invalidLines: number;
 }
 
+export function selectionAfterDeathLogRefresh(
+  previousSelection: string | undefined,
+  deaths: readonly { id: string }[],
+): string | undefined {
+  return previousSelection && deaths.some((death) => death.id === previousSelection)
+    ? previousSelection
+    : deaths[0]?.id;
+}
+
 interface TimedHit {
   event: FishNetCombatDamageEvent | FishNetCombatDeathEvent;
   atMs: number;

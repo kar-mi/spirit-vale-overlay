@@ -84,6 +84,7 @@ export interface DpsAppState {
   tankedSnapshot?: MeterEncounterSnapshot;
   healSnapshot?: MeterEncounterSnapshot;
   resetting: boolean;
+  liveDeathLogAvailable: boolean;
 }
 
 export type DpsAppRpc = {
@@ -91,6 +92,8 @@ export type DpsAppRpc = {
     requests: {
       getState: { params: Record<string, never>; response: DpsAppState };
       openReplayPicker: { params: Record<string, never>; response: void };
+      openLiveDeathLog: { params: Record<string, never>; response: void };
+      openSettings: { params: Record<string, never>; response: void };
       resetSession: { params: Record<string, never>; response: DpsAppState };
       setPersonalName: { params: { name: string }; response: DpsAppState };
       setPersonalActor: { params: { actorId: number | null }; response: DpsAppState };
@@ -156,6 +159,7 @@ export type CombatAnalysisRpc = {
       setStatType: { params: { statType: StatType }; response: CombatAnalysisState };
       openPlayerDetails: { params: { actorId: number; selectedEnemyIds: number[] }; response: void };
       openDeathLog: { params: Record<string, never>; response: void };
+      openSettings: { params: Record<string, never>; response: void };
       windowAction: { params: { action: "minimize" | "close" }; response: void };
       getWindowFrame: { params: Record<string, never>; response: { x: number; y: number; width: number; height: number } };
       setWindowFrame: { params: { x: number; y: number; width: number; height: number }; response: void };
@@ -169,6 +173,7 @@ export type CombatDeathLogRpc = {
     requests: {
       getState: { params: Record<string, never>; response: CombatDeathLogState };
       selectDeath: { params: { id: string }; response: CombatDeathLogState };
+      openSettings: { params: Record<string, never>; response: void };
       windowAction: { params: { action: "minimize" | "close" }; response: void };
       getWindowFrame: { params: Record<string, never>; response: { x: number; y: number; width: number; height: number } };
       setWindowFrame: { params: { x: number; y: number; width: number; height: number }; response: void };
@@ -181,6 +186,7 @@ export type CombatAnalysisDetailRpc = {
   bun: RPCSchema<{
     requests: {
       getState: { params: Record<string, never>; response: CombatAnalysisDetailState };
+      openSettings: { params: Record<string, never>; response: void };
       windowAction: { params: { action: "minimize" | "close" }; response: void };
       getWindowFrame: { params: Record<string, never>; response: { x: number; y: number; width: number; height: number } };
       setWindowFrame: { params: { x: number; y: number; width: number; height: number }; response: void };

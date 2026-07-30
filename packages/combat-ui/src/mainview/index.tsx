@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { SettingsButton } from "@spiritvale/ui-core/settings-button";
 import { StatusDot } from "@spiritvale/ui-core/status-dot";
 import type { StatusTone } from "@spiritvale/ui-core/status-dot";
 import { formatDps, formatDuration } from "@spiritvale/ui-core/format";
@@ -119,12 +120,14 @@ function App() {
         setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
         onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
         onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+        extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
       />
 
       <section class="command-bar">
         <StatTypeSelect value={next.statType} onChange={setStatType} />
         <div class="command-bar-actions">
           <button class="btn" type="button" onClick={() => void electroview.rpc?.request.openReplayPicker({})}>Open log</button>
+          <button class="btn" type="button" disabled={!next.liveDeathLogAvailable} onClick={() => void electroview.rpc?.request.openLiveDeathLog({})}>Death log</button>
           <button class="btn" type="button" disabled={next.resetting} onClick={() => void electroview.rpc?.request.resetSession({})}>Reset</button>
         </div>
       </section>

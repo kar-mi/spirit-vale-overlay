@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./app-types": "./src/app-types.ts"
   },
   "dependencies": {
     "@preact/signals": "^2.9.4",
