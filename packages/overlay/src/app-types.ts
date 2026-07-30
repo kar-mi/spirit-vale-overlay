@@ -3,14 +3,13 @@ import type { FishNetActiveStatus, FishNetDpsEncounterSnapshot } from "@kar-mi/s
 import type { CharacterWeight } from "@kar-mi/spirit-vale-tools-character";
 import type { MeterEncounterSnapshot } from "@spiritvale/combat-ui/app-types";
 import type { StatType } from "@spiritvale/ui-core/stat-type-select";
-import type { WindowChromeRequests } from "@spiritvale/ui-core/window-rpc";
 
 export type { StatType };
 
 export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "weight", "buffs", "debuffs", "toggles"] as const;
 export type OverlayElementId = (typeof OVERLAY_ELEMENT_IDS)[number];
 
-export const KEYBIND_ACTIONS = ["toggleLock", "resetSession", "toggleOverlayVisible", "cycleMeterStatType"] as const;
+export const KEYBIND_ACTIONS = ["toggleLock", "resetSession", "openLiveDeathLog", "toggleOverlayVisible", "cycleMeterStatType"] as const;
 export type KeybindAction = (typeof KEYBIND_ACTIONS)[number];
 
 /** Party/map meter cycles damage -> heal -> tanked -> damage on each press of its keybind. */
@@ -81,15 +80,6 @@ export type OverlayRpc = {
         params: { id: OverlayElementId; opacity: number };
         response: OverlayState;
       };
-    };
-  }>;
-  webview: RPCSchema<{ messages: { stateChanged: OverlayState } }>;
-};
-
-export type OverlaySettingsRpc = {
-  bun: RPCSchema<{
-    requests: OverlaySharedRequests & WindowChromeRequests & {
-      closeOverlay: { params: Record<string, never>; response: void };
     };
   }>;
   webview: RPCSchema<{ messages: { stateChanged: OverlayState } }>;

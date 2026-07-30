@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { SettingsButton } from "@spiritvale/ui-core/settings-button";
 import { formatDuration } from "@spiritvale/ui-core/format";
 import { EnemyFilterControl } from "@spiritvale/ui-core/enemy-filter";
 import { CustomSelect } from "@spiritvale/ui-core/custom-select";
@@ -106,6 +107,7 @@ function App() {
         setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
         onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
         onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+        extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
       />
       <section class="analysis-content">
         <section class="toolbar">

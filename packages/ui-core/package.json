@@ -9,6 +9,7 @@
     "./win32": "./win32.ts",
     "./window-chrome": "./window-chrome.ts",
     "./title-bar": "./title-bar.tsx",
+    "./settings-button": "./settings-button.tsx",
     "./status-dot": "./status-dot.tsx",
     "./enemy-filter": "./enemy-filter.tsx",
     "./custom-select": "./custom-select.tsx",

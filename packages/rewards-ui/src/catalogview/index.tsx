@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { SettingsButton } from "@spiritvale/ui-core/settings-button";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import type { RewardsCatalogRpc, RewardsCatalogState } from "../app-types.ts";
@@ -62,6 +63,7 @@ function App() {
         toggleMaximize={async () => (await electroview.rpc?.request.toggleMaximize({}))?.maximized ?? false}
         onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
         onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+        extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
       />
       <main>
         <div class="catalog-head">

@@ -7,14 +7,15 @@ Spirit Vale is a passive Windows companion app for live combat, character, rewar
 > Looking for the pacakges to use for development? See
 > [spirit-vale-tools](https://github.com/kar-mi/spirit-vale-tools).
 
-> **Overlay hotkeys:** `F5` resets/refreshes the overlay, `F9` shows or hides
-> the overlay, and `F11` unlocks the overlay for editing (drag and resize
+> **Overlay hotkeys:** `F5` resets/refreshes the overlay, `F6` opens the live death log, `F9` shows or hides
+> the overlay, `F7` cycles the party meter, and `F11` unlocks the overlay for editing (drag and resize
 > elements, then press `F11` again to lock. These can re-bound).
 
 ## Features
 
-The launcher gives you quick access to combat DPS, overlay settings, rewards,
-market, and character tools.
+The launcher gives you quick access to combat DPS, rewards, market, and character
+tools. The shared Settings window contains general, network, overlay, and keybind
+configuration.
 
 ![Launcher window](docs/img/launcher_window.png)
 

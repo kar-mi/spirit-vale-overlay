@@ -451,7 +451,7 @@ function WaitingForDps() {
   return (
     <div class="empty">
       <span>Waiting for DPS</span>
-      <span class="empty-help">Press F11 to toggle overlay settings, or click on overlay button</span>
+      <span class="empty-help">Press F11 to toggle edit mode, or open Settings from any app window</span>
     </div>
   );
 }

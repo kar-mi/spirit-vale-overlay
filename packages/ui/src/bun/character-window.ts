@@ -11,6 +11,7 @@ export interface CharacterWindowOptions {
   subscribe: (listener: (state: CharacterViewState) => void) => () => void;
   placements?: WindowPlacementStore;
   onClosed?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export async function createCharacterWindow(options: CharacterWindowOptions) {
@@ -20,6 +21,7 @@ export async function createCharacterWindow(options: CharacterWindowOptions) {
     handlers: {
       requests: {
         getState: () => options.getState(),
+        openSettings: () => { options.onOpenSettings?.(); },
         windowAction: ({ action }) => {
           if (action === "minimize") window.minimize();
           else window.close();

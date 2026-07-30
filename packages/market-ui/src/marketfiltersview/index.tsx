@@ -2,6 +2,7 @@ import { render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { SettingsButton } from "@spiritvale/ui-core/settings-button";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import type { MarketFiltersRpc, MarketFiltersState, MarketUiFilter } from "../app-types.ts";
@@ -97,6 +98,7 @@ function App() {
         setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
         onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
         onClose={close}
+        extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
       />
       <form class="filter-form" onSubmit={applyFilters}>
         <header class="filter-head">

@@ -26,6 +26,7 @@ export interface OverlaySettings {
 const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
   toggleLock: "F11",
   resetSession: "F5",
+  openLiveDeathLog: "F6",
   toggleOverlayVisible: "F9",
   cycleMeterStatType: "F7",
 };
@@ -116,6 +117,7 @@ export function normalizeShortcuts(source: Record<string, unknown>): Record<Keyb
   const rawByAction: Record<KeybindAction, unknown> = {
     toggleLock: shortcutsSource.toggleLock,
     resetSession: shortcutsSource.resetSession,
+    openLiveDeathLog: shortcutsSource.openLiveDeathLog,
     toggleOverlayVisible: shortcutsSource.toggleOverlayVisible,
     cycleMeterStatType: shortcutsSource.cycleMeterStatType,
   };

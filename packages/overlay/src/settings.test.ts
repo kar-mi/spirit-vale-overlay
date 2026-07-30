@@ -35,6 +35,7 @@ describe("overlay settings", () => {
     expect(settings.locked).toBe(true);
     expect(settings.shortcuts.toggleLock).toBe("F11");
     expect(settings.shortcuts.resetSession).toBe("F5");
+    expect(settings.shortcuts.openLiveDeathLog).toBe("F6");
     expect(settings.shortcuts.toggleOverlayVisible).toBe("F9");
     expect(settings).not.toHaveProperty("personalName");
     expect(settings.elements.dpsChart).toEqual({ enabled: false, opacity: 0.55, x: 780, y: 0, width: 500, height: 200 });

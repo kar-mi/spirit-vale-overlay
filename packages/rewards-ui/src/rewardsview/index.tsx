@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { SettingsButton } from "@spiritvale/ui-core/settings-button";
 import { StatusDot } from "@spiritvale/ui-core/status-dot";
 import type { StatusTone } from "@spiritvale/ui-core/status-dot";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
@@ -98,6 +99,8 @@ function App() {
         onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
         onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
         extraControls={
+          <>
+          <SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />
           <button
             class={next.pinned ? "icon-button active" : "icon-button"}
             type="button"
@@ -107,6 +110,7 @@ function App() {
           >
             {next.pinned ? "◆" : "◇"}
           </button>
+          </>
         }
       />
       <main>

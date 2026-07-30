@@ -34,6 +34,7 @@ export interface RewardsWindowOptions {
   placements?: WindowPlacementStore;
   onClosed?: () => void;
   onReset?: () => Promise<void>;
+  onOpenSettings?: () => void;
 }
 
 export async function createRewardsWindow(options: RewardsWindowOptions) {
@@ -70,6 +71,7 @@ const replayPicker = createSessionPicker({
   placements: options.placements,
   placementKey: "rewards-session-picker",
   defaultFrame: { x: 120, y: 120, width: 736, height: 612 },
+  onOpenSettings: options.onOpenSettings,
 });
 
 const rpc = BrowserView.defineRPC<RewardsAppRpc>({
@@ -80,6 +82,7 @@ const rpc = BrowserView.defineRPC<RewardsAppRpc>({
       setMode: ({ mode: nextMode }) => { mode = nextMode; publish(); return appState(); },
       setView: ({ view }) => { settings.view = view; scheduleSave(); publish(); return appState(); },
       openCatalog: () => { openCatalog(); },
+      openSettings: () => { options.onOpenSettings?.(); },
       openReplayPicker: () => { replayPicker.open(); },
       resetSession: async () => {
         if (!resetting && mode === "live" && options.onReset) {
@@ -128,6 +131,7 @@ const catalogRpc = BrowserView.defineRPC<RewardsCatalogRpc>({
   handlers: {
     requests: {
       getState: () => catalogState(),
+      openSettings: () => { options.onOpenSettings?.(); },
       setQuery: ({ query }) => {
         catalogQuery = query.trim().slice(0, 200);
         publishCatalog();

@@ -5,6 +5,7 @@ export type CharacterRpc = {
   bun: RPCSchema<{
     requests: {
       getState: { params: Record<string, never>; response: CharacterViewState };
+      openSettings: { params: Record<string, never>; response: void };
       windowAction: { params: { action: "minimize" | "close" }; response: void };
       getWindowFrame: { params: Record<string, never>; response: { x: number; y: number; width: number; height: number } };
       setWindowFrame: { params: { x: number; y: number; width: number; height: number }; response: void };

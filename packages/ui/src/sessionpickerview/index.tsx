@@ -3,6 +3,7 @@ import { render } from "preact";
 import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { SettingsButton } from "@spiritvale/ui-core/settings-button";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 import type { SessionPickerItem, SessionPickerRpc, SessionPickerState } from "@spiritvale/ui-core/session-picker-types";
 
@@ -39,6 +40,7 @@ function App() {
         setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
         onMinimize={() => electroview.rpc?.send.windowAction({ action: "minimize" })}
         onClose={() => electroview.rpc?.send.windowAction({ action: "close" })}
+        extraControls={<SettingsButton onClick={() => electroview.rpc?.send.openSettings({})} />}
       />
       <main>
         <div class="picker-intro">

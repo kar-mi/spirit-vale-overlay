@@ -3,6 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { SettingsButton } from "@spiritvale/ui-core/settings-button";
 import { formatDuration } from "@spiritvale/ui-core/format";
 import { EnemyFilterControl } from "@spiritvale/ui-core/enemy-filter";
 import { StatTypeSelect } from "@spiritvale/ui-core/stat-type-select";
@@ -122,7 +123,8 @@ function App() {
         getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: 880, height: 720 }}
         setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
         onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-        onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+      onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+      extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
       />
       <section class="detail-content">
         <section class="toolbar">

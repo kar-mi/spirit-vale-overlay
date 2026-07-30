@@ -26,6 +26,7 @@ export interface SessionPickerOptions {
   placementKey?: string;
   defaultFrame?: WindowFrame;
   openLogFolder?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export interface SessionPicker {
@@ -66,6 +67,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
           if (action === "minimize") window?.minimize();
           else window?.close();
         },
+        openSettings: () => { options.onOpenSettings?.(); },
       },
     },
   });

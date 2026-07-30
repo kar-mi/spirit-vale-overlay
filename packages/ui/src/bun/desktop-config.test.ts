@@ -15,12 +15,12 @@ test("Electrobun does not copy runtime definition JSON", () => {
   expect(destinations.some((destination) => destination.startsWith("bun/maps/"))).toBe(false);
 });
 
-test("Electrobun builds the DPS view and dedicated overlay views", () => {
+test("Electrobun builds the DPS view and overlay without a separate overlay settings view", () => {
   expect(config.build.views.mainview).toEqual({ entrypoint: "../combat-ui/src/mainview/index.tsx" });
   expect(config.build.views.overlayview).toEqual({ entrypoint: "../overlay/src/overlayview/index.tsx" });
-  expect(config.build.views.overlaysettingsview).toEqual({ entrypoint: "../overlay/src/overlaysettingsview/index.tsx" });
+  expect("overlaysettingsview" in config.build.views).toBe(false);
   expect(config.build.copy["../overlay/src/overlayview/index.html"]).toBe("views/overlayview/index.html");
-  expect(config.build.copy["../overlay/src/overlaysettingsview/index.html"]).toBe("views/overlaysettingsview/index.html");
+  expect(config.build.copy["../overlay/src/overlaysettingsview/index.html"]).toBeUndefined();
 });
 
 test("Electrobun builds and copies the combat analysis views", () => {

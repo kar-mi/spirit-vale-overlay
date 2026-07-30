@@ -13,7 +13,6 @@ const MINIMUM_HEIGHT = 430;
 
 const TOOLS: Array<{ tool: ToolWindow; title: string; description: string }> = [
   { tool: "combat", title: "Combat", description: "Live DPS and combat replay" },
-  { tool: "overlay", title: "Overlay Settings", description: "In-game Overlay and layout (DPS/Stats)" },
   { tool: "rewards", title: "Rewards", description: "Mob rewards and catalog" },
   { tool: "market", title: "Market", description: "Captured listings and filters" },
   { tool: "character", title: "Character", description: "Your build and calculated stats" },
@@ -65,7 +64,7 @@ function App() {
           <span class="brand-tag">Tools</span>
         </div>
         <div class="window-controls">
-          <button class="icon-button" type="button" aria-label="Packet capture settings" title="Packet capture settings" onClick={() => void electroview.rpc?.request.openSettings({})}>⚙</button>
+          <button class="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => void electroview.rpc?.request.openSettings({})}>⚙</button>
           <button class="icon-button" type="button" aria-label="Minimize" title="Minimize" onClick={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}>−</button>
           <button class="icon-button close-button" type="button" aria-label="Close" title="Close" onClick={() => void electroview.rpc?.request.windowAction({ action: "close" })}>×</button>
         </div>
