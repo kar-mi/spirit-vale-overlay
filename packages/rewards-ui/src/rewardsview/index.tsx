@@ -5,6 +5,7 @@ import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { StatusDot } from "@spiritvale/ui-core/status-dot";
 import type { StatusTone } from "@spiritvale/ui-core/status-dot";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 import {
   bigintRatio,
   buildCumulativeTrend,
@@ -31,11 +32,11 @@ const timestampFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "short",
 const state = signal<RewardsAppState | undefined>(undefined);
 
 const rpc = Electroview.defineRPC<RewardsAppRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const electroview = new Electroview({ rpc });
 
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function setView(view: RewardsAppView): void {
   void electroview.rpc?.request.setView({ view });

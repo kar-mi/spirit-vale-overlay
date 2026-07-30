@@ -6,6 +6,7 @@ import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { formatDuration } from "@spiritvale/ui-core/format";
 import { EnemyFilterControl } from "@spiritvale/ui-core/enemy-filter";
 import { StatTypeSelect } from "@spiritvale/ui-core/stat-type-select";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import type { FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
 import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState, MeterActorRow, MeterTimelinePoint, StatType } from "../app-types.ts";
@@ -69,11 +70,11 @@ const percentFormat = new Intl.NumberFormat(undefined, { style: "percent", maxim
 const state = signal<CombatAnalysisDetailState | undefined>(undefined);
 
 const rpc = Electroview.defineRPC<CombatAnalysisDetailRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const electroview = new Electroview({ rpc });
 
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function App() {
   const [metric, setMetric] = useState<Metric>("dps");

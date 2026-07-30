@@ -3,6 +3,7 @@ import { render } from "preact";
 import { useRef, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { initWindowChrome, type WindowChrome } from "@spiritvale/ui-core/window-chrome";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 import { resolveFishNetItem, type FishNetArtifactSlot } from "@kar-mi/spirit-vale-tools-items";
 import type {
   CharacterArtifact,
@@ -23,9 +24,9 @@ interface BuildSection { label: string; value: string; tone?: "active" | "muted"
 interface BuildItem { slot: string; name: string; refine: number; sections: BuildSection[]; }
 
 const state = signal<CharacterViewState | undefined>(undefined);
-const rpc = Electroview.defineRPC<CharacterRpc>({ handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } } });
+const rpc = Electroview.defineRPC<CharacterRpc>({ handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } } });
 const electroview = new Electroview({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function App() {
   const [tab, setTab] = useState<Tab>("basic");

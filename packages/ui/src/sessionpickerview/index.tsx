@@ -3,14 +3,15 @@ import { render } from "preact";
 import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 import type { SessionPickerItem, SessionPickerRpc, SessionPickerState } from "@spiritvale/ui-core/session-picker-types";
 
 const state = signal<SessionPickerState | undefined>(undefined);
 const rpc = Electroview.defineRPC<SessionPickerRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; document.title = next.title; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { const repaired = repairRendererPayload(next); state.value = repaired; document.title = repaired.title; } } },
 });
 const electroview = new Electroview({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; document.title = next.title; });
+void electroview.rpc?.request.getState({}).then((next) => { const repaired = repairRendererPayload(next); state.value = repaired; document.title = repaired.title; });
 
 function App() {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);

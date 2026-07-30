@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import type { RewardsCatalogRpc, RewardsCatalogState } from "../app-types.ts";
 import { sortRewardCatalog } from "../table-sort.ts";
@@ -13,11 +14,11 @@ const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const state = signal<RewardsCatalogState | undefined>(undefined);
 
 const rpc = Electroview.defineRPC<RewardsCatalogRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const electroview = new Electroview({ rpc });
 
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function formatChance(value: number): string {
   return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(value)}%`;

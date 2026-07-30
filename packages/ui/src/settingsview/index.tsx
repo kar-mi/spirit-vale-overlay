@@ -5,16 +5,17 @@ import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { CustomSelect } from "@spiritvale/ui-core/custom-select";
 import { UI_SCALE_VALUES } from "@spiritvale/ui-core/ui-scale";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 import type { LauncherSettingsRpc, LauncherState } from "../launcher-types.ts";
 
 const UI_SCALE_OPTIONS = UI_SCALE_VALUES.map((value) => ({ value: String(value), label: `${Math.round(value * 100)}%` }));
 
 const state = signal<LauncherState | undefined>(undefined);
 const rpc = Electroview.defineRPC<LauncherSettingsRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const electroview = new Electroview({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function App() {
   const [tab, setTab] = useState<"general" | "network">("general");

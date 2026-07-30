@@ -3,6 +3,7 @@ import { render } from "preact";
 import { useRef } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { initWindowChrome, type WindowChrome } from "@spiritvale/ui-core/window-chrome";
+import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 import type { LauncherRpc, LauncherState, ToolWindow } from "../launcher-types.ts";
 
 const DEFAULT_WIDTH = 960;
@@ -20,12 +21,12 @@ const TOOLS: Array<{ tool: ToolWindow; title: string; description: string }> = [
 
 const state = signal<LauncherState | undefined>(undefined);
 const rpc = Electroview.defineRPC<LauncherRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = next; } } },
+  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const electroview = new Electroview({ rpc });
 
 void ensureInitialWindowSize();
-void electroview.rpc?.request.getState({}).then((next) => { state.value = next; });
+void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 async function ensureInitialWindowSize(): Promise<void> {
   const requests = electroview.rpc?.request;
