@@ -97,10 +97,15 @@ function App() {
 
       <section class="settings-panel" hidden={tab !== "keybinds"}>
         <header class="settings-heading"><h1>Keybinds</h1><p>Global shortcuts remain active while Spirit Vale is running.</p></header>
-        {KEYBIND_ACTIONS.map((action) => <div class="settings-card">
-          <div class="settings-row"><strong>{KEYBIND_LABELS[action]}</strong><button class="btn" type="button" onClick={() => { recordingAction.value = action; }} onKeyDown={(event) => void captureShortcut(action, event)}>{recordingAction.value === action ? "Press a shortcut…" : overlay.shortcuts[action]}</button></div>
-          <p class="settings-hint">{overlay.shortcutErrors[action] ?? (recordingAction.value === action ? "Press a key or Escape to cancel." : "Click to record a replacement.")}</p>
-        </div>)}
+        <section class="keybind-list" aria-label="Keybind assignments">
+          <h2>Click to select</h2>
+          {KEYBIND_ACTIONS.map((action) => <div class="keybind-row" key={action}>
+            <span>{KEYBIND_LABELS[action]}</span>
+            <button class="btn" type="button" onClick={() => { recordingAction.value = action; }} onKeyDown={(event) => void captureShortcut(action, event)}>{recordingAction.value === action ? "Press a shortcut…" : overlay.shortcuts[action]}</button>
+            {(overlay.shortcutErrors[action] || recordingAction.value === action) &&
+              <p class="keybind-message" aria-live="polite">{overlay.shortcutErrors[action] ?? "Press a key or Escape to cancel."}</p>}
+          </div>)}
+        </section>
       </section>
     </section>
   </main>;
