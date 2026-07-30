@@ -112,6 +112,17 @@ main {
 .trend-area { fill: color-mix(in srgb, var(--primary) 12%, transparent); }
 .trend-crosshair { stroke: var(--outline); stroke-width: 1; stroke-dasharray: 4 4; }
 .trend-marker { fill: var(--primary); stroke: var(--surface-container-low); stroke-width: 2; }
+
+.xp-tracker-actions { margin-bottom: 14px; }
+
+.xp-timeline-chart {
+  display: block;
+  width: 100%;
+  height: min(40vh, 320px);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--shape-md);
+  background: var(--surface-container-low);
+}
 .trend-selection { fill: color-mix(in srgb, var(--primary) 18%, transparent); stroke: var(--primary); stroke-width: 1; }
 
 .trend-empty {

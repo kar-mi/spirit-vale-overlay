@@ -21,6 +21,12 @@ export interface OverlaySettings {
   shortcuts: Record<KeybindAction, string>;
   elements: Record<OverlayElementId, OverlayElementSettings>;
   meterStatType: StatType;
+  /** All-time Character XP total, checkpointed across restarts. The rate/graph data itself stays in-memory only. */
+  xpTotalExperience: number;
+  /** Recorded time (ms) of the last kill counted toward xpTotalExperience — prevents a fresh log tail (e.g. after reopening a window) from double-counting kills already reflected in the checkpoint. */
+  xpWatermarkMs: number;
+  /** How many kills were already counted at exactly xpWatermarkMs — disambiguates a tie (e.g. an AoE clearing several mobs at once) from a duplicate replay of the same kill. */
+  xpWatermarkOccurrences: number;
 }
 
 const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
@@ -45,6 +51,7 @@ const DEFAULT_ELEMENTS: Record<OverlayElementId, OverlayElementSettings> = {
   health: { enabled: true, opacity: 1, x: 1037, y: 921, width: 330, height: 40 },
   mana: { enabled: true, opacity: 1, x: 1377, y: 921, width: 338, height: 40 },
   weight: { enabled: true, opacity: 1, x: 794, y: 787, width: 160, height: 40 },
+  xpTracker: { enabled: true, opacity: 1, x: 794, y: 585, width: 220, height: 150 },
   buffs: { enabled: false, opacity: 1, x: 1037, y: 20, width: 330, height: 80 },
   debuffs: { enabled: false, opacity: 1, x: 1037, y: 108, width: 330, height: 80 },
   toggles: { enabled: false, opacity: 1, x: 1037, y: 196, width: 330, height: 80 },
@@ -99,7 +106,14 @@ export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBoun
     shortcuts,
     elements,
     meterStatType: normalizeMeterStatType(source.meterStatType),
+    xpTotalExperience: normalizeNonNegativeNumber(source.xpTotalExperience),
+    xpWatermarkMs: normalizeNonNegativeNumber(source.xpWatermarkMs),
+    xpWatermarkOccurrences: normalizeNonNegativeNumber(source.xpWatermarkOccurrences),
   };
+}
+
+function normalizeNonNegativeNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
 function normalizeMeterStatType(value: unknown): StatType {

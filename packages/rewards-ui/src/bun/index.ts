@@ -9,6 +9,7 @@ import {
   loadRewardReplay,
   queryMobRewardCatalog,
   RewardSessionLogFollower,
+  XpAggregateTracker,
 } from "@kar-mi/spirit-vale-tools-rewards";
 import type { RewardLogStatus } from "@kar-mi/spirit-vale-tools-rewards";
 import type {
@@ -39,7 +40,22 @@ export interface RewardsWindowOptions {
 
 export async function createRewardsWindow(options: RewardsWindowOptions) {
 const settings = await loadRewardsSettings(options.settingsPath);
-const follower = new RewardSessionLogFollower(options.logDirectory);
+const xpAggregate = new XpAggregateTracker();
+xpAggregate.restoreCheckpoint({
+  total: settings.xpTotalExperience,
+  watermarkMs: settings.xpWatermarkMs,
+  watermarkOccurrences: settings.xpWatermarkOccurrences,
+});
+const follower = new RewardSessionLogFollower(options.logDirectory, {
+  onExperience: (experience, recordedAtMs) => {
+    xpAggregate.record(experience, recordedAtMs);
+    const checkpoint = xpAggregate.currentCheckpoint();
+    settings.xpTotalExperience = checkpoint.total;
+    settings.xpWatermarkMs = checkpoint.watermarkMs;
+    settings.xpWatermarkOccurrences = checkpoint.watermarkOccurrences;
+    scheduleSave();
+  },
+});
 
 let window: BrowserWindow;
 let catalogWindow: BrowserWindow | undefined;
@@ -97,6 +113,16 @@ const rpc = BrowserView.defineRPC<RewardsAppRpc>({
             resetting = false;
           }
         }
+        publish();
+        return appState();
+      },
+      resetXpTracker: () => {
+        xpAggregate.reset(Date.now());
+        const checkpoint = xpAggregate.currentCheckpoint();
+        settings.xpTotalExperience = checkpoint.total;
+        settings.xpWatermarkMs = checkpoint.watermarkMs;
+        settings.xpWatermarkOccurrences = checkpoint.watermarkOccurrences;
+        scheduleSave();
         publish();
         return appState();
       },
@@ -237,6 +263,7 @@ function appState(): RewardsAppState {
     unmatched: snapshot.unmatched,
     unmatchedDrops: snapshot.unmatchedDrops.map((drop) => ({ ...drop, itemName: itemName(drop.itemId) })),
     unidentified: snapshot.unmatchedByReason.unidentified,
+    xp: xpAggregate.snapshot(Date.now()),
   };
 }
 

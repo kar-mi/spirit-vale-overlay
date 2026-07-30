@@ -15,7 +15,7 @@ import {
 } from "@kar-mi/spirit-vale-tools-rewards";
 import type { TrendMetric, TrendMode, TrendRange, TrendSample } from "@kar-mi/spirit-vale-tools-rewards";
 
-import type { RewardsAppRpc, RewardsAppState, RewardsAppView, RewardsUiDrop } from "../app-types.ts";
+import type { RewardsAppRpc, RewardsAppState, RewardsAppView, RewardsUiDrop, RewardsUiXpBucket } from "../app-types.ts";
 import { sortRewardKills, sortRewardSummaries } from "../table-sort.ts";
 import type { KillSortKey, SortDirection, SummarySortKey, TableSort } from "../table-sort.ts";
 
@@ -119,6 +119,7 @@ function App() {
             <button class={next.view === "summary" ? "active" : undefined} type="button" onClick={() => setView("summary")}>Summary</button>
             <button class={next.view === "recent" ? "active" : undefined} type="button" onClick={() => setView("recent")}>Recent kills</button>
             <button class={next.view === "trends" ? "active" : undefined} type="button" onClick={() => setView("trends")}>Trends</button>
+            <button class={next.view === "xpTracker" ? "active" : undefined} type="button" onClick={() => setView("xpTracker")}>XP Tracker</button>
           </div>
           <StatusDot tone={STATUS_TONE[next.status]} detail={next.statusDetail} />
           <div class="toolbar-actions">
@@ -221,8 +222,71 @@ function App() {
           <div class="section-head"><h1>Reward trends</h1><p>Session gains over wall-clock time.</p></div>
           <TrendChart samples={next.graphSamples} replay={next.mode === "replay"} sessionKey={sessionKey} />
         </section>
+
+        <section hidden={next.view !== "xpTracker"}>
+          <div class="section-head">
+            <h1>Character XP tracker</h1>
+            <p>Cumulative Character XP across sessions, until reset.</p>
+          </div>
+          <XpTrackerSection xp={next.xp} />
+        </section>
       </main>
     </>
+  );
+}
+
+function XpTrackerSection({ xp }: { xp: RewardsAppState["xp"] }) {
+  return (
+    <>
+      <div class="table-scroll totals">
+        <table class="data-table summary-table rewards-total-table" aria-label="All-time XP totals">
+          <thead><tr><th>Total XP</th><th>XP / sec</th><th>XP / hr</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>{format.format(xp.totalExperience)}</td>
+              <td>{format.format(xp.xpPerSecond)}</td>
+              <td>{format.format(xp.xpPerHour)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="xp-tracker-actions">
+        <button class="btn" type="button" onClick={() => void electroview.rpc?.request.resetXpTracker({})}>Reset all-time XP</button>
+      </div>
+      <XpTimelineChart buckets={xp.timeline} />
+    </>
+  );
+}
+
+function XpTimelineChart({ buckets }: { buckets: readonly RewardsUiXpBucket[] }) {
+  if (buckets.length < 2) {
+    return <div class="empty-state">XP gained will appear here as a graph once there's enough recent activity.</div>;
+  }
+  const width = 900;
+  const height = 220;
+  const left = 50;
+  const top = 16;
+  const right = 16;
+  const bottom = 28;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const maxValue = Math.max(1, ...buckets.map((bucket) => bucket.experience));
+  const startMs = buckets[0]!.atMs;
+  const endMs = buckets.at(-1)!.atMs;
+  const span = Math.max(1, endMs - startMs);
+  const linePoints = buckets.map((bucket) => {
+    const x = left + ((bucket.atMs - startMs) / span) * plotWidth;
+    const y = top + (1 - bucket.experience / maxValue) * plotHeight;
+    return `${x},${y}`;
+  }).join(" ");
+  return (
+    <svg class="xp-timeline-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="XP gained per second over time">
+      <line class="trend-grid" x1={left} x2={width - right} y1={top + plotHeight} y2={top + plotHeight} />
+      <text class="trend-axis-label" x={left - 6} y={top + 4} text-anchor="end">{format.format(maxValue)}</text>
+      <text class="trend-axis-label" x={left} y={height - 6}>{formatTimestamp(new Date(startMs).toISOString())}</text>
+      <text class="trend-axis-label" x={width - right} y={height - 6} text-anchor="end">{formatTimestamp(new Date(endMs).toISOString())}</text>
+      <polyline class="trend-line" points={linePoints} fill="none" />
+    </svg>
   );
 }
 

@@ -11,6 +11,7 @@
     "@kar-mi/spirit-vale-tools-character": "0.2.0",
     "@kar-mi/spirit-vale-tools-combat": "1.0.1",
     "@kar-mi/spirit-vale-tools-logging": "0.2.3",
+    "@kar-mi/spirit-vale-tools-rewards": "0.1.5",
     "@spiritvale/combat-ui": "workspace:*",
     "@spiritvale/ui-core": "workspace:*",
     "electrobun": "1.18.1",

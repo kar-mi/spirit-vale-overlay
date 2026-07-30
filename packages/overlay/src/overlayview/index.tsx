@@ -7,12 +7,13 @@ import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
 import type { FishNetActiveStatus, FishNetDpsEncounterSnapshot, FishNetDpsTimelinePoint } from "@kar-mi/spirit-vale-tools-combat";
 import type { MeterEncounterSnapshot } from "@spiritvale/combat-ui/app-types";
-import type {
-  OverlayElementId,
-  OverlayElementSettings,
-  OverlayResource,
-  OverlayRpc,
-  OverlayState,
+import {
+  OVERLAY_ELEMENT_LABELS,
+  type OverlayElementId,
+  type OverlayElementSettings,
+  type OverlayResource,
+  type OverlayRpc,
+  type OverlayState,
 } from "../app-types.ts";
 import { resourceFill } from "../personal-resources.ts";
 import { visiblePartyActors } from "./party-ranking.ts";
@@ -89,6 +90,9 @@ function App() {
       </OverlayElement>
       <OverlayElement id="weight" settings={next.elements.weight} locked={next.locked}>
         <WeightElement state={next} />
+      </OverlayElement>
+      <OverlayElement id="xpTracker" settings={next.elements.xpTracker} locked={next.locked}>
+        <XpTrackerElement state={next} locked={next.locked} />
       </OverlayElement>
       <OverlayElement id="partyRanking" settings={next.elements.partyRanking} locked={next.locked}>
         <PartyRankingElement state={next} />
@@ -176,6 +180,7 @@ function OverlayElement({ id, settings, locked, children }: OverlayElementProps)
         {children}
       </div>
       {!locked && !settings.enabled && <span class="hidden-indicator">Hidden</span>}
+      {!locked && <span class="element-title-badge">{OVERLAY_ELEMENT_LABELS[id]}</span>}
       {!locked && (
         <label
           class="element-opacity-control"
@@ -340,6 +345,53 @@ function WeightElement({ state: next }: { state: OverlayState }) {
         </span>
       ) : <span class="weight-empty">Waiting</span>}
     </div>
+  );
+}
+
+function XpTrackerElement({ state: next, locked }: { state: OverlayState; locked: boolean }) {
+  const xp = next.xp;
+  const recentBuckets = xp.timeline.slice(-90);
+  return (
+    <div class="element-content xp-tracker">
+      <h2 class="element-title">Character XP</h2>
+      <div class="xp-total"><small>Total</small>{compactFormat.format(xp.totalExperience)}</div>
+      <div class="xp-rates">
+        <span>{compactFormat.format(xp.xpPerSecond)}<small>/s</small></span>
+        <span>{compactFormat.format(xp.xpPerHour)}<small>/hr</small></span>
+      </div>
+      {recentBuckets.length > 1 && <XpSparkline buckets={recentBuckets} />}
+      {!locked && (
+        <button
+          class="xp-reset-button"
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            void electroview.rpc?.request.resetXpTracker({}).then((nextState) => { state.value = nextState; });
+          }}
+        >
+          Reset
+        </button>
+      )}
+    </div>
+  );
+}
+
+function XpSparkline({ buckets }: { buckets: { atMs: number; experience: number }[] }) {
+  const width = 200;
+  const height = 44;
+  const maxValue = Math.max(1, ...buckets.map((bucket) => bucket.experience));
+  const startMs = buckets[0]!.atMs;
+  const endMs = buckets.at(-1)!.atMs;
+  const span = Math.max(1, endMs - startMs);
+  const linePoints = buckets.map((bucket) => {
+    const x = ((bucket.atMs - startMs) / span) * width;
+    const y = height - (bucket.experience / maxValue) * height;
+    return `${x},${y}`;
+  }).join(" ");
+  return (
+    <svg class="xp-sparkline" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="XP gained over time">
+      <polyline class="chart-line" points={linePoints} />
+    </svg>
   );
 }
 
