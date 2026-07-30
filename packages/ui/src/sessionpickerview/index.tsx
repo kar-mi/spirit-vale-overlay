@@ -49,18 +49,18 @@ function App() {
           <button class="btn" type="button" onClick={() => electroview.rpc?.send.refresh({})}>Refresh</button>
         </div>
         <div class="session-list" role="listbox" aria-label="Recent sessions">
-          {next.status === "loading"
-            ? <div class="empty-state">Loading recent sessions…</div>
-            : next.sessions.length === 0
-              ? <div class="empty-state">{next.status === "error" ? "Refresh to try scanning again." : "You can still choose a specific JSON file."}</div>
-              : next.sessions.map((session) => (
-                <SessionRow
-                  key={session.id}
-                  session={session}
-                  selected={session.id === validSelectedId}
-                  onSelect={() => { setSelectedId(session.id); openSession(session.id); }}
-                />
-              ))}
+          {next.sessions.length > 0
+            ? next.sessions.map((session) => (
+              <SessionRow
+                key={session.id}
+                session={session}
+                selected={session.id === validSelectedId}
+                onSelect={() => { setSelectedId(session.id); openSession(session.id); }}
+              />
+            ))
+            : next.status === "loading"
+              ? <div class="empty-state">Loading recent sessions…</div>
+              : <div class="empty-state">{next.status === "error" ? "Refresh to try scanning again." : "You can still choose a specific JSON file."}</div>}
         </div>
         <div class="picker-actions">
           <button id="choose-file-button" class="btn btn-ghost" type="button" onClick={() => electroview.rpc?.send.chooseFile({})}>Choose JSON file…</button>

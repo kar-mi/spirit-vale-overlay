@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import Electrobun, { BrowserView, BrowserWindow, Utils } from "electrobun/bun";
@@ -5,6 +6,8 @@ import { listLogSessions } from "@kar-mi/spirit-vale-tools-logging";
 import type { LogStream } from "@kar-mi/spirit-vale-tools-logging";
 import { applyRoundedCorners, setWindowIcon } from "./win32.ts";
 import { appIconPath } from "./window-publish.ts";
+import { loadSessionSummaryCache } from "./session-summary-cache.ts";
+import type { SessionSummaryCache } from "./session-summary-cache.ts";
 import { registerUiScaleWindow, scaledSize } from "./ui-scale.ts";
 import type { WindowPlacementStore } from "./window-placement.ts";
 
@@ -35,6 +38,14 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
   let state: SessionPickerState = loadingState(options.title);
   let paths = new Map<string, string>();
   let refreshSequence = 0;
+  let cachePromise: Promise<SessionSummaryCache> | undefined;
+
+  function summaryCache(): Promise<SessionSummaryCache> {
+    cachePromise ??= loadSessionSummaryCache(
+      path.join(options.logDirectory, "cache", `${options.stream}-summary-cache.json`),
+    );
+    return cachePromise;
+  }
 
   const rpc = BrowserView.defineRPC<SessionPickerRpc>({
     handlers: {
@@ -107,13 +118,17 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
     state = loadingState(options.title);
     publish();
     try {
+      const cache = await summaryCache();
       const sessions = await listLogSessions(options.stream, options.logDirectory, Number.MAX_SAFE_INTEGER);
       const nextPaths = new Map<string, string>();
       const items: SessionPickerState["sessions"] = [];
       for (let offset = 0; offset < sessions.length && items.length < MAX_RECENT_SESSIONS; offset += 10) {
         const inspected = await Promise.all(sessions.slice(offset, offset + 10).map(async (session) => {
           try {
-            const result = await options.summarize(session.path);
+            const info = await stat(session.path);
+            const cached = cache.get(session.path, info);
+            const result = cached ?? await options.summarize(session.path);
+            if (!cached) cache.set(session.path, info, result);
             if (result.recordCount === 0) return undefined;
             nextPaths.set(session.id, session.path);
             return { id: session.id, createdAt: session.createdAt, summary: result.summary, active: session.active, disabled: false };
@@ -130,6 +145,16 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         for (const item of inspected) {
           if (item && items.length < MAX_RECENT_SESSIONS) items.push(item);
         }
+        if (sequence !== refreshSequence) return;
+        paths = nextPaths;
+        state = {
+          title: options.title,
+          status: "loading",
+          statusDetail: `Scanning… ${items.length} session${items.length === 1 ? "" : "s"} found so far`,
+          sessions: items.slice(),
+          canOpenLogFolder: options.openLogFolder !== undefined,
+        };
+        publish();
       }
       if (sequence !== refreshSequence) return;
       paths = nextPaths;
@@ -140,6 +165,12 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         sessions: items,
         canOpenLogFolder: options.openLogFolder !== undefined,
       };
+      try {
+        cache.prune(new Set(sessions.map((session) => path.resolve(session.path))));
+        await cache.save();
+      } catch {
+        // A cache write failure should not prevent showing the freshly scanned list.
+      }
     } catch {
       if (sequence !== refreshSequence) return;
       paths.clear();
