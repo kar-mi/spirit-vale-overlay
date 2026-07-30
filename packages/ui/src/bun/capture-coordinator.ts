@@ -1,6 +1,6 @@
 import { FishNetActorDirectory, FishNetCombatTracker } from "@kar-mi/spirit-vale-tools-combat";
-import type { FishNetKnownIdentity } from "@kar-mi/spirit-vale-tools-combat";
-import { FishNetCharacterTracker } from "@kar-mi/spirit-vale-tools-character";
+import type { FishNetCombatEvent, FishNetKnownIdentity } from "@kar-mi/spirit-vale-tools-combat";
+import { FishNetCharacterTracker, materializeGearStats, materializeSkillStats } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterSnapshot, CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import type { CapturedFishNetPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
@@ -39,6 +39,11 @@ export class CaptureCoordinator {
   private readonly actors: FishNetActorDirectory;
   private readonly combat = new FishNetCombatTracker({
     actorIdentityResolver: (actorId) => this.actors.getAttribution(actorId),
+    healingTraitsResolver: (actorId: number) => {
+      return actorId === this.localCharacterObjectId ? this.localHealingTraits() : undefined;
+    },
+  } as ConstructorParameters<typeof FishNetCombatTracker>[0] & {
+    healingTraitsResolver?: (actorId: number) => { hasSiphonHealth: boolean; hasHealthLeech: boolean } | undefined;
   });
   private readonly rewards = new FishNetMobRewardTracker();
   private readonly mobs = new FishNetMobDirectory();
@@ -58,6 +63,7 @@ export class CaptureCoordinator {
   private receivedDataForCurrentGame = false;
   private activeConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
+  private localCharacterObjectId?: number;
   private resettingSession?: Promise<void>;
   private handoff = false;
   private packetBuffer: CapturedFishNetPacket[] = [];
@@ -360,6 +366,9 @@ export class CaptureCoordinator {
       // connections overlap during login or a map change. Decode them before selecting the
       // active combat connection so a valid local snapshot is never discarded as stale.
       characterHandled = this.character.consume(packet);
+      if (packet.packetName === "serverRpc" && packet.objectId !== undefined) {
+        this.localCharacterObjectId = packet.objectId;
+      }
       if (characterHandled) this.syncLocalActorIdentity();
     } catch (error) {
       characterHandled = true;
@@ -386,6 +395,7 @@ export class CaptureCoordinator {
       }
       const identities = this.actors.consume(packet);
       const events = this.combat.consume(packet);
+      for (const event of events) this.applyRecoveryCompatibility(event, packet);
       for (const event of events) {
         if ((event.kind === "damage" || event.kind === "death") && event.team === 0) {
           identities.push(...this.actors.observePlayerActor(event.actorId, event.tick));
@@ -427,6 +437,56 @@ export class CaptureCoordinator {
     }
 
     if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
+  }
+
+  /**
+   * Keeps recovery classification working with the currently released tools packages.
+   * Newer combat events already carry recoveryStyle and bypass this compatibility path.
+   * TODO - revisit this later once the tools packages are updated and the compatibility path is no longer needed.
+   */
+  private applyRecoveryCompatibility(event: FishNetCombatEvent, packet: CapturedFishNetPacket): void {
+    if (event.kind !== "heal" || "recoveryStyle" in event || packet.rpcName !== "Recover_C") return;
+    const settings = packet.undecodedPayload?.toString("hex");
+    if (settings !== "00010000000000" && settings !== "0001ab020000403f") return;
+
+    const compatible = event as typeof event & {
+      recoveryStyle: "passive-regeneration" | "drain";
+    };
+    compatible.actorId = event.targetId;
+    compatible.attribution = "inferred";
+    compatible.actorIdentity = this.actors.getAttribution(event.targetId);
+    if (settings === "00010000000000") {
+      compatible.recoveryStyle = "passive-regeneration";
+      compatible.sourceId = "passive-regeneration";
+      compatible.sourceLabel = "Passive regeneration";
+      return;
+    }
+
+    compatible.recoveryStyle = "drain";
+    const traits = event.targetId === this.localCharacterObjectId ? this.localHealingTraits() : undefined;
+    if (traits?.hasSiphonHealth && !traits.hasHealthLeech) {
+      compatible.sourceId = "siphon-health";
+      compatible.sourceLabel = "Siphon Health";
+    } else if (traits?.hasHealthLeech && !traits.hasSiphonHealth) {
+      compatible.sourceId = "health-leech";
+      compatible.sourceLabel = "Health Leech";
+    } else {
+      compatible.sourceId = "siphon-health-leech";
+      compatible.sourceLabel = "Siphon / Health Leech";
+    }
+  }
+
+  private localHealingTraits(): { hasSiphonHealth: boolean; hasHealthLeech: boolean } | undefined {
+    const snapshot = this.character.current();
+    if (!snapshot) return undefined;
+    const stats = [
+      ...materializeGearStats(snapshot.equipment, snapshot.artifacts),
+      ...materializeSkillStats(snapshot.skills),
+    ];
+    return {
+      hasSiphonHealth: stats.some((stat) => stat.type === 176 && (stat.value ?? 0) > 0),
+      hasHealthLeech: stats.some((stat) => stat.type === 98 && (stat.value ?? 0) > 0),
+    };
   }
 
   private logMobIdentity(actorId: number, tick: number): void {

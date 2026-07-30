@@ -1,5 +1,6 @@
 import type { FishNetActorIdentityEvent, FishNetCombatEvent } from "@kar-mi/spirit-vale-tools-combat";
 import type { MeterActorRow, MeterEncounterSnapshot, MeterPersonalMatch, MeterSkillRow, MeterTimelinePoint } from "./app-types.ts";
+import { normalizePlayerName } from "./player-name.ts";
 
 export interface HpsMeterOptions {
   personalName?: string;
@@ -105,7 +106,7 @@ export class HpsMeter {
     const groups = new Map<string, { healerActorIds: Set<number>; hits: HpsHit[] }>();
     for (const hit of scoped) {
       const identity = hit.healerIdentity!;
-      const key = normalizeName(identity.displayName);
+      const key = normalizePlayerName(identity.displayName);
       const group = groups.get(key) ?? { healerActorIds: new Set<number>(), hits: [] };
       group.healerActorIds.add(hit.healerActorId);
       group.hits.push(hit);
@@ -213,13 +214,9 @@ function resolvePersonal(
     const match = actors.find((actor) => actor.actorIds.includes(personalActorId));
     return match ? { personalMatch: "matched", personal: match } : { personalMatch: "missing" };
   }
-  const needle = normalizeName(personalName);
-  const matches = actors.filter((actor) => normalizeName(actor.displayName) === needle);
+  const needle = normalizePlayerName(personalName);
+  const matches = actors.filter((actor) => normalizePlayerName(actor.displayName) === needle);
   if (matches.length === 0) return { personalMatch: "missing" };
   if (matches.length > 1) return { personalMatch: "ambiguous" };
   return { personalMatch: "matched", personal: matches[0] };
-}
-
-function normalizeName(name: string): string {
-  return name.trim().toLocaleLowerCase();
 }
