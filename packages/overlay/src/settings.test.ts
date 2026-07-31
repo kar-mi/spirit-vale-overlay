@@ -27,6 +27,17 @@ describe("overlay settings", () => {
     expect(settings.elements.personalDps.enabled).toBe(false);
   });
 
+  test("uses the slim stacked XP bar layout by default", () => {
+    const settings = defaultOverlaySettings({ x: 0, y: 0, width: 2560, height: 1440 });
+
+    expect(settings.elements.characterXp).toEqual({
+      enabled: true, opacity: 1, x: 1770, y: 1090, width: 410, height: 29,
+    });
+    expect(settings.elements.jobXp).toEqual({
+      enabled: true, opacity: 1, x: 1770, y: 1120, width: 410, height: 30,
+    });
+  });
+
   test("normalizes values and clamps elements to the display", async () => {
     const settingsPath = await createSettingsPath();
     await writeFile(settingsPath, JSON.stringify({
@@ -54,6 +65,8 @@ describe("overlay settings", () => {
     expect(settings.elements.health.height).toBe(50);
     expect(settings.elements.mana.enabled).toBe(true);
     expect(settings.elements.mana.height).toBe(50);
+    expect(settings.elements.characterXp).toMatchObject({ enabled: true, width: 410, height: 29 });
+    expect(settings.elements.jobXp).toMatchObject({ enabled: true, width: 410, height: 30 });
     expect(settings.elements.weight.enabled).toBe(true);
     expect(settings.elements.weight.height).toBe(60);
   });
@@ -67,6 +80,21 @@ describe("overlay settings", () => {
     expect(await loadOverlaySettings(settingsPath, bounds)).toEqual(settings);
   });
 
+  test("adds default XP bars without replacing current schema-four customizations", () => {
+    const settings = normalizeOverlaySettings({
+      schemaVersion: 4,
+      elements: {
+        health: { enabled: false, x: 25, width: 325 },
+        xpTracker: { enabled: false },
+      },
+    }, bounds);
+
+    expect(settings.elements.health).toMatchObject({ enabled: false, x: 25, width: 325 });
+    expect(settings.elements.xpTracker.enabled).toBe(false);
+    expect(settings.elements.characterXp).toMatchObject({ enabled: true, width: 410, height: 29 });
+    expect(settings.elements.jobXp).toMatchObject({ enabled: true, width: 410, height: 30 });
+  });
+
   test("allows fully transparent tiles and clamps opacity to the supported range", () => {
     const transparent = normalizeOverlaySettings({ schemaVersion: 4, elements: { dpsChart: { opacity: 0 } } }, bounds);
     const outOfRange = normalizeOverlaySettings({ schemaVersion: 4, elements: {
@@ -77,6 +105,21 @@ describe("overlay settings", () => {
     expect(transparent.elements.dpsChart.opacity).toBe(0);
     expect(outOfRange.elements.dpsChart.opacity).toBe(0);
     expect(outOfRange.elements.personalDps.opacity).toBe(1);
+  });
+
+  test("allows resource bars to be thinner than other compact elements", () => {
+    const settings = normalizeOverlaySettings({
+      schemaVersion: 4,
+      elements: {
+        health: { height: 1 },
+        characterXp: { height: 1 },
+        weight: { height: 1 },
+      },
+    }, bounds);
+
+    expect(settings.elements.health.height).toBe(24);
+    expect(settings.elements.characterXp.height).toBe(24);
+    expect(settings.elements.weight.height).toBe(40);
   });
 
   test("ignores retired schemas without overriding current custom heights", () => {

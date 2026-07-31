@@ -1,6 +1,6 @@
 import type { CharacterRecordValues } from "@kar-mi/spirit-vale-tools-character";
 
-import type { OverlayResource } from "./app-types.ts";
+import type { OverlayExperienceProgress, OverlayResource } from "./app-types.ts";
 
 export interface PersonalResources {
   health?: OverlayResource;
@@ -15,7 +15,9 @@ export function personalResources(records: CharacterRecordValues | undefined): P
   };
 }
 
-export function resourceFill(resource: OverlayResource): number {
+export function resourceFill(resource: OverlayResource | OverlayExperienceProgress): number {
+  if ("capped" in resource && resource.capped) return 100;
+  if (resource.maximum <= 0) return 0;
   return Math.max(0, Math.min(100, resource.current / resource.maximum * 100));
 }
 

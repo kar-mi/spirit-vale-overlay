@@ -25,7 +25,8 @@ const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
 const MIN_ELEMENT_WIDTH = 160;
 const MIN_ELEMENT_HEIGHT = 100;
-const MIN_RESOURCE_HEIGHT = 40;
+const MIN_BAR_HEIGHT = 24;
+const MIN_COMPACT_ELEMENT_HEIGHT = 40;
 const GRID_SIZE = 10;
 const RESIZE_EDGES = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
 const CLASS_ICON_BY_ARCHETYPE: Readonly<Record<number, string>> = {
@@ -102,6 +103,12 @@ function App() {
       </OverlayElement>
       <OverlayElement id="mana" settings={next.elements.mana} locked={next.locked}>
         <ResourceElement kind="mana" resource={next.mana} />
+      </OverlayElement>
+      <OverlayElement id="characterXp" settings={next.elements.characterXp} locked={next.locked}>
+        <ResourceElement kind="character-xp" resource={next.characterXp} />
+      </OverlayElement>
+      <OverlayElement id="jobXp" settings={next.elements.jobXp} locked={next.locked}>
+        <ResourceElement kind="job-xp" resource={next.jobXp} />
       </OverlayElement>
       <OverlayElement id="weight" settings={next.elements.weight} locked={next.locked}>
         <WeightElement state={next} />
@@ -280,9 +287,11 @@ function resizeRect(start: ElementRect, edge: ResizeEdge, dx: number, dy: number
   let top = start.y;
   let right = start.x + start.width;
   let bottom = start.y + start.height;
-  const minimumHeight = id === "health" || id === "mana" || id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles"
-    ? MIN_RESOURCE_HEIGHT
-    : MIN_ELEMENT_HEIGHT;
+  const minimumHeight = id === "health" || id === "mana" || id === "characterXp" || id === "jobXp"
+    ? MIN_BAR_HEIGHT
+    : id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles"
+      ? MIN_COMPACT_ELEMENT_HEIGHT
+      : MIN_ELEMENT_HEIGHT;
   if (edge.includes("w")) left = clamp(start.x + dx, 0, right - MIN_ELEMENT_WIDTH);
   if (edge.includes("e")) right = clamp(start.x + start.width + dx, left + MIN_ELEMENT_WIDTH, window.innerWidth);
   if (edge.includes("n")) top = clamp(start.y + dy, 0, bottom - minimumHeight);
@@ -458,8 +467,13 @@ function XpChartElement({ state: next }: { state: OverlayState }) {
   );
 }
 
-function ResourceElement({ kind, resource }: { kind: "health" | "mana"; resource: OverlayResource | undefined }) {
-  const label = kind === "health" ? "HP" : "MP";
+type ResourceKind = "health" | "mana" | "character-xp" | "job-xp";
+
+function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: OverlayResource | undefined }) {
+  const label = kind === "health" ? "HP"
+    : kind === "mana" ? "MP"
+    : kind === "character-xp" ? "XP"
+    : "JOB XP";
   const description = resource
     ? `${label} ${resource.current} of ${resource.maximum}`
     : `Waiting for ${label}`;

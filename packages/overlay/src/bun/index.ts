@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { DpsLogFollower, DpsSessionLogFollower, FishNetStatusTracker } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
+import { loadBundledMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
 import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
 import { HpsMeter } from "@spiritvale/combat-ui/hps-meter";
 import { TpsMeter } from "@spiritvale/combat-ui/tps-meter";
@@ -13,6 +14,7 @@ import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/b
 import type { KeybindAction, OverlayRpc, OverlayState, OverlayStatus } from "../app-types.ts";
 import { KEYBIND_ACTIONS, METER_STAT_TYPE_CYCLE } from "../app-types.ts";
 import { createPersonalDpsMeter, detectedPersonalName, syncPersonalCharacter } from "../personal-character.ts";
+import { personalExperience } from "../personal-experience.ts";
 import { personalResources } from "../personal-resources.ts";
 import {
   loadOverlaySettings,
@@ -23,6 +25,7 @@ import {
 } from "../settings.ts";
 
 const LIVE_LOG_POLL_MS = 1_000;
+const EXPERIENCE_REQUIREMENTS = loadBundledMobRewardCatalog().experienceRequirements;
 const KEYBIND_LABELS: Record<KeybindAction, string> = {
   toggleLock: "lock/unlock",
   resetSession: "reset",
@@ -209,6 +212,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     const tankedSnapshot = encounterWindow ? tpsMeter.getSnapshot(encounterWindow, snapshotNowMs ?? encounterWindow.endedAtMs) : undefined;
     const healSnapshot = encounterWindow ? hpsMeter.getSnapshot(encounterWindow, snapshotNowMs ?? encounterWindow.endedAtMs) : undefined;
     const resources = personalResources(characterState.records);
+    const experience = personalExperience(characterState.snapshot, EXPERIENCE_REQUIREMENTS);
     const personalName = detectedPersonalName(characterState);
     // Statuses with no data-mine icon (a small upstream gap, e.g. SlowImmunity/BlindImmunity) are
     // omitted entirely rather than shown as a text-initials placeholder.
@@ -228,6 +232,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       ...(tankedSnapshot ? { tankedSnapshot } : {}),
       ...(healSnapshot ? { healSnapshot } : {}),
       ...resources,
+      ...experience,
       ...(characterState.weight ? { weight: characterState.weight } : {}),
       xp: options.xp.getSnapshot(),
       buffs: activeStatuses.filter((activeStatus) => !activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined),
