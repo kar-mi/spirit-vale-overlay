@@ -1,9 +1,13 @@
 import { signal } from "@preact/signals";
 import { render, type ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useCallback, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { formatDps, formatDuration } from "@spiritvale/ui-core/format";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
+import { InteractiveChart } from "@spiritvale/ui-core/interactive-chart";
+import type { ChartRenderResult } from "@spiritvale/ui-core/interactive-chart";
+import { buildRateTrend, trendExtent } from "@kar-mi/spirit-vale-tools-rewards";
+import type { TrendRange, TrendSample } from "@kar-mi/spirit-vale-tools-rewards";
 
 import type { FishNetActiveStatus, FishNetDpsEncounterSnapshot, FishNetDpsTimelinePoint } from "@kar-mi/spirit-vale-tools-combat";
 import type { MeterEncounterSnapshot } from "@spiritvale/combat-ui/app-types";
@@ -378,32 +382,43 @@ function XpTrackerElement({ state: next, locked }: { state: OverlayState; locked
 }
 
 function XpChartElement({ state: next }: { state: OverlayState }) {
-  const recentBuckets = next.xp.timeline.slice(-90);
+  const samples = xpBucketsToTrendSamples(next.xp.timeline);
+  const computeRender = useCallback((range: TrendRange, width: number): ChartRenderResult => {
+    const rates = buildRateTrend(samples, "experience", range, width);
+    const maximum = rates.reduce((highest, point) => Math.max(highest, point.value), 0);
+    return {
+      points: rates.map((point) => ({
+        time: point.time,
+        ratio: maximum > 0 ? point.value / maximum : 0,
+        primary: `${compactFormat.format(point.value)}/sec`,
+        secondary: `${compactFormat.format(point.gain)} XP in ${point.seconds.toFixed(1)}s`,
+      })),
+      yLabels: Array.from({ length: 5 }, (_, tick) => compactFormat.format((maximum * tick) / 4)),
+    };
+  }, [samples]);
+
   return (
     <div class="element-content xp-chart">
       <h2 class="element-title">Character XP over time</h2>
-      {recentBuckets.length > 1 ? <XpSparkline buckets={recentBuckets} /> : <WaitingForDps label="Waiting for XP" />}
+      <InteractiveChart
+        extent={trendExtent(samples)}
+        computeRender={computeRender}
+        stepped={false}
+        emptyLabel="Waiting for XP"
+        ariaLabel="Character XP rate over time"
+        resetKey="xp-chart"
+      />
     </div>
   );
 }
 
-function XpSparkline({ buckets }: { buckets: { atMs: number; experience: number }[] }) {
-  const width = 200;
-  const height = 44;
-  const maxValue = Math.max(1, ...buckets.map((bucket) => bucket.experience));
-  const startMs = buckets[0]!.atMs;
-  const endMs = buckets.at(-1)!.atMs;
-  const span = Math.max(1, endMs - startMs);
-  const linePoints = buckets.map((bucket) => {
-    const x = ((bucket.atMs - startMs) / span) * width;
-    const y = height - (bucket.experience / maxValue) * height;
-    return `${x},${y}`;
-  }).join(" ");
-  return (
-    <svg class="xp-sparkline" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="XP gained over time">
-      <polyline class="chart-line" points={linePoints} />
-    </svg>
-  );
+function xpBucketsToTrendSamples(buckets: readonly { atMs: number; experience: number }[]): TrendSample[] {
+  return buckets.map((bucket) => ({
+    recordedAt: new Date(bucket.atMs).toISOString(),
+    experience: bucket.experience,
+    jobExperience: 0,
+    coins: "0",
+  }));
 }
 
 function ResourceElement({ kind, resource }: { kind: "health" | "mana"; resource: OverlayResource | undefined }) {

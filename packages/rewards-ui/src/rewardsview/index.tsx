@@ -1,5 +1,5 @@
 import { Fragment, render } from "preact";
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
@@ -7,6 +7,8 @@ import { SettingsButton } from "@spiritvale/ui-core/settings-button";
 import { StatusDot } from "@spiritvale/ui-core/status-dot";
 import type { StatusTone } from "@spiritvale/ui-core/status-dot";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
+import { InteractiveChart } from "@spiritvale/ui-core/interactive-chart";
+import type { ChartRenderResult } from "@spiritvale/ui-core/interactive-chart";
 import {
   bigintRatio,
   buildCumulativeTrend,
@@ -236,6 +238,21 @@ function App() {
 }
 
 function XpTrackerSection({ xp }: { xp: RewardsAppState["xp"] }) {
+  const samples = bucketsToTrendSamples(xp.timeline);
+  const computeRender = useCallback((range: TrendRange, width: number): ChartRenderResult => {
+    const rates = buildRateTrend(samples, "experience", range, width);
+    const maximum = rates.reduce((highest, point) => Math.max(highest, point.value), 0);
+    return {
+      points: rates.map((point) => ({
+        time: point.time,
+        ratio: maximum > 0 ? point.value / maximum : 0,
+        primary: `${formatRate(point.value)}/sec`,
+        secondary: `${format.format(point.gain)} XP in ${formatTrendDuration(point.seconds)}`,
+      })),
+      yLabels: axisTicks(5).map((tick) => formatRate((maximum * tick) / 4)),
+    };
+  }, [samples]);
+
   return (
     <>
       <div class="table-scroll totals">
@@ -253,41 +270,25 @@ function XpTrackerSection({ xp }: { xp: RewardsAppState["xp"] }) {
       <div class="xp-tracker-actions">
         <button class="btn" type="button" onClick={() => void electroview.rpc?.request.resetXpTracker({})}>Reset all-time XP</button>
       </div>
-      <XpTimelineChart buckets={xp.timeline} />
+      <InteractiveChart
+        extent={trendExtent(samples)}
+        computeRender={computeRender}
+        stepped={false}
+        emptyLabel="XP gained will appear here as a graph once there's enough recent activity."
+        ariaLabel="Character XP rate over time"
+        resetKey="xp-tracker"
+      />
     </>
   );
 }
 
-function XpTimelineChart({ buckets }: { buckets: readonly RewardsUiXpBucket[] }) {
-  if (buckets.length < 2) {
-    return <div class="empty-state">XP gained will appear here as a graph once there's enough recent activity.</div>;
-  }
-  const width = 900;
-  const height = 220;
-  const left = 50;
-  const top = 16;
-  const right = 16;
-  const bottom = 28;
-  const plotWidth = width - left - right;
-  const plotHeight = height - top - bottom;
-  const maxValue = Math.max(1, ...buckets.map((bucket) => bucket.experience));
-  const startMs = buckets[0]!.atMs;
-  const endMs = buckets.at(-1)!.atMs;
-  const span = Math.max(1, endMs - startMs);
-  const linePoints = buckets.map((bucket) => {
-    const x = left + ((bucket.atMs - startMs) / span) * plotWidth;
-    const y = top + (1 - bucket.experience / maxValue) * plotHeight;
-    return `${x},${y}`;
-  }).join(" ");
-  return (
-    <svg class="xp-timeline-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="XP gained per second over time">
-      <line class="trend-grid" x1={left} x2={width - right} y1={top + plotHeight} y2={top + plotHeight} />
-      <text class="trend-axis-label" x={left - 6} y={top + 4} text-anchor="end">{format.format(maxValue)}</text>
-      <text class="trend-axis-label" x={left} y={height - 6}>{formatTimestamp(new Date(startMs).toISOString())}</text>
-      <text class="trend-axis-label" x={width - right} y={height - 6} text-anchor="end">{formatTimestamp(new Date(endMs).toISOString())}</text>
-      <polyline class="trend-line" points={linePoints} fill="none" />
-    </svg>
-  );
+function bucketsToTrendSamples(buckets: readonly RewardsUiXpBucket[]): TrendSample[] {
+  return buckets.map((bucket) => ({
+    recordedAt: new Date(bucket.atMs).toISOString(),
+    experience: bucket.experience,
+    jobExperience: 0,
+    coins: "0",
+  }));
 }
 
 function RewardRow({ rowKey, name, values, drops, trailingValues = [], expanded, onToggle }: { rowKey: string; name: string; values: readonly string[]; drops: readonly RewardsUiDrop[]; trailingValues?: readonly string[]; expanded: ReadonlySet<string>; onToggle(key: string): void }) {
@@ -314,28 +315,6 @@ function nextSort<K extends string>(current: TableSort<K>, key: K): TableSort<K>
 
 function safeDomId(value: string): string { return value.replace(/[^a-zA-Z0-9_-]/g, "-"); }
 
-// ---- trend chart ----
-// Kept imperative (direct SVG/DOM manipulation behind refs) rather than
-// declarative JSX: this is tightly-coupled, per-frame drawing plus
-// drag-to-zoom / hover / keyboard-nav interaction, and rewriting it
-// declaratively would risk regressions for no real benefit.
-
-interface TrendDisplayPoint {
-  time: number;
-  ratio: number;
-  primary: string;
-  secondary: string;
-}
-
-interface RenderedTrend {
-  range: TrendRange;
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  points: TrendDisplayPoint[];
-}
-
 interface TrendChartProps {
   samples: readonly TrendSample[];
   replay: boolean;
@@ -345,290 +324,60 @@ interface TrendChartProps {
 function TrendChart({ samples, replay, sessionKey }: TrendChartProps) {
   const [metric, setMetric] = useState<TrendMetric>("experience");
   const [mode, setMode] = useState<TrendMode>("rate");
-  const [zoom, setZoom] = useState<TrendRange | undefined>(undefined);
 
-  const chartRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-  const emptyRef = useRef<HTMLDivElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const renderedRef = useRef<RenderedTrend | undefined>(undefined);
-  const dragStartRef = useRef<number | undefined>(undefined);
-  const keyboardPointRef = useRef(-1);
-  const sessionKeyRef = useRef(sessionKey);
-
-  useEffect(() => {
-    if (sessionKeyRef.current !== sessionKey) {
-      sessionKeyRef.current = sessionKey;
-      setZoom(undefined);
-    }
-  }, [sessionKey]);
-
-  const hideTooltip = useCallback((): void => {
-    for (const node of svgRef.current?.querySelectorAll(".trend-hover") ?? []) node.remove();
-    if (tooltipRef.current) tooltipRef.current.hidden = true;
-  }, []);
-
-  const draw = useCallback((): void => {
-    const svg = svgRef.current;
-    const chart = chartRef.current;
-    const empty = emptyRef.current;
-    if (!svg || !chart || !empty) return;
-    hideTooltip();
-    keyboardPointRef.current = -1;
-
-    svg.replaceChildren();
-    const extent = trendExtent(samples);
-    if (!extent || chart.clientWidth === 0 || chart.clientHeight === 0) {
-      empty.hidden = false;
-      empty.textContent = replay ? "No timestamped rewards in this replay." : "Confirmed rewards will appear here.";
-      renderedRef.current = undefined;
-      return;
-    }
-    empty.hidden = true;
-
-    const chartWidth = chart.clientWidth;
-    const chartHeight = chart.clientHeight;
-    const left = 70;
-    const top = 20;
-    const right = 20;
-    const bottom = 42;
-    const width = Math.max(1, chartWidth - left - right);
-    const height = Math.max(1, chartHeight - top - bottom);
-    const range = normalizedTrendRange(zoom ?? extent, extent);
-    svg.setAttribute("viewBox", `0 0 ${chartWidth} ${chartHeight}`);
-
-    let points: TrendDisplayPoint[];
-    let yLabels: string[];
+  const computeRender = useCallback((range: TrendRange, width: number): ChartRenderResult => {
     if (mode === "cumulative") {
       const cumulative = buildCumulativeTrend(samples, metric, range);
       const maximum = cumulative.reduce((highest, point) => (point.value > highest ? point.value : highest), 0n);
-      points = cumulative.map((point) => ({
-        time: point.time,
-        ratio: bigintRatio(point.value, maximum),
-        primary: formatDecimal(point.value.toString()),
-        secondary: `${metricLabel(metric)} total`,
-      }));
-      yLabels = axisTicks(5).map((tick) => formatDecimal((maximum * BigInt(tick) / 4n).toString()));
-    } else {
-      const rates = buildRateTrend(samples, metric, range, width);
-      const maximum = rates.reduce((highest, point) => Math.max(highest, point.value), 0);
-      points = rates.map((point) => ({
+      return {
+        points: cumulative.map((point) => ({
+          time: point.time,
+          ratio: bigintRatio(point.value, maximum),
+          primary: formatDecimal(point.value.toString()),
+          secondary: `${metricLabel(metric)} total`,
+        })),
+        yLabels: axisTicks(5).map((tick) => formatDecimal((maximum * BigInt(tick) / 4n).toString())),
+      };
+    }
+    const rates = buildRateTrend(samples, metric, range, width);
+    const maximum = rates.reduce((highest, point) => Math.max(highest, point.value), 0);
+    return {
+      points: rates.map((point) => ({
         time: point.time,
         ratio: maximum > 0 ? point.value / maximum : 0,
         primary: `${formatRate(point.value)}/sec`,
         secondary: `${formatDecimal(point.gain.toString())} in ${formatTrendDuration(point.seconds)}`,
-      }));
-      yLabels = axisTicks(5).map((tick) => formatRate((maximum * tick) / 4));
-    }
-
-    drawTrendAxes(svg, range, { left, top, width, height }, yLabels);
-    drawTrendLine(svg, points, range, { left, top, width, height }, mode === "cumulative");
-    renderedRef.current = { range, left, top, width, height, points };
-  }, [samples, metric, mode, zoom, replay, hideTooltip]);
-
-  useEffect(() => { draw(); }, [draw]);
-
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) return;
-    const observer = new ResizeObserver(() => draw());
-    observer.observe(chart);
-    return () => observer.disconnect();
-  }, [draw]);
-
-  function localX(clientX: number): number {
-    const bounds = chartRef.current!.getBoundingClientRect();
-    return clientX - bounds.left;
-  }
-
-  function timeAt(x: number, chart: RenderedTrend): number {
-    const ratio = Math.max(0, Math.min(1, (x - chart.left) / chart.width));
-    return chart.range.start + ratio * (chart.range.end - chart.range.start);
-  }
-
-  function showPoint(index: number): void {
-    const chart = renderedRef.current;
-    const point = chart?.points[index];
-    if (!chart || !point) return;
-    hideTooltip();
-    const x = chart.left + ((point.time - chart.range.start) / Math.max(1, chart.range.end - chart.range.start)) * chart.width;
-    const y = chart.top + chart.height - point.ratio * chart.height;
-    const svg = svgRef.current!;
-    svg.append(
-      svgElement("line", "trend-crosshair trend-hover", { x1: x, y1: chart.top, x2: x, y2: chart.top + chart.height }),
-      svgElement("circle", "trend-marker trend-hover", { cx: x, cy: y, r: 4 }),
-    );
-    const tooltip = tooltipRef.current!;
-    tooltip.replaceChildren(
-      svgText("strong", "", point.primary),
-      svgText("div", "", point.secondary),
-      svgText("div", "", new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" }).format(point.time)),
-    );
-    tooltip.hidden = false;
-    const tooltipWidth = 180;
-    const chartEl = chartRef.current!;
-    tooltip.style.left = `${Math.min(chartEl.clientWidth - tooltipWidth - 8, Math.max(8, x + 10))}px`;
-    tooltip.style.top = `${Math.max(8, y - 30)}px`;
-  }
-
-  function showHover(x: number): void {
-    const rendered = renderedRef.current;
-    if (!rendered?.points.length) return;
-    const time = timeAt(x, rendered);
-    let closest = 0;
-    for (let index = 1; index < rendered.points.length; index += 1) {
-      const candidate = rendered.points[index];
-      const current = rendered.points[closest];
-      if (candidate && current && Math.abs(candidate.time - time) < Math.abs(current.time - time)) closest = index;
-    }
-    showPoint(closest);
-  }
-
-  function removeSelection(): void {
-    svgRef.current?.querySelector(".trend-selection")?.remove();
-  }
-
-  function updateSelection(start: number, end: number): void {
-    const chart = renderedRef.current;
-    if (!chart) return;
-    removeSelection();
-    const left = Math.max(chart.left, Math.min(start, end));
-    const right = Math.min(chart.left + chart.width, Math.max(start, end));
-    svgRef.current!.append(svgElement("rect", "trend-selection", { x: left, y: chart.top, width: Math.max(0, right - left), height: chart.height }));
-  }
-
-  function onPointerDown(event: PointerEvent): void {
-    if (!renderedRef.current || event.button !== 0) return;
-    dragStartRef.current = localX(event.clientX);
-    chartRef.current!.setPointerCapture(event.pointerId);
-    updateSelection(dragStartRef.current, dragStartRef.current);
-  }
-
-  function onPointerMove(event: PointerEvent): void {
-    const x = localX(event.clientX);
-    if (dragStartRef.current !== undefined) updateSelection(dragStartRef.current, x);
-    else showHover(x);
-  }
-
-  function onPointerUp(event: PointerEvent): void {
-    const chart = renderedRef.current;
-    if (!chart || dragStartRef.current === undefined) return;
-    const end = localX(event.clientX);
-    const start = dragStartRef.current;
-    dragStartRef.current = undefined;
-    removeSelection();
-    if (chartRef.current!.hasPointerCapture(event.pointerId)) chartRef.current!.releasePointerCapture(event.pointerId);
-    if (Math.abs(end - start) < 10) {
-      showHover(end);
-      return;
-    }
-    const left = Math.max(chart.left, Math.min(start, end));
-    const right = Math.min(chart.left + chart.width, Math.max(start, end));
-    setZoom({ start: timeAt(left, chart), end: timeAt(right, chart) });
-  }
-
-  function onPointerCancel(): void {
-    dragStartRef.current = undefined;
-    removeSelection();
-  }
-
-  function onKeyDown(event: KeyboardEvent): void {
-    const points = renderedRef.current?.points;
-    if (!points?.length || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    if (event.key === "Home") keyboardPointRef.current = 0;
-    else if (event.key === "End") keyboardPointRef.current = points.length - 1;
-    else if (event.key === "ArrowLeft") keyboardPointRef.current = Math.max(0, keyboardPointRef.current < 0 ? points.length - 1 : keyboardPointRef.current - 1);
-    else keyboardPointRef.current = Math.min(points.length - 1, keyboardPointRef.current + 1);
-    showPoint(keyboardPointRef.current);
-  }
+      })),
+      yLabels: axisTicks(5).map((tick) => formatRate((maximum * tick) / 4)),
+    };
+  }, [samples, metric, mode]);
 
   const chartTitle = `${metricLabel(metric)} ${mode === "rate" ? "rate per second" : "cumulative total"} over time`;
+  const emptyLabel = replay ? "No timestamped rewards in this replay." : "Confirmed rewards will appear here.";
 
   return (
     <>
       <div class="trend-controls">
         <div class="seg" aria-label="Trend metric">
-          <button class={metric === "experience" ? "active" : undefined} type="button" onClick={() => { setMetric("experience"); setZoom(undefined); }}>Character XP</button>
-          <button class={metric === "jobExperience" ? "active" : undefined} type="button" onClick={() => { setMetric("jobExperience"); setZoom(undefined); }}>Job XP</button>
-          <button class={metric === "coins" ? "active" : undefined} type="button" onClick={() => { setMetric("coins"); setZoom(undefined); }}>Coins</button>
+          <button class={metric === "experience" ? "active" : undefined} type="button" onClick={() => setMetric("experience")}>Character XP</button>
+          <button class={metric === "jobExperience" ? "active" : undefined} type="button" onClick={() => setMetric("jobExperience")}>Job XP</button>
+          <button class={metric === "coins" ? "active" : undefined} type="button" onClick={() => setMetric("coins")}>Coins</button>
         </div>
         <div class="seg" aria-label="Trend calculation">
-          <button class={mode === "rate" ? "active" : undefined} type="button" onClick={() => { setMode("rate"); setZoom(undefined); }}>Rate/sec</button>
-          <button class={mode === "cumulative" ? "active" : undefined} type="button" onClick={() => { setMode("cumulative"); setZoom(undefined); }}>Cumulative</button>
+          <button class={mode === "rate" ? "active" : undefined} type="button" onClick={() => setMode("rate")}>Rate/sec</button>
+          <button class={mode === "cumulative" ? "active" : undefined} type="button" onClick={() => setMode("cumulative")}>Cumulative</button>
         </div>
-        <button class="btn" type="button" hidden={zoom === undefined} onClick={() => setZoom(undefined)}>Reset zoom</button>
       </div>
-      <div
-        ref={chartRef}
-        class="trend-chart"
-        tabIndex={0}
-        aria-label="Rewards trend graph"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
-        onPointerLeave={() => { if (dragStartRef.current === undefined) hideTooltip(); }}
-        onKeyDown={onKeyDown}
-      >
-        <svg ref={svgRef} role="img" aria-labelledby="trend-chart-title" />
-        <span id="trend-chart-title" class="sr-only">{chartTitle}</span>
-        <div ref={emptyRef} class="trend-empty" />
-        <div ref={tooltipRef} class="trend-tooltip" hidden />
-      </div>
+      <InteractiveChart
+        extent={trendExtent(samples)}
+        computeRender={computeRender}
+        stepped={mode === "cumulative"}
+        emptyLabel={emptyLabel}
+        ariaLabel={chartTitle}
+        resetKey={`${sessionKey}:${metric}:${mode}`}
+      />
     </>
   );
-}
-
-function drawTrendAxes(
-  svg: SVGSVGElement,
-  range: TrendRange,
-  plot: Pick<RenderedTrend, "left" | "top" | "width" | "height">,
-  yLabels: readonly string[],
-): void {
-  for (const tick of axisTicks(5)) {
-    const y = plot.top + plot.height - (tick / 4) * plot.height;
-    svg.append(svgElement("line", "trend-grid", { x1: plot.left, y1: y, x2: plot.left + plot.width, y2: y }));
-    const label = svgElement("text", "trend-axis-label", { x: plot.left - 10, y: y + 4, "text-anchor": "end" });
-    label.textContent = yLabels[tick] ?? "0";
-    svg.append(label);
-  }
-  for (const tick of axisTicks(5)) {
-    const ratio = tick / 4;
-    const x = plot.left + ratio * plot.width;
-    const label = svgElement("text", "trend-axis-label", { x, y: plot.top + plot.height + 25, "text-anchor": tick === 0 ? "start" : tick === 4 ? "end" : "middle" });
-    label.textContent = formatAxisTime(range.start + ratio * (range.end - range.start), range);
-    svg.append(label);
-  }
-}
-
-function drawTrendLine(
-  svg: SVGSVGElement,
-  points: readonly TrendDisplayPoint[],
-  range: TrendRange,
-  plot: Pick<RenderedTrend, "left" | "top" | "width" | "height">,
-  stepped: boolean,
-): void {
-  if (!points.length) return;
-  const coordinates = points.map((point) => ({
-    x: plot.left + ((point.time - range.start) / Math.max(1, range.end - range.start)) * plot.width,
-    y: plot.top + plot.height - point.ratio * plot.height,
-  }));
-  const first = coordinates[0];
-  if (!first) return;
-  let path = `M ${first.x} ${first.y}`;
-  for (let index = 1; index < coordinates.length; index += 1) {
-    const point = coordinates[index];
-    if (!point) continue;
-    path += stepped ? ` H ${point.x} V ${point.y}` : ` L ${point.x} ${point.y}`;
-  }
-  svg.append(svgElement("path", "trend-line", { d: path }));
-}
-
-function normalizedTrendRange(range: TrendRange, extent: TrendRange): TrendRange {
-  const start = Math.max(extent.start, Math.min(range.start, extent.end));
-  const end = Math.min(range.end, extent.end);
-  return end > start ? { start, end } : extent;
 }
 
 function metricLabel(metric: TrendMetric): string {
@@ -647,33 +396,8 @@ function formatTrendDuration(seconds: number): string {
     : `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(seconds)} sec`;
 }
 
-function formatAxisTime(value: number, range: TrendRange): string {
-  const longRange = range.end - range.start >= 86_400_000;
-  return new Intl.DateTimeFormat(undefined, longRange
-    ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }
-    : { hour: "numeric", minute: "2-digit", second: "2-digit" }).format(value);
-}
-
 function axisTicks(count: number): number[] {
   return Array.from({ length: count }, (_, index) => index);
-}
-
-function svgElement<K extends keyof SVGElementTagNameMap>(
-  tag: K,
-  className: string,
-  attributes: Record<string, string | number>,
-): SVGElementTagNameMap[K] {
-  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  node.setAttribute("class", className);
-  for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, String(value));
-  return node;
-}
-
-function svgText<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, value: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  node.textContent = value;
-  return node;
 }
 
 render(<App />, document.getElementById("root")!);
