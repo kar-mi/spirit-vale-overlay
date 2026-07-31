@@ -19,6 +19,14 @@ afterEach(async () => {
 });
 
 describe("overlay settings", () => {
+  test("defaults time-series and rolling DPS tiles to off", () => {
+    const settings = defaultOverlaySettings(bounds);
+
+    expect(settings.elements.xpChart.enabled).toBe(false);
+    expect(settings.elements.dpsChart.enabled).toBe(false);
+    expect(settings.elements.personalDps.enabled).toBe(false);
+  });
+
   test("normalizes values and clamps elements to the display", async () => {
     const settingsPath = await createSettingsPath();
     await writeFile(settingsPath, JSON.stringify({
