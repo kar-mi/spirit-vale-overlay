@@ -155,14 +155,31 @@ function OverlayElement({ id, settings, locked, children }: OverlayElementProps)
   };
   const finish = (event: PointerEvent): void => {
     if (!gesture || event.pointerId !== gesture.pointerId) return;
-    const finalRect = preview ?? gesture.start;
+    const dx = event.clientX - gesture.originX;
+    const dy = event.clientY - gesture.originY;
+    const finalRect = gesture.kind === "drag"
+      ? dragRect(gesture.start, dx, dy)
+      : resizeRect(gesture.start, gesture.edge, dx, dy, id);
     const wasResize = gesture.kind === "resize";
     setGesture(undefined);
-    setPreview(undefined);
+    setPreview(finalRect);
     const request = wasResize
       ? electroview.rpc?.request.setElementBounds({ id, ...finalRect })
       : electroview.rpc?.request.setElementPosition({ id, x: finalRect.x, y: finalRect.y });
-    void request?.then((next) => { state.value = next; });
+    if (!request) {
+      setPreview(undefined);
+      return;
+    }
+    void request.then(
+      (next) => {
+        state.value = next;
+        setPreview(undefined);
+      },
+      () => {
+        // Restore the last authoritative position if the update could not be saved.
+        setPreview(undefined);
+      },
+    );
   };
   return (
     <section
