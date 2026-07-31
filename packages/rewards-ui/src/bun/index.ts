@@ -9,9 +9,8 @@ import {
   loadRewardReplay,
   queryMobRewardCatalog,
   RewardSessionLogFollower,
-  XpAggregateTracker,
 } from "@kar-mi/spirit-vale-tools-rewards";
-import type { RewardLogStatus } from "@kar-mi/spirit-vale-tools-rewards";
+import type { RewardLogStatus, XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
 import type {
   RewardsAppMode,
   RewardsAppRpc,
@@ -29,8 +28,16 @@ import { visibleScaledWindowFrame, type WindowPlacementStore } from "@spiritvale
 const POLL_MS = 1_000;
 const catalog = loadBundledMobRewardCatalog();
 
+/** The Rewards window's XP Tracker tab reads from (and can reset) a tracker owned centrally, shared with the overlay, so both stay in sync. */
+export interface XpTrackerSource {
+  getSnapshot(): XpAggregateSnapshot;
+  reset(): void;
+  subscribe(listener: () => void): () => void;
+}
+
 export interface RewardsWindowOptions {
   logDirectory: string;
+  xp: XpTrackerSource;
   settingsPath?: string;
   placements?: WindowPlacementStore;
   onClosed?: () => void;
@@ -40,22 +47,7 @@ export interface RewardsWindowOptions {
 
 export async function createRewardsWindow(options: RewardsWindowOptions) {
 const settings = await loadRewardsSettings(options.settingsPath);
-const xpAggregate = new XpAggregateTracker();
-xpAggregate.restoreCheckpoint({
-  total: settings.xpTotalExperience,
-  watermarkMs: settings.xpWatermarkMs,
-  watermarkOccurrences: settings.xpWatermarkOccurrences,
-});
-const follower = new RewardSessionLogFollower(options.logDirectory, {
-  onExperience: (experience, recordedAtMs) => {
-    xpAggregate.record(experience, recordedAtMs);
-    const checkpoint = xpAggregate.currentCheckpoint();
-    settings.xpTotalExperience = checkpoint.total;
-    settings.xpWatermarkMs = checkpoint.watermarkMs;
-    settings.xpWatermarkOccurrences = checkpoint.watermarkOccurrences;
-    scheduleSave();
-  },
-});
+const follower = new RewardSessionLogFollower(options.logDirectory);
 
 let window: BrowserWindow;
 let catalogWindow: BrowserWindow | undefined;
@@ -117,13 +109,7 @@ const rpc = BrowserView.defineRPC<RewardsAppRpc>({
         return appState();
       },
       resetXpTracker: () => {
-        xpAggregate.reset(Date.now());
-        const checkpoint = xpAggregate.currentCheckpoint();
-        settings.xpTotalExperience = checkpoint.total;
-        settings.xpWatermarkMs = checkpoint.watermarkMs;
-        settings.xpWatermarkOccurrences = checkpoint.watermarkOccurrences;
-        scheduleSave();
-        publish();
+        options.xp.reset();
         return appState();
       },
       setPinned: ({ pinned }) => {
@@ -217,6 +203,7 @@ window.on("close", () => {
 
 const timer = setInterval(() => void poll(), POLL_MS);
 void poll();
+const unsubscribeXp = options.xp.subscribe(() => publish());
 return {
   show: () => window.show(),
   activate: () => window.activate(),
@@ -263,7 +250,7 @@ function appState(): RewardsAppState {
     unmatched: snapshot.unmatched,
     unmatchedDrops: snapshot.unmatchedDrops.map((drop) => ({ ...drop, itemName: itemName(drop.itemId) })),
     unidentified: snapshot.unmatchedByReason.unidentified,
-    xp: xpAggregate.snapshot(Date.now()),
+    xp: options.xp.getSnapshot(),
   };
 }
 
@@ -411,6 +398,7 @@ async function shutdown(): Promise<void> {
   shuttingDown = true;
   replayPicker.close();
   clearInterval(timer);
+  unsubscribeXp();
   catalogWindow?.close();
   if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
   await settingsPersistence.flush(settings);

@@ -94,6 +94,9 @@ function App() {
       <OverlayElement id="xpTracker" settings={next.elements.xpTracker} locked={next.locked}>
         <XpTrackerElement state={next} locked={next.locked} />
       </OverlayElement>
+      <OverlayElement id="xpChart" settings={next.elements.xpChart} locked={next.locked}>
+        <XpChartElement state={next} />
+      </OverlayElement>
       <OverlayElement id="partyRanking" settings={next.elements.partyRanking} locked={next.locked}>
         <PartyRankingElement state={next} />
       </OverlayElement>
@@ -350,7 +353,6 @@ function WeightElement({ state: next }: { state: OverlayState }) {
 
 function XpTrackerElement({ state: next, locked }: { state: OverlayState; locked: boolean }) {
   const xp = next.xp;
-  const recentBuckets = xp.timeline.slice(-90);
   return (
     <div class="element-content xp-tracker">
       <h2 class="element-title">Character XP</h2>
@@ -359,7 +361,6 @@ function XpTrackerElement({ state: next, locked }: { state: OverlayState; locked
         <span>{compactFormat.format(xp.xpPerSecond)}<small>/s</small></span>
         <span>{compactFormat.format(xp.xpPerHour)}<small>/hr</small></span>
       </div>
-      {recentBuckets.length > 1 && <XpSparkline buckets={recentBuckets} />}
       {!locked && (
         <button
           class="xp-reset-button"
@@ -372,6 +373,16 @@ function XpTrackerElement({ state: next, locked }: { state: OverlayState; locked
           Reset
         </button>
       )}
+    </div>
+  );
+}
+
+function XpChartElement({ state: next }: { state: OverlayState }) {
+  const recentBuckets = next.xp.timeline.slice(-90);
+  return (
+    <div class="element-content xp-chart">
+      <h2 class="element-title">Character XP over time</h2>
+      {recentBuckets.length > 1 ? <XpSparkline buckets={recentBuckets} /> : <WaitingForDps label="Waiting for XP" />}
     </div>
   );
 }
@@ -499,10 +510,10 @@ function formatRemaining(remainingMs: number): string {
   return `${totalSeconds}`;
 }
 
-function WaitingForDps() {
+function WaitingForDps({ label = "Waiting for DPS" }: { label?: string } = {}) {
   return (
     <div class="empty">
-      <span>Waiting for DPS</span>
+      <span>{label}</span>
       <span class="empty-help">Press F11 to toggle edit mode, or open Settings from any app window</span>
     </div>
   );

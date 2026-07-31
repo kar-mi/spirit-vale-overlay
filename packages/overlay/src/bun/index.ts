@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { DpsLogFollower, DpsSessionLogFollower, FishNetStatusTracker } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
-import { RewardSessionLogFollower, XpAggregateTracker } from "@kar-mi/spirit-vale-tools-rewards";
+import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
 import { HpsMeter } from "@spiritvale/combat-ui/hps-meter";
 import { TpsMeter } from "@spiritvale/combat-ui/tps-meter";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
@@ -31,10 +31,18 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   openLiveDeathLog: "open live death log",
 };
 
+/** The overlay's XP tile reads from (and can reset) a tracker owned centrally, shared with the Rewards window, so both stay in sync. */
+export interface XpTrackerSource {
+  getSnapshot(): XpAggregateSnapshot;
+  reset(): void;
+  subscribe(listener: () => void): () => void;
+}
+
 export interface OverlayWindowOptions {
   logDirectory: string;
   getCharacterState: () => CharacterViewState;
   subscribeCharacter: (listener: (state: CharacterViewState) => void) => () => void;
+  xp: XpTrackerSource;
   settingsPath?: string;
   placements?: WindowPlacementStore;
   lockOnCreate?: boolean;
@@ -58,29 +66,12 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   const liveLog = liveLogOverride
     ? new DpsLogFollower(liveLogOverride)
     : new DpsSessionLogFollower(options.logDirectory);
-  const xpAggregate = new XpAggregateTracker();
-  xpAggregate.restoreCheckpoint({
-    total: settings.xpTotalExperience,
-    watermarkMs: settings.xpWatermarkMs,
-    watermarkOccurrences: settings.xpWatermarkOccurrences,
-  });
-  const rewardsLog = new RewardSessionLogFollower(options.logDirectory, {
-    onExperience: (experience, recordedAtMs) => {
-      xpAggregate.record(experience, recordedAtMs);
-      const checkpoint = xpAggregate.currentCheckpoint();
-      settings.xpTotalExperience = checkpoint.total;
-      settings.xpWatermarkMs = checkpoint.watermarkMs;
-      settings.xpWatermarkOccurrences = checkpoint.watermarkOccurrences;
-      persist();
-    },
-  });
   let status: OverlayStatus = "waiting";
   let statusDetail = liveLogOverride
     ? `Looking for ${path.basename(liveLogOverride)}…`
     : "Looking for a combat session…";
   let overlayWindow: BrowserWindow;
   let polling = false;
-  let pollingRewards = false;
   let publishing = false;
   let shuttingDown = false;
   let closedCallbackSent = false;
@@ -147,13 +138,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
         },
         setShortcut: ({ action, shortcut }) => setShortcut(action, shortcut),
         resetXpTracker: () => {
-          xpAggregate.reset(Date.now());
-          const checkpoint = xpAggregate.currentCheckpoint();
-          settings.xpTotalExperience = checkpoint.total;
-          settings.xpWatermarkMs = checkpoint.watermarkMs;
-          settings.xpWatermarkOccurrences = checkpoint.watermarkOccurrences;
-          persist();
-          publish();
+          options.xp.reset();
           return appState();
         },
       },
@@ -183,7 +168,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   }
 
   const pollTimer = setInterval(() => void pollLiveLog(), LIVE_LOG_POLL_MS);
-  const rewardsPollTimer = setInterval(() => void pollRewardsLog(), LIVE_LOG_POLL_MS);
   unsubscribeCharacter = options.subscribeCharacter((next) => {
     characterState = next;
     syncPersonalCharacter(meter, characterState);
@@ -191,10 +175,10 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     hpsMeter.setPersonalName(detectedPersonalName(characterState));
     publish();
   });
+  const unsubscribeXp = options.xp.subscribe(() => publish());
 
   if (options.lockOnCreate) persistence.schedule(settings);
   void pollLiveLog();
-  void pollRewardsLog();
 
   return {
     show: () => updateOverlayVisible(true),
@@ -245,7 +229,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       ...(healSnapshot ? { healSnapshot } : {}),
       ...resources,
       ...(characterState.weight ? { weight: characterState.weight } : {}),
-      xp: xpAggregate.snapshot(Date.now()),
+      xp: options.xp.getSnapshot(),
       buffs: activeStatuses.filter((activeStatus) => !activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined),
       debuffs: activeStatuses.filter((activeStatus) => activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined),
       toggles: activeStatuses.filter((activeStatus) => activeStatus.expiresAtMs === undefined),
@@ -410,20 +394,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     }
   }
 
-  async function pollRewardsLog(): Promise<void> {
-    if (pollingRewards || shuttingDown) return;
-    pollingRewards = true;
-    try {
-      await rewardsLog.poll();
-      publish();
-    } catch {
-      // The XP tracker tile just keeps showing its last known values; the
-      // combat log poll above already surfaces read errors to the user.
-    } finally {
-      pollingRewards = false;
-    }
-  }
-
   function relativeNowMs(): number | undefined {
     if (lastEventObservedAtMs === undefined || lastEventWallMs === undefined) return undefined;
     return lastEventObservedAtMs + (Date.now() - lastEventWallMs);
@@ -433,9 +403,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     if (shuttingDown) return;
     shuttingDown = true;
     clearInterval(pollTimer);
-    clearInterval(rewardsPollTimer);
     unsubscribeCharacter();
     unsubscribeCharacter = () => {};
+    unsubscribeXp();
     for (const action of KEYBIND_ACTIONS) {
       if (shortcutRegistered.get(action)) GlobalShortcut.unregister(settings.shortcuts[action]);
     }

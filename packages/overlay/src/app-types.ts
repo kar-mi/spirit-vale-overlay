@@ -7,13 +7,13 @@ import type { StatType } from "@spiritvale/ui-core/stat-type-select";
 
 export type { StatType };
 
-export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "weight", "xpTracker", "buffs", "debuffs", "toggles"] as const;
+export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "weight", "xpTracker", "xpChart", "buffs", "debuffs", "toggles"] as const;
 export type OverlayElementId = (typeof OVERLAY_ELEMENT_IDS)[number];
 
 /** Short label describing each overlay element, shown in the settings toggle list and as an edit-mode badge on the element itself. */
 export const OVERLAY_ELEMENT_LABELS: Record<OverlayElementId, string> = {
   dpsChart: "DPS chart", personalDps: "Personal DPS numbers", partyRanking: "Party DPS ranking",
-  health: "HP bar", mana: "MP bar", weight: "Weight", xpTracker: "Character XP tracker", buffs: "Buffs",
+  health: "HP bar", mana: "MP bar", weight: "Weight", xpTracker: "Character XP numbers", xpChart: "Character XP chart", buffs: "Buffs",
   debuffs: "Debuffs", toggles: "Toggles (no timer)",
 };
 
