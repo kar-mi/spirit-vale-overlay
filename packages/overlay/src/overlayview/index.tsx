@@ -548,6 +548,12 @@ function StatusGridElement({ statuses }: { statuses: FishNetActiveStatus[] | und
 }
 
 function StatusCell({ status }: { status: FishNetActiveStatus }) {
+  // A sprite id no longer guarantees the artwork shipped: summons resolve theirs from the skill
+  // catalog, which covers far more skills than the icons copied into views/assets/status-icons.
+  // Drop the cell rather than leaving an empty frame behind, matching how icon-less statuses are
+  // already filtered out upstream.
+  const [iconMissing, setIconMissing] = useState(false);
+  if (iconMissing) return null;
   const totalMs = status.expiresAtMs === undefined ? undefined : status.expiresAtMs - status.appliedAtMs;
   const remainingFraction = totalMs !== undefined && totalMs > 0 && status.remainingMs !== undefined
     ? Math.max(0, Math.min(1, status.remainingMs / totalMs))
@@ -558,8 +564,15 @@ function StatusCell({ status }: { status: FishNetActiveStatus }) {
         class="status-icon-frame"
         style={remainingFraction === undefined ? undefined : `--status-remaining:${Math.round(remainingFraction * 100)}%`}
       >
-        <img class="status-icon" src={statusIcon(status.spriteId)} alt="" aria-hidden="true" />
+        <img
+          class="status-icon"
+          src={statusIcon(status.spriteId)}
+          alt=""
+          aria-hidden="true"
+          onError={() => setIconMissing(true)}
+        />
         {remainingFraction !== undefined && <span class="status-timer-fill" aria-hidden="true" />}
+        {status.stacks !== undefined && status.stacks > 1 && <span class="status-stacks">{status.stacks}</span>}
       </div>
       {status.remainingMs !== undefined && <span class="status-remaining">{formatRemaining(status.remainingMs)}</span>}
     </div>
