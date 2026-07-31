@@ -39,14 +39,14 @@ export interface DisplayBounds {
 }
 
 const DEFAULT_ELEMENTS: Record<OverlayElementId, OverlayElementSettings> = {
-  dpsChart: { enabled: true, opacity: 1, x: 860, y: 20, width: 462, height: 226 },
-  personalDps: { enabled: true, opacity: 1, x: 862, y: 242, width: 161, height: 135 },
+  dpsChart: { enabled: false, opacity: 1, x: 860, y: 20, width: 462, height: 226 },
+  personalDps: { enabled: false, opacity: 1, x: 862, y: 242, width: 161, height: 135 },
   partyRanking: { enabled: true, opacity: 1, x: 730, y: 540, width: 290, height: 610 },
   health: { enabled: true, opacity: 1, x: 1040, y: 910, width: 380, height: 50 },
   mana: { enabled: true, opacity: 1, x: 1430, y: 910, width: 280, height: 50 },
   weight: { enabled: true, opacity: 1, x: 1720, y: 970, width: 160, height: 60 },
   xpTracker: { enabled: true, opacity: 1, x: 1720, y: 840, width: 160, height: 120 },
-  xpChart: { enabled: true, opacity: 1, x: 1040, y: 60, width: 420, height: 300 },
+  xpChart: { enabled: false, opacity: 1, x: 1040, y: 60, width: 420, height: 300 },
   buffs: { enabled: false, opacity: 1, x: 1040, y: 830, width: 380, height: 70 },
   debuffs: { enabled: false, opacity: 1, x: 1040, y: 760, width: 380, height: 60 },
   toggles: { enabled: false, opacity: 1, x: 1430, y: 840, width: 280, height: 60 },
