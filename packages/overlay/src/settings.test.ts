@@ -54,6 +54,8 @@ describe("overlay settings", () => {
     expect(settings.elements.health.height).toBe(50);
     expect(settings.elements.mana.enabled).toBe(true);
     expect(settings.elements.mana.height).toBe(50);
+    expect(settings.elements.characterXp).toMatchObject({ enabled: true, width: 380, height: 50 });
+    expect(settings.elements.jobXp).toMatchObject({ enabled: true, width: 280, height: 50 });
     expect(settings.elements.weight.enabled).toBe(true);
     expect(settings.elements.weight.height).toBe(60);
   });
@@ -65,6 +67,21 @@ describe("overlay settings", () => {
     settings.elements.health.enabled = false;
     await saveOverlaySettings(settings, settingsPath);
     expect(await loadOverlaySettings(settingsPath, bounds)).toEqual(settings);
+  });
+
+  test("adds default XP bars without replacing current schema-four customizations", () => {
+    const settings = normalizeOverlaySettings({
+      schemaVersion: 4,
+      elements: {
+        health: { enabled: false, x: 25, width: 325 },
+        xpTracker: { enabled: false },
+      },
+    }, bounds);
+
+    expect(settings.elements.health).toMatchObject({ enabled: false, x: 25, width: 325 });
+    expect(settings.elements.xpTracker.enabled).toBe(false);
+    expect(settings.elements.characterXp).toMatchObject({ enabled: true, width: 380, height: 50 });
+    expect(settings.elements.jobXp).toMatchObject({ enabled: true, width: 280, height: 50 });
   });
 
   test("allows fully transparent tiles and clamps opacity to the supported range", () => {

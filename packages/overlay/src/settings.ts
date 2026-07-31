@@ -44,6 +44,8 @@ const DEFAULT_ELEMENTS: Record<OverlayElementId, OverlayElementSettings> = {
   partyRanking: { enabled: true, opacity: 1, x: 730, y: 540, width: 290, height: 610 },
   health: { enabled: true, opacity: 1, x: 1040, y: 910, width: 380, height: 50 },
   mana: { enabled: true, opacity: 1, x: 1430, y: 910, width: 280, height: 50 },
+  characterXp: { enabled: true, opacity: 1, x: 1040, y: 970, width: 380, height: 50 },
+  jobXp: { enabled: true, opacity: 1, x: 1430, y: 970, width: 280, height: 50 },
   weight: { enabled: true, opacity: 1, x: 1720, y: 970, width: 160, height: 60 },
   xpTracker: { enabled: true, opacity: 1, x: 1720, y: 840, width: 160, height: 120 },
   xpChart: { enabled: false, opacity: 1, x: 1040, y: 60, width: 420, height: 300 },
@@ -83,7 +85,8 @@ export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBoun
       ? sourceElements[id] as Record<string, unknown>
       : {};
     const width = clampNumber(value.width, defaults.width, 160, Math.max(160, bounds.width));
-    const minimumHeight = id === "health" || id === "mana" || id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" ? 40 : 100;
+    const minimumHeight = id === "health" || id === "mana" || id === "characterXp" || id === "jobXp"
+      || id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" ? 40 : 100;
     const height = clampNumber(value.height, defaults.height, minimumHeight, Math.max(minimumHeight, bounds.height));
     return [id, {
       enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,

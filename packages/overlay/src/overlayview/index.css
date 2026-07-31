@@ -102,7 +102,9 @@
   border-radius: 8px;
 }
 .overlay-element[data-element-id="health"],
-.overlay-element[data-element-id="mana"] {
+.overlay-element[data-element-id="mana"],
+.overlay-element[data-element-id="characterXp"],
+.overlay-element[data-element-id="jobXp"] {
   min-height: 40px;
   border-radius: 8px;
 }
@@ -355,6 +357,8 @@
 .resource-value > * { position: relative; z-index: 1; }
 .resource-health { --resource-color: rgba(194, 51, 61, .72); }
 .resource-mana { --resource-color: rgba(45, 105, 205, .72); }
+.resource-character-xp { --resource-color: rgba(224, 178, 42, .76); }
+.resource-job-xp { --resource-color: rgba(45, 105, 205, .72); }
 .resource-label { letter-spacing: .08em; }
 .resource-numbers {
   display: flex;

@@ -103,6 +103,12 @@ function App() {
       <OverlayElement id="mana" settings={next.elements.mana} locked={next.locked}>
         <ResourceElement kind="mana" resource={next.mana} />
       </OverlayElement>
+      <OverlayElement id="characterXp" settings={next.elements.characterXp} locked={next.locked}>
+        <ResourceElement kind="character-xp" resource={next.characterXp} />
+      </OverlayElement>
+      <OverlayElement id="jobXp" settings={next.elements.jobXp} locked={next.locked}>
+        <ResourceElement kind="job-xp" resource={next.jobXp} />
+      </OverlayElement>
       <OverlayElement id="weight" settings={next.elements.weight} locked={next.locked}>
         <WeightElement state={next} />
       </OverlayElement>
@@ -280,7 +286,8 @@ function resizeRect(start: ElementRect, edge: ResizeEdge, dx: number, dy: number
   let top = start.y;
   let right = start.x + start.width;
   let bottom = start.y + start.height;
-  const minimumHeight = id === "health" || id === "mana" || id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles"
+  const minimumHeight = id === "health" || id === "mana" || id === "characterXp" || id === "jobXp"
+    || id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles"
     ? MIN_RESOURCE_HEIGHT
     : MIN_ELEMENT_HEIGHT;
   if (edge.includes("w")) left = clamp(start.x + dx, 0, right - MIN_ELEMENT_WIDTH);
@@ -458,8 +465,13 @@ function XpChartElement({ state: next }: { state: OverlayState }) {
   );
 }
 
-function ResourceElement({ kind, resource }: { kind: "health" | "mana"; resource: OverlayResource | undefined }) {
-  const label = kind === "health" ? "HP" : "MP";
+type ResourceKind = "health" | "mana" | "character-xp" | "job-xp";
+
+function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: OverlayResource | undefined }) {
+  const label = kind === "health" ? "HP"
+    : kind === "mana" ? "MP"
+    : kind === "character-xp" ? "XP"
+    : "JOB XP";
   const description = resource
     ? `${label} ${resource.current} of ${resource.maximum}`
     : `Waiting for ${label}`;
