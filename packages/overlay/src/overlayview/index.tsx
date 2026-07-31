@@ -5,9 +5,7 @@ import { Electroview } from "electrobun/view";
 import { formatDps, formatDuration } from "@spiritvale/ui-core/format";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 import { InteractiveChart } from "@spiritvale/ui-core/interactive-chart";
-import type { ChartRenderResult } from "@spiritvale/ui-core/interactive-chart";
-import { buildRateTrend, trendExtent } from "@kar-mi/spirit-vale-tools-rewards";
-import type { TrendRange, TrendSample } from "@kar-mi/spirit-vale-tools-rewards";
+import type { ChartRange, ChartRenderResult } from "@spiritvale/ui-core/interactive-chart";
 
 import type { FishNetActiveStatus, FishNetDpsEncounterSnapshot, FishNetDpsTimelinePoint } from "@kar-mi/spirit-vale-tools-combat";
 import type { MeterEncounterSnapshot } from "@spiritvale/combat-ui/app-types";
@@ -21,6 +19,7 @@ import {
 } from "../app-types.ts";
 import { resourceFill } from "../personal-resources.ts";
 import { visiblePartyActors } from "./party-ranking.ts";
+import { buildXpEwmaTrend } from "./xp-ewma-trend.ts";
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
@@ -382,43 +381,38 @@ function XpTrackerElement({ state: next, locked }: { state: OverlayState; locked
 }
 
 function XpChartElement({ state: next }: { state: OverlayState }) {
-  const samples = xpBucketsToTrendSamples(next.xp.timeline);
-  const computeRender = useCallback((range: TrendRange, width: number): ChartRenderResult => {
-    const rates = buildRateTrend(samples, "experience", range, width);
+  const buckets = next.xp.timeline;
+  const rangeEnd = Date.now();
+  const rollingRange = { start: rangeEnd - 10 * 60_000, end: rangeEnd };
+  const computeRender = useCallback((range: ChartRange, _width: number): ChartRenderResult => {
+    const rates = buildXpEwmaTrend(buckets, range);
     const maximum = rates.reduce((highest, point) => Math.max(highest, point.value), 0);
     return {
       points: rates.map((point) => ({
         time: point.time,
         ratio: maximum > 0 ? point.value / maximum : 0,
         primary: `${compactFormat.format(point.value)}/sec`,
-        secondary: `${compactFormat.format(point.gain)} XP in ${point.seconds.toFixed(1)}s`,
+        secondary: "20-second EWMA",
       })),
       yLabels: Array.from({ length: 5 }, (_, tick) => compactFormat.format((maximum * tick) / 4)),
     };
-  }, [samples]);
+  }, [buckets]);
 
   return (
     <div class="element-content xp-chart">
       <h2 class="element-title">Character XP over time</h2>
       <InteractiveChart
-        extent={trendExtent(samples)}
+        extent={rollingRange}
         computeRender={computeRender}
         stepped={false}
         emptyLabel="Waiting for XP"
         ariaLabel="Character XP rate over time"
         resetKey="xp-chart"
+        interactive={false}
+        xAxisTickCount={2}
       />
     </div>
   );
-}
-
-function xpBucketsToTrendSamples(buckets: readonly { atMs: number; experience: number }[]): TrendSample[] {
-  return buckets.map((bucket) => ({
-    recordedAt: new Date(bucket.atMs).toISOString(),
-    experience: bucket.experience,
-    jobExperience: 0,
-    coins: "0",
-  }));
 }
 
 function ResourceElement({ kind, resource }: { kind: "health" | "mana"; resource: OverlayResource | undefined }) {

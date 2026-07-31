@@ -19,6 +19,9 @@ export interface XpTrackerCoordinator {
 
 export function createXpTrackerCoordinator(options: { logDirectory: string }): XpTrackerCoordinator {
   const tracker = new XpAggregateTracker();
+  // A fresh follower replays the current rewards log from the beginning. Establish a launch-time
+  // watermark first so an in-memory tracker does not resurrect XP from the previous app run.
+  tracker.reset(Date.now());
   const listeners = new Set<() => void>();
 
   const follower = new RewardSessionLogFollower(options.logDirectory, {

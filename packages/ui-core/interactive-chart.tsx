@@ -42,11 +42,25 @@ export interface InteractiveChartProps {
   ariaLabel: string;
   /** Resets any active zoom when this value changes (e.g. a new session, or a tracker reset). */
   resetKey: string;
+  /** Enables hover/keyboard highlighting and drag-to-zoom. */
+  interactive?: boolean;
+  /** Number of evenly spaced labels on the x axis. */
+  xAxisTickCount?: number;
   formatAxisTime?: (value: number, range: ChartRange) => string;
 }
 
 export function InteractiveChart(
-  { extent, computeRender, stepped, emptyLabel, ariaLabel, resetKey, formatAxisTime = defaultFormatAxisTime }: InteractiveChartProps,
+  {
+    extent,
+    computeRender,
+    stepped,
+    emptyLabel,
+    ariaLabel,
+    resetKey,
+    interactive = true,
+    xAxisTickCount = 5,
+    formatAxisTime = defaultFormatAxisTime,
+  }: InteractiveChartProps,
 ) {
   const [zoom, setZoom] = useState<ChartRange | undefined>(undefined);
 
@@ -101,10 +115,10 @@ export function InteractiveChart(
 
     const { points, yLabels } = computeRender(range, width);
 
-    drawAxes(svg, range, { left, top, width, height }, yLabels, formatAxisTime);
+    drawAxes(svg, range, { left, top, width, height }, yLabels, xAxisTickCount, formatAxisTime);
     drawLine(svg, points, range, { left, top, width, height }, stepped);
     renderedRef.current = { range, left, top, width, height, points };
-  }, [extent, computeRender, stepped, emptyLabel, formatAxisTime, zoom, hideTooltip]);
+  }, [extent, computeRender, stepped, emptyLabel, xAxisTickCount, formatAxisTime, zoom, hideTooltip]);
 
   useEffect(() => { draw(); }, [draw]);
 
@@ -178,19 +192,21 @@ export function InteractiveChart(
   }
 
   function onPointerDown(event: PointerEvent): void {
-    if (!renderedRef.current || event.button !== 0) return;
+    if (!interactive || !renderedRef.current || event.button !== 0) return;
     dragStartRef.current = localX(event.clientX);
     chartRef.current!.setPointerCapture(event.pointerId);
     updateSelection(dragStartRef.current, dragStartRef.current);
   }
 
   function onPointerMove(event: PointerEvent): void {
+    if (!interactive) return;
     const x = localX(event.clientX);
     if (dragStartRef.current !== undefined) updateSelection(dragStartRef.current, x);
     else showHover(x);
   }
 
   function onPointerUp(event: PointerEvent): void {
+    if (!interactive) return;
     const chart = renderedRef.current;
     if (!chart || dragStartRef.current === undefined) return;
     const end = localX(event.clientX);
@@ -208,11 +224,13 @@ export function InteractiveChart(
   }
 
   function onPointerCancel(): void {
+    if (!interactive) return;
     dragStartRef.current = undefined;
     removeSelection();
   }
 
   function onKeyDown(event: KeyboardEvent): void {
+    if (!interactive) return;
     const points = renderedRef.current?.points;
     if (!points?.length || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
@@ -228,20 +246,20 @@ export function InteractiveChart(
       <div
         ref={chartRef}
         class="trend-chart"
-        tabIndex={0}
+        tabIndex={interactive ? 0 : undefined}
         aria-label={ariaLabel}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
-        onPointerLeave={() => { if (dragStartRef.current === undefined) hideTooltip(); }}
-        onKeyDown={onKeyDown}
+        onPointerDown={interactive ? onPointerDown : undefined}
+        onPointerMove={interactive ? onPointerMove : undefined}
+        onPointerUp={interactive ? onPointerUp : undefined}
+        onPointerCancel={interactive ? onPointerCancel : undefined}
+        onPointerLeave={interactive ? () => { if (dragStartRef.current === undefined) hideTooltip(); } : undefined}
+        onKeyDown={interactive ? onKeyDown : undefined}
       >
         <svg ref={svgRef} role="img" aria-label={ariaLabel} />
         <div ref={emptyRef} class="trend-empty" />
         <div ref={tooltipRef} class="trend-tooltip" hidden />
       </div>
-      {zoom !== undefined && <button class="btn chart-reset-zoom" type="button" onClick={() => setZoom(undefined)}>Reset zoom</button>}
+      {interactive && zoom !== undefined && <button class="btn chart-reset-zoom" type="button" onClick={() => setZoom(undefined)}>Reset zoom</button>}
     </div>
   );
 }
@@ -251,6 +269,7 @@ function drawAxes(
   range: ChartRange,
   plot: Pick<RenderedChart, "left" | "top" | "width" | "height">,
   yLabels: readonly string[],
+  xAxisTickCount: number,
   formatAxisTime: (value: number, range: ChartRange) => string,
 ): void {
   for (const tick of axisTicks(5)) {
@@ -260,10 +279,15 @@ function drawAxes(
     label.textContent = yLabels[tick] ?? "0";
     svg.append(label);
   }
-  for (const tick of axisTicks(5)) {
-    const ratio = tick / 4;
+  const xTicks = axisTicks(Math.max(2, xAxisTickCount));
+  for (const tick of xTicks) {
+    const ratio = tick / (xTicks.length - 1);
     const x = plot.left + ratio * plot.width;
-    const label = svgElement("text", "trend-axis-label", { x, y: plot.top + plot.height + 25, "text-anchor": tick === 0 ? "start" : tick === 4 ? "end" : "middle" });
+    const label = svgElement("text", "trend-axis-label", {
+      x,
+      y: plot.top + plot.height + 25,
+      "text-anchor": tick === 0 ? "start" : tick === xTicks.length - 1 ? "end" : "middle",
+    });
     label.textContent = formatAxisTime(range.start + ratio * (range.end - range.start), range);
     svg.append(label);
   }
