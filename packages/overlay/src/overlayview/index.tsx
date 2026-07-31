@@ -26,6 +26,7 @@ const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", ma
 const MIN_ELEMENT_WIDTH = 160;
 const MIN_ELEMENT_HEIGHT = 100;
 const MIN_RESOURCE_HEIGHT = 40;
+const GRID_SIZE = 20;
 const RESIZE_EDGES = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
 const CLASS_ICON_BY_ARCHETYPE: Readonly<Record<number, string>> = {
   0: "warrior",
@@ -60,6 +61,7 @@ type PointerGesture =
   | { kind: "drag"; pointerId: number; originX: number; originY: number; start: ElementRect }
   | { kind: "resize"; pointerId: number; originX: number; originY: number; start: ElementRect; edge: ResizeEdge };
 const state = signal<OverlayState | undefined>(undefined);
+const gridEnabled = signal(false);
 
 const rpc = Electroview.defineRPC<OverlayRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
@@ -73,10 +75,20 @@ function App() {
   return (
     <main class={next.locked ? "overlay-root" : "overlay-root editing"}>
       {!next.locked && <div class="edit-scrim" />}
+      {!next.locked && gridEnabled.value && <div class="grid-overlay" aria-hidden="true" />}
       {!next.locked && (
         <div class="edit-controls">
           <p class="edit-hint">Drag elements to arrange the overlay. Press F11 to lock or unlock.</p>
-          <button class="lock-pill" type="button" onClick={() => void setLocked(true)}>Lock overlay</button>
+          <div class="edit-buttons">
+            <button
+              class={gridEnabled.value ? "lock-pill grid-pill active" : "lock-pill grid-pill"}
+              type="button"
+              onClick={() => { gridEnabled.value = !gridEnabled.value; }}
+            >
+              {gridEnabled.value ? "Grid: On" : "Grid: Off"}
+            </button>
+            <button class="lock-pill" type="button" onClick={() => void setLocked(true)}>Lock overlay</button>
+          </div>
         </div>
       )}
       <OverlayElement id="dpsChart" settings={next.elements.dpsChart} locked={next.locked}>
@@ -237,10 +249,12 @@ function OverlayElement({ id, settings, locked, children }: OverlayElementProps)
 }
 
 function dragRect(start: ElementRect, dx: number, dy: number): ElementRect {
+  const x = clamp(start.x + dx, 0, Math.max(0, window.innerWidth - start.width));
+  const y = clamp(start.y + dy, 0, Math.max(0, window.innerHeight - start.height));
   return {
     ...start,
-    x: clamp(start.x + dx, 0, Math.max(0, window.innerWidth - start.width)),
-    y: clamp(start.y + dy, 0, Math.max(0, window.innerHeight - start.height)),
+    x: gridEnabled.value ? snapToGrid(x) : x,
+    y: gridEnabled.value ? snapToGrid(y) : y,
   };
 }
 
@@ -256,11 +270,23 @@ function resizeRect(start: ElementRect, edge: ResizeEdge, dx: number, dy: number
   if (edge.includes("e")) right = clamp(start.x + start.width + dx, left + MIN_ELEMENT_WIDTH, window.innerWidth);
   if (edge.includes("n")) top = clamp(start.y + dy, 0, bottom - minimumHeight);
   if (edge.includes("s")) bottom = clamp(start.y + start.height + dy, top + minimumHeight, window.innerHeight);
+  if (gridEnabled.value) {
+    left = snapToGrid(left);
+    top = snapToGrid(top);
+    right = snapToGrid(right);
+    bottom = snapToGrid(bottom);
+    if (right - left < MIN_ELEMENT_WIDTH) right = left + MIN_ELEMENT_WIDTH;
+    if (bottom - top < minimumHeight) bottom = top + minimumHeight;
+  }
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, Math.round(value)));
+}
+
+function snapToGrid(value: number): number {
+  return Math.round(value / GRID_SIZE) * GRID_SIZE;
 }
 
 type MeterSnapshot = FishNetDpsEncounterSnapshot | MeterEncounterSnapshot;
