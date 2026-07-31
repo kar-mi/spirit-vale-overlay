@@ -104,7 +104,7 @@ export function InteractiveChart(
     drawAxes(svg, range, { left, top, width, height }, yLabels, formatAxisTime);
     drawLine(svg, points, range, { left, top, width, height }, stepped);
     renderedRef.current = { range, left, top, width, height, points };
-  }, [extent, computeRender, stepped, emptyLabel, formatAxisTime, hideTooltip]);
+  }, [extent, computeRender, stepped, emptyLabel, formatAxisTime, zoom, hideTooltip]);
 
   useEffect(() => { draw(); }, [draw]);
 

@@ -682,11 +682,14 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 .chart-reset-zoom {
   position: absolute;
   top: 8px;
-  left: 8px;
+  left: 50%;
   z-index: 3;
   padding: 3px 10px;
+  transform: translateX(-50%);
+  background: var(--surface-container-highest);
   font-size: 11px;
 }
+.chart-reset-zoom:hover { background: color-mix(in srgb, var(--primary) 14%, var(--surface-container-highest)); }
 
 .trend-chart { position: relative; overflow: hidden; }
 .trend-chart:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
