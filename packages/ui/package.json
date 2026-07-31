@@ -10,7 +10,7 @@
   "dependencies": {
     "@preact/signals": "^2.9.4",
     "preact": "^10.29.7",
-    "@kar-mi/spirit-vale-tools-character": "0.2.0",
+    "@kar-mi/spirit-vale-tools-character": "0.2.1",
     "@kar-mi/spirit-vale-tools-combat": "1.0.1",
     "@spiritvale/combat-ui": "workspace:*",
     "@kar-mi/spirit-vale-tools-capture": "1.0.0",
@@ -19,7 +19,7 @@
     "@kar-mi/spirit-vale-tools-market": "0.1.5",
     "@spiritvale/market-ui": "workspace:*",
     "@spiritvale/overlay": "workspace:*",
-    "@kar-mi/spirit-vale-tools-rewards": "0.1.5",
+    "@kar-mi/spirit-vale-tools-rewards": "0.2.0",
     "@spiritvale/rewards-ui": "workspace:*",
     "@kar-mi/spirit-vale-tools-skills": "0.1.5",
     "@spiritvale/ui-core": "workspace:*"
