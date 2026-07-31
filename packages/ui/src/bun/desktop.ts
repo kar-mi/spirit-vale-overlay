@@ -47,12 +47,7 @@ const storagePaths = resolveDesktopStoragePaths({
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,
 });
 const logDirectory = storagePaths.logDirectory;
-let xpTrackerStorageWarning: string | undefined;
-const xpTracker = await createXpTrackerCoordinator({
-  logDirectory,
-  settingsPath: storagePaths.xpTrackerSettingsPath,
-  onWarning: (warning) => { xpTrackerStorageWarning = warning; updateStorageWarning(); },
-});
+const xpTracker = createXpTrackerCoordinator({ logDirectory });
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
 let placementStorageWarning: string | undefined;
@@ -499,7 +494,7 @@ async function publishSettings(overlayState?: Awaited<ReturnType<typeof sharedSe
 function updateStorageWarning(): void {
   launcherState = {
     ...launcherState,
-    storageWarning: characterStorageWarning ?? launcherSettingsStorageWarning ?? placementStorageWarning ?? actorIdentityStorageWarning ?? xpTrackerStorageWarning,
+    storageWarning: characterStorageWarning ?? launcherSettingsStorageWarning ?? placementStorageWarning ?? actorIdentityStorageWarning,
   };
   publish();
 }
@@ -520,7 +515,7 @@ async function shutdown(): Promise<void> {
     await actorIdentityPersistence.flush(actorIdentityCache);
     await launcherSettingsPersistence.flush();
     await placements.flush();
-    await xpTracker.shutdown();
+    xpTracker.shutdown();
   } finally {
     try { await capture.stop(); } finally { Utils.quit(); }
   }
