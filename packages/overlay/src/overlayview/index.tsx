@@ -1,21 +1,25 @@
 import { signal } from "@preact/signals";
 import { render, type ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useCallback, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { formatDps, formatDuration } from "@spiritvale/ui-core/format";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
+import { InteractiveChart } from "@spiritvale/ui-core/interactive-chart";
+import type { ChartRange, ChartRenderResult } from "@spiritvale/ui-core/interactive-chart";
 
 import type { FishNetActiveStatus, FishNetDpsEncounterSnapshot, FishNetDpsTimelinePoint } from "@kar-mi/spirit-vale-tools-combat";
 import type { MeterEncounterSnapshot } from "@spiritvale/combat-ui/app-types";
-import type {
-  OverlayElementId,
-  OverlayElementSettings,
-  OverlayResource,
-  OverlayRpc,
-  OverlayState,
+import {
+  OVERLAY_ELEMENT_LABELS,
+  type OverlayElementId,
+  type OverlayElementSettings,
+  type OverlayResource,
+  type OverlayRpc,
+  type OverlayState,
 } from "../app-types.ts";
 import { resourceFill } from "../personal-resources.ts";
 import { visiblePartyActors } from "./party-ranking.ts";
+import { buildXpEwmaTrend } from "./xp-ewma-trend.ts";
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
@@ -89,6 +93,12 @@ function App() {
       </OverlayElement>
       <OverlayElement id="weight" settings={next.elements.weight} locked={next.locked}>
         <WeightElement state={next} />
+      </OverlayElement>
+      <OverlayElement id="xpTracker" settings={next.elements.xpTracker} locked={next.locked}>
+        <XpTrackerElement state={next} locked={next.locked} />
+      </OverlayElement>
+      <OverlayElement id="xpChart" settings={next.elements.xpChart} locked={next.locked}>
+        <XpChartElement state={next} />
       </OverlayElement>
       <OverlayElement id="partyRanking" settings={next.elements.partyRanking} locked={next.locked}>
         <PartyRankingElement state={next} />
@@ -176,6 +186,7 @@ function OverlayElement({ id, settings, locked, children }: OverlayElementProps)
         {children}
       </div>
       {!locked && !settings.enabled && <span class="hidden-indicator">Hidden</span>}
+      {!locked && <span class="element-title-badge">{OVERLAY_ELEMENT_LABELS[id]}</span>}
       {!locked && (
         <label
           class="element-opacity-control"
@@ -343,6 +354,67 @@ function WeightElement({ state: next }: { state: OverlayState }) {
   );
 }
 
+function XpTrackerElement({ state: next, locked }: { state: OverlayState; locked: boolean }) {
+  const xp = next.xp;
+  return (
+    <div class="element-content xp-tracker">
+      <h2 class="element-title">Character XP</h2>
+      <div class="xp-total"><small>Total</small>{compactFormat.format(xp.totalExperience)}</div>
+      <div class="xp-rates">
+        <span>{compactFormat.format(xp.xpPerSecond)}<small>/s</small></span>
+        <span>{compactFormat.format(xp.xpPerHour)}<small>/hr</small></span>
+      </div>
+      {!locked && (
+        <button
+          class="xp-reset-button"
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            void electroview.rpc?.request.resetXpTracker({}).then((nextState) => { state.value = nextState; });
+          }}
+        >
+          Reset
+        </button>
+      )}
+    </div>
+  );
+}
+
+function XpChartElement({ state: next }: { state: OverlayState }) {
+  const buckets = next.xp.timeline;
+  const rangeEnd = Date.now();
+  const rollingRange = { start: rangeEnd - 10 * 60_000, end: rangeEnd };
+  const computeRender = useCallback((range: ChartRange, _width: number): ChartRenderResult => {
+    const rates = buildXpEwmaTrend(buckets, range);
+    const maximum = rates.reduce((highest, point) => Math.max(highest, point.value), 0);
+    return {
+      points: rates.map((point) => ({
+        time: point.time,
+        ratio: maximum > 0 ? point.value / maximum : 0,
+        primary: `${compactFormat.format(point.value)}/sec`,
+        secondary: "20-second EWMA",
+      })),
+      yLabels: Array.from({ length: 5 }, (_, tick) => compactFormat.format((maximum * tick) / 4)),
+    };
+  }, [buckets]);
+
+  return (
+    <div class="element-content xp-chart">
+      <h2 class="element-title">Character XP over time</h2>
+      <InteractiveChart
+        extent={rollingRange}
+        computeRender={computeRender}
+        stepped={false}
+        emptyLabel="Waiting for XP"
+        ariaLabel="Character XP rate over time"
+        resetKey="xp-chart"
+        interactive={false}
+        xAxisTickCount={2}
+      />
+    </div>
+  );
+}
+
 function ResourceElement({ kind, resource }: { kind: "health" | "mana"; resource: OverlayResource | undefined }) {
   const label = kind === "health" ? "HP" : "MP";
   const description = resource
@@ -447,10 +519,10 @@ function formatRemaining(remainingMs: number): string {
   return `${totalSeconds}`;
 }
 
-function WaitingForDps() {
+function WaitingForDps({ label = "Waiting for DPS" }: { label?: string } = {}) {
   return (
     <div class="empty">
-      <span>Waiting for DPS</span>
+      <span>{label}</span>
       <span class="empty-help">Press F11 to toggle edit mode, or open Settings from any app window</span>
     </div>
   );

@@ -21,6 +21,7 @@ import {
   type ActorIdentityCache,
 } from "../actor-identity-storage.ts";
 import { CaptureCoordinator } from "./capture-coordinator.ts";
+import { createXpTrackerCoordinator } from "./xp-tracker-coordinator.ts";
 import { createCharacterWindow } from "./character-window.ts";
 import { createDeathLogWindow, createDpsWindow } from "@spiritvale/combat-ui";
 import { createOverlayWindow } from "@spiritvale/overlay";
@@ -46,6 +47,7 @@ const storagePaths = resolveDesktopStoragePaths({
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,
 });
 const logDirectory = storagePaths.logDirectory;
+const xpTracker = createXpTrackerCoordinator({ logDirectory });
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
 let placementStorageWarning: string | undefined;
@@ -111,6 +113,7 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
   logDirectory,
   getCharacterState: () => capture.characterState(),
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
+  xp: xpTracker,
   settingsPath: storagePaths.overlaySettingsPath,
   placements,
   lockOnCreate: true,
@@ -125,6 +128,7 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
 }));
 const rewardsWindow = new WindowSlot((onClosed) => createRewardsWindow({
   logDirectory,
+  xp: xpTracker,
   settingsPath: storagePaths.rewardsSettingsPath,
   placements,
   onClosed,
@@ -511,6 +515,7 @@ async function shutdown(): Promise<void> {
     await actorIdentityPersistence.flush(actorIdentityCache);
     await launcherSettingsPersistence.flush();
     await placements.flush();
+    xpTracker.shutdown();
   } finally {
     try { await capture.stop(); } finally { Utils.quit(); }
   }

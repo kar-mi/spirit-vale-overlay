@@ -45,6 +45,8 @@ const DEFAULT_ELEMENTS: Record<OverlayElementId, OverlayElementSettings> = {
   health: { enabled: true, opacity: 1, x: 1037, y: 921, width: 330, height: 40 },
   mana: { enabled: true, opacity: 1, x: 1377, y: 921, width: 338, height: 40 },
   weight: { enabled: true, opacity: 1, x: 794, y: 787, width: 160, height: 40 },
+  xpTracker: { enabled: true, opacity: 1, x: 794, y: 645, width: 220, height: 100 },
+  xpChart: { enabled: true, opacity: 1, x: 794, y: 495, width: 220, height: 140 },
   buffs: { enabled: false, opacity: 1, x: 1037, y: 20, width: 330, height: 80 },
   debuffs: { enabled: false, opacity: 1, x: 1037, y: 108, width: 330, height: 80 },
   toggles: { enabled: false, opacity: 1, x: 1037, y: 196, width: 330, height: 80 },

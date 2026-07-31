@@ -3,7 +3,7 @@ import type { RewardLogStatus } from "@kar-mi/spirit-vale-tools-rewards";
 import type { MaximizableWindowChromeRequests } from "@spiritvale/ui-core/window-rpc";
 
 export type RewardsAppMode = "live" | "replay";
-export type RewardsAppView = "summary" | "recent" | "trends";
+export type RewardsAppView = "summary" | "recent" | "trends" | "xpTracker";
 export type RewardsAppStatus = RewardLogStatus;
 
 export interface RewardsUiDrop { category: string; itemId: string; itemName: string; count: number; chance?: number }
@@ -45,6 +45,14 @@ export interface RewardsUiGraphSample {
   coins: string;
 }
 
+export interface RewardsUiXpBucket { atMs: number; experience: number }
+export interface RewardsUiXpState {
+  totalExperience: number;
+  xpPerSecond: number;
+  xpPerHour: number;
+  timeline: RewardsUiXpBucket[];
+}
+
 export interface RewardsAppState {
   mode: RewardsAppMode;
   view: RewardsAppView;
@@ -64,6 +72,7 @@ export interface RewardsAppState {
   unmatched: number;
   unmatchedDrops: RewardsUiDrop[];
   unidentified: number;
+  xp: RewardsUiXpState;
 }
 
 export type RewardsAppRpc = {
@@ -76,6 +85,7 @@ export type RewardsAppRpc = {
       openReplayPicker: { params: Record<string, never>; response: void };
       setPinned: { params: { pinned: boolean }; response: RewardsAppState };
       resetSession: { params: Record<string, never>; response: RewardsAppState };
+      resetXpTracker: { params: Record<string, never>; response: RewardsAppState };
     };
   }>;
   webview: RPCSchema<{ messages: { stateChanged: RewardsAppState } }>;

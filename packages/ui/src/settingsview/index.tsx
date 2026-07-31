@@ -9,8 +9,8 @@ import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 import {
   KEYBIND_ACTIONS,
   OVERLAY_ELEMENT_IDS,
+  OVERLAY_ELEMENT_LABELS,
   type KeybindAction,
-  type OverlayElementId,
 } from "@spiritvale/overlay/app-types";
 import type { LauncherSettingsRpc, SharedSettingsState } from "../launcher-types.ts";
 
@@ -24,11 +24,6 @@ const electroview = new Electroview({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 const UI_SCALE_OPTIONS = UI_SCALE_VALUES.map((value) => ({ value: String(value), label: `${Math.round(value * 100)}%` }));
-const ELEMENT_LABELS: Record<OverlayElementId, string> = {
-  dpsChart: "DPS chart", personalDps: "Personal DPS numbers", partyRanking: "Party DPS ranking",
-  health: "HP bar", mana: "MP bar", weight: "Weight", buffs: "Buffs",
-  debuffs: "Debuffs", toggles: "Toggles (no timer)",
-};
 const KEYBIND_LABELS: Record<KeybindAction, string> = {
   toggleLock: "Lock/unlock overlay", resetSession: "Reset session",
   openLiveDeathLog: "Open live death log", toggleOverlayVisible: "Show/hide overlay",
@@ -91,7 +86,7 @@ function App() {
         <header class="settings-heading"><h1>Overlay</h1><p>Control overlay visibility and layout.</p></header>
         <div class="settings-card settings-row"><span><strong>{overlay.locked ? "Overlay locked" : "Edit mode"}</strong></span><button class="btn" type="button" onClick={() => update(electroview.rpc?.request.setOverlayLocked({ locked: !overlay.locked }))}>{overlay.locked ? "Unlock overlay" : "Lock overlay"}</button></div>
         <div class="settings-card settings-row"><span><strong>{overlay.overlayVisible ? "Overlay shown" : "Overlay hidden"}</strong></span><button class="btn" type="button" onClick={() => update(electroview.rpc?.request.setOverlayVisible({ visible: !overlay.overlayVisible }))}>{overlay.overlayVisible ? "Hide overlay" : "Show overlay"}</button></div>
-        <div class="settings-card"><h2>Visible elements</h2>{OVERLAY_ELEMENT_IDS.map((id) => <label class="settings-check settings-element"><input type="checkbox" checked={overlay.elements[id].enabled} onChange={(event) => update(electroview.rpc?.request.setOverlayElementEnabled({ id, enabled: event.currentTarget.checked }))} /><span>{ELEMENT_LABELS[id]}</span></label>)}</div>
+        <div class="settings-card"><h2>Visible elements</h2>{OVERLAY_ELEMENT_IDS.map((id) => <label class="settings-check settings-element"><input type="checkbox" checked={overlay.elements[id].enabled} onChange={(event) => update(electroview.rpc?.request.setOverlayElementEnabled({ id, enabled: event.currentTarget.checked }))} /><span>{OVERLAY_ELEMENT_LABELS[id]}</span></label>)}</div>
         <p class="settings-hint">{overlay.personalName ? `Detected character: ${overlay.personalName}` : "Waiting to detect your active character."}</p>
       </section>
 

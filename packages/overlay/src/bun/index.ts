@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { DpsLogFollower, DpsSessionLogFollower, FishNetStatusTracker } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
+import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
 import { HpsMeter } from "@spiritvale/combat-ui/hps-meter";
 import { TpsMeter } from "@spiritvale/combat-ui/tps-meter";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
@@ -30,10 +31,18 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   openLiveDeathLog: "open live death log",
 };
 
+/** The overlay's XP tile reads from (and can reset) a tracker owned centrally, shared with the Rewards window, so both stay in sync. */
+export interface XpTrackerSource {
+  getSnapshot(): XpAggregateSnapshot;
+  reset(): void;
+  subscribe(listener: () => void): () => void;
+}
+
 export interface OverlayWindowOptions {
   logDirectory: string;
   getCharacterState: () => CharacterViewState;
   subscribeCharacter: (listener: (state: CharacterViewState) => void) => () => void;
+  xp: XpTrackerSource;
   settingsPath?: string;
   placements?: WindowPlacementStore;
   lockOnCreate?: boolean;
@@ -128,6 +137,10 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
           return appState();
         },
         setShortcut: ({ action, shortcut }) => setShortcut(action, shortcut),
+        resetXpTracker: () => {
+          options.xp.reset();
+          return appState();
+        },
       },
       messages: {},
     },
@@ -162,6 +175,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     hpsMeter.setPersonalName(detectedPersonalName(characterState));
     publish();
   });
+  const unsubscribeXp = options.xp.subscribe(() => publish());
 
   if (options.lockOnCreate) persistence.schedule(settings);
   void pollLiveLog();
@@ -215,6 +229,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       ...(healSnapshot ? { healSnapshot } : {}),
       ...resources,
       ...(characterState.weight ? { weight: characterState.weight } : {}),
+      xp: options.xp.getSnapshot(),
       buffs: activeStatuses.filter((activeStatus) => !activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined),
       debuffs: activeStatuses.filter((activeStatus) => activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined),
       toggles: activeStatuses.filter((activeStatus) => activeStatus.expiresAtMs === undefined),
@@ -390,6 +405,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     clearInterval(pollTimer);
     unsubscribeCharacter();
     unsubscribeCharacter = () => {};
+    unsubscribeXp();
     for (const action of KEYBIND_ACTIONS) {
       if (shortcutRegistered.get(action)) GlobalShortcut.unregister(settings.shortcuts[action]);
     }

@@ -12,6 +12,8 @@ export interface RewardsAppSettings {
   view: RewardsAppView;
 }
 
+const REWARDS_APP_VIEWS: readonly RewardsAppView[] = ["summary", "recent", "trends", "xpTracker"];
+
 const defaults: RewardsAppSettings = {
   frame: { x: 120, y: 90, width: 1020, height: 695 },
   catalogFrame: { x: 170, y: 140, width: 830, height: 745 },
@@ -27,7 +29,7 @@ export async function loadRewardsSettings(settingsPath = defaultSettingsPath): P
       frame: validFrame(value.frame) ? value.frame : defaults.frame,
       catalogFrame: validFrame(value.catalogFrame) ? value.catalogFrame : defaults.catalogFrame,
       pinned: typeof value.pinned === "boolean" ? value.pinned : defaults.pinned,
-      view: value.view === "summary" || value.view === "recent" || value.view === "trends" ? value.view : defaults.view,
+      view: value.view !== undefined && (REWARDS_APP_VIEWS as readonly string[]).includes(value.view) ? value.view : defaults.view,
     };
   }, () => ({ ...defaults, frame: { ...defaults.frame }, catalogFrame: { ...defaults.catalogFrame } }));
 }

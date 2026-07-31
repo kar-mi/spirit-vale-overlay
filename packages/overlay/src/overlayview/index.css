@@ -113,7 +113,7 @@
 
 .hidden-indicator {
   position: absolute;
-  top: 8px;
+  top: 34px;
   right: 8px;
   z-index: 4;
   padding: 3px 6px;
@@ -124,6 +124,27 @@
   font-weight: 700;
   letter-spacing: .05em;
   text-transform: uppercase;
+  pointer-events: none;
+}
+
+.element-title-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  padding: 3px 8px;
+  border: 1px solid rgba(204, 187, 255, .55);
+  border-radius: 999px;
+  background: rgba(18, 18, 24, .94);
+  color: rgba(255,255,255,.85);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-overflow: ellipsis;
+  text-shadow: none;
+  white-space: nowrap;
   pointer-events: none;
 }
 
@@ -236,6 +257,34 @@
 .personal-class-icon { width: 25px; height: 25px; flex: 0 0 auto; }
 .personal-details { display: flex; gap: 18px; margin-top: 15px; color: rgba(255,255,255,.78); font-size: 12px; }
 .personal-details strong { display: block; margin-top: 3px; color: white; font-size: 15px; }
+
+.xp-tracker { position: relative; }
+.xp-total { display: flex; align-items: baseline; gap: 6px; font-size: clamp(12px, 1.6vw, 17px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.xp-total small { order: -1; color: rgba(255,255,255,.5); font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.xp-rates { display: flex; gap: 14px; margin-top: 6px; color: rgba(255,255,255,.78); font-size: 13px; font-variant-numeric: tabular-nums; }
+.xp-rates small { margin-left: 2px; color: rgba(255,255,255,.5); font-weight: 500; }
+.xp-chart { display: flex; flex-direction: column; }
+.xp-chart .interactive-chart { flex: 1; min-height: 0; }
+.xp-chart .trend-chart {
+  height: 100%;
+  min-height: 0;
+  border: none;
+  background: transparent;
+  touch-action: none;
+}
+.xp-reset-button {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 2px 8px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 999px;
+  background: rgba(0,0,0,.32);
+  color: rgba(255,255,255,.78);
+  font-size: 10px;
+  cursor: pointer;
+}
+.xp-reset-button:hover { background: rgba(0,0,0,.5); }
 
 .weight-value {
   display: grid;

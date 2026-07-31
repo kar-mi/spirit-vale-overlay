@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@preact/signals": "^2.9.4",
-    "@kar-mi/spirit-vale-tools-character": "0.2.0",
+    "@kar-mi/spirit-vale-tools-character": "0.2.1",
     "@kar-mi/spirit-vale-tools-combat": "1.0.1",
     "@kar-mi/spirit-vale-tools-logging": "0.2.3",
     "@spiritvale/ui-core": "workspace:*",
