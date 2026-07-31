@@ -38,9 +38,9 @@ export async function createCharacterWindow(options: CharacterWindowOptions) {
     url: "views://characterview/index.html",
     frame: options.placements?.frame(
       "character",
-      { x: 140, y: 100, width: 976, height: 813 },
+      { x: 140, y: 100, width: 1120, height: 973 },
       { width: 680, height: 520 },
-    ) ?? { x: 140, y: 100, width: 976, height: 813 },
+    ) ?? { x: 140, y: 100, width: 1120, height: 973 },
     titleBarStyle: "hidden",
     transparent: false,
     rpc,

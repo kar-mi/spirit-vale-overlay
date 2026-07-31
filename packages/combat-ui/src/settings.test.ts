@@ -50,8 +50,8 @@ describe("DPS app settings", () => {
     expect((await loadDpsAppSettings(settingsPath)).frame).toEqual({
       x: 80,
       y: 80,
-      width: 945,
-      height: 800,
+      width: 1065,
+      height: 806,
     });
   });
 });
