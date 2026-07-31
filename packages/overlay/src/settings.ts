@@ -86,7 +86,8 @@ export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBoun
       : {};
     const width = clampNumber(value.width, defaults.width, 160, Math.max(160, bounds.width));
     const minimumHeight = id === "health" || id === "mana" || id === "characterXp" || id === "jobXp"
-      || id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" ? 40 : 100;
+      ? 24
+      : id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" ? 40 : 100;
     const height = clampNumber(value.height, defaults.height, minimumHeight, Math.max(minimumHeight, bounds.height));
     return [id, {
       enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,

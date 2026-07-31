@@ -105,7 +105,8 @@
 .overlay-element[data-element-id="mana"],
 .overlay-element[data-element-id="characterXp"],
 .overlay-element[data-element-id="jobXp"] {
-  min-height: 40px;
+  container-type: size;
+  min-height: 24px;
   border-radius: 8px;
 }
 .overlay-element[data-element-id="buffs"],
@@ -339,11 +340,11 @@
   height: 100%;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
+  gap: 8px;
+  padding: 0 8px;
   overflow: hidden;
   border-radius: inherit;
-  font-size: 12px;
+  font-size: clamp(10px, 20cqh, 16px);
   font-variant-numeric: tabular-nums;
 }
 .resource-value::before {

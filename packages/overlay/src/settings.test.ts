@@ -96,6 +96,21 @@ describe("overlay settings", () => {
     expect(outOfRange.elements.personalDps.opacity).toBe(1);
   });
 
+  test("allows resource bars to be thinner than other compact elements", () => {
+    const settings = normalizeOverlaySettings({
+      schemaVersion: 4,
+      elements: {
+        health: { height: 1 },
+        characterXp: { height: 1 },
+        weight: { height: 1 },
+      },
+    }, bounds);
+
+    expect(settings.elements.health.height).toBe(24);
+    expect(settings.elements.characterXp.height).toBe(24);
+    expect(settings.elements.weight.height).toBe(40);
+  });
+
   test("ignores retired schemas without overriding current custom heights", () => {
     const retired = normalizeOverlaySettings({
       schemaVersion: 3,
