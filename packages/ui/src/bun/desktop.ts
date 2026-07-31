@@ -130,6 +130,8 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
 const rewardsWindow = new WindowSlot((onClosed) => createRewardsWindow({
   logDirectory,
   xp: xpTracker,
+  getCharacterState: () => capture.characterState(),
+  subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
   settingsPath: storagePaths.rewardsSettingsPath,
   placements,
   onClosed,

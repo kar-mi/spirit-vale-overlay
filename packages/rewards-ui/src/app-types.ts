@@ -67,6 +67,7 @@ export interface RewardsAppState {
   graphSamples: RewardsUiGraphSample[];
   summaries: RewardsUiSummary[];
   totalExperience: number;
+  xpToLevelUp?: number;
   totalJobExperience: number;
   totalCoins: string;
   unmatched: number;

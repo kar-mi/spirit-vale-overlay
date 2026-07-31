@@ -50,7 +50,7 @@ main {
 }
 
 .rewards-total-table { min-width: 100%; table-layout: fixed; }
-.rewards-total-table :is(th, td) { width: 25%; overflow: hidden; text-overflow: ellipsis; }
+.rewards-total-table :is(th, td) { overflow: hidden; text-overflow: ellipsis; }
 .rewards-table-scroll { width: 100%; }
 .rewards-table { min-width: 100%; table-layout: fixed; }
 .rewards-table :is(th, td) { overflow: hidden; padding: 5px 6px; text-overflow: ellipsis; }

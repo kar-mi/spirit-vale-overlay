@@ -10,7 +10,7 @@
   "dependencies": {
     "@preact/signals": "^2.9.4",
     "preact": "^10.29.7",
-    "@kar-mi/spirit-vale-tools-character": "0.2.1",
+    "@kar-mi/spirit-vale-tools-character": "0.2.2",
     "@kar-mi/spirit-vale-tools-combat": "1.0.2",
     "@spiritvale/combat-ui": "workspace:*",
     "@kar-mi/spirit-vale-tools-capture": "1.0.0",
