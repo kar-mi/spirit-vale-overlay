@@ -34,6 +34,22 @@
   transform: translateX(-50%);
 }
 
+.edit-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
 .edit-hint {
   margin: 0;
   padding: 8px 14px;
@@ -53,6 +69,11 @@
   color: white;
   font-weight: 700;
   cursor: pointer;
+}
+
+.grid-pill.active {
+  border-color: rgba(255, 214, 120, 0.85);
+  background: rgba(150, 108, 22, 0.94);
 }
 
 .overlay-element {
