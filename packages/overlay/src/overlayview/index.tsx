@@ -26,7 +26,7 @@ const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", ma
 const MIN_ELEMENT_WIDTH = 160;
 const MIN_ELEMENT_HEIGHT = 100;
 const MIN_RESOURCE_HEIGHT = 40;
-const GRID_SIZE = 20;
+const GRID_SIZE = 10;
 const RESIZE_EDGES = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
 const CLASS_ICON_BY_ARCHETYPE: Readonly<Record<number, string>> = {
   0: "warrior",
