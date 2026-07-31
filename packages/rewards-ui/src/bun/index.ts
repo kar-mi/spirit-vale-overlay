@@ -78,7 +78,7 @@ const replayPicker = createSessionPicker({
   loadReplay: loadReplayPath,
   placements: options.placements,
   placementKey: "rewards-session-picker",
-  defaultFrame: { x: 120, y: 120, width: 736, height: 612 },
+  defaultFrame: { x: 120, y: 120, width: 757, height: 612 },
   onOpenSettings: options.onOpenSettings,
 });
 

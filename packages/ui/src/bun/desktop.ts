@@ -77,6 +77,7 @@ let liveCombatLogPath: string | undefined;
 const liveDeathLogWindow = createDeathLogWindow({
   placements,
   placementKey: "live-combat-death-log",
+  defaultFrame: { x: 220, y: 180, width: 850, height: 680 },
   onOpenSettings: openSettings,
 });
 

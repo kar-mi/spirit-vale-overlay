@@ -9,13 +9,14 @@ import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement"
 import type { CombatDeathLogRpc, CombatDeathLogState } from "../app-types.ts";
 import { loadDeathLogReplay, selectionAfterDeathLogRefresh } from "../death-log.ts";
 
-const FRAME = { x: 220, y: 180, width: 900, height: 680 };
+const FRAME = { x: 220, y: 180, width: 895, height: 789 };
 const MINIMUM_WIDTH = 680;
 const MINIMUM_HEIGHT = 500;
 
 export interface DeathLogWindowOptions {
   placements?: WindowPlacementStore;
   placementKey?: string;
+  defaultFrame?: { x: number; y: number; width: number; height: number };
   onOpenSettings?: () => void;
 }
 
@@ -34,6 +35,7 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
   let live = false;
   let loadSequence = 0;
   const placementKey = options.placementKey ?? "combat-death-log";
+  const defaultFrame = options.defaultFrame ?? FRAME;
 
   const rpc = BrowserView.defineRPC<CombatDeathLogRpc>({
     handlers: {
@@ -56,8 +58,8 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
           else window?.close();
         },
         getWindowFrame: () => window?.getFrame()
-          ?? options.placements?.frame(placementKey, FRAME, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT })
-          ?? FRAME,
+          ?? options.placements?.frame(placementKey, defaultFrame, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT })
+          ?? defaultFrame,
         setWindowFrame: (frame) => window?.setFrame(
           frame.x,
           frame.y,
@@ -107,7 +109,7 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
     const nextWindow = new BrowserWindow({
       title: "Combat Death Log",
       url: "views://deathlogview/index.html",
-      frame: options.placements?.frame(placementKey, FRAME, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }) ?? FRAME,
+      frame: options.placements?.frame(placementKey, defaultFrame, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }) ?? defaultFrame,
       titleBarStyle: "hidden",
       transparent: false,
       rpc,

@@ -15,8 +15,8 @@ export interface RewardsAppSettings {
 const REWARDS_APP_VIEWS: readonly RewardsAppView[] = ["summary", "recent", "trends", "xpTracker"];
 
 const defaults: RewardsAppSettings = {
-  frame: { x: 120, y: 90, width: 1020, height: 695 },
-  catalogFrame: { x: 170, y: 140, width: 830, height: 745 },
+  frame: { x: 120, y: 90, width: 1244, height: 986 },
+  catalogFrame: { x: 170, y: 140, width: 925, height: 745 },
   pinned: false,
   view: "summary",
 };

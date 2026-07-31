@@ -26,7 +26,7 @@ import { loadHpsReplay } from "../hps-replay.ts";
 import { validSelectedEnemyIds } from "../analysis-selection.ts";
 import { buildLivePlayerDetailState, emptyDpsRow } from "../live-player-detail.ts";
 
-const DETAIL_FRAME = { x: 190, y: 160, width: 880, height: 720 };
+const DETAIL_FRAME = { x: 190, y: 160, width: 1166, height: 720 };
 const MINIMUM_DETAIL_WIDTH = 620;
 const MINIMUM_DETAIL_HEIGHT = 500;
 

@@ -43,11 +43,11 @@ describe("overlay settings", () => {
     expect(settings.elements.personalDps.width).toBe(160);
     expect(settings.elements.personalDps.height).toBe(100);
     expect(settings.elements.health.enabled).toBe(true);
-    expect(settings.elements.health.height).toBe(40);
+    expect(settings.elements.health.height).toBe(50);
     expect(settings.elements.mana.enabled).toBe(true);
-    expect(settings.elements.mana.height).toBe(40);
+    expect(settings.elements.mana.height).toBe(50);
     expect(settings.elements.weight.enabled).toBe(true);
-    expect(settings.elements.weight.height).toBe(40);
+    expect(settings.elements.weight.height).toBe(60);
   });
 
   test("round-trips normalized settings", async () => {
@@ -81,7 +81,7 @@ describe("overlay settings", () => {
       elements: { weight: { height: 72 } },
     }, bounds);
 
-    expect(retired.elements.weight).toMatchObject({ enabled: true, height: 40 });
+    expect(retired.elements.weight).toMatchObject({ enabled: true, height: 60 });
     expect(current.elements.weight.height).toBe(72);
   });
 
