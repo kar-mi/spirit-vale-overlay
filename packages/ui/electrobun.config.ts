@@ -207,6 +207,20 @@ export default {
       "../../static/status-icons/undead.webp": "views/assets/status-icons/undead.webp",
       "../../static/status-icons/water.webp": "views/assets/status-icons/water.webp",
       "../../static/status-icons/wind.webp": "views/assets/status-icons/wind.webp",
+      // Summon sprites. These are skill icons rather than status icons - a summon is tracked under its
+      // skill id, so the status tracker resolves its sprite from the skill catalog. They share the
+      // status-icons folder because the renderer resolves every sprite id from one base path.
+      "../../static/status-icons/Cactus03.webp": "views/assets/status-icons/Cactus03.webp",
+      "../../static/status-icons/Cat03.webp": "views/assets/status-icons/Cat03.webp",
+      "../../static/status-icons/Dark03.webp": "views/assets/status-icons/Dark03.webp",
+      "../../static/status-icons/Light03.webp": "views/assets/status-icons/Light03.webp",
+      "../../static/status-icons/Necromancer12.webp": "views/assets/status-icons/Necromancer12.webp",
+      "../../static/status-icons/Reaper03.webp": "views/assets/status-icons/Reaper03.webp",
+      "../../static/status-icons/Rogue18.webp": "views/assets/status-icons/Rogue18.webp",
+      "../../static/status-icons/Skeleton01.webp": "views/assets/status-icons/Skeleton01.webp",
+      "../../static/status-icons/Skeleton02.webp": "views/assets/status-icons/Skeleton02.webp",
+      "../../static/status-icons/SummonAbomination.webp": "views/assets/status-icons/SummonAbomination.webp",
+      "../../static/status-icons/Wolf03.webp": "views/assets/status-icons/Wolf03.webp",
       "src/launcherview/index.html": "views/launcherview/index.html",
       "src/launcherview/index.css": "views/launcherview/index.css",
       [themeCssSource(0)]: "views/launcherview/theme.css",
