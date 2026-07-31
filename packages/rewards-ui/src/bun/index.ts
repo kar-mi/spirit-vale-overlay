@@ -20,6 +20,7 @@ import type {
   RewardsCatalogState,
 } from "../app-types.ts";
 import { loadRewardsSettings, saveRewardsSettings } from "../settings.ts";
+import { xpToLevelUp } from "../xp-to-level.ts";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { createSessionPicker } from "@spiritvale/ui-core/session-picker";
 import { registerUiScaleWindow, scaledSize, unscaledSize } from "@spiritvale/ui-core/ui-scale";
@@ -38,6 +39,8 @@ export interface XpTrackerSource {
 export interface RewardsWindowOptions {
   logDirectory: string;
   xp: XpTrackerSource;
+  getCharacterState(): { snapshot?: { level: number; experience: number } };
+  subscribeCharacter(listener: () => void): () => void;
   settingsPath?: string;
   placements?: WindowPlacementStore;
   onClosed?: () => void;
@@ -204,6 +207,7 @@ window.on("close", () => {
 const timer = setInterval(() => void poll(), POLL_MS);
 void poll();
 const unsubscribeXp = options.xp.subscribe(() => publish());
+const unsubscribeCharacter = options.subscribeCharacter(() => publish());
 return {
   show: () => window.show(),
   activate: () => window.activate(),
@@ -212,6 +216,10 @@ return {
 
 function appState(): RewardsAppState {
   const snapshot = mode === "live" ? liveSnapshot : replaySnapshot;
+  const character = options.getCharacterState().snapshot;
+  const remainingExperience = character
+    ? xpToLevelUp(character.level, character.experience, catalog.experienceRequirements)
+    : undefined;
   return {
     mode,
     view: settings.view,
@@ -245,6 +253,7 @@ function appState(): RewardsAppState {
       drops: mob.drops.map((drop) => ({ ...drop, itemName: itemName(drop.itemId) })),
     })),
     totalExperience: snapshot.totalExperience,
+    ...(remainingExperience === undefined ? {} : { xpToLevelUp: remainingExperience }),
     totalJobExperience: snapshot.totalJobExperience,
     totalCoins: snapshot.totalCoins.toString(),
     unmatched: snapshot.unmatched,
@@ -399,6 +408,7 @@ async function shutdown(): Promise<void> {
   replayPicker.close();
   clearInterval(timer);
   unsubscribeXp();
+  unsubscribeCharacter();
   catalogWindow?.close();
   if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
   await settingsPersistence.flush(settings);

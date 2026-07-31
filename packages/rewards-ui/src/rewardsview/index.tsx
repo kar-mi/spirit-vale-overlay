@@ -145,8 +145,8 @@ function App() {
 
         <div class="table-scroll totals">
           <table class="data-table summary-table rewards-total-table" aria-label="Reward totals">
-            <thead><tr><th>Character XP</th><th>Job XP</th><th>Coins</th><th>Unmatched</th></tr></thead>
-            <tbody><tr><td>{format.format(next.totalExperience)}</td><td>{format.format(next.totalJobExperience)}</td><td class="is-value">{formatDecimal(next.totalCoins)}</td><td>{format.format(next.unmatched)}</td></tr></tbody>
+            <thead><tr><th>Character XP</th><th>XP to Lvl Up</th><th>Job XP</th><th>Coins</th><th>Unmatched</th></tr></thead>
+            <tbody><tr><td>{format.format(next.totalExperience)}</td><td>{next.xpToLevelUp === undefined ? "—" : format.format(next.xpToLevelUp)}</td><td>{format.format(next.totalJobExperience)}</td><td class="is-value">{formatDecimal(next.totalCoins)}</td><td>{format.format(next.unmatched)}</td></tr></tbody>
           </table>
         </div>
 
