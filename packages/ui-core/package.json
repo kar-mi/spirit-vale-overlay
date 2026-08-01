@@ -24,8 +24,11 @@
     "./session-summary-cache": "./session-summary-cache.ts",
     "./window-rpc": "./window-rpc.ts",
     "./window-publish": "./window-publish.ts",
+    "./disposable-store": "./disposable-store.ts",
+    "./window-lifecycle": "./window-lifecycle.ts",
     "./window-placement": "./window-placement.ts",
     "./ui-scale": "./ui-scale.ts",
+    "./ui-scale-window": "./ui-scale-window.ts",
     "./local-storage": "./local-storage.ts"
   },
   "dependencies": {

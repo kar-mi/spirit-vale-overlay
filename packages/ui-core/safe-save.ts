@@ -70,6 +70,10 @@ export class SafeSaveQueue<T> {
     try {
       await this.options.save(value);
       this.failed = false;
+      if (this.latest === value && this.pending === undefined) {
+        this.latest = undefined;
+        this.hasLatest = false;
+      }
       this.setWarning(false);
     } catch (error) {
       this.failed = true;

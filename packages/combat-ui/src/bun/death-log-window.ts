@@ -1,10 +1,11 @@
 import path from "node:path";
 
-import Electrobun, { BrowserView, BrowserWindow } from "electrobun/bun";
+import { BrowserView, BrowserWindow } from "electrobun/bun";
 import { applyRoundedCorners, setWindowIcon } from "@spiritvale/ui-core/win32";
 import { appIconPath } from "@spiritvale/ui-core/window-publish";
-import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale";
+import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale-window";
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
+import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 
 import type { CombatDeathLogRpc, CombatDeathLogState } from "../app-types.ts";
 import { loadDeathLogReplay, selectionAfterDeathLogRefresh } from "../death-log.ts";
@@ -114,19 +115,27 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
       transparent: false,
       rpc,
     });
+    const lifecycle = new DisposableStore();
     window = nextWindow;
     applyRoundedCorners(nextWindow.ptr);
     setWindowIcon(nextWindow.ptr, appIconPath);
-    registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
-    options.placements?.track(placementKey, nextWindow);
-    Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {
+    lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
+    const disposePlacement = options.placements?.track(placementKey, nextWindow);
+    if (disposePlacement) lifecycle.add(disposePlacement);
+    lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
       const width = Math.max(scaledSize(MINIMUM_WIDTH), event.data.width);
       const height = Math.max(scaledSize(MINIMUM_HEIGHT), event.data.height);
       if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
-    });
-    nextWindow.on("close", () => {
-      if (window === nextWindow) window = undefined;
-    });
+    }));
+    lifecycle.add(onceWindowEvent(nextWindow, "close", () => {
+      lifecycle.dispose();
+      if (window === nextWindow) {
+        window = undefined;
+        state = undefined;
+        loadedPath = undefined;
+        live = false;
+      }
+    }));
   }
 
   function publish(): void {

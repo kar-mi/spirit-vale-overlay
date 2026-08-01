@@ -1,13 +1,14 @@
 import path from "node:path";
 
-import Electrobun, { BrowserView, BrowserWindow } from "electrobun/bun";
+import { BrowserView, BrowserWindow } from "electrobun/bun";
 import { loadDpsReplay } from "@kar-mi/spirit-vale-tools-combat";
 import type { FishNetDpsActorRow, FishNetDpsEncounterSnapshot, FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
 import { formatDuration } from "@spiritvale/ui-core/format";
 import { applyRoundedCorners, setWindowIcon } from "@spiritvale/ui-core/win32";
 import { appIconPath } from "@spiritvale/ui-core/window-publish";
-import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale";
+import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale-window";
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
+import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 
 import type {
   CombatAnalysisDetailRpc,
@@ -64,6 +65,7 @@ export interface CombatAnalysisControllerOptions {
 /** Owns past-log analysis state plus the reusable live/past selected-player detail child. */
 export function createCombatAnalysisController(options: CombatAnalysisControllerOptions = {}): CombatAnalysisController {
   let detailWindow: BrowserWindow | undefined;
+  let detailLifecycle: DisposableStore | undefined;
   const deathLogWindow = createDeathLogWindow({
     placements: options.placements,
     placementKey: "combat-analysis-death-log",
@@ -188,7 +190,12 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     loadSequence += 1;
     closeDetails();
     deathLogWindow.close();
+    snapshots = [];
+    enemyBreakdowns = [];
+    tpsSnapshots = [];
+    healSnapshots = [];
     loadedPath = undefined;
+    state = loadingState(undefined, state.statType);
   }
 
   function selectEncounter(id: string): CombatAnalysisState {
@@ -296,28 +303,35 @@ export function createCombatAnalysisController(options: CombatAnalysisController
       transparent: false,
       rpc: detailRpc,
     });
+    const lifecycle = new DisposableStore();
     detailWindow = nextWindow;
+    detailLifecycle = lifecycle;
     applyRoundedCorners(nextWindow.ptr);
     setWindowIcon(nextWindow.ptr, appIconPath);
-    registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
-    options.placements?.track("combat-analysis-detail", nextWindow);
-    Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {
+    lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
+    const disposePlacement = options.placements?.track("combat-analysis-detail", nextWindow);
+    if (disposePlacement) lifecycle.add(disposePlacement);
+    lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
       const width = Math.max(scaledSize(MINIMUM_DETAIL_WIDTH), event.data.width);
       const height = Math.max(scaledSize(MINIMUM_DETAIL_HEIGHT), event.data.height);
       if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
-    });
-    nextWindow.on("close", () => {
+    }));
+    lifecycle.add(onceWindowEvent(nextWindow, "close", () => {
+      lifecycle.dispose();
       if (detailWindow === nextWindow) {
         detailWindow = undefined;
+        detailLifecycle = undefined;
         detailState = undefined;
         liveDetailActorId = undefined;
       }
-    });
+    }));
   }
 
   function closeDetails(): void {
+    detailLifecycle?.dispose();
     detailWindow?.close();
     detailWindow = undefined;
+    detailLifecycle = undefined;
     detailState = undefined;
     liveDetailActorId = undefined;
   }

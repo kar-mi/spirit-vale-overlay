@@ -1,7 +1,8 @@
-import Electrobun, { BrowserView, BrowserWindow } from "electrobun/bun";
+import { BrowserView, BrowserWindow } from "electrobun/bun";
 import { mountRoundedWindow, publishSafely } from "@spiritvale/ui-core/window-publish";
-import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale";
+import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale-window";
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
+import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 
 import {
   FISHNET_MARKET_STAT_NAMES,
@@ -25,6 +26,7 @@ import { sortMarketListings } from "../market-sort.ts";
 
 const POLL_MS = 1_000;
 const PAGE_SIZE = 50;
+const MAX_VISIBLE_LISTINGS = 500;
 
 export interface MarketWindowOptions {
   logDirectory: string;
@@ -48,6 +50,8 @@ let sortDirection: MarketUiSortDirection = "ascending";
 let visibleLimit = PAGE_SIZE;
 let polling = false;
 let shuttingDown = false;
+const lifecycle = new DisposableStore();
+let filterLifecycle: DisposableStore | undefined;
 
 const rpc = BrowserView.defineRPC<MarketUiRpc>({
   maxRequestTime: 30_000,
@@ -73,7 +77,7 @@ const rpc = BrowserView.defineRPC<MarketUiRpc>({
       openFilters: () => { openFilters(); },
       openSettings: () => { options.onOpenSettings?.(); },
       loadMore: () => {
-        visibleLimit += PAGE_SIZE;
+        visibleLimit = Math.min(MAX_VISIBLE_LISTINGS, visibleLimit + PAGE_SIZE);
         return appState();
       },
       windowAction: async ({ action }) => {
@@ -138,26 +142,27 @@ window = new BrowserWindow({
   rpc,
 });
 mountRoundedWindow(window);
-registerUiScaleWindow(window, { scaleInitialFrame: !options.placements });
-options.placements?.track("market", window);
+lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: !options.placements }));
+const disposePlacement = options.placements?.track("market", window);
+if (disposePlacement) lifecycle.add(disposePlacement);
 
-Electrobun.events.on(`resize-${window.id}`, (event: { data: { width: number; height: number } }) => {
+lifecycle.add(onWindowEvent(window, "resize", (event: { data: { width: number; height: number } }) => {
   const width = Math.max(scaledSize(520), event.data.width);
   const height = Math.max(scaledSize(480), event.data.height);
   if (width !== event.data.width || height !== event.data.height) window.setSize(width, height);
-});
-window.on("close", () => {
+}));
+lifecycle.add(onceWindowEvent(window, "close", () => {
   stopPolling();
   filterWindow?.close();
   options.onClosed?.();
-});
+}));
 
 const pollTimer = setInterval(() => void pollMarket(), POLL_MS);
 void pollMarket();
 return {
   show: () => window.show(),
   activate: () => window.activate(),
-  close: () => { stopPolling(); filterWindow?.close(); window.close(); },
+  close: () => { stopPolling(); filterWindow?.close(); window.close(); options.onClosed?.(); },
 };
 
 function appState(): MarketUiState {
@@ -210,16 +215,25 @@ function openFilters(): void {
     transparent: false,
     rpc: filterRpc,
   });
+  const nextLifecycle = new DisposableStore();
   filterWindow = nextWindow;
+  filterLifecycle = nextLifecycle;
   mountRoundedWindow(nextWindow);
-  registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
-  options.placements?.track("market-filters", nextWindow);
-  Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {
+  nextLifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
+  const disposeFilterPlacement = options.placements?.track("market-filters", nextWindow);
+  if (disposeFilterPlacement) nextLifecycle.add(disposeFilterPlacement);
+  nextLifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
     const width = Math.max(scaledSize(520), event.data.width);
     const height = Math.max(scaledSize(480), event.data.height);
     if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
-  });
-  nextWindow.on("close", () => { if (filterWindow === nextWindow) filterWindow = undefined; });
+  }));
+  nextLifecycle.add(onceWindowEvent(nextWindow, "close", () => {
+    nextLifecycle.dispose();
+    if (filterWindow === nextWindow) {
+      filterWindow = undefined;
+      filterLifecycle = undefined;
+    }
+  }));
 }
 
 function listingView(listing: FishNetMarketListingView, index: number): MarketUiListing {
@@ -282,5 +296,9 @@ function stopPolling(): void {
   if (shuttingDown) return;
   shuttingDown = true;
   clearInterval(pollTimer);
+  lifecycle.dispose();
+  filterLifecycle?.dispose();
+  filterLifecycle = undefined;
+  listings = [];
 }
 }

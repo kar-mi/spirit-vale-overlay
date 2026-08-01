@@ -36,6 +36,17 @@ function heal(
 const window = { id: "enc-1", startedAtMs: 0, endedAtMs: 10_000, durationMs: 10_000 };
 
 describe("HpsMeter", () => {
+  test("live mode releases hits before the requested encounter", () => {
+    const meter = new HpsMeter({ pruneBeforeSnapshot: true });
+    meter.consumeIdentity(identity(10, "Healer"));
+    meter.consumeCombat(heal(20, 100, "exact", 10, "Heal"), 1_000);
+    meter.consumeCombat(heal(20, 50, "exact", 10, "Heal"), 11_000);
+
+    meter.getSnapshot({ id: "enc-2", startedAtMs: 10_000, endedAtMs: 20_000, durationMs: 10_000 }, 20_000);
+
+    expect((meter as unknown as { hits: unknown[] }).hits).toHaveLength(1);
+  });
+
   test("groups healing by the identified healer, not the recipient", () => {
     const meter = new HpsMeter();
     meter.consumeIdentity(identity(10, "Healer"));

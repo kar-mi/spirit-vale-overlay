@@ -446,6 +446,7 @@ describe("central capture coordinator", () => {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
+        diagnosticLogging: false,
       });
       await coordinator.start();
       expect(coordinator.state()).toEqual({ captureStatus: "unavailable", statusDetail: "Unable to capture data" });

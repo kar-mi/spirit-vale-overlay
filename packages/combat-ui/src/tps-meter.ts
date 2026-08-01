@@ -9,6 +9,8 @@ export interface TpsMeterOptions {
   currentWindowMs?: number;
   /** Width of each timeline bucket in milliseconds. Defaults to 5 seconds. */
   timelineBucketMs?: number;
+  /** Drops hits older than each requested snapshot. Intended for latest-only live meters. */
+  pruneBeforeSnapshot?: boolean;
 }
 
 export interface TpsEncounterWindow {
@@ -41,6 +43,7 @@ const DEFAULT_TIMELINE_BUCKET_MS = 5_000;
 export class TpsMeter {
   private readonly currentWindowMs: number;
   private readonly timelineBucketMs: number;
+  private readonly pruneBeforeSnapshot: boolean;
   private readonly identities = new Map<number, IdentityInfo>();
   private readonly hits: TpsHit[] = [];
   private personalName: string;
@@ -49,6 +52,7 @@ export class TpsMeter {
   constructor(options: TpsMeterOptions = {}) {
     this.currentWindowMs = options.currentWindowMs ?? DEFAULT_CURRENT_WINDOW_MS;
     this.timelineBucketMs = options.timelineBucketMs ?? DEFAULT_TIMELINE_BUCKET_MS;
+    this.pruneBeforeSnapshot = options.pruneBeforeSnapshot ?? false;
     this.personalName = options.personalName ?? "";
     this.personalActorId = options.personalActorId;
   }
@@ -97,6 +101,7 @@ export class TpsMeter {
   }
 
   getSnapshot(window: TpsEncounterWindow, nowMs: number): MeterEncounterSnapshot {
+    if (this.pruneBeforeSnapshot) this.pruneBefore(window.startedAtMs);
     const scoped = this.hits.filter((hit) => hit.atMs >= window.startedAtMs && hit.atMs <= window.endedAtMs);
     const durationSeconds = Math.max(1, window.durationMs) / 1000;
 
@@ -158,6 +163,12 @@ export class TpsMeter {
       personalMatch,
       personal,
     };
+  }
+
+  private pruneBefore(cutoffMs: number): void {
+    const firstRetained = this.hits.findIndex((hit) => hit.atMs >= cutoffMs);
+    if (firstRetained < 0) this.hits.length = 0;
+    else if (firstRetained > 0) this.hits.splice(0, firstRetained);
   }
 }
 

@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import { DpsLogFollower, DpsSessionLogFollower, FishNetStatusTracker } from "@kar-mi/spirit-vale-tools-combat";
+import type { FishNetDpsEncounterSnapshot } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { loadBundledMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
 import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
@@ -9,6 +10,7 @@ import { TpsMeter } from "@spiritvale/combat-ui/tps-meter";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { hideWindowFromTaskbar, setWindowClickThrough } from "@spiritvale/ui-core/win32";
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
+import { DisposableStore, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/bun";
 
 import type { KeybindAction, OverlayRpc, OverlayState, OverlayStatus } from "../app-types.ts";
@@ -62,8 +64,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   if (options.lockOnCreate) settings.locked = true;
   let characterState = options.getCharacterState();
   let meter = createPersonalDpsMeter(characterState);
-  let tpsMeter = new TpsMeter({ personalName: detectedPersonalName(characterState) });
-  let hpsMeter = new HpsMeter({ personalName: detectedPersonalName(characterState) });
+  let retainedSnapshot: FishNetDpsEncounterSnapshot | undefined;
+  let tpsMeter = new TpsMeter({ personalName: detectedPersonalName(characterState), pruneBeforeSnapshot: true });
+  let hpsMeter = new HpsMeter({ personalName: detectedPersonalName(characterState), pruneBeforeSnapshot: true });
   let statusTracker = new FishNetStatusTracker();
   const liveLogOverride = process.env.SPIRIT_VALE_COMBAT_LOG;
   const liveLog = liveLogOverride
@@ -84,6 +87,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   let lastEventObservedAtMs: number | undefined;
   let lastEventWallMs: number | undefined;
   let unsubscribeCharacter = () => {};
+  const lifecycle = new DisposableStore();
 
   const persistence = new SafeSaveQueue<typeof settings>({
     label: "overlay settings",
@@ -162,10 +166,10 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   hideWindowFromTaskbar(overlayWindow.ptr);
   setWindowClickThrough(overlayWindow.ptr, settings.locked);
   overlayWindow.showInactive();
-  overlayWindow.on("close", () => {
+  lifecycle.add(onceWindowEvent(overlayWindow, "close", () => {
     void shutdown();
     notifyClosed();
-  });
+  }));
   for (const action of KEYBIND_ACTIONS) {
     shortcutRegistered.set(action, registerShortcut(action, settings.shortcuts[action]));
   }
@@ -200,7 +204,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
 
   function appState(): OverlayState {
     const snapshotNowMs = relativeNowMs();
-    const snapshot = meter.getLatestSnapshot(snapshotNowMs);
+    const snapshot = meter.getLatestSnapshot(snapshotNowMs) ?? retainedSnapshot;
     const encounterWindow = snapshot
       ? {
           id: snapshot.id,
@@ -348,8 +352,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       options.onLiveLogPathChanged?.(batch.path ?? liveLogOverride);
       if (batch.reset) {
         meter = createPersonalDpsMeter(characterState);
-        tpsMeter = new TpsMeter({ personalName: detectedPersonalName(characterState) });
-        hpsMeter = new HpsMeter({ personalName: detectedPersonalName(characterState) });
+        retainedSnapshot = undefined;
+        tpsMeter = new TpsMeter({ personalName: detectedPersonalName(characterState), pruneBeforeSnapshot: true });
+        hpsMeter = new HpsMeter({ personalName: detectedPersonalName(characterState), pruneBeforeSnapshot: true });
         statusTracker = new FishNetStatusTracker();
         lastEventObservedAtMs = undefined;
         lastEventWallMs = undefined;
@@ -376,6 +381,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       const nowMs = relativeNowMs();
       if (nowMs !== undefined) {
         meter.advance(nowMs);
+        compactFinishedEncounter(nowMs);
         statusTracker.advance(nowMs);
       }
       const fileName = path.basename(batch.path ?? liveLogOverride ?? "combat.jsonl");
@@ -386,7 +392,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
         status = "capturing";
         statusDetail = batch.invalidLines > 0 ? `Reading ${fileName} with skipped lines` : `Reading ${fileName}`;
       } else {
-        status = meter.getLatestSnapshot() ? "ready" : "waiting";
+        status = meter.getLatestSnapshot() || retainedSnapshot ? "ready" : "waiting";
         statusDetail = `Watching ${fileName}`;
       }
       publish();
@@ -404,9 +410,17 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     return lastEventObservedAtMs + (Date.now() - lastEventWallMs);
   }
 
+  function compactFinishedEncounter(nowMs: number): void {
+    const latest = meter.getLatestSnapshot(nowMs);
+    if (!latest || latest.endedAtMs === undefined) return;
+    retainedSnapshot = latest;
+    meter.clearEncounters();
+  }
+
   async function shutdown(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
+    lifecycle.dispose();
     clearInterval(pollTimer);
     unsubscribeCharacter();
     unsubscribeCharacter = () => {};

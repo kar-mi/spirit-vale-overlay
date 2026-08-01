@@ -1,18 +1,19 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
 
-import Electrobun, { BrowserView, BrowserWindow, Utils } from "electrobun/bun";
+import { BrowserView, BrowserWindow, Utils } from "electrobun/bun";
 import { listLogSessions } from "@kar-mi/spirit-vale-tools-logging";
 import type { LogStream } from "@kar-mi/spirit-vale-tools-logging";
 import { applyRoundedCorners, setWindowIcon } from "./win32.ts";
 import { appIconPath } from "./window-publish.ts";
 import { loadSessionSummaryCache } from "./session-summary-cache.ts";
 import type { SessionSummaryCache } from "./session-summary-cache.ts";
-import { registerUiScaleWindow, scaledSize } from "./ui-scale.ts";
+import { registerUiScaleWindow, scaledSize } from "./ui-scale-window.ts";
 import type { WindowPlacementStore } from "./window-placement.ts";
 
 import type { SessionPickerRpc, SessionPickerState } from "./session-picker-types.ts";
 import type { WindowFrame } from "./window-chrome.ts";
+import { DisposableStore, onWindowEvent, onceWindowEvent } from "./window-lifecycle.ts";
 
 const MAX_RECENT_SESSIONS = 100;
 
@@ -78,6 +79,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         window.show();
         window.activate();
       } else {
+        const lifecycle = new DisposableStore();
         const nextWindow = new BrowserWindow({
           title: options.title,
           url: "views://sessionpickerview/index.html",
@@ -89,17 +91,20 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         window = nextWindow;
         applyRoundedCorners(nextWindow.ptr);
         setWindowIcon(nextWindow.ptr, appIconPath);
-        registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements });
-        if (options.placementKey) options.placements?.track(options.placementKey, nextWindow);
-        Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {
+        lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
+        const disposePlacement = options.placementKey ? options.placements?.track(options.placementKey, nextWindow) : undefined;
+        if (disposePlacement) lifecycle.add(disposePlacement);
+        lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
           const width = Math.max(scaledSize(480), event.data.width);
           const height = Math.max(scaledSize(400), event.data.height);
           if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
-        });
-        nextWindow.on("close", () => {
+        }));
+        lifecycle.add(onceWindowEvent(nextWindow, "close", () => {
+          lifecycle.dispose();
           if (window === nextWindow) window = undefined;
           paths.clear();
-        });
+          state = loadingState(options.title);
+        }));
       }
       void refresh();
     },
@@ -121,7 +126,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
     publish();
     try {
       const cache = await summaryCache();
-      const sessions = await listLogSessions(options.stream, options.logDirectory, Number.MAX_SAFE_INTEGER);
+      const sessions = await listLogSessions(options.stream, options.logDirectory, MAX_RECENT_SESSIONS);
       const nextPaths = new Map<string, string>();
       const items: SessionPickerState["sessions"] = [];
       for (let offset = 0; offset < sessions.length && items.length < MAX_RECENT_SESSIONS; offset += 10) {

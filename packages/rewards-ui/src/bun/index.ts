@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import Electrobun, { BrowserView, BrowserWindow } from "electrobun/bun";
+import { BrowserView, BrowserWindow } from "electrobun/bun";
 import { mountRoundedWindow, publishSafely } from "@spiritvale/ui-core/window-publish";
 import {
   emptySnapshot,
@@ -10,7 +10,7 @@ import {
   queryMobRewardCatalog,
   RewardSessionLogFollower,
 } from "@kar-mi/spirit-vale-tools-rewards";
-import type { RewardLogStatus, XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
+import type { MobRewardSessionSnapshot, RewardLogStatus, XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
 import type {
   RewardsAppMode,
   RewardsAppRpc,
@@ -23,10 +23,12 @@ import { loadRewardsSettings, saveRewardsSettings } from "../settings.ts";
 import { xpToLevelUp } from "../xp-to-level.ts";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { createSessionPicker } from "@spiritvale/ui-core/session-picker";
-import { registerUiScaleWindow, scaledSize, unscaledSize } from "@spiritvale/ui-core/ui-scale";
+import { registerUiScaleWindow, scaledSize, unscaledSize } from "@spiritvale/ui-core/ui-scale-window";
 import { visibleScaledWindowFrame, type WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
+import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 
 const POLL_MS = 1_000;
+const MAX_RETAINED_KILLS = 720;
 const catalog = loadBundledMobRewardCatalog();
 
 /** The Rewards window's XP Tracker tab reads from (and can reset) a tracker owned centrally, shared with the overlay, so both stay in sync. */
@@ -66,6 +68,8 @@ let polling = false;
 let shuttingDown = false;
 let storageWarning: string | undefined;
 let resetting = false;
+const lifecycle = new DisposableStore();
+let catalogLifecycle: DisposableStore | undefined;
 
 const settingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "rewards settings",
@@ -185,24 +189,24 @@ window = new BrowserWindow({
 });
 window.setAlwaysOnTop(settings.pinned);
 mountRoundedWindow(window);
-registerUiScaleWindow(window, { scaleInitialFrame: false });
+lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: false }));
 
-Electrobun.events.on(`move-${window.id}`, (event: { data: typeof settings.frame }) => {
+lifecycle.add(onWindowEvent(window, "move", (event: { data: typeof settings.frame }) => {
   if (window.isMaximized()) return;
   settings.frame = unscaleFrame(clampPhysicalFrame(event.data));
   scheduleSave();
-});
-Electrobun.events.on(`resize-${window.id}`, (event: { data: typeof settings.frame }) => {
+}));
+lifecycle.add(onWindowEvent(window, "resize", (event: { data: typeof settings.frame }) => {
   if (window.isMaximized()) return;
   const frame = clampPhysicalFrame(event.data);
   settings.frame = unscaleFrame(frame);
   if (frame.width !== event.data.width || frame.height !== event.data.height) window.setSize(frame.width, frame.height);
   scheduleSave();
-});
-window.on("close", () => {
+}));
+lifecycle.add(onceWindowEvent(window, "close", () => {
   void shutdown();
   options.onClosed?.();
-});
+}));
 
 const timer = setInterval(() => void poll(), POLL_MS);
 void poll();
@@ -211,7 +215,7 @@ const unsubscribeCharacter = options.subscribeCharacter(() => publish());
 return {
   show: () => window.show(),
   activate: () => window.activate(),
-  close: async () => { await shutdown(); window.close(); },
+  close: async () => { await shutdown(); window.close(); options.onClosed?.(); },
 };
 
 function appState(): RewardsAppState {
@@ -287,27 +291,31 @@ function openCatalog(): void {
     transparent: false,
     rpc: catalogRpc,
   });
+  const nextLifecycle = new DisposableStore();
   catalogWindow = nextWindow;
+  catalogLifecycle = nextLifecycle;
   nextWindow.setAlwaysOnTop(settings.pinned);
   mountRoundedWindow(nextWindow);
-  registerUiScaleWindow(nextWindow, { scaleInitialFrame: false });
+  nextLifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
 
-  Electrobun.events.on(`move-${nextWindow.id}`, (event: { data: typeof settings.catalogFrame }) => {
+  nextLifecycle.add(onWindowEvent(nextWindow, "move", (event: { data: typeof settings.catalogFrame }) => {
     if (nextWindow.isMaximized()) return;
     settings.catalogFrame = unscaleCatalogFrame(clampPhysicalCatalogFrame(event.data));
     scheduleSave();
-  });
-  Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: typeof settings.catalogFrame }) => {
+  }));
+  nextLifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: typeof settings.catalogFrame }) => {
     if (nextWindow.isMaximized()) return;
     const frame = clampPhysicalCatalogFrame(event.data);
     settings.catalogFrame = unscaleCatalogFrame(frame);
     if (frame.width !== event.data.width || frame.height !== event.data.height) nextWindow.setSize(frame.width, frame.height);
     scheduleSave();
-  });
-  nextWindow.on("close", () => {
+  }));
+  nextLifecycle.add(onceWindowEvent(nextWindow, "close", () => {
+    nextLifecycle.dispose();
     catalogWindow = undefined;
+    catalogLifecycle = undefined;
     scheduleSave();
-  });
+  }));
 }
 
 async function poll(): Promise<void> {
@@ -316,7 +324,7 @@ async function poll(): Promise<void> {
   try {
     const batch = await follower.poll();
     if (batch.changed || batch.reset || batch.status !== status) {
-      liveSnapshot = batch.snapshot;
+      liveSnapshot = compactSnapshot(batch.snapshot);
       status = batch.status;
       statusDetail = detail(batch.status, batch.invalidLines, batch.snapshot.unmatchedByReason.unidentified);
       if (mode === "live") publish();
@@ -331,7 +339,7 @@ async function poll(): Promise<void> {
 async function loadReplayPath(selectedPath: string): Promise<void> {
   try {
     const replay = await loadRewardReplay(selectedPath);
-    replaySnapshot = replay.snapshot;
+    replaySnapshot = compactSnapshot(replay.snapshot);
     replayWarnings = replay.invalidLines;
     replayFileName = path.basename(selectedPath);
     mode = "replay";
@@ -351,6 +359,13 @@ function itemName(itemId: string): string {
     if (drop) return drop.itemName;
   }
   return itemId.replace(/^currency:/, "Currency ");
+}
+
+function compactSnapshot(snapshot: MobRewardSessionSnapshot): MobRewardSessionSnapshot {
+  if (snapshot.kills.length <= MAX_RETAINED_KILLS) return snapshot;
+  const step = (snapshot.kills.length - 1) / (MAX_RETAINED_KILLS - 1);
+  const kills = Array.from({ length: MAX_RETAINED_KILLS }, (_, index) => snapshot.kills[Math.round(index * step)]!);
+  return { ...snapshot, kills };
 }
 
 function detail(next: RewardLogStatus, invalidLines: number, unidentified: number): string {
@@ -405,11 +420,17 @@ function scheduleSave(): void {
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  lifecycle.dispose();
+  catalogLifecycle?.dispose();
+  catalogLifecycle = undefined;
   replayPicker.close();
   clearInterval(timer);
   unsubscribeXp();
   unsubscribeCharacter();
   catalogWindow?.close();
+  catalogWindow = undefined;
+  liveSnapshot = emptySnapshot();
+  replaySnapshot = emptySnapshot();
   if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
   await settingsPersistence.flush(settings);
 }

@@ -53,6 +53,17 @@ function lethalHit(targetId: number, actorId: number, value: number, team: numbe
 const window = { id: "enc-1", startedAtMs: 0, endedAtMs: 10_000, durationMs: 10_000 };
 
 describe("TpsMeter", () => {
+  test("live mode releases hits before the requested encounter", () => {
+    const meter = new TpsMeter({ pruneBeforeSnapshot: true });
+    meter.consumeIdentity(identity(20, "Tank"));
+    meter.consumeCombat(hit(20, 300, 50, 1), 1_000);
+    meter.consumeCombat(hit(20, 300, 30, 1), 11_000);
+
+    meter.getSnapshot({ id: "enc-2", startedAtMs: 10_000, endedAtMs: 20_000, durationMs: 10_000 }, 20_000);
+
+    expect((meter as unknown as { hits: unknown[] }).hits).toHaveLength(1);
+  });
+
   test("groups incoming damage by the party member taking the hit", () => {
     const meter = new TpsMeter();
     meter.consumeIdentity(identity(20, "Tank"));

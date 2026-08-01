@@ -4,14 +4,17 @@ import { FishNetCharacterTracker, resolveCharacterHealingTraits } from "@kar-mi/
 import type { CharacterSnapshot, CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import type { CapturedFishNetPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
-import { activateLogSession, createLogSession, readCurrentLogStream, writeCurrentLogStreamPointer } from "@kar-mi/spirit-vale-tools-logging";
-import type { CurrentLogStream, JsonData, JsonLinesLogger, JsonObject, LogSession, LogStream, LogWriteFailure } from "@kar-mi/spirit-vale-tools-logging";
+import { activateLogSession, readCurrentLogStream, writeCurrentLogStreamPointer } from "@kar-mi/spirit-vale-tools-logging";
+import type { CurrentLogStream, JsonData, JsonObject, LogStream, LogWriteFailure } from "@kar-mi/spirit-vale-tools-logging";
 import { FishNetMarketTracker, marketEventLogData } from "@kar-mi/spirit-vale-tools-market";
 import { FishNetMobDirectory, FishNetMobRewardTracker } from "@kar-mi/spirit-vale-tools-rewards";
 
 import type { CaptureStatus, LauncherState } from "../launcher-types.ts";
+import { createBoundedLogSession, type BoundedLogSession, type LogWriter } from "./bounded-log-session.ts";
 
 const SPAWN_PAYLOAD_LOG_LIMIT = 2_048;
+const HANDOFF_PACKET_LIMIT = 4_096;
+const HANDOFF_BYTE_LIMIT = 16 * 1024 * 1024;
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
@@ -47,11 +50,11 @@ export class CaptureCoordinator {
   private readonly mobs = new FishNetMobDirectory();
   private readonly market = new FishNetMarketTracker();
   private readonly character = new FishNetCharacterTracker();
-  private session?: LogSession;
-  private combatLog?: JsonLinesLogger;
-  private rewardsLog?: JsonLinesLogger;
-  private marketLog?: JsonLinesLogger;
-  private otherLog?: JsonLinesLogger;
+  private session?: BoundedLogSession;
+  private combatLog?: LogWriter;
+  private rewardsLog?: LogWriter;
+  private marketLog?: LogWriter;
+  private otherLog?: LogWriter;
   private status: CaptureStatus = "stopped";
   private statusDetail = "Capture stopped";
   private stopping = false;
@@ -65,6 +68,8 @@ export class CaptureCoordinator {
   private resettingSession?: Promise<void>;
   private handoff = false;
   private packetBuffer: CapturedFishNetPacket[] = [];
+  private packetBufferBytes = 0;
+  private handoffFailure?: Error;
   private readonly loggedMobIdentities = new Map<number, string>();
   /** Serializes stop() and resetSession() so their bodies never interleave. */
   private lifecycleChain: Promise<void> = Promise.resolve();
@@ -106,7 +111,7 @@ export class CaptureCoordinator {
       if (!this.session) {
         const streams: LogStream[] = ["combat", "rewards", "market"];
         if (this.diagnosticLogging) streams.push("other");
-        this.session = await createLogSession({
+        this.session = await createBoundedLogSession({
           producer: "desktop-capture",
           streams,
           logDirectory: this.options.logDirectory,
@@ -179,6 +184,7 @@ export class CaptureCoordinator {
     this.rewards.reset();
     this.mobs.reset();
     this.loggedMobIdentities.clear();
+    this.clearPacketBuffer();
     this.market.reset();
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
@@ -220,7 +226,7 @@ export class CaptureCoordinator {
     const streams: LogStream[] = ["combat", "rewards", "market"];
     if (this.diagnosticLogging) streams.push("other");
 
-    const nextSession = await createLogSession({
+    const nextSession = await createBoundedLogSession({
       producer: "desktop-capture",
       streams,
       logDirectory: this.options.logDirectory,
@@ -229,6 +235,7 @@ export class CaptureCoordinator {
     });
 
     this.handoff = true;
+    this.handoffFailure = undefined;
     try {
       // Switch every stream's pointer onto the replacement session first, while the previous
       // session is still fully intact, so a failure here can be rolled back cleanly without
@@ -284,6 +291,10 @@ export class CaptureCoordinator {
       this.marketLog.log("market.lifecycle", { state: "started" });
       this.otherLog?.log("capture.lifecycle", { state: "started" });
 
+      // A completed rotation is an observable durability boundary: callers may immediately
+      // follow the newly activated pointers and expect the seeded records to be readable.
+      await nextSession.flush();
+
       try {
         await previousSession?.close();
       } catch (error) {
@@ -291,6 +302,12 @@ export class CaptureCoordinator {
       }
     } finally {
       this.handoff = false;
+      const handoffFailure = this.handoffFailure;
+      this.handoffFailure = undefined;
+      if (handoffFailure) {
+        this.clearPacketBuffer();
+        throw handoffFailure;
+      }
       this.drainBufferedPackets();
     }
   }
@@ -299,7 +316,28 @@ export class CaptureCoordinator {
     if (this.packetBuffer.length === 0) return;
     const buffered = this.packetBuffer;
     this.packetBuffer = [];
+    this.packetBufferBytes = 0;
     for (const packet of buffered) this.routePacket(packet);
+  }
+
+  private clearPacketBuffer(): void {
+    this.packetBuffer = [];
+    this.packetBufferBytes = 0;
+  }
+
+  private bufferHandoffPacket(packet: CapturedFishNetPacket): void {
+    const bytes = packet.liteNetPacket.udpPacket.payload.byteLength;
+    if (this.packetBuffer.length >= HANDOFF_PACKET_LIMIT || this.packetBufferBytes + bytes > HANDOFF_BYTE_LIMIT) {
+      if (!this.handoffFailure) {
+        this.handoffFailure = new Error("capture session handoff exceeded its bounded packet buffer");
+        this.logCaptureError(this.handoffFailure.message);
+        this.setStatus("unavailable", "Capture stopped: session reset could not keep up with incoming data");
+        void this.capture.stop().catch((error) => this.logCaptureError(errorMessage(error)));
+      }
+      return;
+    }
+    this.packetBuffer.push(packet);
+    this.packetBufferBytes += bytes;
   }
 
   private captureStarted(): void {
@@ -351,7 +389,7 @@ export class CaptureCoordinator {
 
   private routePacket(packet: CapturedFishNetPacket): void {
     if (this.handoff) {
-      this.packetBuffer.push(packet);
+      this.bufferHandoffPacket(packet);
       return;
     }
     if (!this.receivedDataForCurrentGame) {
@@ -509,6 +547,7 @@ export class CaptureCoordinator {
   private logWriteFailure(failure: LogWriteFailure): void {
     console.error("[spiritvale-logging]", `${failure.stream}: ${failure.error.message}`);
     if (!this.stopping && this.status !== "unavailable") this.setStatus("unavailable", "Unable to write capture logs");
+    if (!this.stopping) void this.capture.stop().catch((error) => console.error("[spiritvale-capture]", errorMessage(error)));
   }
 
   private writeStoppedLifecycle(): void {

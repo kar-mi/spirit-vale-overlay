@@ -9,6 +9,8 @@ export interface HpsMeterOptions {
   currentWindowMs?: number;
   /** Width of each timeline bucket in milliseconds. Defaults to 5 seconds. */
   timelineBucketMs?: number;
+  /** Drops hits older than each requested snapshot. Intended for latest-only live meters. */
+  pruneBeforeSnapshot?: boolean;
 }
 
 export interface HpsEncounterWindow {
@@ -42,6 +44,7 @@ const UNATTRIBUTED_SOURCE_LABEL = "Unattributed healing";
 export class HpsMeter {
   private readonly currentWindowMs: number;
   private readonly timelineBucketMs: number;
+  private readonly pruneBeforeSnapshot: boolean;
   private readonly identities = new Map<number, IdentityInfo>();
   private readonly hits: HpsHit[] = [];
   private personalName: string;
@@ -50,6 +53,7 @@ export class HpsMeter {
   constructor(options: HpsMeterOptions = {}) {
     this.currentWindowMs = options.currentWindowMs ?? DEFAULT_CURRENT_WINDOW_MS;
     this.timelineBucketMs = options.timelineBucketMs ?? DEFAULT_TIMELINE_BUCKET_MS;
+    this.pruneBeforeSnapshot = options.pruneBeforeSnapshot ?? false;
     this.personalName = options.personalName ?? "";
     this.personalActorId = options.personalActorId;
   }
@@ -95,6 +99,7 @@ export class HpsMeter {
   }
 
   getSnapshot(window: HpsEncounterWindow, nowMs: number): MeterEncounterSnapshot {
+    if (this.pruneBeforeSnapshot) this.pruneBefore(window.startedAtMs);
     // Heals with no identified healer are credited to the recipient's own output. Preserve the
     // identity present at the time of the hit so later party/map identity resets do not erase it.
     // Unknown recipients (such as monster self-healing) remain excluded.
@@ -160,6 +165,12 @@ export class HpsMeter {
       personalMatch,
       personal,
     };
+  }
+
+  private pruneBefore(cutoffMs: number): void {
+    const firstRetained = this.hits.findIndex((hit) => hit.atMs >= cutoffMs);
+    if (firstRetained < 0) this.hits.length = 0;
+    else if (firstRetained > 0) this.hits.splice(0, firstRetained);
   }
 }
 

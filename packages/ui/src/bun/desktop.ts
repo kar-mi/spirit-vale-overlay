@@ -31,10 +31,11 @@ import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { WindowSlot } from "./window-slot.ts";
 import { resolveDesktopStoragePaths } from "./portable-paths.ts";
 import type { WindowFrame } from "@spiritvale/ui-core/window-chrome";
-import { registerUiScaleWindow, scaledSize, setUiScale } from "@spiritvale/ui-core/ui-scale";
+import { registerUiScaleWindow, scaledSize, setUiScale } from "@spiritvale/ui-core/ui-scale-window";
 import { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
 import { launcherMinimizeAction, trayAction } from "./launcher-tray-actions.ts";
 import { findAvailableUpdate } from "../update-check.ts";
+import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 
 makeProcessDpiAware();
 
@@ -56,6 +57,8 @@ const placements = await WindowPlacementStore.load(storagePaths.windowPlacements
 });
 let launcherWindow: BrowserWindow;
 let settingsWindow: BrowserWindow | undefined;
+let settingsLifecycle: DisposableStore | undefined;
+const launcherLifecycle = new DisposableStore();
 let launcherState: LauncherState = {
   appVersion,
   captureStatus: "starting",
@@ -279,8 +282,8 @@ launcherWindow = new BrowserWindow({
 });
 applyRoundedCorners(launcherWindow.ptr);
 setWindowIcon(launcherWindow.ptr, appIconPath);
-registerUiScaleWindow(launcherWindow, { scaleInitialFrame: false });
-placements.track("launcher", launcherWindow);
+launcherLifecycle.add(registerUiScaleWindow(launcherWindow, { scaleInitialFrame: false }));
+launcherLifecycle.add(placements.track("launcher", launcherWindow));
 
 const tray = new Tray({
   title: "Spirit Vale",
@@ -305,12 +308,12 @@ tray.on("tray-clicked", (event) => {
   else if (action === "exit") void shutdown();
 });
 
-Electrobun.events.on(`resize-${launcherWindow.id}`, (event: { data: { width: number; height: number } }) => {
+launcherLifecycle.add(onWindowEvent(launcherWindow, "resize", (event: { data: { width: number; height: number } }) => {
   const width = Math.max(scaledSize(900), event.data.width);
   const height = Math.max(scaledSize(430), event.data.height);
   if (width !== event.data.width || height !== event.data.height) launcherWindow.setSize(width, height);
-});
-launcherWindow.on("close", () => void shutdown());
+}));
+launcherLifecycle.add(onceWindowEvent(launcherWindow, "close", () => void shutdown()));
 
 process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
@@ -418,17 +421,25 @@ function openSettings(): void {
     transparent: false,
     rpc: settingsRpc,
   });
+  const lifecycle = new DisposableStore();
   settingsWindow = nextWindow;
+  settingsLifecycle = lifecycle;
   applyRoundedCorners(nextWindow.ptr);
   setWindowIcon(nextWindow.ptr, appIconPath);
-  registerUiScaleWindow(nextWindow, { scaleInitialFrame: false });
-  placements.track("launcher-settings", nextWindow);
-  Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: { width: number; height: number } }) => {
+  lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
+  lifecycle.add(placements.track("launcher-settings", nextWindow));
+  lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
     const width = Math.max(scaledSize(560), event.data.width);
     const height = Math.max(scaledSize(420), event.data.height);
     if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
-  });
-  nextWindow.on("close", () => { if (settingsWindow === nextWindow) settingsWindow = undefined; });
+  }));
+  lifecycle.add(onceWindowEvent(nextWindow, "close", () => {
+    lifecycle.dispose();
+    if (settingsWindow === nextWindow) {
+      settingsWindow = undefined;
+      settingsLifecycle = undefined;
+    }
+  }));
 }
 
 async function setCaptureAdapter(deviceName: string | null): Promise<LauncherState> {
@@ -506,6 +517,9 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   placements.remember("launcher", launcherWindow.getFrame());
+  launcherLifecycle.dispose();
+  settingsLifecycle?.dispose();
+  settingsLifecycle = undefined;
   launcherWindow.hide();
   settingsWindow?.close();
   try {
