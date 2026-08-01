@@ -10,7 +10,7 @@ import {
   queryMobRewardCatalog,
   RewardSessionLogFollower,
 } from "@kar-mi/spirit-vale-tools-rewards";
-import type { MobRewardSessionSnapshot, RewardLogStatus, XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
+import type { RewardLogStatus, XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
 import type {
   RewardsAppMode,
   RewardsAppRpc,
@@ -28,7 +28,6 @@ import { visibleScaledWindowFrame, type WindowPlacementStore } from "@spiritvale
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 
 const POLL_MS = 1_000;
-const MAX_RETAINED_KILLS = 720;
 const catalog = loadBundledMobRewardCatalog();
 
 /** The Rewards window's XP Tracker tab reads from (and can reset) a tracker owned centrally, shared with the overlay, so both stay in sync. */
@@ -215,7 +214,9 @@ const unsubscribeCharacter = options.subscribeCharacter(() => publish());
 return {
   show: () => window.show(),
   activate: () => window.activate(),
-  close: async () => { await shutdown(); window.close(); options.onClosed?.(); },
+  // No onClosed here: Electrobun fires the native close event on a programmatic close too, and the
+  // close handler above is authoritative. Calling it from both paths ran it twice.
+  close: async () => { await shutdown(); window.close(); },
 };
 
 function appState(): RewardsAppState {
@@ -324,7 +325,7 @@ async function poll(): Promise<void> {
   try {
     const batch = await follower.poll();
     if (batch.changed || batch.reset || batch.status !== status) {
-      liveSnapshot = compactSnapshot(batch.snapshot);
+      liveSnapshot = batch.snapshot;
       status = batch.status;
       statusDetail = detail(batch.status, batch.invalidLines, batch.snapshot.unmatchedByReason.unidentified);
       if (mode === "live") publish();
@@ -339,7 +340,7 @@ async function poll(): Promise<void> {
 async function loadReplayPath(selectedPath: string): Promise<void> {
   try {
     const replay = await loadRewardReplay(selectedPath);
-    replaySnapshot = compactSnapshot(replay.snapshot);
+    replaySnapshot = replay.snapshot;
     replayWarnings = replay.invalidLines;
     replayFileName = path.basename(selectedPath);
     mode = "replay";
@@ -359,13 +360,6 @@ function itemName(itemId: string): string {
     if (drop) return drop.itemName;
   }
   return itemId.replace(/^currency:/, "Currency ");
-}
-
-function compactSnapshot(snapshot: MobRewardSessionSnapshot): MobRewardSessionSnapshot {
-  if (snapshot.kills.length <= MAX_RETAINED_KILLS) return snapshot;
-  const step = (snapshot.kills.length - 1) / (MAX_RETAINED_KILLS - 1);
-  const kills = Array.from({ length: MAX_RETAINED_KILLS }, (_, index) => snapshot.kills[Math.round(index * step)]!);
-  return { ...snapshot, kills };
 }
 
 function detail(next: RewardLogStatus, invalidLines: number, unidentified: number): string {

@@ -49,6 +49,29 @@ describe("window slot", () => {
     expect(window.closed).toBe(1);
   });
 
+  test("ignores a stale close from a window that has already been replaced", async () => {
+    const windows: FakeWindow[] = [];
+    const closers: (() => void)[] = [];
+    const slot = new WindowSlot((onClosed) => {
+      closers.push(onClosed);
+      const window = new FakeWindow();
+      windows.push(window);
+      return window;
+    });
+
+    await slot.open();
+    closers[0]?.();
+    await slot.open();
+    expect(windows).toHaveLength(2);
+
+    // A second notification for the first window (Electrobun fires the native close event on a
+    // programmatic close too) must not evict the replacement.
+    closers[0]?.();
+    await slot.open();
+    expect(windows).toHaveLength(2);
+    expect(windows[1]).toMatchObject({ shown: 1, activated: 1 });
+  });
+
   test("runs operations against the managed singleton", async () => {
     const slot = new WindowSlot(() => new FakeWindow());
     const result = await slot.withWindow((window) => {

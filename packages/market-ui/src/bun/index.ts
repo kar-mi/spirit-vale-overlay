@@ -23,10 +23,9 @@ import type {
 } from "../app-types.ts";
 import { validateMarketUiFilters } from "../filter-model.ts";
 import { sortMarketListings } from "../market-sort.ts";
+import { hasMoreListings, MARKET_PAGE_SIZE as PAGE_SIZE, nextVisibleLimit } from "../market-paging.ts";
 
 const POLL_MS = 1_000;
-const PAGE_SIZE = 50;
-const MAX_VISIBLE_LISTINGS = 500;
 
 export interface MarketWindowOptions {
   logDirectory: string;
@@ -77,7 +76,7 @@ const rpc = BrowserView.defineRPC<MarketUiRpc>({
       openFilters: () => { openFilters(); },
       openSettings: () => { options.onOpenSettings?.(); },
       loadMore: () => {
-        visibleLimit = Math.min(MAX_VISIBLE_LISTINGS, visibleLimit + PAGE_SIZE);
+        visibleLimit = nextVisibleLimit(visibleLimit);
         return appState();
       },
       windowAction: async ({ action }) => {
@@ -162,7 +161,9 @@ void pollMarket();
 return {
   show: () => window.show(),
   activate: () => window.activate(),
-  close: () => { stopPolling(); filterWindow?.close(); window.close(); options.onClosed?.(); },
+  // No onClosed here: Electrobun fires the native close event on a programmatic close too, and the
+  // close handler above is authoritative. Calling it from both paths ran it twice.
+  close: () => { stopPolling(); filterWindow?.close(); window.close(); },
 };
 
 function appState(): MarketUiState {
@@ -185,7 +186,7 @@ function appState(): MarketUiState {
     capturedCount: listings.length,
     matchCount: matches.length,
     visibleLimit,
-    hasMore: matches.length > visibleLimit,
+    hasMore: hasMoreListings(matches.length, visibleLimit),
     listings: sorted.slice(0, visibleLimit),
   };
 }

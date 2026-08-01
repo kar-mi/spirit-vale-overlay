@@ -17,9 +17,15 @@ export class WindowSlot<T extends ManagedWindow> {
       this.window.activate();
       return;
     }
-    this.opening ??= Promise.resolve(this.factory(() => { this.window = undefined; }));
+    // The slot is cleared only by the window that owns it. A close notification can arrive after a
+    // replacement window has already been opened; clearing unconditionally would drop the *new*
+    // window from the slot and let the next open() create a duplicate.
+    let created: T | undefined;
+    this.opening ??= Promise.resolve(this.factory(() => {
+      if (created !== undefined && this.window === created) this.window = undefined;
+    }));
     try {
-      this.window = await this.opening;
+      this.window = created = await this.opening;
     } finally {
       this.opening = undefined;
     }

@@ -252,7 +252,9 @@ void pollLiveLog();
 return {
   show: () => window.show(),
   activate: () => window.activate(),
-  close: async () => { await shutdown(); window.close(); options.onClosed?.(); },
+  // No onClosed here: Electrobun fires the native close event on a programmatic close too, and the
+  // close handler above is authoritative. Calling it from both paths ran it twice.
+  close: async () => { await shutdown(); window.close(); },
 };
 
 function appState(): DpsAppState {

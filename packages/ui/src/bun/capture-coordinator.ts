@@ -4,17 +4,30 @@ import { FishNetCharacterTracker, resolveCharacterHealingTraits } from "@kar-mi/
 import type { CharacterSnapshot, CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import type { CapturedFishNetPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
-import { activateLogSession, readCurrentLogStream, writeCurrentLogStreamPointer } from "@kar-mi/spirit-vale-tools-logging";
-import type { CurrentLogStream, JsonData, JsonObject, LogStream, LogWriteFailure } from "@kar-mi/spirit-vale-tools-logging";
+import {
+  activateLogSession,
+  createLogSession,
+  readCurrentLogStream,
+  writeCurrentLogStreamPointer,
+} from "@kar-mi/spirit-vale-tools-logging";
+import type {
+  CurrentLogStream,
+  JsonData,
+  JsonLinesLogger,
+  JsonObject,
+  LogSession,
+  LogStream,
+  LogWriteFailure,
+} from "@kar-mi/spirit-vale-tools-logging";
 import { FishNetMarketTracker, marketEventLogData } from "@kar-mi/spirit-vale-tools-market";
 import { FishNetMobDirectory, FishNetMobRewardTracker } from "@kar-mi/spirit-vale-tools-rewards";
 
 import type { CaptureStatus, LauncherState } from "../launcher-types.ts";
-import { createBoundedLogSession, type BoundedLogSession, type LogWriter } from "./bounded-log-session.ts";
 
 const SPAWN_PAYLOAD_LOG_LIMIT = 2_048;
 const HANDOFF_PACKET_LIMIT = 4_096;
 const HANDOFF_BYTE_LIMIT = 16 * 1024 * 1024;
+const WRITE_MONITOR_INTERVAL_MS = 5_000;
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
@@ -50,11 +63,11 @@ export class CaptureCoordinator {
   private readonly mobs = new FishNetMobDirectory();
   private readonly market = new FishNetMarketTracker();
   private readonly character = new FishNetCharacterTracker();
-  private session?: BoundedLogSession;
-  private combatLog?: LogWriter;
-  private rewardsLog?: LogWriter;
-  private marketLog?: LogWriter;
-  private otherLog?: LogWriter;
+  private session?: LogSession;
+  private combatLog?: JsonLinesLogger;
+  private rewardsLog?: JsonLinesLogger;
+  private marketLog?: JsonLinesLogger;
+  private otherLog?: JsonLinesLogger;
   private status: CaptureStatus = "stopped";
   private statusDetail = "Capture stopped";
   private stopping = false;
@@ -70,6 +83,7 @@ export class CaptureCoordinator {
   private packetBuffer: CapturedFishNetPacket[] = [];
   private packetBufferBytes = 0;
   private handoffFailure?: Error;
+  private writeMonitor?: ReturnType<typeof setInterval>;
   private readonly loggedMobIdentities = new Map<number, string>();
   /** Serializes stop() and resetSession() so their bodies never interleave. */
   private lifecycleChain: Promise<void> = Promise.resolve();
@@ -111,7 +125,7 @@ export class CaptureCoordinator {
       if (!this.session) {
         const streams: LogStream[] = ["combat", "rewards", "market"];
         if (this.diagnosticLogging) streams.push("other");
-        this.session = await createBoundedLogSession({
+        this.session = await createLogSession({
           producer: "desktop-capture",
           streams,
           logDirectory: this.options.logDirectory,
@@ -173,6 +187,7 @@ export class CaptureCoordinator {
   }
 
   private async performStop(): Promise<void> {
+    this.clearWriteMonitor();
     try {
       await this.capture.stop();
     } catch (error) {
@@ -226,7 +241,7 @@ export class CaptureCoordinator {
     const streams: LogStream[] = ["combat", "rewards", "market"];
     if (this.diagnosticLogging) streams.push("other");
 
-    const nextSession = await createBoundedLogSession({
+    const nextSession = await createLogSession({
       producer: "desktop-capture",
       streams,
       logDirectory: this.options.logDirectory,
@@ -544,10 +559,45 @@ export class CaptureCoordinator {
     this.otherLog?.log("capture.error", { message });
   }
 
+  /**
+   * A write failure alone does not end the session. The logger reports its first error once and
+   * keeps attempting later batches, so a transient fault (an AV scanner holding the file, brief
+   * disk contention) recovers on its own; tearing capture down there would turn a hiccup into a
+   * lost session. The status warning is raised immediately, and a monitor then watches for the one
+   * condition that is not recoverable: the bounded buffer filling up and records being dropped, at
+   * which point the log has stopped being a faithful record and capture is stopped.
+   */
   private logWriteFailure(failure: LogWriteFailure): void {
     console.error("[spiritvale-logging]", `${failure.stream}: ${failure.error.message}`);
-    if (!this.stopping && this.status !== "unavailable") this.setStatus("unavailable", "Unable to write capture logs");
-    if (!this.stopping) void this.capture.stop().catch((error) => console.error("[spiritvale-capture]", errorMessage(error)));
+    if (this.stopping) return;
+    if (this.status !== "unavailable") this.setStatus("unavailable", "Unable to write capture logs");
+    this.watchForDroppedRecords();
+  }
+
+  private watchForDroppedRecords(): void {
+    if (this.writeMonitor || this.stopping) return;
+    this.writeMonitor = setInterval(() => {
+      if (this.stopping) {
+        this.clearWriteMonitor();
+        return;
+      }
+      if (this.droppedRecords() === 0) return;
+      this.clearWriteMonitor();
+      this.setStatus("unavailable", "Capture stopped: capture logs could not be written");
+      void this.capture.stop().catch((error) => console.error("[spiritvale-capture]", errorMessage(error)));
+    }, WRITE_MONITOR_INTERVAL_MS);
+    this.writeMonitor.unref?.();
+  }
+
+  private clearWriteMonitor(): void {
+    if (!this.writeMonitor) return;
+    clearInterval(this.writeMonitor);
+    this.writeMonitor = undefined;
+  }
+
+  private droppedRecords(): number {
+    return [this.combatLog, this.rewardsLog, this.marketLog, this.otherLog]
+      .reduce((total, logger) => total + (logger?.stats().droppedRecords ?? 0), 0);
   }
 
   private writeStoppedLifecycle(): void {
