@@ -512,9 +512,9 @@ describe("central capture coordinator", () => {
       });
       const receivedConnections: string[] = [];
       const internal = coordinator as unknown as {
-        character: { consume: (packet: CapturedFishNetPacket) => boolean };
+        character: { consumeBeforeAdmission: (packet: CapturedFishNetPacket) => boolean };
       };
-      internal.character.consume = (packet) => {
+      internal.character.consumeBeforeAdmission = (packet) => {
         if (packet.rpcName !== "CharacterCallback_T") return false;
         receivedConnections.push(packet.connectionId);
         return true;
@@ -534,6 +534,124 @@ describe("central capture coordinator", () => {
       });
 
       expect(receivedConnections).toEqual(["conn-b"]);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("filters stale object-bound character packets after a map change", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-character-stale-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+      });
+      const internal = coordinator as unknown as {
+        character: { physicalObjectId: () => number | undefined };
+      };
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet({
+        tick: 1_010,
+        packetId: 1,
+        packetName: "serverRpc",
+        objectId: 101,
+        raw: Buffer.alloc(0),
+        payload: Buffer.alloc(0),
+        connectionId: "conn-a",
+      });
+      capture.packet({
+        tick: 60,
+        packetId: 1,
+        packetName: "serverRpc",
+        objectId: 202,
+        raw: Buffer.alloc(0),
+        payload: Buffer.alloc(0),
+        connectionId: "conn-b",
+      });
+      capture.packet({
+        tick: 1_020,
+        packetId: 1,
+        packetName: "rpcLink",
+        rpcName: "CharacterCallback_T",
+        rpcResolution: "verified",
+        raw: Buffer.alloc(0),
+        payload: Buffer.alloc(0),
+        connectionId: "conn-a",
+      });
+
+      expect(internal.character.physicalObjectId()).toBe(202);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps character resources across same-object reauthentication", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-character-reauth-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      capture.packet(characterPinPacket(1_001, 202, "conn-a"));
+      capture.packet(characterResourcePacket(1_002, 202, "HealthComponent", 750, 1_000, "conn-a"));
+      capture.packet(characterResourcePacket(1_003, 202, "SkillsComponent", 120, 240, "conn-a"));
+      expect(coordinator.characterState().records).toMatchObject({
+        currentHealth: 750,
+        maxHealth: 1_000,
+        currentMana: 120,
+        maxMana: 240,
+      });
+
+      capture.packet(authenticatedPacket(1_100, "conn-a"));
+      capture.packet(characterPinPacket(1_101, 202, "conn-a"));
+
+      expect(coordinator.characterState().records).toMatchObject({
+        currentHealth: 750,
+        maxHealth: 1_000,
+        currentMana: 120,
+        maxMana: 240,
+      });
+
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet(characterPinPacket(51, 202, "conn-b"));
+      capture.packet(characterResourcePacket(52, 202, "HealthComponent", 700, 1_000, "conn-b"));
+
+      expect(coordinator.characterState().records).toMatchObject({
+        currentHealth: 700,
+        maxHealth: 1_000,
+        currentMana: 120,
+        maxMana: 240,
+      });
+
+      capture.packet(authenticatedPacket(25, "conn-c"));
+      capture.packet(characterPinPacket(26, 303, "conn-c"));
+
+      // A map can assign a new physical player object without sending an initial resource sync.
+      // Keep the previous complete pair until this object emits its first delta.
+      expect(coordinator.characterState().records).toMatchObject({
+        currentHealth: 700,
+        maxHealth: 1_000,
+        currentMana: 120,
+        maxMana: 240,
+      });
+
+      capture.packet(characterResourcePacket(27, 303, "HealthComponent", 650, 1_000, "conn-c"));
+      expect(coordinator.characterState().records).toMatchObject({
+        currentHealth: 650,
+        maxHealth: 1_000,
+        currentMana: 120,
+        maxMana: 240,
+      });
       await coordinator.stop();
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -854,6 +972,40 @@ function experiencePacket(tick: number, experience: number, coins: bigint): Test
 
 function authenticatedPacket(tick: number, connectionId: string): TestPacket {
   return { tick, packetId: 0, packetName: "authenticated", raw: Buffer.alloc(0), payload: Buffer.alloc(0), connectionId };
+}
+
+function characterPinPacket(tick: number, objectId: number, connectionId: string): TestPacket {
+  return {
+    tick,
+    packetId: 1,
+    packetName: "serverRpc",
+    objectId,
+    networkBehaviourType: "HealthComponent",
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function characterResourcePacket(
+  tick: number,
+  objectId: number,
+  networkBehaviourType: "HealthComponent" | "SkillsComponent",
+  current: number,
+  maximum: number,
+  connectionId: string,
+): TestPacket {
+  const payload = Buffer.concat([Buffer.from([0]), packed(current), Buffer.from([1]), packed(maximum)]);
+  return {
+    tick,
+    packetId: 7,
+    packetName: "syncType",
+    objectId,
+    networkBehaviourType,
+    raw: payload,
+    payload,
+    connectionId,
+  };
 }
 
 function identityPacket(tick: number, objectId: number, displayName: string, connectionId: string): TestPacket {

@@ -1,6 +1,6 @@
 import { FishNetActorDirectory, FishNetCombatTracker } from "@kar-mi/spirit-vale-tools-combat";
 import type { FishNetCombatEvent, FishNetKnownIdentity } from "@kar-mi/spirit-vale-tools-combat";
-import { FishNetCharacterTracker, resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
+import { resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterSnapshot, CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import type { CapturedFishNetPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
@@ -23,6 +23,7 @@ import { FishNetMarketTracker, marketEventLogData } from "@kar-mi/spirit-vale-to
 import { FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
 
 import type { CaptureStatus, LauncherState } from "../launcher-types.ts";
+import { LocalCharacterRouter } from "./local-character-router.ts";
 import { RewardEventAttributor } from "./reward-event-attributor.ts";
 
 const SPAWN_PAYLOAD_LOG_LIMIT = 2_048;
@@ -66,7 +67,7 @@ export class CaptureCoordinator {
   private readonly combat = new FishNetCombatTracker({
     actorIdentityResolver: (actorId) => this.actors.getAttribution(actorId),
     healingTraitsResolver: (actorId: number) => {
-      return actorId === this.localCharacterObjectId ? this.localHealingTraits() : undefined;
+      return actorId === this.character.physicalObjectId() ? this.localHealingTraits() : undefined;
     },
     // Names each hit's target from the monster's spawn packet. The combat log carries no spawn
     // packets, so a name not stamped onto the event here cannot be recovered when the log is
@@ -78,7 +79,10 @@ export class CaptureCoordinator {
   private readonly locallyDamagedRewardTargets = new Set<number>();
   private readonly mobs = new FishNetMobDirectory();
   private readonly market = new FishNetMarketTracker();
-  private readonly character = new FishNetCharacterTracker();
+  private readonly character = new LocalCharacterRouter({
+    onHandled: () => this.syncLocalActorIdentity(),
+    onError: (packet, error) => this.logCharacterWarning(packet, error),
+  });
   private session?: LogSession;
   private combatLog?: JsonLinesLogger;
   private rewardsLog?: JsonLinesLogger;
@@ -96,7 +100,6 @@ export class CaptureCoordinator {
   private waitingForDataReported = false;
   private activeConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
-  private localCharacterObjectId?: number;
   private resettingSession?: Promise<void>;
   private handoff = false;
   private packetBuffer: CapturedFishNetPacket[] = [];
@@ -474,28 +477,12 @@ export class CaptureCoordinator {
       this.waitingForDataReported = false;
       this.refreshCaptureDetail();
     }
-    let characterHandled = false;
-    try {
-      // PlayerSave callbacks describe the local character and may arrive while game-server
-      // connections overlap during login or a map change. Decode them before selecting the
-      // active combat connection so a valid local snapshot is never discarded as stale.
-      characterHandled = this.character.consume(packet);
-      if (packet.packetName === "serverRpc" && packet.objectId !== undefined) {
-        this.localCharacterObjectId = packet.objectId;
-      }
-      if (characterHandled) this.syncLocalActorIdentity();
-    } catch (error) {
-      characterHandled = true;
-      this.otherLog?.log("capture.warning", {
-        domain: "character",
-        message: `skipped character payload: ${errorMessage(error)}`,
-        rpcName: packet.rpcName ?? null,
-        objectId: packet.objectId ?? null,
-        payloadHex: packet.payload.subarray(0, SPAWN_PAYLOAD_LOG_LIMIT).toString("hex"),
-        payloadBytes: packet.payload.length,
-      });
-    }
+    // Character-save callbacks are connection-independent; object-bound character data is routed
+    // only after the same active-connection admission used by every other capture domain.
+    let characterHandled = this.character.consumeBeforeAdmission(packet);
     if (!this.admitPacket(packet)) return;
+    const admittedCharacterHandled = this.character.consumeAdmitted(packet);
+    characterHandled ||= admittedCharacterHandled;
     if (packet.splitDropReason !== undefined) {
       this.combatLog?.log("combat.warning", {
         message: `split reassembly dropped (${packet.splitDropReason}) at tick ${packet.tick}`,
@@ -559,6 +546,17 @@ export class CaptureCoordinator {
     if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
   }
 
+  private logCharacterWarning(packet: CapturedFishNetPacket, error: unknown): void {
+    this.otherLog?.log("capture.warning", {
+      domain: "character",
+      message: `skipped character payload: ${errorMessage(error)}`,
+      rpcName: packet.rpcName ?? null,
+      objectId: packet.objectId ?? null,
+      payloadHex: packet.payload.subarray(0, SPAWN_PAYLOAD_LOG_LIMIT).toString("hex"),
+      payloadBytes: packet.payload.length,
+    });
+  }
+
   private localHealingTraits(): { hasSiphonHealth: boolean; hasHealthLeech: boolean } | undefined {
     const snapshot = this.character.current();
     return snapshot ? resolveCharacterHealingTraits(snapshot) : undefined;
@@ -586,7 +584,7 @@ export class CaptureCoordinator {
   }
 
   private isLocalRewardActor(actorId: number): boolean {
-    if (actorId === this.localCharacterObjectId) return true;
+    if (actorId === this.character.physicalObjectId()) return true;
     const characterName = this.character.current()?.name;
     return characterName !== undefined && this.actors.getAttribution(actorId)?.displayName === characterName;
   }
