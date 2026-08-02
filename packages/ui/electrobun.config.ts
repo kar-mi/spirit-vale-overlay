@@ -261,7 +261,7 @@ export default {
     buildFolder: "dist/electrobun",
     artifactFolder: "dist/artifacts",
     targets: "win-x64",
-    watch: ["src", "../character/src", "../combat-ui/src", "../capture/src/fishnet", "../items/src", "../market-ui/src", "../overlay/src", "../rewards-ui/src", "../ui-core"],
+    watch: ["src", "../combat-ui/src", "../market-ui/src", "../overlay/src", "../rewards-ui/src", "../ui-core"],
     win: {
       bundleCEF: false,
       defaultRenderer: "native",

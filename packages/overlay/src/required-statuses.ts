@@ -62,10 +62,6 @@ export function normalizeRequiredStatusIds(category: RequiredStatusCategory, val
   return [...kept].sort();
 }
 
-export function emptyRequiredStatuses(): Record<RequiredStatusCategory, string[]> {
-  return { buffs: [], toggles: [] };
-}
-
 /** The armed statuses that are not currently active, in the order they were configured. */
 export function missingRequiredStatuses(
   requiredIds: readonly string[],

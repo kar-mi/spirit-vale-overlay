@@ -34,7 +34,6 @@
     "./local-storage": "./local-storage.ts"
   },
   "dependencies": {
-    "@preact/signals": "^2.9.4",
     "@kar-mi/spirit-vale-tools-logging": "0.4.0",
     "electrobun": "1.18.1",
     "preact": "^10.29.7"
