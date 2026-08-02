@@ -57,10 +57,12 @@ let personalName = detectedPersonalName(initialCharacterState);
 let window: BrowserWindow;
 let status: DpsAppStatus = "waiting";
 let statusDetail = liveLogOverride ? `Looking for ${path.basename(liveLogOverride)}…` : "Looking for a combat session…";
+// Declared before the meter: createLiveMeter() reads it, and a `let` referenced before its
+// declaration throws rather than reading undefined.
+let manualPersonalActorId: number | undefined;
 // One service aggregates DPS, TPS and HPS from the same events. It retains bounded per-encounter
 // buckets and the latest finished encounter, never individual hits or the whole session.
 let liveMeter = createLiveMeter();
-let manualPersonalActorId: number | undefined;
 const liveLog = liveLogOverride ? new DpsLogFollower(liveLogOverride) : new DpsSessionLogFollower(options.logDirectory);
 let liveLogPolling = false;
 let publishing = false;
