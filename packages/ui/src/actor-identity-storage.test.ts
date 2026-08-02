@@ -39,17 +39,17 @@ describe("actor identity cache storage", () => {
     try {
       let cache: ActorIdentityCache = { entries: [] };
       cache = updateActorIdentityCache(cache, {
-        uid: "uid-1", displayName: "Yuna", archetype: 26, lastSeenAtMs: 1_000,
+        uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 1_000,
       });
       cache = updateActorIdentityCache(cache, {
-        uid: "uid-2", displayName: "Josh", lastSeenAtMs: 2_000,
+        uid: "uid-2", displayName: "Fictional Scout", lastSeenAtMs: 2_000,
       });
       await saveActorIdentityCache(cache, file);
 
       const restored = await loadActorIdentityCache(file);
       expect(restored.entries.sort((left, right) => left.uid.localeCompare(right.uid))).toEqual([
-        { uid: "uid-1", displayName: "Yuna", archetype: 26, lastSeenAtMs: 1_000 },
-        { uid: "uid-2", displayName: "Josh", lastSeenAtMs: 2_000 },
+        { uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 1_000 },
+        { uid: "uid-2", displayName: "Fictional Scout", lastSeenAtMs: 2_000 },
       ]);
 
       const persisted = JSON.parse(await readFile(file, "utf8"));
@@ -62,19 +62,19 @@ describe("actor identity cache storage", () => {
   test("upserts by uid and refreshes lastSeenAtMs", () => {
     let cache: ActorIdentityCache = { entries: [] };
     cache = updateActorIdentityCache(cache, {
-      uid: "uid-1", displayName: "Yuna", archetype: 26, lastSeenAtMs: 1_000,
+      uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 1_000,
     });
     cache = updateActorIdentityCache(cache, {
-      uid: "uid-1", displayName: "Yuna", archetype: 26, lastSeenAtMs: 5_000,
+      uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 5_000,
     });
-    expect(cache.entries).toEqual([{ uid: "uid-1", displayName: "Yuna", archetype: 26, lastSeenAtMs: 5_000 }]);
+    expect(cache.entries).toEqual([{ uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 5_000 }]);
   });
 
   test("prunes entries older than 30 days relative to the newest update", () => {
     let cache: ActorIdentityCache = { entries: [] };
     const now = 1_000 * 24 * 60 * 60 * 1_000;
     cache = updateActorIdentityCache(cache, { uid: "stale", displayName: "Old Timer", lastSeenAtMs: 0 });
-    cache = updateActorIdentityCache(cache, { uid: "fresh", displayName: "Yuna", lastSeenAtMs: now });
+    cache = updateActorIdentityCache(cache, { uid: "fresh", displayName: "Fictional Ranger", lastSeenAtMs: now });
     expect(cache.entries.map(({ uid }) => uid)).toEqual(["fresh"]);
   });
 

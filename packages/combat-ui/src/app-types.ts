@@ -2,7 +2,13 @@ import type { RPCSchema } from "electrobun";
 
 /** Typed renderer contracts for the combat UI windows. */
 
-import type { FishNetDpsActorRow, FishNetDpsEncounterSnapshot, FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
+import type {
+  FishNetDpsActorRow,
+  FishNetDpsEncounterSnapshot,
+  FishNetDpsSkillRow,
+  FishNetDpsTimelinePoint,
+  FishNetPersonalMatch,
+} from "@kar-mi/spirit-vale-tools-combat";
 import type { DeathLogEntry } from "./death-log.ts";
 import type { SessionPickerState } from "@spiritvale/ui-core/session-picker-types";
 import type { EnemyDamageRow, EnemyOption } from "./enemy-breakdown.ts";
@@ -10,60 +16,15 @@ import type { EnemyDamageRow, EnemyOption } from "./enemy-breakdown.ts";
 export type { StatType } from "@spiritvale/ui-core/stat-type-select";
 import type { StatType } from "@spiritvale/ui-core/stat-type-select";
 
-export interface MeterSkillRow {
-  sourceId: string;
-  sourceLabel: string;
-  damage: number;
-  dps: number;
-  contribution: number;
-  hits: number;
-  criticalHits: number;
-  critRate?: number;
-}
-
-export interface MeterTimelinePoint {
-  elapsedMs: number;
-  damage: number;
-  cumulativeDamage: number;
-  dps: number;
-}
-
-export interface MeterActorRow {
-  actorIds: number[];
-  displayName: string;
-  archetype?: number;
-  durationMs?: number;
-  lastDamageAtMs?: number;
-  damage: number;
-  dps: number;
-  currentDps: number;
-  contribution: number;
-  hits: number;
-  criticalHits: number;
-  critRate?: number;
-  kills: number;
-  mobsHit: number;
-  skills: MeterSkillRow[];
-  timeline: MeterTimelinePoint[];
-  isUnidentified?: boolean;
-}
-
-export type MeterPersonalMatch = "unconfigured" | "missing" | "matched" | "ambiguous";
-
-export interface MeterEncounterSnapshot {
-  id: string;
-  startedAtMs: number;
-  lastDamageAtMs: number;
-  endedAtMs?: number;
-  durationMs: number;
-  totalDamage: number;
-  partyDps: number;
-  partyCurrentDps: number;
-  actors: MeterActorRow[];
-  personalName: string;
-  personalMatch: MeterPersonalMatch;
-  personal?: MeterActorRow;
-}
+/**
+ * The tanked and healing meters render with the same detail as the DPS meter, and upstream builds
+ * all three through one reducer, so these are that package's row types rather than parallel copies.
+ */
+export type MeterSkillRow = FishNetDpsSkillRow;
+export type MeterTimelinePoint = FishNetDpsTimelinePoint;
+export type MeterActorRow = FishNetDpsActorRow;
+export type MeterPersonalMatch = FishNetPersonalMatch;
+export type MeterEncounterSnapshot = FishNetDpsEncounterSnapshot;
 
 export type DpsAppTab = "all" | "personal";
 export type CombatLogScreen = "live" | "past";

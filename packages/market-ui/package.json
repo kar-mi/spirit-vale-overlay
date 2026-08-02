@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "@preact/signals": "^2.9.4",
-    "@kar-mi/spirit-vale-tools-market": "0.1.5",
+    "@kar-mi/spirit-vale-tools-market": "0.2.0",
     "@spiritvale/ui-core": "workspace:*",
     "electrobun": "1.18.1",
     "preact": "^10.29.7"

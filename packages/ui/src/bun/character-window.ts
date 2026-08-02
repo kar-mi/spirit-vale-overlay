@@ -1,10 +1,11 @@
-import Electrobun, { BrowserView, BrowserWindow } from "electrobun/bun";
+import { BrowserView, BrowserWindow } from "electrobun/bun";
 import { applyRoundedCorners, setWindowIcon } from "@spiritvale/ui-core/win32";
 import { appIconPath } from "@spiritvale/ui-core/window-publish";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterRpc } from "../character-types.ts";
-import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale";
+import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale-window";
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
+import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 
 export interface CharacterWindowOptions {
   getState: () => CharacterViewState;
@@ -17,6 +18,7 @@ export interface CharacterWindowOptions {
 export async function createCharacterWindow(options: CharacterWindowOptions) {
   let window: BrowserWindow;
   let closing = false;
+  const lifecycle = new DisposableStore();
   const rpc = BrowserView.defineRPC<CharacterRpc>({
     handlers: {
       requests: {
@@ -47,25 +49,27 @@ export async function createCharacterWindow(options: CharacterWindowOptions) {
   });
   applyRoundedCorners(window.ptr);
   setWindowIcon(window.ptr, appIconPath);
-  registerUiScaleWindow(window, { scaleInitialFrame: !options.placements });
-  options.placements?.track("character", window);
+  lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: !options.placements }));
+  const disposePlacement = options.placements?.track("character", window);
+  if (disposePlacement) lifecycle.add(disposePlacement);
   const unsubscribe = options.subscribe((state) => {
     try { rpc.send.stateChanged(state); } catch { /* View may still be connecting. */ }
   });
-  Electrobun.events.on(`resize-${window.id}`, (event: { data: { width: number; height: number } }) => {
+  lifecycle.add(unsubscribe);
+  lifecycle.add(onWindowEvent(window, "resize", (event: { data: { width: number; height: number } }) => {
     const width = Math.max(scaledSize(680), event.data.width);
     const height = Math.max(scaledSize(520), event.data.height);
     if (width !== event.data.width || height !== event.data.height) window.setSize(width, height);
-  });
-  window.on("close", () => {
+  }));
+  lifecycle.add(onceWindowEvent(window, "close", () => {
     if (closing) return;
     closing = true;
-    unsubscribe();
+    lifecycle.dispose();
     options.onClosed?.();
-  });
+  }));
   return {
     show: () => window.show(),
     activate: () => window.activate(),
-    close: async () => { unsubscribe(); closing = true; window.close(); },
+    close: async () => { window.close(); },
   };
 }

@@ -1,43 +1,49 @@
 import path from "node:path";
 import { stat } from "node:fs/promises";
 
-import Electrobun, { BrowserView, BrowserWindow } from "electrobun/bun";
+import { BrowserView, BrowserWindow, Utils } from "electrobun/bun";
 import { applyRoundedCorners, setWindowIcon } from "@spiritvale/ui-core/win32";
 import { appIconPath } from "@spiritvale/ui-core/window-publish";
 
 import {
-  FishNetDpsMeter,
   DpsLogFollower,
   DpsSessionLogFollower,
   inspectCombatReplaySummary,
+  LiveCombatService,
 } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { listLogSessions } from "@kar-mi/spirit-vale-tools-logging";
+import type { CombatEncounterRecord } from "@kar-mi/spirit-vale-tools-combat";
 import { loadDpsAppSettings, saveDpsAppSettings } from "../settings.ts";
-import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppStatus, MeterEncounterSnapshot } from "../app-types.ts";
-import { TpsMeter } from "../tps-meter.ts";
-import { HpsMeter } from "../hps-meter.ts";
+import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppStatus } from "../app-types.ts";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
-import { Utils } from "electrobun/bun";
 import { createCombatAnalysisController } from "./combat-analysis-window.ts";
-import { registerUiScaleWindow, scaledSize, unscaledSize } from "@spiritvale/ui-core/ui-scale";
+import { registerUiScaleWindow, scaledSize, unscaledSize } from "@spiritvale/ui-core/ui-scale-window";
 import { visibleScaledWindowFrame, type WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
 import { DPS_WINDOW_MINIMUM_HEIGHT, DPS_WINDOW_MINIMUM_WIDTH } from "../window-size.ts";
 import { loadSessionSummaryCache, type SessionSummaryCache } from "@spiritvale/ui-core/session-summary-cache";
 import type { SessionPickerState } from "@spiritvale/ui-core/session-picker-types";
 import { activeDeathLogSource } from "../combat-navigation.ts";
-import {
-  createPersonalDpsMeter,
-  detectedPersonalName,
-  syncPersonalCharacter,
-} from "../personal-character.ts";
+import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
+import { detectedPersonalName } from "../personal-character.ts";
+import type { CombatReadModelSource } from "../combat-history.ts";
 
 const MINIMUM_WIDTH = DPS_WINDOW_MINIMUM_WIDTH;
 const MINIMUM_HEIGHT = DPS_WINDOW_MINIMUM_HEIGHT;
 const LIVE_LOG_POLL_MS = 1_000;
 const MAX_RECENT_SESSIONS = 100;
+/**
+ * Sessions inspected while filling the list. Empty sessions are skipped, so the scan has to reach
+ * past MAX_RECENT_SESSIONS to still show that many — bounded so a directory full of empty sessions
+ * cannot turn one refresh into an unbounded summarize pass.
+ */
+const MAX_SCANNED_SESSIONS = MAX_RECENT_SESSIONS * 3;
+/** Timeline buckets retained per encounter. Beyond this, adjacent buckets merge. */
+const TIMELINE_POINTS = 720;
 export interface DpsWindowOptions {
   logDirectory: string;
+  /** Past analysis and the death log read managed session logs from here when it is available. */
+  readModel?: CombatReadModelSource;
   getCharacterState: () => CharacterViewState;
   subscribeCharacter: (listener: (state: CharacterViewState) => void) => () => void;
   settingsPath?: string;
@@ -57,14 +63,17 @@ let personalName = detectedPersonalName(initialCharacterState);
 let window: BrowserWindow;
 let status: DpsAppStatus = "waiting";
 let statusDetail = liveLogOverride ? `Looking for ${path.basename(liveLogOverride)}…` : "Looking for a combat session…";
-let liveMeter = createPersonalDpsMeter(initialCharacterState);
-let tpsMeter = new TpsMeter({ personalName });
-let hpsMeter = new HpsMeter({ personalName });
+// Declared before the meter: createLiveMeter() reads it, and a `let` referenced before its
+// declaration throws rather than reading undefined.
 let manualPersonalActorId: number | undefined;
+// One service aggregates DPS, TPS and HPS from the same events. It retains bounded per-encounter
+// buckets and the latest finished encounter, never individual hits or the whole session.
+let liveMeter = createLiveMeter();
 const liveLog = liveLogOverride ? new DpsLogFollower(liveLogOverride) : new DpsSessionLogFollower(options.logDirectory);
 let liveLogPolling = false;
 let publishing = false;
 let shuttingDown = false;
+let closedCallbackSent = false;
 let storageWarning: string | undefined;
 let resetting = false;
 let lastEventObservedAtMs: number | undefined;
@@ -75,6 +84,7 @@ let past: DpsAppState["past"] = { view: "selector", picker: pastPickerLoadingSta
 let pastPaths = new Map<string, string>();
 let pastRefreshSequence = 0;
 let pastSummaryCachePromise: Promise<SessionSummaryCache> | undefined;
+const lifecycle = new DisposableStore();
 
 const settingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "DPS settings",
@@ -83,6 +93,8 @@ const settingsPersistence = new SafeSaveQueue<typeof settings>({
 });
 
 const analysis = createCombatAnalysisController({
+  logDirectory: options.logDirectory,
+  ...(options.readModel === undefined ? {} : { readModel: options.readModel }),
   placements: options.placements,
   onOpenSettings: options.onOpenSettings,
   onStateChanged: (nextAnalysis) => {
@@ -151,18 +163,7 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
           publish();
           try {
             await options.onReset();
-            liveMeter = new FishNetDpsMeter({
-              personalName,
-              ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-            });
-            tpsMeter = new TpsMeter({
-              personalName,
-              ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-            });
-            hpsMeter = new HpsMeter({
-              personalName,
-              ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-            });
+            liveMeter = createLiveMeter();
             lastEventObservedAtMs = undefined;
             lastEventWallMs = undefined;
           } catch {
@@ -177,8 +178,6 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
       setPersonalActor: ({ actorId }) => {
         manualPersonalActorId = actorId ?? undefined;
         liveMeter.setPersonalActorId(manualPersonalActorId);
-        tpsMeter.setPersonalActorId(manualPersonalActorId);
-        hpsMeter.setPersonalActorId(manualPersonalActorId);
         publish();
         return appState();
       },
@@ -219,14 +218,14 @@ window = new BrowserWindow({
 });
 applyRoundedCorners(window.ptr);
 setWindowIcon(window.ptr, appIconPath);
-registerUiScaleWindow(window, { scaleInitialFrame: false });
+lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: false }));
 
-Electrobun.events.on(`move-${window.id}`, (event: { data: typeof settings.frame }) => {
+lifecycle.add(onWindowEvent(window, "move", (event: { data: typeof settings.frame }) => {
   if (window.isMaximized()) return;
   settings.frame = unscaleFrame(clampPhysicalFrame(event.data));
   scheduleSettingsSave();
-});
-Electrobun.events.on(`resize-${window.id}`, (event: { data: typeof settings.frame }) => {
+}));
+lifecycle.add(onWindowEvent(window, "resize", (event: { data: typeof settings.frame }) => {
   if (window.isMaximized()) return;
   const frame = clampPhysicalFrame(event.data);
   settings.frame = unscaleFrame(frame);
@@ -234,11 +233,8 @@ Electrobun.events.on(`resize-${window.id}`, (event: { data: typeof settings.fram
     window.setSize(frame.width, frame.height);
   }
   scheduleSettingsSave();
-});
-window.on("close", () => {
-  void shutdown();
-  options.onClosed?.();
-});
+}));
+lifecycle.add(onceWindowEvent(window, "close", () => { void shutdown(); }));
 
 const liveLogTimer = setInterval(() => void pollLiveLog(), LIVE_LOG_POLL_MS);
 const unsubscribeCharacter = options.subscribeCharacter(syncDetectedCharacter);
@@ -295,32 +291,14 @@ async function pollLiveLog(): Promise<void> {
     const batch = await liveLog.poll();
     currentLiveLogPath = batch.path ?? liveLogOverride ?? currentLiveLogPath;
     if (batch.reset) {
-      liveMeter = new FishNetDpsMeter({
-        personalName,
-        ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-      });
-      tpsMeter = new TpsMeter({
-        personalName,
-        ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-      });
-      hpsMeter = new HpsMeter({
-        personalName,
-        ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-      });
+      liveMeter = createLiveMeter();
       lastEventObservedAtMs = undefined;
       lastEventWallMs = undefined;
     }
     let batchLastObservedAtMs: number | undefined;
     for (const { event, observedAtMs } of batch.events) {
-      if (event.kind === "actorIdentity") {
-        liveMeter.consumeIdentity(event, observedAtMs);
-        tpsMeter.consumeIdentity(event);
-        hpsMeter.consumeIdentity(event);
-      } else {
-        liveMeter.consumeCombat(event, observedAtMs);
-        tpsMeter.consumeCombat(event, observedAtMs);
-        hpsMeter.consumeCombat(event, observedAtMs);
-      }
+      if (event.kind === "actorIdentity") liveMeter.consumeIdentity(event, observedAtMs);
+      else liveMeter.consumeCombat(event, observedAtMs);
       batchLastObservedAtMs = Math.max(batchLastObservedAtMs ?? observedAtMs, observedAtMs);
     }
     if (batchLastObservedAtMs !== undefined) {
@@ -333,7 +311,7 @@ async function pollLiveLog(): Promise<void> {
     if (batch.missing) updateLiveStatus("waiting", `Waiting for ${fileName}`);
     else if (batch.invalidLines > 0) updateLiveStatus("ready", `Reading ${fileName} with skipped lines`);
     else if (batch.events.length > 0) updateLiveStatus("capturing", `Reading ${fileName}`);
-    else updateLiveStatus(liveMeter.getLatestSnapshot() ? "ready" : "waiting", `Watching ${fileName}`);
+    else updateLiveStatus(latestRecord() ? "ready" : "waiting", `Watching ${fileName}`);
   } catch {
     updateLiveStatus("error", `Could not read ${path.basename(liveLogOverride ?? "combat.jsonl")}`);
   } finally {
@@ -350,40 +328,32 @@ function syncDetectedCharacter(characterState: CharacterViewState): void {
   const nextPersonalName = detectedPersonalName(characterState);
   if (nextPersonalName === personalName) return;
   personalName = nextPersonalName;
-  syncPersonalCharacter(liveMeter, characterState);
-  syncPersonalCharacter(tpsMeter, characterState);
-  syncPersonalCharacter(hpsMeter, characterState);
+  liveMeter.setPersonalName(personalName);
   if (manualPersonalActorId !== undefined) {
     manualPersonalActorId = undefined;
     liveMeter.setPersonalActorId(undefined);
-    tpsMeter.setPersonalActorId(undefined);
-    hpsMeter.setPersonalActorId(undefined);
   }
   publish();
 }
 
+function createLiveMeter(): LiveCombatService {
+  return new LiveCombatService({
+    personalName,
+    timelinePoints: TIMELINE_POINTS,
+    ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
+  });
+}
+
+/** The encounter in progress, or the most recent one once it has ended. */
+function latestRecord(): CombatEncounterRecord | undefined {
+  const state = liveMeter.getState(relativeNowMs());
+  return state.current ?? state.latestFinished;
+}
+
 function liveSnapshots(): Pick<DpsAppState, "snapshot" | "tankedSnapshot" | "healSnapshot"> {
-  const nowMs = relativeNowMs();
-  const snapshot = liveMeter.getLatestSnapshot(nowMs);
-  const encounterWindow = snapshot
-    ? {
-        id: snapshot.id,
-        startedAtMs: snapshot.startedAtMs,
-        endedAtMs: snapshot.endedAtMs ?? nowMs ?? snapshot.lastDamageAtMs,
-        durationMs: snapshot.durationMs,
-      }
-    : undefined;
-  const tankedSnapshot: MeterEncounterSnapshot | undefined = encounterWindow
-    ? tpsMeter.getSnapshot(encounterWindow, nowMs ?? encounterWindow.endedAtMs)
-    : undefined;
-  const healSnapshot: MeterEncounterSnapshot | undefined = encounterWindow
-    ? hpsMeter.getSnapshot(encounterWindow, nowMs ?? encounterWindow.endedAtMs)
-    : undefined;
-  return {
-    ...(snapshot ? { snapshot } : {}),
-    ...(tankedSnapshot ? { tankedSnapshot } : {}),
-    ...(healSnapshot ? { healSnapshot } : {}),
-  };
+  const record = latestRecord();
+  if (!record) return {};
+  return { snapshot: record.dps, tankedSnapshot: record.tps.detail, healSnapshot: record.hps.detail };
 }
 
 function setScreen(nextScreen: CombatLogScreen): void {
@@ -418,7 +388,7 @@ async function refreshPastSessions(): Promise<void> {
   publish();
   try {
     const cache = await pastSummaryCache();
-    const sessions = await listLogSessions("combat", options.logDirectory, Number.MAX_SAFE_INTEGER);
+    const sessions = await listLogSessions("combat", options.logDirectory, MAX_SCANNED_SESSIONS);
     const nextPaths = new Map<string, string>();
     const items: SessionPickerState["sessions"] = [];
     for (let offset = 0; offset < sessions.length && items.length < MAX_RECENT_SESSIONS; offset += 10) {
@@ -566,10 +536,30 @@ function scheduleSettingsSave(): void {
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  lifecycle.dispose();
   analysis.close();
   unsubscribeCharacter();
   if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
   clearInterval(liveLogTimer);
-  await settingsPersistence.flush(settings);
+  try {
+    await settingsPersistence.flush(settings);
+  } finally {
+    notifyClosed();
+  }
+}
+
+/**
+ * Reports the close exactly once.
+ *
+ * This cannot live only in the `close` event handler: every close in this app is programmatic (the
+ * title bar is custom, so there is no native chrome to click), and teardown disposes that listener
+ * before calling `window.close()`. The event would then arrive with nothing listening, leaving the
+ * caller's slot pointing at a destroyed window — the next open would fail with "Window no longer
+ * exists". Teardown always runs, so it is the reliable place to report from.
+ */
+function notifyClosed(): void {
+  if (closedCallbackSent) return;
+  closedCallbackSent = true;
+  options.onClosed?.();
 }
 }

@@ -1,10 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import Electrobun, { BrowserWindow, Screen } from "electrobun/bun";
+import { BrowserWindow, Screen } from "electrobun/bun";
 
 import { SafeSaveQueue } from "./safe-save.ts";
-import { scaledSize, unscaledSize } from "./ui-scale.ts";
+import { scaledSize, unscaledSize } from "./ui-scale-window.ts";
+import { DisposableStore, onWindowEvent, onceWindowEvent, type Dispose } from "./window-lifecycle.ts";
 import type { WindowFrame } from "./window-chrome.ts";
 import {
   isWindowFrame,
@@ -66,16 +67,19 @@ export class WindowPlacementStore {
     });
   }
 
-  track(key: string, window: BrowserWindow): void {
+  track(key: string, window: BrowserWindow): Dispose {
+    const lifecycle = new DisposableStore();
     const capture = (frame: WindowFrame): void => {
       if (window.isMaximized()) return;
       this.remember(key, frame);
     };
-    Electrobun.events.on(`move-${window.id}`, (event: { data: WindowFrame }) => capture(event.data));
-    Electrobun.events.on(`resize-${window.id}`, (event: { data: WindowFrame }) => capture(event.data));
-    window.on("close", () => {
+    lifecycle.add(onWindowEvent(window, "move", (event: { data: WindowFrame }) => capture(event.data)));
+    lifecycle.add(onWindowEvent(window, "resize", (event: { data: WindowFrame }) => capture(event.data)));
+    lifecycle.add(onceWindowEvent(window, "close", () => {
       if (!window.isMaximized()) capture(window.getFrame());
-    });
+      lifecycle.dispose();
+    }));
+    return () => lifecycle.dispose();
   }
 
   remember(key: string, frame: WindowFrame): void {

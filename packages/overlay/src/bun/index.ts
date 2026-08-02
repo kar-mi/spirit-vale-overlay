@@ -1,19 +1,24 @@
 import path from "node:path";
 
-import { DpsLogFollower, DpsSessionLogFollower, FishNetStatusTracker } from "@kar-mi/spirit-vale-tools-combat";
+import {
+  DpsLogFollower,
+  DpsSessionLogFollower,
+  FishNetStatusTracker,
+  LiveCombatService,
+} from "@kar-mi/spirit-vale-tools-combat";
+import type { CombatEncounterRecord } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { loadBundledMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
 import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
-import { HpsMeter } from "@spiritvale/combat-ui/hps-meter";
-import { TpsMeter } from "@spiritvale/combat-ui/tps-meter";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { hideWindowFromTaskbar, setWindowClickThrough } from "@spiritvale/ui-core/win32";
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
+import { DisposableStore, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/bun";
 
 import type { KeybindAction, OverlayRpc, OverlayState, OverlayStatus } from "../app-types.ts";
 import { KEYBIND_ACTIONS, METER_STAT_TYPE_CYCLE } from "../app-types.ts";
-import { createPersonalDpsMeter, detectedPersonalName, syncPersonalCharacter } from "../personal-character.ts";
+import { detectedPersonalName } from "../personal-character.ts";
 import { personalExperience } from "../personal-experience.ts";
 import { personalResources } from "../personal-resources.ts";
 import {
@@ -25,6 +30,8 @@ import {
 } from "../settings.ts";
 
 const LIVE_LOG_POLL_MS = 1_000;
+/** Timeline buckets retained per encounter. Beyond this, adjacent buckets merge. */
+const TIMELINE_POINTS = 720;
 const EXPERIENCE_REQUIREMENTS = loadBundledMobRewardCatalog().experienceRequirements;
 const KEYBIND_LABELS: Record<KeybindAction, string> = {
   toggleLock: "lock/unlock",
@@ -61,9 +68,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   let settings = await loadOverlaySettings(options.settingsPath, bounds);
   if (options.lockOnCreate) settings.locked = true;
   let characterState = options.getCharacterState();
-  let meter = createPersonalDpsMeter(characterState);
-  let tpsMeter = new TpsMeter({ personalName: detectedPersonalName(characterState) });
-  let hpsMeter = new HpsMeter({ personalName: detectedPersonalName(characterState) });
+  // One service aggregates DPS, TPS and HPS from the same events, retaining bounded per-encounter
+  // buckets and the latest finished encounter rather than the session's hits.
+  let meter = createLiveMeter();
   let statusTracker = new FishNetStatusTracker();
   const liveLogOverride = process.env.SPIRIT_VALE_COMBAT_LOG;
   const liveLog = liveLogOverride
@@ -84,6 +91,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   let lastEventObservedAtMs: number | undefined;
   let lastEventWallMs: number | undefined;
   let unsubscribeCharacter = () => {};
+  const lifecycle = new DisposableStore();
 
   const persistence = new SafeSaveQueue<typeof settings>({
     label: "overlay settings",
@@ -162,10 +170,10 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   hideWindowFromTaskbar(overlayWindow.ptr);
   setWindowClickThrough(overlayWindow.ptr, settings.locked);
   overlayWindow.showInactive();
-  overlayWindow.on("close", () => {
+  lifecycle.add(onceWindowEvent(overlayWindow, "close", () => {
     void shutdown();
     notifyClosed();
-  });
+  }));
   for (const action of KEYBIND_ACTIONS) {
     shortcutRegistered.set(action, registerShortcut(action, settings.shortcuts[action]));
   }
@@ -173,9 +181,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   const pollTimer = setInterval(() => void pollLiveLog(), LIVE_LOG_POLL_MS);
   unsubscribeCharacter = options.subscribeCharacter((next) => {
     characterState = next;
-    syncPersonalCharacter(meter, characterState);
-    tpsMeter.setPersonalName(detectedPersonalName(characterState));
-    hpsMeter.setPersonalName(detectedPersonalName(characterState));
+    meter.setPersonalName(detectedPersonalName(characterState));
     publish();
   });
   const unsubscribeXp = options.xp.subscribe(() => publish());
@@ -200,17 +206,10 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
 
   function appState(): OverlayState {
     const snapshotNowMs = relativeNowMs();
-    const snapshot = meter.getLatestSnapshot(snapshotNowMs);
-    const encounterWindow = snapshot
-      ? {
-          id: snapshot.id,
-          startedAtMs: snapshot.startedAtMs,
-          endedAtMs: snapshot.endedAtMs ?? snapshotNowMs ?? snapshot.lastDamageAtMs,
-          durationMs: snapshot.durationMs,
-        }
-      : undefined;
-    const tankedSnapshot = encounterWindow ? tpsMeter.getSnapshot(encounterWindow, snapshotNowMs ?? encounterWindow.endedAtMs) : undefined;
-    const healSnapshot = encounterWindow ? hpsMeter.getSnapshot(encounterWindow, snapshotNowMs ?? encounterWindow.endedAtMs) : undefined;
+    const record = latestRecord();
+    const snapshot = record?.dps;
+    const tankedSnapshot = record?.tps.detail;
+    const healSnapshot = record?.hps.detail;
     const resources = personalResources(characterState.records);
     const experience = personalExperience(characterState.snapshot, EXPERIENCE_REQUIREMENTS);
     const personalName = detectedPersonalName(characterState);
@@ -347,9 +346,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       const batch = await liveLog.poll();
       options.onLiveLogPathChanged?.(batch.path ?? liveLogOverride);
       if (batch.reset) {
-        meter = createPersonalDpsMeter(characterState);
-        tpsMeter = new TpsMeter({ personalName: detectedPersonalName(characterState) });
-        hpsMeter = new HpsMeter({ personalName: detectedPersonalName(characterState) });
+        meter = createLiveMeter();
         statusTracker = new FishNetStatusTracker();
         lastEventObservedAtMs = undefined;
         lastEventWallMs = undefined;
@@ -358,13 +355,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       for (const { event, observedAtMs } of batch.events) {
         if (event.kind === "actorIdentity") {
           meter.consumeIdentity(event, observedAtMs);
-          tpsMeter.consumeIdentity(event);
-          hpsMeter.consumeIdentity(event);
           statusTracker.consumeIdentity(event);
         } else {
           meter.consumeCombat(event, observedAtMs);
-          tpsMeter.consumeCombat(event, observedAtMs);
-          hpsMeter.consumeCombat(event, observedAtMs);
           statusTracker.consume(event, observedAtMs);
         }
         batchLastObservedAtMs = Math.max(batchLastObservedAtMs ?? observedAtMs, observedAtMs);
@@ -386,7 +379,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
         status = "capturing";
         statusDetail = batch.invalidLines > 0 ? `Reading ${fileName} with skipped lines` : `Reading ${fileName}`;
       } else {
-        status = meter.getLatestSnapshot() ? "ready" : "waiting";
+        status = latestRecord() ? "ready" : "waiting";
         statusDetail = `Watching ${fileName}`;
       }
       publish();
@@ -404,9 +397,23 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     return lastEventObservedAtMs + (Date.now() - lastEventWallMs);
   }
 
+  function createLiveMeter(): LiveCombatService {
+    return new LiveCombatService({
+      personalName: detectedPersonalName(characterState),
+      timelinePoints: TIMELINE_POINTS,
+    });
+  }
+
+  /** The encounter in progress, or the most recent one once it has ended. */
+  function latestRecord(): CombatEncounterRecord | undefined {
+    const state = meter.getState(relativeNowMs());
+    return state.current ?? state.latestFinished;
+  }
+
   async function shutdown(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
+    lifecycle.dispose();
     clearInterval(pollTimer);
     unsubscribeCharacter();
     unsubscribeCharacter = () => {};

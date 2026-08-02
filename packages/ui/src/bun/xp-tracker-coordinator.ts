@@ -1,5 +1,6 @@
-import { RewardSessionLogFollower, XpAggregateTracker } from "@kar-mi/spirit-vale-tools-rewards";
+import { XpAggregateTracker } from "@kar-mi/spirit-vale-tools-rewards";
 import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
+import { JsonlTailReader, LiveLogSessionFollower, parseLogRecord } from "@kar-mi/spirit-vale-tools-logging";
 
 const POLL_MS = 1_000;
 
@@ -24,11 +25,15 @@ export function createXpTrackerCoordinator(options: { logDirectory: string }): X
   tracker.reset(Date.now());
   const listeners = new Set<() => void>();
 
-  const follower = new RewardSessionLogFollower(options.logDirectory, {
-    onExperience: (experience, recordedAtMs) => {
+  const follower = new LiveLogSessionFollower<ExperienceLogFollower, void>({
+    stream: "rewards",
+    logDirectory: options.logDirectory,
+    createFollower: (path) => new ExperienceLogFollower(path, (experience, recordedAtMs) => {
       tracker.record(experience, recordedAtMs);
       notify();
-    },
+    }),
+    mergeSessionChange: (batch) => batch,
+    noStreamBatch: () => {},
   });
 
   let polling = false;
@@ -68,4 +73,30 @@ export function createXpTrackerCoordinator(options: { logDirectory: string }): X
       clearInterval(timer);
     },
   };
+}
+
+/** Follows only the two scalar fields needed by the XP tracker and retains no reward history. */
+class ExperienceLogFollower {
+  private readonly reader: JsonlTailReader;
+
+  constructor(path: string, private readonly onExperience: (experience: number, recordedAtMs: number) => void) {
+    this.reader = new JsonlTailReader(path);
+  }
+
+  async poll(): Promise<void> {
+    const { missing, lines } = await this.reader.read();
+    if (missing) return;
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let candidate: unknown;
+      try { candidate = JSON.parse(line); } catch { continue; }
+      const record = parseLogRecord(candidate);
+      if (!record || record.type !== "rewards.kill" || record.data["kind"] !== "kill") continue;
+      const experience = record.data["experience"];
+      const recordedAtMs = Date.parse(record.recordedAt);
+      if (typeof experience === "number" && Number.isFinite(experience) && experience > 0 && Number.isFinite(recordedAtMs)) {
+        this.onExperience(experience, recordedAtMs);
+      }
+    }
+  }
 }

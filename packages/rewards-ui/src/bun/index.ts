@@ -1,16 +1,22 @@
 import path from "node:path";
 
-import Electrobun, { BrowserView, BrowserWindow } from "electrobun/bun";
+import { BrowserView, BrowserWindow } from "electrobun/bun";
 import { mountRoundedWindow, publishSafely } from "@spiritvale/ui-core/window-publish";
 import {
-  emptySnapshot,
   inspectRewardsReplaySummary,
+  LiveRewardService,
+  LiveRewardSessionLogFollower,
   loadBundledMobRewardCatalog,
   loadRewardReplay,
   queryMobRewardCatalog,
-  RewardSessionLogFollower,
+  RewardHistoryStore,
 } from "@kar-mi/spirit-vale-tools-rewards";
-import type { RewardLogStatus, XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
+import type {
+  RewardAggregateSnapshot,
+  RewardLogStatus,
+  XpAggregateSnapshot,
+} from "@kar-mi/spirit-vale-tools-rewards";
+import type { ReadModel } from "@kar-mi/spirit-vale-tools-sqlite";
 import type {
   RewardsAppMode,
   RewardsAppRpc,
@@ -23,11 +29,24 @@ import { loadRewardsSettings, saveRewardsSettings } from "../settings.ts";
 import { xpToLevelUp } from "../xp-to-level.ts";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { createSessionPicker } from "@spiritvale/ui-core/session-picker";
-import { registerUiScaleWindow, scaledSize, unscaledSize } from "@spiritvale/ui-core/ui-scale";
+import { registerUiScaleWindow, scaledSize, unscaledSize } from "@spiritvale/ui-core/ui-scale-window";
 import { visibleScaledWindowFrame, type WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
+import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
+import { managedSessionId } from "@spiritvale/ui-core/managed-session";
+import { chartBuckets, chartSample, CHART_POINTS, RECENT_KILL_LIMIT } from "../reward-chart.ts";
 
 const POLL_MS = 1_000;
 const catalog = loadBundledMobRewardCatalog();
+
+/** The desktop process's shared SQLite read model, when it is available. */
+export interface RewardsReadModelSource {
+  model(): ReadModel | undefined;
+  indexSession(
+    sessionId: string,
+    stream: "combat" | "rewards",
+    options?: { finalize?: boolean },
+  ): Promise<{ ok: boolean }>;
+}
 
 /** The Rewards window's XP Tracker tab reads from (and can reset) a tracker owned centrally, shared with the overlay, so both stay in sync. */
 export interface XpTrackerSource {
@@ -38,6 +57,8 @@ export interface XpTrackerSource {
 
 export interface RewardsWindowOptions {
   logDirectory: string;
+  /** Replays are read from here when present; without it they fall back to a full in-memory load. */
+  readModel?: RewardsReadModelSource;
   xp: XpTrackerSource;
   getCharacterState(): { snapshot?: { level: number; experience: number } };
   subscribeCharacter(listener: () => void): () => void;
@@ -50,7 +71,10 @@ export interface RewardsWindowOptions {
 
 export async function createRewardsWindow(options: RewardsWindowOptions) {
 const settings = await loadRewardsSettings(options.settingsPath);
-const follower = new RewardSessionLogFollower(options.logDirectory);
+const follower = new LiveRewardSessionLogFollower(options.logDirectory, {
+  recentKillLimit: RECENT_KILL_LIMIT,
+  chartPoints: CHART_POINTS,
+});
 
 let window: BrowserWindow;
 let catalogWindow: BrowserWindow | undefined;
@@ -58,14 +82,17 @@ let mode: RewardsAppMode = "live";
 let status: RewardsAppStatus = "waiting";
 let statusDetail = "Waiting for rewards data from the central capture.";
 let catalogQuery = "";
-let liveSnapshot = emptySnapshot();
-let replaySnapshot = emptySnapshot();
+let liveSnapshot = emptyAggregate();
+let replaySnapshot = emptyAggregate();
 let replayFileName: string | undefined;
 let replayWarnings = 0;
 let polling = false;
 let shuttingDown = false;
+let closedCallbackSent = false;
 let storageWarning: string | undefined;
 let resetting = false;
+const lifecycle = new DisposableStore();
+let catalogLifecycle: DisposableStore | undefined;
 
 const settingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "rewards settings",
@@ -101,7 +128,7 @@ const rpc = BrowserView.defineRPC<RewardsAppRpc>({
           publish();
           try {
             await options.onReset();
-            liveSnapshot = emptySnapshot();
+            liveSnapshot = emptyAggregate();
           } catch {
             // Keep the existing snapshot unchanged when rotation fails.
           } finally {
@@ -185,24 +212,21 @@ window = new BrowserWindow({
 });
 window.setAlwaysOnTop(settings.pinned);
 mountRoundedWindow(window);
-registerUiScaleWindow(window, { scaleInitialFrame: false });
+lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: false }));
 
-Electrobun.events.on(`move-${window.id}`, (event: { data: typeof settings.frame }) => {
+lifecycle.add(onWindowEvent(window, "move", (event: { data: typeof settings.frame }) => {
   if (window.isMaximized()) return;
   settings.frame = unscaleFrame(clampPhysicalFrame(event.data));
   scheduleSave();
-});
-Electrobun.events.on(`resize-${window.id}`, (event: { data: typeof settings.frame }) => {
+}));
+lifecycle.add(onWindowEvent(window, "resize", (event: { data: typeof settings.frame }) => {
   if (window.isMaximized()) return;
   const frame = clampPhysicalFrame(event.data);
   settings.frame = unscaleFrame(frame);
   if (frame.width !== event.data.width || frame.height !== event.data.height) window.setSize(frame.width, frame.height);
   scheduleSave();
-});
-window.on("close", () => {
-  void shutdown();
-  options.onClosed?.();
-});
+}));
+lifecycle.add(onceWindowEvent(window, "close", () => { void shutdown(); }));
 
 const timer = setInterval(() => void poll(), POLL_MS);
 void poll();
@@ -230,7 +254,8 @@ function appState(): RewardsAppState {
     resetting,
     ...(replayFileName ? { replayFileName } : {}),
     replayWarnings,
-    kills: snapshot.kills.slice(0, 100).map((kill) => ({
+    // Already bounded to RECENT_KILL_LIMIT by the aggregator, newest first.
+    kills: snapshot.recentKills.map((kill) => ({
       id: kill.id,
       ...(kill.recordedAt === undefined ? {} : { timestamp: kill.recordedAt }),
       mobId: kill.mob.mobId,
@@ -241,12 +266,7 @@ function appState(): RewardsAppState {
       coins: kill.coins.toString(),
       drops: kill.drops.map((drop) => ({ ...drop, itemName: itemName(drop.itemId) })),
     })),
-    graphSamples: snapshot.kills.flatMap((kill) => kill.recordedAt === undefined ? [] : [{
-      recordedAt: kill.recordedAt,
-      experience: kill.experience,
-      jobExperience: kill.jobExperience,
-      coins: kill.coins.toString(),
-    }]),
+    graphSamples: snapshot.chart.map(chartSample),
     summaries: snapshot.mobs.map((mob) => ({
       ...mob,
       coins: mob.coins.toString(),
@@ -287,27 +307,31 @@ function openCatalog(): void {
     transparent: false,
     rpc: catalogRpc,
   });
+  const nextLifecycle = new DisposableStore();
   catalogWindow = nextWindow;
+  catalogLifecycle = nextLifecycle;
   nextWindow.setAlwaysOnTop(settings.pinned);
   mountRoundedWindow(nextWindow);
-  registerUiScaleWindow(nextWindow, { scaleInitialFrame: false });
+  nextLifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
 
-  Electrobun.events.on(`move-${nextWindow.id}`, (event: { data: typeof settings.catalogFrame }) => {
+  nextLifecycle.add(onWindowEvent(nextWindow, "move", (event: { data: typeof settings.catalogFrame }) => {
     if (nextWindow.isMaximized()) return;
     settings.catalogFrame = unscaleCatalogFrame(clampPhysicalCatalogFrame(event.data));
     scheduleSave();
-  });
-  Electrobun.events.on(`resize-${nextWindow.id}`, (event: { data: typeof settings.catalogFrame }) => {
+  }));
+  nextLifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: typeof settings.catalogFrame }) => {
     if (nextWindow.isMaximized()) return;
     const frame = clampPhysicalCatalogFrame(event.data);
     settings.catalogFrame = unscaleCatalogFrame(frame);
     if (frame.width !== event.data.width || frame.height !== event.data.height) nextWindow.setSize(frame.width, frame.height);
     scheduleSave();
-  });
-  nextWindow.on("close", () => {
+  }));
+  nextLifecycle.add(onceWindowEvent(nextWindow, "close", () => {
+    nextLifecycle.dispose();
     catalogWindow = undefined;
+    catalogLifecycle = undefined;
     scheduleSave();
-  });
+  }));
 }
 
 async function poll(): Promise<void> {
@@ -330,19 +354,67 @@ async function poll(): Promise<void> {
 
 async function loadReplayPath(selectedPath: string): Promise<void> {
   try {
-    const replay = await loadRewardReplay(selectedPath);
-    replaySnapshot = replay.snapshot;
-    replayWarnings = replay.invalidLines;
+    replaySnapshot = await indexedReplay(selectedPath) ?? await fullReplay(selectedPath);
     replayFileName = path.basename(selectedPath);
     mode = "replay";
   } catch {
-    replaySnapshot = emptySnapshot();
+    replaySnapshot = emptyAggregate();
     replayWarnings = 0;
     replayFileName = undefined;
     publish();
     throw new Error("rewards replay could not be loaded");
   }
   publish();
+}
+
+/**
+ * Reads a replay out of the shared read model, which indexes the log in one streaming pass and
+ * returns only the bounded summary. Resolves to undefined when there is no read model, or when the
+ * chosen file is not a managed session log (a file picked from anywhere on disk has no session id),
+ * leaving the caller to fall back to the full in-memory load.
+ */
+async function indexedReplay(selectedPath: string): Promise<RewardAggregateSnapshot | undefined> {
+  const source = options.readModel;
+  if (!source) return undefined;
+  const sessionId = managedSessionId(selectedPath, "rewards", options.logDirectory);
+  if (!sessionId) return undefined;
+  if (!(await source.indexSession(sessionId, "rewards")).ok) return undefined;
+  const model = source.model();
+  if (!model) return undefined;
+  const summary = new RewardHistoryStore(model).getSummary(sessionId, {
+    recentKillLimit: RECENT_KILL_LIMIT,
+    chartPoints: CHART_POINTS,
+  });
+  replayWarnings = 0;
+  return summary;
+}
+
+/**
+ * Fallback for a log the read model cannot index: load the whole session, then keep only the
+ * bounded projection of it the UI actually renders. Totals, per-mob summaries and unmatched counts
+ * come straight from the full snapshot, so nothing is lost by bounding the kills and the chart.
+ */
+async function fullReplay(selectedPath: string): Promise<RewardAggregateSnapshot> {
+  const replay = await loadRewardReplay(selectedPath);
+  replayWarnings = replay.invalidLines;
+  const snapshot = replay.snapshot;
+  return {
+    revision: 0,
+    killCount: snapshot.kills.length,
+    recentKills: snapshot.kills.slice(0, RECENT_KILL_LIMIT),
+    mobs: snapshot.mobs,
+    chart: chartBuckets(snapshot.kills),
+    totalExperience: snapshot.totalExperience,
+    totalJobExperience: snapshot.totalJobExperience,
+    totalCoins: snapshot.totalCoins,
+    unmatched: snapshot.unmatched,
+    unmatchedDrops: snapshot.unmatchedDrops,
+    unmatchedByReason: snapshot.unmatchedByReason,
+  };
+}
+
+function emptyAggregate(): RewardAggregateSnapshot {
+  return new LiveRewardService({ recentKillLimit: RECENT_KILL_LIMIT, chartPoints: CHART_POINTS }).snapshot();
 }
 
 function itemName(itemId: string): string {
@@ -405,12 +477,37 @@ function scheduleSave(): void {
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  lifecycle.dispose();
+  catalogLifecycle?.dispose();
+  catalogLifecycle = undefined;
   replayPicker.close();
   clearInterval(timer);
   unsubscribeXp();
   unsubscribeCharacter();
   catalogWindow?.close();
+  catalogWindow = undefined;
+  liveSnapshot = emptyAggregate();
+  replaySnapshot = emptyAggregate();
   if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
-  await settingsPersistence.flush(settings);
+  try {
+    await settingsPersistence.flush(settings);
+  } finally {
+    notifyClosed();
+  }
+}
+
+/**
+ * Reports the close exactly once.
+ *
+ * This cannot live only in the `close` event handler: every close in this app is programmatic (the
+ * title bar is custom, so there is no native chrome to click), and teardown disposes that listener
+ * before calling `window.close()`. The event would then arrive with nothing listening, leaving the
+ * caller's slot pointing at a destroyed window — the next open would fail with "Window no longer
+ * exists". Teardown always runs, so it is the reliable place to report from.
+ */
+function notifyClosed(): void {
+  if (closedCallbackSent) return;
+  closedCallbackSent = true;
+  options.onClosed?.();
 }
 }
