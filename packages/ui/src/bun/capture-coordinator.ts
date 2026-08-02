@@ -34,6 +34,7 @@ const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
 const CHARACTER_CALLBACK_RPCS = new Set(["LoadCharacter_T", "CharacterCallback_T"]);
+const ACTIVE_CHARACTER_CONNECTION_ID = "spiritvale-active-character";
 type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail">;
 
 export interface CaptureErrorReport {
@@ -482,7 +483,14 @@ export class CaptureCoordinator {
     const characterCallback = packet.rpcName !== undefined && CHARACTER_CALLBACK_RPCS.has(packet.rpcName);
     let characterHandled = characterCallback ? this.consumeCharacterPacket(packet) : false;
     if (!this.admitPacket(packet)) return;
-    if (!characterCallback) characterHandled = this.consumeCharacterPacket(packet);
+    // Authentication selects the routed connection, but is not sufficient evidence that the
+    // local unit changed. FishNet can authenticate again while the same object and tick stream
+    // continue; releasing the character pin here makes the next serverRpc erase HP/MP even though
+    // no replacement resource sync follows. An accepted serverRpc performs the real re-pin, and
+    // disconnect/despawn still release it normally.
+    if (!characterCallback && packet.packetName !== "authenticated") {
+      characterHandled = this.consumeCharacterPacket(packet, true);
+    }
     if (packet.splitDropReason !== undefined) {
       this.combatLog?.log("combat.warning", {
         message: `split reassembly dropped (${packet.splitDropReason}) at tick ${packet.tick}`,
@@ -546,9 +554,16 @@ export class CaptureCoordinator {
     if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
   }
 
-  private consumeCharacterPacket(packet: CapturedFishNetPacket): boolean {
+  private consumeCharacterPacket(packet: CapturedFishNetPacket, normalizeConnection = false): boolean {
     try {
-      const handled = this.character.consume(packet);
+      // admitPacket already rejects packets from inactive physical connections. Present the
+      // accepted stream as one logical character connection so a transport replacement that
+      // preserves the same player object does not erase its resources; new object ids still
+      // trigger the tracker's normal clear/promote behavior.
+      const characterPacket = normalizeConnection
+        ? { ...packet, connectionId: ACTIVE_CHARACTER_CONNECTION_ID }
+        : packet;
+      const handled = this.character.consume(characterPacket);
       if (packet.packetName === "serverRpc" && packet.objectId !== undefined) {
         this.localCharacterObjectId = packet.objectId;
       }

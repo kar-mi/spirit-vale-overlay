@@ -590,11 +590,56 @@ describe("central capture coordinator", () => {
       });
 
       expect(received).toEqual([
-        ["conn-a", "authenticated", undefined],
-        ["conn-b", "authenticated", undefined],
-        ["conn-b", "serverRpc", undefined],
+        ["spiritvale-active-character", "serverRpc", undefined],
         ["conn-a", "rpcLink", "CharacterCallback_T"],
       ]);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps character resources across same-object reauthentication", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-character-reauth-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      capture.packet(characterPinPacket(1_001, 202, "conn-a"));
+      capture.packet(characterResourcePacket(1_002, 202, "HealthComponent", 750, 1_000, "conn-a"));
+      capture.packet(characterResourcePacket(1_003, 202, "SkillsComponent", 120, 240, "conn-a"));
+      expect(coordinator.characterState().records).toMatchObject({
+        currentHealth: 750,
+        maxHealth: 1_000,
+        currentMana: 120,
+        maxMana: 240,
+      });
+
+      capture.packet(authenticatedPacket(1_100, "conn-a"));
+      capture.packet(characterPinPacket(1_101, 202, "conn-a"));
+
+      expect(coordinator.characterState().records).toMatchObject({
+        currentHealth: 750,
+        maxHealth: 1_000,
+        currentMana: 120,
+        maxMana: 240,
+      });
+
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet(characterPinPacket(51, 202, "conn-b"));
+      capture.packet(characterResourcePacket(52, 202, "HealthComponent", 700, 1_000, "conn-b"));
+
+      expect(coordinator.characterState().records).toMatchObject({
+        currentHealth: 700,
+        maxHealth: 1_000,
+        currentMana: 120,
+        maxMana: 240,
+      });
       await coordinator.stop();
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -915,6 +960,40 @@ function experiencePacket(tick: number, experience: number, coins: bigint): Test
 
 function authenticatedPacket(tick: number, connectionId: string): TestPacket {
   return { tick, packetId: 0, packetName: "authenticated", raw: Buffer.alloc(0), payload: Buffer.alloc(0), connectionId };
+}
+
+function characterPinPacket(tick: number, objectId: number, connectionId: string): TestPacket {
+  return {
+    tick,
+    packetId: 1,
+    packetName: "serverRpc",
+    objectId,
+    networkBehaviourType: "HealthComponent",
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function characterResourcePacket(
+  tick: number,
+  objectId: number,
+  networkBehaviourType: "HealthComponent" | "SkillsComponent",
+  current: number,
+  maximum: number,
+  connectionId: string,
+): TestPacket {
+  const payload = Buffer.concat([Buffer.from([0]), packed(current), Buffer.from([1]), packed(maximum)]);
+  return {
+    tick,
+    packetId: 7,
+    packetName: "syncType",
+    objectId,
+    networkBehaviourType,
+    raw: payload,
+    payload,
+    connectionId,
+  };
 }
 
 function identityPacket(tick: number, objectId: number, displayName: string, connectionId: string): TestPacket {
