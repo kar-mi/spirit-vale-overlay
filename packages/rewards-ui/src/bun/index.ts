@@ -34,6 +34,7 @@ import { visibleScaledWindowFrame, type WindowPlacementStore } from "@spiritvale
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 import { managedSessionId } from "@spiritvale/ui-core/managed-session";
 import { chartBuckets, chartSample, CHART_POINTS, RECENT_KILL_LIMIT } from "../reward-chart.ts";
+import { attributedKills, attributedMobSummaries } from "../reward-display.ts";
 
 const POLL_MS = 1_000;
 const catalog = loadBundledMobRewardCatalog();
@@ -255,7 +256,7 @@ function appState(): RewardsAppState {
     ...(replayFileName ? { replayFileName } : {}),
     replayWarnings,
     // Already bounded to RECENT_KILL_LIMIT by the aggregator, newest first.
-    kills: snapshot.recentKills.map((kill) => ({
+    kills: attributedKills(snapshot.recentKills).map((kill) => ({
       id: kill.id,
       ...(kill.recordedAt === undefined ? {} : { timestamp: kill.recordedAt }),
       mobId: kill.mob.mobId,
@@ -267,7 +268,7 @@ function appState(): RewardsAppState {
       drops: kill.drops.map((drop) => ({ ...drop, itemName: itemName(drop.itemId) })),
     })),
     graphSamples: snapshot.chart.map(chartSample),
-    summaries: snapshot.mobs.map((mob) => ({
+    summaries: attributedMobSummaries(snapshot.mobs).map((mob) => ({
       ...mob,
       coins: mob.coins.toString(),
       drops: mob.drops.map((drop) => ({ ...drop, itemName: itemName(drop.itemId) })),
@@ -401,7 +402,7 @@ async function fullReplay(selectedPath: string): Promise<RewardAggregateSnapshot
   return {
     revision: 0,
     killCount: snapshot.kills.length,
-    recentKills: snapshot.kills.slice(0, RECENT_KILL_LIMIT),
+    recentKills: attributedKills(snapshot.kills).slice(0, RECENT_KILL_LIMIT),
     mobs: snapshot.mobs,
     chart: chartBuckets(snapshot.kills),
     totalExperience: snapshot.totalExperience,

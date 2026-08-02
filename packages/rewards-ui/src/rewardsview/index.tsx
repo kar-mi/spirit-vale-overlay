@@ -57,14 +57,8 @@ function formatDecimal(value: string): string {
   }
 }
 
-/**
- * Every kill is counted, but a reward only lands on one when a single mob died inside the
- * correlation window. The rewarded count is shown when it differs so the XP columns are not read as
- * this mob's per-kill yield.
- */
 function killsLabel(mob: { kills: number; attributedKills: number }): string {
-  if (mob.attributedKills >= mob.kills) return format.format(mob.kills);
-  return `${format.format(mob.kills)} (${format.format(mob.attributedKills)} rewarded)`;
+  return format.format(mob.kills);
 }
 
 function formatChance(value: number): string {

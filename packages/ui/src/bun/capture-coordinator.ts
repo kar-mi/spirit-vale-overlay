@@ -1,5 +1,5 @@
 import { FishNetActorDirectory, FishNetCombatTracker } from "@kar-mi/spirit-vale-tools-combat";
-import type { FishNetKnownIdentity } from "@kar-mi/spirit-vale-tools-combat";
+import type { FishNetCombatEvent, FishNetKnownIdentity } from "@kar-mi/spirit-vale-tools-combat";
 import { FishNetCharacterTracker, resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterSnapshot, CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
@@ -23,6 +23,7 @@ import { FishNetMarketTracker, marketEventLogData } from "@kar-mi/spirit-vale-to
 import { FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
 
 import type { CaptureStatus, LauncherState } from "../launcher-types.ts";
+import { RewardEventAttributor } from "./reward-event-attributor.ts";
 
 const SPAWN_PAYLOAD_LOG_LIMIT = 2_048;
 const HANDOFF_PACKET_LIMIT = 4_096;
@@ -64,6 +65,8 @@ export class CaptureCoordinator {
     monsterCatalog: mobDefinitionsById(),
   });
   private readonly rewards = new FishNetMobRewardTracker();
+  private readonly rewardAttributor = new RewardEventAttributor();
+  private readonly locallyDamagedRewardTargets = new Set<number>();
   private readonly mobs = new FishNetMobDirectory();
   private readonly market = new FishNetMarketTracker();
   private readonly character = new FishNetCharacterTracker();
@@ -201,6 +204,8 @@ export class CaptureCoordinator {
     this.actors.reset();
     this.combat.reset();
     this.rewards.reset();
+    this.rewardAttributor.reset();
+    this.locallyDamagedRewardTargets.clear();
     this.mobs.reset();
     this.loggedMobIdentities.clear();
     this.clearPacketBuffer();
@@ -281,7 +286,12 @@ export class CaptureCoordinator {
       // Pointers are now fully switched; finalize the old session and swap the coordinator's own
       // references. None of this can meaningfully fail (JsonLinesLogger.log is fire-and-forget).
       const previousSession = this.session;
-      const rewardEvents = this.rewards.flushSessionBoundary();
+      const rewardEvents = this.rewardAttributor.consume(
+        this.rewards.flushSessionBoundary(),
+        Number.POSITIVE_INFINITY,
+      );
+      this.rewardAttributor.reset();
+      this.locallyDamagedRewardTargets.clear();
       for (const event of rewardEvents) {
         this.rewardsLog?.log(event.kind === "kill" ? "rewards.kill" : "rewards.unmatched", jsonObject(event));
       }
@@ -443,6 +453,7 @@ export class CaptureCoordinator {
       });
     }
     let handled = characterHandled;
+    let combatEvents: FishNetCombatEvent[] = [];
     try {
       this.mobs.consume(packet);
       if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
@@ -450,6 +461,7 @@ export class CaptureCoordinator {
       }
       const identities = this.actors.consume(packet);
       const events = this.combat.consume(packet);
+      combatEvents = events;
       for (const event of events) {
         if ((event.kind === "damage" || event.kind === "death") && event.team === 0) {
           identities.push(...this.actors.observePlayerActor(event.actorId, event.tick));
@@ -471,7 +483,12 @@ export class CaptureCoordinator {
     }
 
     try {
-      const events = this.rewards.consume(packet);
+      const tracked = this.shouldTrackRewardPacket(combatEvents) ? this.rewards.consume(packet) : [];
+      const events = this.rewardAttributor.consume(tracked, packet.tick);
+      if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
+        events.push(...this.rewardAttributor.flush());
+        this.locallyDamagedRewardTargets.clear();
+      }
       handled ||= events.length > 0;
       for (const event of events) {
         this.rewardsLog?.log(event.kind === "kill" ? "rewards.kill" : "rewards.unmatched", jsonObject(event));
@@ -496,6 +513,33 @@ export class CaptureCoordinator {
   private localHealingTraits(): { hasSiphonHealth: boolean; hasHealthLeech: boolean } | undefined {
     const snapshot = this.character.current();
     return snapshot ? resolveCharacterHealingTraits(snapshot) : undefined;
+  }
+
+  /** Only local-player combat may create reward candidates; team 0 includes every nearby player. */
+  private shouldTrackRewardPacket(events: readonly FishNetCombatEvent[]): boolean {
+    const combat = events.filter((event) => event.kind === "damage" || event.kind === "death");
+    if (combat.length === 0) return true;
+    let relevant = false;
+    for (const event of combat) {
+      if (event.team !== 0) continue;
+      const localActor = this.isLocalRewardActor(event.actorId);
+      if (event.kind === "damage") {
+        if (localActor && event.value > 0) {
+          this.locallyDamagedRewardTargets.add(event.targetId);
+          relevant = true;
+        }
+        continue;
+      }
+      const locallyDamaged = this.locallyDamagedRewardTargets.delete(event.targetId);
+      if (localActor || locallyDamaged) relevant = true;
+    }
+    return relevant;
+  }
+
+  private isLocalRewardActor(actorId: number): boolean {
+    if (actorId === this.localCharacterObjectId) return true;
+    const characterName = this.character.current()?.name;
+    return characterName !== undefined && this.actors.getAttribution(actorId)?.displayName === characterName;
   }
 
   private logMobIdentity(actorId: number, tick: number): void {
@@ -607,7 +651,10 @@ export class CaptureCoordinator {
   private writeStoppedLifecycle(): void {
     if (this.lifecycleStopped) return;
     this.lifecycleStopped = true;
-    for (const event of this.rewards.flush()) {
+    const events = this.rewardAttributor.consume(this.rewards.flush(), Number.POSITIVE_INFINITY);
+    this.rewardAttributor.reset();
+    this.locallyDamagedRewardTargets.clear();
+    for (const event of events) {
       this.rewardsLog?.log(event.kind === "kill" ? "rewards.kill" : "rewards.unmatched", jsonObject(event));
     }
     this.combatLog?.log("combat.lifecycle", { state: "stopped" });
