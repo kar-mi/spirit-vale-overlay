@@ -540,6 +540,67 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("filters stale object-bound character packets after a map change", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-character-stale-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+      });
+      const received: Array<[string, string, string | undefined]> = [];
+      const internal = coordinator as unknown as {
+        character: { consume: (packet: CapturedFishNetPacket) => boolean };
+      };
+      internal.character.consume = (packet) => {
+        received.push([packet.connectionId, packet.packetName, packet.rpcName]);
+        return packet.rpcName === "CharacterCallback_T";
+      };
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet({
+        tick: 1_010,
+        packetId: 1,
+        packetName: "serverRpc",
+        objectId: 101,
+        raw: Buffer.alloc(0),
+        payload: Buffer.alloc(0),
+        connectionId: "conn-a",
+      });
+      capture.packet({
+        tick: 60,
+        packetId: 1,
+        packetName: "serverRpc",
+        objectId: 202,
+        raw: Buffer.alloc(0),
+        payload: Buffer.alloc(0),
+        connectionId: "conn-b",
+      });
+      capture.packet({
+        tick: 1_020,
+        packetId: 1,
+        packetName: "rpcLink",
+        rpcName: "CharacterCallback_T",
+        rpcResolution: "verified",
+        raw: Buffer.alloc(0),
+        payload: Buffer.alloc(0),
+        connectionId: "conn-a",
+      });
+
+      expect(received).toEqual([
+        ["conn-a", "authenticated", undefined],
+        ["conn-b", "authenticated", undefined],
+        ["conn-b", "serverRpc", undefined],
+        ["conn-a", "rpcLink", "CharacterCallback_T"],
+      ]);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("reports capture startup failure without throwing or closing the session", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-failure-"));
     const capture = new FakeCapture(new Error("synthetic capture unavailable"));

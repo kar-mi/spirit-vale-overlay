@@ -33,6 +33,7 @@ const WRITE_MONITOR_INTERVAL_MS = 5_000;
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
+const CHARACTER_CALLBACK_RPCS = new Set(["LoadCharacter_T", "CharacterCallback_T"]);
 type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail">;
 
 export interface CaptureErrorReport {
@@ -474,28 +475,14 @@ export class CaptureCoordinator {
       this.waitingForDataReported = false;
       this.refreshCaptureDetail();
     }
-    let characterHandled = false;
-    try {
-      // PlayerSave callbacks describe the local character and may arrive while game-server
-      // connections overlap during login or a map change. Decode them before selecting the
-      // active combat connection so a valid local snapshot is never discarded as stale.
-      characterHandled = this.character.consume(packet);
-      if (packet.packetName === "serverRpc" && packet.objectId !== undefined) {
-        this.localCharacterObjectId = packet.objectId;
-      }
-      if (characterHandled) this.syncLocalActorIdentity();
-    } catch (error) {
-      characterHandled = true;
-      this.otherLog?.log("capture.warning", {
-        domain: "character",
-        message: `skipped character payload: ${errorMessage(error)}`,
-        rpcName: packet.rpcName ?? null,
-        objectId: packet.objectId ?? null,
-        payloadHex: packet.payload.subarray(0, SPAWN_PAYLOAD_LOG_LIMIT).toString("hex"),
-        payloadBytes: packet.payload.length,
-      });
-    }
+    // PlayerSave callbacks describe the character rather than a connection-scoped unit and may
+    // arrive before the new game-server connection is selected. Object-bound character packets
+    // must wait for selection: a trailing serverRpc from the outgoing connection would otherwise
+    // re-pin the tracker there and blank health/mana until another map change.
+    const characterCallback = packet.rpcName !== undefined && CHARACTER_CALLBACK_RPCS.has(packet.rpcName);
+    let characterHandled = characterCallback ? this.consumeCharacterPacket(packet) : false;
     if (!this.admitPacket(packet)) return;
+    if (!characterCallback) characterHandled = this.consumeCharacterPacket(packet);
     if (packet.splitDropReason !== undefined) {
       this.combatLog?.log("combat.warning", {
         message: `split reassembly dropped (${packet.splitDropReason}) at tick ${packet.tick}`,
@@ -557,6 +544,27 @@ export class CaptureCoordinator {
     }
 
     if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
+  }
+
+  private consumeCharacterPacket(packet: CapturedFishNetPacket): boolean {
+    try {
+      const handled = this.character.consume(packet);
+      if (packet.packetName === "serverRpc" && packet.objectId !== undefined) {
+        this.localCharacterObjectId = packet.objectId;
+      }
+      if (handled) this.syncLocalActorIdentity();
+      return handled;
+    } catch (error) {
+      this.otherLog?.log("capture.warning", {
+        domain: "character",
+        message: `skipped character payload: ${errorMessage(error)}`,
+        rpcName: packet.rpcName ?? null,
+        objectId: packet.objectId ?? null,
+        payloadHex: packet.payload.subarray(0, SPAWN_PAYLOAD_LOG_LIMIT).toString("hex"),
+        payloadBytes: packet.payload.length,
+      });
+      return true;
+    }
   }
 
   private localHealingTraits(): { hasSiphonHealth: boolean; hasHealthLeech: boolean } | undefined {
