@@ -1,12 +1,15 @@
 import path from "node:path";
 
-import { DpsLogFollower, DpsSessionLogFollower, FishNetStatusTracker } from "@kar-mi/spirit-vale-tools-combat";
-import type { FishNetDpsEncounterSnapshot } from "@kar-mi/spirit-vale-tools-combat";
+import {
+  DpsLogFollower,
+  DpsSessionLogFollower,
+  FishNetStatusTracker,
+  LiveCombatService,
+} from "@kar-mi/spirit-vale-tools-combat";
+import type { CombatEncounterRecord } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { loadBundledMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
 import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
-import { HpsMeter } from "@spiritvale/combat-ui/hps-meter";
-import { TpsMeter } from "@spiritvale/combat-ui/tps-meter";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { hideWindowFromTaskbar, setWindowClickThrough } from "@spiritvale/ui-core/win32";
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
@@ -15,7 +18,7 @@ import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/b
 
 import type { KeybindAction, OverlayRpc, OverlayState, OverlayStatus } from "../app-types.ts";
 import { KEYBIND_ACTIONS, METER_STAT_TYPE_CYCLE } from "../app-types.ts";
-import { createPersonalDpsMeter, detectedPersonalName, syncPersonalCharacter } from "../personal-character.ts";
+import { detectedPersonalName } from "../personal-character.ts";
 import { personalExperience } from "../personal-experience.ts";
 import { personalResources } from "../personal-resources.ts";
 import {
@@ -27,6 +30,8 @@ import {
 } from "../settings.ts";
 
 const LIVE_LOG_POLL_MS = 1_000;
+/** Timeline buckets retained per encounter. Beyond this, adjacent buckets merge. */
+const TIMELINE_POINTS = 720;
 const EXPERIENCE_REQUIREMENTS = loadBundledMobRewardCatalog().experienceRequirements;
 const KEYBIND_LABELS: Record<KeybindAction, string> = {
   toggleLock: "lock/unlock",
@@ -63,10 +68,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   let settings = await loadOverlaySettings(options.settingsPath, bounds);
   if (options.lockOnCreate) settings.locked = true;
   let characterState = options.getCharacterState();
-  let meter = createPersonalDpsMeter(characterState);
-  let retainedSnapshot: FishNetDpsEncounterSnapshot | undefined;
-  let tpsMeter = new TpsMeter({ personalName: detectedPersonalName(characterState), pruneBeforeSnapshot: true });
-  let hpsMeter = new HpsMeter({ personalName: detectedPersonalName(characterState), pruneBeforeSnapshot: true });
+  // One service aggregates DPS, TPS and HPS from the same events, retaining bounded per-encounter
+  // buckets and the latest finished encounter rather than the session's hits.
+  let meter = createLiveMeter();
   let statusTracker = new FishNetStatusTracker();
   const liveLogOverride = process.env.SPIRIT_VALE_COMBAT_LOG;
   const liveLog = liveLogOverride
@@ -177,9 +181,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   const pollTimer = setInterval(() => void pollLiveLog(), LIVE_LOG_POLL_MS);
   unsubscribeCharacter = options.subscribeCharacter((next) => {
     characterState = next;
-    syncPersonalCharacter(meter, characterState);
-    tpsMeter.setPersonalName(detectedPersonalName(characterState));
-    hpsMeter.setPersonalName(detectedPersonalName(characterState));
+    meter.setPersonalName(detectedPersonalName(characterState));
     publish();
   });
   const unsubscribeXp = options.xp.subscribe(() => publish());
@@ -204,17 +206,10 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
 
   function appState(): OverlayState {
     const snapshotNowMs = relativeNowMs();
-    const snapshot = meter.getLatestSnapshot(snapshotNowMs) ?? retainedSnapshot;
-    const encounterWindow = snapshot
-      ? {
-          id: snapshot.id,
-          startedAtMs: snapshot.startedAtMs,
-          endedAtMs: snapshot.endedAtMs ?? snapshotNowMs ?? snapshot.lastDamageAtMs,
-          durationMs: snapshot.durationMs,
-        }
-      : undefined;
-    const tankedSnapshot = encounterWindow ? tpsMeter.getSnapshot(encounterWindow, snapshotNowMs ?? encounterWindow.endedAtMs) : undefined;
-    const healSnapshot = encounterWindow ? hpsMeter.getSnapshot(encounterWindow, snapshotNowMs ?? encounterWindow.endedAtMs) : undefined;
+    const record = latestRecord();
+    const snapshot = record?.dps;
+    const tankedSnapshot = record?.tps.detail;
+    const healSnapshot = record?.hps.detail;
     const resources = personalResources(characterState.records);
     const experience = personalExperience(characterState.snapshot, EXPERIENCE_REQUIREMENTS);
     const personalName = detectedPersonalName(characterState);
@@ -351,10 +346,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       const batch = await liveLog.poll();
       options.onLiveLogPathChanged?.(batch.path ?? liveLogOverride);
       if (batch.reset) {
-        meter = createPersonalDpsMeter(characterState);
-        retainedSnapshot = undefined;
-        tpsMeter = new TpsMeter({ personalName: detectedPersonalName(characterState), pruneBeforeSnapshot: true });
-        hpsMeter = new HpsMeter({ personalName: detectedPersonalName(characterState), pruneBeforeSnapshot: true });
+        meter = createLiveMeter();
         statusTracker = new FishNetStatusTracker();
         lastEventObservedAtMs = undefined;
         lastEventWallMs = undefined;
@@ -363,13 +355,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       for (const { event, observedAtMs } of batch.events) {
         if (event.kind === "actorIdentity") {
           meter.consumeIdentity(event, observedAtMs);
-          tpsMeter.consumeIdentity(event);
-          hpsMeter.consumeIdentity(event);
           statusTracker.consumeIdentity(event);
         } else {
           meter.consumeCombat(event, observedAtMs);
-          tpsMeter.consumeCombat(event, observedAtMs);
-          hpsMeter.consumeCombat(event, observedAtMs);
           statusTracker.consume(event, observedAtMs);
         }
         batchLastObservedAtMs = Math.max(batchLastObservedAtMs ?? observedAtMs, observedAtMs);
@@ -381,7 +369,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       const nowMs = relativeNowMs();
       if (nowMs !== undefined) {
         meter.advance(nowMs);
-        compactFinishedEncounter(nowMs);
         statusTracker.advance(nowMs);
       }
       const fileName = path.basename(batch.path ?? liveLogOverride ?? "combat.jsonl");
@@ -392,7 +379,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
         status = "capturing";
         statusDetail = batch.invalidLines > 0 ? `Reading ${fileName} with skipped lines` : `Reading ${fileName}`;
       } else {
-        status = meter.getLatestSnapshot() || retainedSnapshot ? "ready" : "waiting";
+        status = latestRecord() ? "ready" : "waiting";
         statusDetail = `Watching ${fileName}`;
       }
       publish();
@@ -410,11 +397,17 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     return lastEventObservedAtMs + (Date.now() - lastEventWallMs);
   }
 
-  function compactFinishedEncounter(nowMs: number): void {
-    const latest = meter.getLatestSnapshot(nowMs);
-    if (!latest || latest.endedAtMs === undefined) return;
-    retainedSnapshot = latest;
-    meter.clearEncounters();
+  function createLiveMeter(): LiveCombatService {
+    return new LiveCombatService({
+      personalName: detectedPersonalName(characterState),
+      timelinePoints: TIMELINE_POINTS,
+    });
+  }
+
+  /** The encounter in progress, or the most recent one once it has ended. */
+  function latestRecord(): CombatEncounterRecord | undefined {
+    const state = meter.getState(relativeNowMs());
+    return state.current ?? state.latestFinished;
   }
 
   async function shutdown(): Promise<void> {

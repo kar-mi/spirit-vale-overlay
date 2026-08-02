@@ -6,18 +6,16 @@ import { applyRoundedCorners, setWindowIcon } from "@spiritvale/ui-core/win32";
 import { appIconPath } from "@spiritvale/ui-core/window-publish";
 
 import {
-  FishNetDpsMeter,
   DpsLogFollower,
   DpsSessionLogFollower,
   inspectCombatReplaySummary,
+  LiveCombatService,
 } from "@kar-mi/spirit-vale-tools-combat";
-import type { FishNetDpsEncounterSnapshot } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { listLogSessions } from "@kar-mi/spirit-vale-tools-logging";
+import type { CombatEncounterRecord } from "@kar-mi/spirit-vale-tools-combat";
 import { loadDpsAppSettings, saveDpsAppSettings } from "../settings.ts";
-import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppStatus, MeterEncounterSnapshot } from "../app-types.ts";
-import { TpsMeter } from "../tps-meter.ts";
-import { HpsMeter } from "../hps-meter.ts";
+import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppStatus } from "../app-types.ts";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { createCombatAnalysisController } from "./combat-analysis-window.ts";
 import { registerUiScaleWindow, scaledSize, unscaledSize } from "@spiritvale/ui-core/ui-scale-window";
@@ -27,16 +25,14 @@ import { loadSessionSummaryCache, type SessionSummaryCache } from "@spiritvale/u
 import type { SessionPickerState } from "@spiritvale/ui-core/session-picker-types";
 import { activeDeathLogSource } from "../combat-navigation.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
-import {
-  createPersonalDpsMeter,
-  detectedPersonalName,
-  syncPersonalCharacter,
-} from "../personal-character.ts";
+import { detectedPersonalName } from "../personal-character.ts";
 
 const MINIMUM_WIDTH = DPS_WINDOW_MINIMUM_WIDTH;
 const MINIMUM_HEIGHT = DPS_WINDOW_MINIMUM_HEIGHT;
 const LIVE_LOG_POLL_MS = 1_000;
 const MAX_RECENT_SESSIONS = 100;
+/** Timeline buckets retained per encounter. Beyond this, adjacent buckets merge. */
+const TIMELINE_POINTS = 720;
 export interface DpsWindowOptions {
   logDirectory: string;
   getCharacterState: () => CharacterViewState;
@@ -58,10 +54,9 @@ let personalName = detectedPersonalName(initialCharacterState);
 let window: BrowserWindow;
 let status: DpsAppStatus = "waiting";
 let statusDetail = liveLogOverride ? `Looking for ${path.basename(liveLogOverride)}…` : "Looking for a combat session…";
-let liveMeter = createPersonalDpsMeter(initialCharacterState);
-let retainedLiveSnapshot: FishNetDpsEncounterSnapshot | undefined;
-let tpsMeter = new TpsMeter({ personalName, pruneBeforeSnapshot: true });
-let hpsMeter = new HpsMeter({ personalName, pruneBeforeSnapshot: true });
+// One service aggregates DPS, TPS and HPS from the same events. It retains bounded per-encounter
+// buckets and the latest finished encounter, never individual hits or the whole session.
+let liveMeter = createLiveMeter();
 let manualPersonalActorId: number | undefined;
 const liveLog = liveLogOverride ? new DpsLogFollower(liveLogOverride) : new DpsSessionLogFollower(options.logDirectory);
 let liveLogPolling = false;
@@ -154,21 +149,7 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
           publish();
           try {
             await options.onReset();
-            liveMeter = new FishNetDpsMeter({
-              personalName,
-              ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-            });
-            retainedLiveSnapshot = undefined;
-            tpsMeter = new TpsMeter({
-              personalName,
-              pruneBeforeSnapshot: true,
-              ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-            });
-            hpsMeter = new HpsMeter({
-              personalName,
-              pruneBeforeSnapshot: true,
-              ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-            });
+            liveMeter = createLiveMeter();
             lastEventObservedAtMs = undefined;
             lastEventWallMs = undefined;
           } catch {
@@ -183,8 +164,6 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
       setPersonalActor: ({ actorId }) => {
         manualPersonalActorId = actorId ?? undefined;
         liveMeter.setPersonalActorId(manualPersonalActorId);
-        tpsMeter.setPersonalActorId(manualPersonalActorId);
-        hpsMeter.setPersonalActorId(manualPersonalActorId);
         publish();
         return appState();
       },
@@ -303,35 +282,14 @@ async function pollLiveLog(): Promise<void> {
     const batch = await liveLog.poll();
     currentLiveLogPath = batch.path ?? liveLogOverride ?? currentLiveLogPath;
     if (batch.reset) {
-      liveMeter = new FishNetDpsMeter({
-        personalName,
-        ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-      });
-      retainedLiveSnapshot = undefined;
-      tpsMeter = new TpsMeter({
-        personalName,
-        pruneBeforeSnapshot: true,
-        ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-      });
-      hpsMeter = new HpsMeter({
-        personalName,
-        pruneBeforeSnapshot: true,
-        ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-      });
+      liveMeter = createLiveMeter();
       lastEventObservedAtMs = undefined;
       lastEventWallMs = undefined;
     }
     let batchLastObservedAtMs: number | undefined;
     for (const { event, observedAtMs } of batch.events) {
-      if (event.kind === "actorIdentity") {
-        liveMeter.consumeIdentity(event, observedAtMs);
-        tpsMeter.consumeIdentity(event);
-        hpsMeter.consumeIdentity(event);
-      } else {
-        liveMeter.consumeCombat(event, observedAtMs);
-        tpsMeter.consumeCombat(event, observedAtMs);
-        hpsMeter.consumeCombat(event, observedAtMs);
-      }
+      if (event.kind === "actorIdentity") liveMeter.consumeIdentity(event, observedAtMs);
+      else liveMeter.consumeCombat(event, observedAtMs);
       batchLastObservedAtMs = Math.max(batchLastObservedAtMs ?? observedAtMs, observedAtMs);
     }
     if (batchLastObservedAtMs !== undefined) {
@@ -339,15 +297,12 @@ async function pollLiveLog(): Promise<void> {
       lastEventWallMs = Date.now();
     }
     const nowMs = relativeNowMs();
-    if (nowMs !== undefined) {
-      liveMeter.advance(nowMs);
-      compactFinishedEncounter(nowMs);
-    }
+    if (nowMs !== undefined) liveMeter.advance(nowMs);
     const fileName = path.basename(batch.path ?? liveLogOverride ?? "combat.jsonl");
     if (batch.missing) updateLiveStatus("waiting", `Waiting for ${fileName}`);
     else if (batch.invalidLines > 0) updateLiveStatus("ready", `Reading ${fileName} with skipped lines`);
     else if (batch.events.length > 0) updateLiveStatus("capturing", `Reading ${fileName}`);
-    else updateLiveStatus(liveMeter.getLatestSnapshot() || retainedLiveSnapshot ? "ready" : "waiting", `Watching ${fileName}`);
+    else updateLiveStatus(latestRecord() ? "ready" : "waiting", `Watching ${fileName}`);
   } catch {
     updateLiveStatus("error", `Could not read ${path.basename(liveLogOverride ?? "combat.jsonl")}`);
   } finally {
@@ -364,47 +319,32 @@ function syncDetectedCharacter(characterState: CharacterViewState): void {
   const nextPersonalName = detectedPersonalName(characterState);
   if (nextPersonalName === personalName) return;
   personalName = nextPersonalName;
-  syncPersonalCharacter(liveMeter, characterState);
-  syncPersonalCharacter(tpsMeter, characterState);
-  syncPersonalCharacter(hpsMeter, characterState);
+  liveMeter.setPersonalName(personalName);
   if (manualPersonalActorId !== undefined) {
     manualPersonalActorId = undefined;
     liveMeter.setPersonalActorId(undefined);
-    tpsMeter.setPersonalActorId(undefined);
-    hpsMeter.setPersonalActorId(undefined);
   }
   publish();
 }
 
-function liveSnapshots(): Pick<DpsAppState, "snapshot" | "tankedSnapshot" | "healSnapshot"> {
-  const nowMs = relativeNowMs();
-  const snapshot = liveMeter.getLatestSnapshot(nowMs) ?? retainedLiveSnapshot;
-  const encounterWindow = snapshot
-    ? {
-        id: snapshot.id,
-        startedAtMs: snapshot.startedAtMs,
-        endedAtMs: snapshot.endedAtMs ?? nowMs ?? snapshot.lastDamageAtMs,
-        durationMs: snapshot.durationMs,
-      }
-    : undefined;
-  const tankedSnapshot: MeterEncounterSnapshot | undefined = encounterWindow
-    ? tpsMeter.getSnapshot(encounterWindow, nowMs ?? encounterWindow.endedAtMs)
-    : undefined;
-  const healSnapshot: MeterEncounterSnapshot | undefined = encounterWindow
-    ? hpsMeter.getSnapshot(encounterWindow, nowMs ?? encounterWindow.endedAtMs)
-    : undefined;
-  return {
-    ...(snapshot ? { snapshot } : {}),
-    ...(tankedSnapshot ? { tankedSnapshot } : {}),
-    ...(healSnapshot ? { healSnapshot } : {}),
-  };
+function createLiveMeter(): LiveCombatService {
+  return new LiveCombatService({
+    personalName,
+    timelinePoints: TIMELINE_POINTS,
+    ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
+  });
 }
 
-function compactFinishedEncounter(nowMs: number): void {
-  const latest = liveMeter.getLatestSnapshot(nowMs);
-  if (!latest || latest.endedAtMs === undefined) return;
-  retainedLiveSnapshot = latest;
-  liveMeter.clearEncounters();
+/** The encounter in progress, or the most recent one once it has ended. */
+function latestRecord(): CombatEncounterRecord | undefined {
+  const state = liveMeter.getState(relativeNowMs());
+  return state.current ?? state.latestFinished;
+}
+
+function liveSnapshots(): Pick<DpsAppState, "snapshot" | "tankedSnapshot" | "healSnapshot"> {
+  const record = latestRecord();
+  if (!record) return {};
+  return { snapshot: record.dps, tankedSnapshot: record.tps.detail, healSnapshot: record.hps.detail };
 }
 
 function setScreen(nextScreen: CombatLogScreen): void {
