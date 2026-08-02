@@ -28,17 +28,26 @@ import { RewardEventAttributor } from "./reward-event-attributor.ts";
 const SPAWN_PAYLOAD_LOG_LIMIT = 2_048;
 const HANDOFF_PACKET_LIMIT = 4_096;
 const HANDOFF_BYTE_LIMIT = 16 * 1024 * 1024;
+const CAPTURE_LOG_BUFFER_BYTES = 1024 * 1024 * 1024;
 const WRITE_MONITOR_INTERVAL_MS = 5_000;
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
 type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail">;
 
+export interface CaptureErrorReport {
+  title: string;
+  reason: string;
+  details?: Readonly<Record<string, string | number | boolean | undefined>>;
+}
+
 export interface CaptureCoordinatorOptions {
   logDirectory: string;
   deviceName?: string;
   captureFactory?: () => PacketCapture;
   onStatus?: (state: CaptureCoordinatorState) => void;
+  /** Receives human-readable failures for the root-level fallback error log. */
+  onError?: (report: CaptureErrorReport) => void;
   /**
    * Adds an internal "other" stream containing capture diagnostics and unclassified
    * FishNet packets. Defaults to the SPIRIT_VALE_DIAGNOSTIC_LOGS environment variable.
@@ -81,7 +90,10 @@ export class CaptureCoordinator {
   private reconfiguring = false;
   private lifecycleStopped = false;
   private targetState: CaptureTargetStatus["state"] = "waiting";
+  private missingGameReported = false;
   private receivedDataForCurrentGame = false;
+  private hasReceivedCaptureData = false;
+  private waitingForDataReported = false;
   private activeConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
   private localCharacterObjectId?: number;
@@ -136,6 +148,7 @@ export class CaptureCoordinator {
           producer: "desktop-capture",
           streams,
           logDirectory: this.options.logDirectory,
+          maxBufferedBytes: CAPTURE_LOG_BUFFER_BYTES,
           onWriteError: (failure) => this.logWriteFailure(failure),
         });
         this.combatLog = this.session.logger("combat");
@@ -147,10 +160,7 @@ export class CaptureCoordinator {
       await this.startCapture();
     } catch (error) {
       const message = errorMessage(error);
-      this.otherLog?.log("capture.error", { message });
-      this.combatLog?.log("combat.error", { message });
-      this.marketLog?.log("market.error", { message });
-      this.rewardsLog?.log("rewards.error", { message });
+      this.logCaptureError(message, "Capture could not start");
       this.setStatus("unavailable", "Unable to capture data");
     }
   }
@@ -166,6 +176,9 @@ export class CaptureCoordinator {
       await this.startCapture();
     } catch (error) {
       const requestedError = errorMessage(error);
+      this.reportError("Capture adapter could not be changed", requestedError, {
+        "Requested adapter": deviceName ?? "Automatic selection",
+      });
       this.options.deviceName = previous;
       try {
         await this.capture.stop();
@@ -173,6 +186,9 @@ export class CaptureCoordinator {
         throw new Error(`Could not switch capture adapter: ${requestedError}`);
       } catch (rollbackError) {
         if (errorMessage(rollbackError).startsWith("Could not switch capture adapter:")) throw rollbackError;
+        this.reportError("The previous capture adapter could not be restored", errorMessage(rollbackError), {
+          "Previous adapter": previous ?? "Automatic selection",
+        });
         this.setStatus("unavailable", "Unable to capture data");
         throw new Error(`Could not switch capture adapter and restore the previous adapter: ${requestedError}`);
       }
@@ -198,7 +214,7 @@ export class CaptureCoordinator {
     try {
       await this.capture.stop();
     } catch (error) {
-      this.logCaptureError(errorMessage(error));
+      this.logCaptureError(errorMessage(error), "Capture could not stop cleanly");
     }
     this.writeStoppedLifecycle();
     this.actors.reset();
@@ -212,6 +228,8 @@ export class CaptureCoordinator {
     this.market.reset();
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
+    this.hasReceivedCaptureData = false;
+    this.waitingForDataReported = false;
     this.activeConnectionId = undefined;
     this.lastAuthenticated = undefined;
     const session = this.session;
@@ -237,7 +255,10 @@ export class CaptureCoordinator {
   async resetSession(): Promise<void> {
     if (this.resettingSession) return this.resettingSession;
     if (this.stopping) throw new Error("cannot reset the capture session while it is stopping");
-    const run = this.lifecycleChain.catch(() => {}).then(() => this.performResetSession());
+    const run = this.lifecycleChain.catch(() => {}).then(() => this.performResetSession()).catch((error) => {
+      this.reportError("Capture session could not be reset", errorMessage(error));
+      throw error;
+    });
     this.lifecycleChain = run.catch(() => {});
     const tracked = run.finally(() => {
       this.resettingSession = undefined;
@@ -255,6 +276,7 @@ export class CaptureCoordinator {
       streams,
       logDirectory: this.options.logDirectory,
       activate: false,
+      maxBufferedBytes: CAPTURE_LOG_BUFFER_BYTES,
       onWriteError: (failure) => this.logWriteFailure(failure),
     });
 
@@ -359,7 +381,7 @@ export class CaptureCoordinator {
     if (this.packetBuffer.length >= HANDOFF_PACKET_LIMIT || this.packetBufferBytes + bytes > HANDOFF_BYTE_LIMIT) {
       if (!this.handoffFailure) {
         this.handoffFailure = new Error("capture session handoff exceeded its bounded packet buffer");
-        this.logCaptureError(this.handoffFailure.message);
+        this.logCaptureError(this.handoffFailure.message, "Capture session reset could not keep up with incoming data");
         this.setStatus("unavailable", "Capture stopped: session reset could not keep up with incoming data");
         void this.capture.stop().catch((error) => this.logCaptureError(errorMessage(error)));
       }
@@ -385,7 +407,32 @@ export class CaptureCoordinator {
       processIds: target.processIds,
     });
     this.targetState = target.state;
-    if (target.state === "waiting") this.receivedDataForCurrentGame = false;
+    if (target.state === "waiting") {
+      this.receivedDataForCurrentGame = false;
+      if (!this.missingGameReported) {
+        this.missingGameReported = true;
+        this.reportError(
+          "Game was not detected for capture",
+          `${target.processName} was not found by Windows process inspection. The game may not be running, may still be starting, or process inspection may be blocked.`,
+          { "Expected process": target.processName },
+        );
+      }
+    } else {
+      // A later transition back to waiting represents a new game exit/detection problem and
+      // deserves one new entry. Repeated waiting updates remain suppressed.
+      this.missingGameReported = false;
+      if (this.hasReceivedCaptureData && !this.receivedDataForCurrentGame && !this.waitingForDataReported) {
+        this.waitingForDataReported = true;
+        this.reportError(
+          "Game detected, but capture is waiting for data",
+          `${target.processName} is running again, but capture has not received game network data since it was last detected. Changing channel or map may create a fresh connection; otherwise verify the selected network adapter or VPN routing.`,
+          {
+            "Expected process": target.processName,
+            "Network adapter": this.options.deviceName ?? "Automatic selection",
+          },
+        );
+      }
+    }
     this.refreshCaptureDetail();
   }
 
@@ -397,7 +444,7 @@ export class CaptureCoordinator {
   }
 
   private captureError(error: Error): void {
-    this.logCaptureError(error.message);
+    this.logCaptureError(error.message, "Packet capture stopped unexpectedly");
     if (!this.stopping) this.setStatus("unavailable", "Unable to capture data");
   }
 
@@ -423,6 +470,8 @@ export class CaptureCoordinator {
     }
     if (!this.receivedDataForCurrentGame) {
       this.receivedDataForCurrentGame = true;
+      this.hasReceivedCaptureData = true;
+      this.waitingForDataReported = false;
       this.refreshCaptureDetail();
     }
     let characterHandled = false;
@@ -600,11 +649,24 @@ export class CaptureCoordinator {
     this.otherLog?.log("capture.warning", { domain, message });
   }
 
-  private logCaptureError(message: string): void {
+  private logCaptureError(message: string, title = "Capture failed"): void {
     this.combatLog?.log("combat.error", { message });
     this.rewardsLog?.log("rewards.error", { message });
     this.marketLog?.log("market.error", { message });
     this.otherLog?.log("capture.error", { message });
+    this.reportError(title, message);
+  }
+
+  private reportError(
+    title: string,
+    reason: string,
+    details?: Readonly<Record<string, string | number | boolean | undefined>>,
+  ): void {
+    try {
+      this.options.onError?.({ title, reason, ...(details === undefined ? {} : { details }) });
+    } catch (error) {
+      console.error("[spiritvale-error-log]", errorMessage(error));
+    }
   }
 
   /**
@@ -617,6 +679,9 @@ export class CaptureCoordinator {
    */
   private logWriteFailure(failure: LogWriteFailure): void {
     console.error("[spiritvale-logging]", `${failure.stream}: ${failure.error.message}`);
+    this.reportError("Capture logs could not be written", failure.error.message, {
+      "Affected log": failure.stream,
+    });
     if (this.stopping) return;
     if (this.status !== "unavailable") this.setStatus("unavailable", "Unable to write capture logs");
     this.watchForDroppedRecords();

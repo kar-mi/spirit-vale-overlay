@@ -5,8 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./app-types": "./src/app-types.ts",
-    "./personal-character": "./src/personal-character.ts",
-    "./combat-history": "./src/combat-history.ts"
+    "./personal-character": "./src/personal-character.ts"
   },
   "dependencies": {
     "@preact/signals": "^2.9.4",

@@ -7,7 +7,6 @@ import type {
   FishNetDpsEncounterSnapshot,
   FishNetDpsSkillRow,
   FishNetDpsTimelinePoint,
-  FishNetPersonalMatch,
 } from "@kar-mi/spirit-vale-tools-combat";
 import type { DeathLogEntry } from "./death-log.ts";
 import type { SessionPickerState } from "@spiritvale/ui-core/session-picker-types";
@@ -20,10 +19,8 @@ import type { StatType } from "@spiritvale/ui-core/stat-type-select";
  * The tanked and healing meters render with the same detail as the DPS meter, and upstream builds
  * all three through one reducer, so these are that package's row types rather than parallel copies.
  */
-export type MeterSkillRow = FishNetDpsSkillRow;
 export type MeterTimelinePoint = FishNetDpsTimelinePoint;
 export type MeterActorRow = FishNetDpsActorRow;
-export type MeterPersonalMatch = FishNetPersonalMatch;
 export type MeterEncounterSnapshot = FishNetDpsEncounterSnapshot;
 
 export type DpsAppTab = "all" | "personal";
