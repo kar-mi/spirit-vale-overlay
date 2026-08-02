@@ -42,10 +42,11 @@ import { HumanReadableErrorLog } from "./human-readable-error-log.ts";
 makeProcessDpiAware();
 
 const localRoot = resolveLocalRoot();
+const workspaceDev = isWorkspaceDevelopmentRoot(localRoot);
 const appVersion = (await Electrobun.Updater.getLocalInfo()).version;
 const storagePaths = resolveDesktopStoragePaths({
   root: localRoot,
-  workspaceDev: isWorkspaceDevelopmentRoot(localRoot),
+  workspaceDev,
   portable: Boolean(process.env.SPIRIT_VALE_PORTABLE_ROOT?.trim()),
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,
 });
@@ -155,6 +156,7 @@ const marketWindow = new WindowSlot((onClosed) => createMarketWindow({ logDirect
 
 const capture = new CaptureCoordinator({
   logDirectory,
+  diagnosticLogging: workspaceDev,
   deviceName: settings.captureAdapter === "auto" ? undefined : settings.captureAdapter,
   onStatus: (state) => {
     launcherState = { ...launcherState, ...state };

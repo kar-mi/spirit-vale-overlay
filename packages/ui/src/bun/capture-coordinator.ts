@@ -35,6 +35,7 @@ const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channe
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
 const CHARACTER_CALLBACK_RPCS = new Set(["LoadCharacter_T", "CharacterCallback_T"]);
 const ACTIVE_CHARACTER_CONNECTION_ID = "spiritvale-active-character";
+const ACTIVE_CHARACTER_OBJECT_ID = -1;
 type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail">;
 
 export interface CaptureErrorReport {
@@ -482,7 +483,10 @@ export class CaptureCoordinator {
     // re-pin the tracker there and blank health/mana until another map change.
     const characterCallback = packet.rpcName !== undefined && CHARACTER_CALLBACK_RPCS.has(packet.rpcName);
     let characterHandled = characterCallback ? this.consumeCharacterPacket(packet) : false;
-    if (!this.admitPacket(packet)) return;
+    if (!this.admitPacket(packet)) {
+      this.logCharacterRouting(packet, "rejected");
+      return;
+    }
     // Authentication selects the routed connection, but is not sufficient evidence that the
     // local unit changed. FishNet can authenticate again while the same object and tick stream
     // continue; releasing the character pin here makes the next serverRpc erase HP/MP even though
@@ -491,6 +495,7 @@ export class CaptureCoordinator {
     if (!characterCallback && packet.packetName !== "authenticated") {
       characterHandled = this.consumeCharacterPacket(packet, true);
     }
+    if (packet.packetName === "authenticated") this.logCharacterRouting(packet, "authenticated");
     if (packet.splitDropReason !== undefined) {
       this.combatLog?.log("combat.warning", {
         message: `split reassembly dropped (${packet.splitDropReason}) at tick ${packet.tick}`,
@@ -556,18 +561,26 @@ export class CaptureCoordinator {
 
   private consumeCharacterPacket(packet: CapturedFishNetPacket, normalizeConnection = false): boolean {
     try {
-      // admitPacket already rejects packets from inactive physical connections. Present the
-      // accepted stream as one logical character connection so a transport replacement that
-      // preserves the same player object does not erase its resources; new object ids still
-      // trigger the tracker's normal clear/promote behavior.
+      // admitPacket rejects inactive physical connections, while localCharacterObjectId identifies
+      // the accepted connection's player object. Present both as one logical local-player stream:
+      // some maps do not send an initial HP/MP sync for the new local object, so treating every
+      // physical object id as a fresh character erases valid resources indefinitely. Remote-player
+      // syncs retain their real object ids and remain buffered rather than contaminating local data.
+      const localObjectPacket = packet.packetName === "serverRpc"
+        || packet.objectId !== undefined && packet.objectId === this.localCharacterObjectId;
       const characterPacket = normalizeConnection
-        ? { ...packet, connectionId: ACTIVE_CHARACTER_CONNECTION_ID }
+        ? {
+            ...packet,
+            connectionId: ACTIVE_CHARACTER_CONNECTION_ID,
+            ...(localObjectPacket ? { objectId: ACTIVE_CHARACTER_OBJECT_ID } : {}),
+          }
         : packet;
       const handled = this.character.consume(characterPacket);
       if (packet.packetName === "serverRpc" && packet.objectId !== undefined) {
         this.localCharacterObjectId = packet.objectId;
       }
       if (handled) this.syncLocalActorIdentity();
+      this.logCharacterRouting(packet, "consumed", handled);
       return handled;
     } catch (error) {
       this.otherLog?.log("capture.warning", {
@@ -580,6 +593,29 @@ export class CaptureCoordinator {
       });
       return true;
     }
+  }
+
+  private logCharacterRouting(
+    packet: CapturedFishNetPacket,
+    action: "authenticated" | "consumed" | "rejected",
+    handled?: boolean,
+  ): void {
+    if (!this.otherLog || !isCharacterRoutingPacket(packet)) return;
+    const state = this.character.state();
+    this.otherLog.log("capture.character", jsonObject({
+      action,
+      tick: packet.tick,
+      packetName: packet.packetName,
+      connectionId: packet.connectionId,
+      activeConnectionId: this.activeConnectionId ?? null,
+      objectId: packet.objectId ?? null,
+      networkBehaviourType: packet.networkBehaviourType ?? null,
+      rpcName: packet.rpcName ?? null,
+      handled: handled ?? null,
+      trackedObjectId: this.character.currentObjectId() ?? null,
+      records: state.records ?? null,
+      weight: state.weight ?? null,
+    }));
   }
 
   private localHealingTraits(): { hasSiphonHealth: boolean; hasHealthLeech: boolean } | undefined {
@@ -822,4 +858,14 @@ function errorMessage(error: unknown): string {
 
 function envFlag(value: string | undefined): boolean {
   return value !== undefined && value !== "" && value !== "0" && value.toLowerCase() !== "false";
+}
+
+function isCharacterRoutingPacket(packet: CapturedFishNetPacket): boolean {
+  return packet.packetName === "authenticated"
+    || packet.packetName === "disconnect"
+    || packet.packetName === "objectDespawn"
+    || packet.packetName === "serverRpc"
+    || packet.rpcName !== undefined && CHARACTER_CALLBACK_RPCS.has(packet.rpcName)
+    || packet.packetName === "syncType"
+      && (packet.networkBehaviourType === "HealthComponent" || packet.networkBehaviourType === "SkillsComponent");
 }

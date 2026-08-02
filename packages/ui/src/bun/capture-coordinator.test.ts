@@ -640,6 +640,26 @@ describe("central capture coordinator", () => {
         currentMana: 120,
         maxMana: 240,
       });
+
+      capture.packet(authenticatedPacket(25, "conn-c"));
+      capture.packet(characterPinPacket(26, 303, "conn-c"));
+
+      // A map can assign a new physical player object without sending an initial resource sync.
+      // Keep the previous complete pair until this object emits its first delta.
+      expect(coordinator.characterState().records).toMatchObject({
+        currentHealth: 700,
+        maxHealth: 1_000,
+        currentMana: 120,
+        maxMana: 240,
+      });
+
+      capture.packet(characterResourcePacket(27, 303, "HealthComponent", 650, 1_000, "conn-c"));
+      expect(coordinator.characterState().records).toMatchObject({
+        currentHealth: 650,
+        maxHealth: 1_000,
+        currentMana: 120,
+        maxMana: 240,
+      });
       await coordinator.stop();
     } finally {
       await rm(directory, { recursive: true, force: true });
