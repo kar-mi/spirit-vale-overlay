@@ -49,6 +49,7 @@ let sortDirection: MarketUiSortDirection = "ascending";
 let visibleLimit = PAGE_SIZE;
 let polling = false;
 let shuttingDown = false;
+let closedCallbackSent = false;
 const lifecycle = new DisposableStore();
 let filterLifecycle: DisposableStore | undefined;
 
@@ -153,7 +154,6 @@ lifecycle.add(onWindowEvent(window, "resize", (event: { data: { width: number; h
 lifecycle.add(onceWindowEvent(window, "close", () => {
   stopPolling();
   filterWindow?.close();
-  options.onClosed?.();
 }));
 
 const pollTimer = setInterval(() => void pollMarket(), POLL_MS);
@@ -161,8 +161,6 @@ void pollMarket();
 return {
   show: () => window.show(),
   activate: () => window.activate(),
-  // No onClosed here: Electrobun fires the native close event on a programmatic close too, and the
-  // close handler above is authoritative. Calling it from both paths ran it twice.
   close: () => { stopPolling(); filterWindow?.close(); window.close(); },
 };
 
@@ -301,5 +299,21 @@ function stopPolling(): void {
   filterLifecycle?.dispose();
   filterLifecycle = undefined;
   listings = [];
+  notifyClosed();
+}
+
+/**
+ * Reports the close exactly once.
+ *
+ * This cannot live only in the `close` event handler: every close in this app is programmatic (the
+ * title bar is custom, so there is no native chrome to click), and teardown disposes that listener
+ * before calling `window.close()`. The event would then arrive with nothing listening, leaving the
+ * caller's slot pointing at a destroyed window — the next open would fail with "Window no longer
+ * exists". Teardown always runs, so it is the reliable place to report from.
+ */
+function notifyClosed(): void {
+  if (closedCallbackSent) return;
+  closedCallbackSent = true;
+  options.onClosed?.();
 }
 }

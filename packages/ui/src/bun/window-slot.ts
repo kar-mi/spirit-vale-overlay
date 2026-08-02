@@ -1,6 +1,6 @@
 export interface ManagedWindow {
-  show(): void;
-  activate(): void;
+  show(): void | Promise<void>;
+  activate(): void | Promise<void>;
   close(): void | Promise<void>;
 }
 
@@ -13,9 +13,16 @@ export class WindowSlot<T extends ManagedWindow> {
 
   async open(): Promise<void> {
     if (this.window) {
-      this.window.show();
-      this.window.activate();
-      return;
+      try {
+        await this.window.show();
+        await this.window.activate();
+        return;
+      } catch {
+        // The window is gone without having told us — showing a destroyed window rejects with
+        // "Window no longer exists". Drop it and build a new one rather than failing the request:
+        // to the user this is a menu item that silently stopped working.
+        this.window = undefined;
+      }
     }
     // The slot is cleared only by the window that owns it. A close notification can arrive after a
     // replacement window has already been opened; clearing unconditionally would drop the *new*

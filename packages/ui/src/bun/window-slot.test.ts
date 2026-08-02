@@ -72,6 +72,28 @@ describe("window slot", () => {
     expect(windows[1]).toMatchObject({ shown: 1, activated: 1 });
   });
 
+  test("recreates a window that was destroyed without notifying the slot", async () => {
+    const windows: FakeWindow[] = [];
+    const slot = new WindowSlot(() => {
+      const window = new FakeWindow();
+      windows.push(window);
+      return window;
+    });
+
+    await slot.open();
+    // Closed behind the slot's back: no onClosed, and the native handle is gone.
+    windows[0]!.destroyed = true;
+
+    // Must not reject, and must leave a usable window behind. A newly built window is displayed by
+    // its own construction, so the slot does not show it — only a reused one gets show()/activate().
+    await slot.open();
+    expect(windows).toHaveLength(2);
+
+    await slot.open();
+    expect(windows).toHaveLength(2);
+    expect(windows[1]).toMatchObject({ shown: 1, activated: 1 });
+  });
+
   test("runs operations against the managed singleton", async () => {
     const slot = new WindowSlot(() => new FakeWindow());
     const result = await slot.withWindow((window) => {
@@ -87,7 +109,11 @@ class FakeWindow {
   shown = 0;
   activated = 0;
   closed = 0;
-  show(): void { this.shown += 1; }
+  destroyed = false;
+  show(): void {
+    if (this.destroyed) throw new Error("Can't show window. Window no longer exists");
+    this.shown += 1;
+  }
   activate(): void { this.activated += 1; }
   close(): void { this.closed += 1; }
 }

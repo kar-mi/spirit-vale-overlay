@@ -67,6 +67,7 @@ const liveLog = liveLogOverride ? new DpsLogFollower(liveLogOverride) : new DpsS
 let liveLogPolling = false;
 let publishing = false;
 let shuttingDown = false;
+let closedCallbackSent = false;
 let storageWarning: string | undefined;
 let resetting = false;
 let lastEventObservedAtMs: number | undefined;
@@ -227,10 +228,7 @@ lifecycle.add(onWindowEvent(window, "resize", (event: { data: typeof settings.fr
   }
   scheduleSettingsSave();
 }));
-lifecycle.add(onceWindowEvent(window, "close", () => {
-  void shutdown();
-  options.onClosed?.();
-}));
+lifecycle.add(onceWindowEvent(window, "close", () => { void shutdown(); }));
 
 const liveLogTimer = setInterval(() => void pollLiveLog(), LIVE_LOG_POLL_MS);
 const unsubscribeCharacter = options.subscribeCharacter(syncDetectedCharacter);
@@ -238,8 +236,6 @@ void pollLiveLog();
 return {
   show: () => window.show(),
   activate: () => window.activate(),
-  // No onClosed here: Electrobun fires the native close event on a programmatic close too, and the
-  // close handler above is authoritative. Calling it from both paths ran it twice.
   close: async () => { await shutdown(); window.close(); },
 };
 
@@ -539,6 +535,25 @@ async function shutdown(): Promise<void> {
   unsubscribeCharacter();
   if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
   clearInterval(liveLogTimer);
-  await settingsPersistence.flush(settings);
+  try {
+    await settingsPersistence.flush(settings);
+  } finally {
+    notifyClosed();
+  }
+}
+
+/**
+ * Reports the close exactly once.
+ *
+ * This cannot live only in the `close` event handler: every close in this app is programmatic (the
+ * title bar is custom, so there is no native chrome to click), and teardown disposes that listener
+ * before calling `window.close()`. The event would then arrive with nothing listening, leaving the
+ * caller's slot pointing at a destroyed window — the next open would fail with "Window no longer
+ * exists". Teardown always runs, so it is the reliable place to report from.
+ */
+function notifyClosed(): void {
+  if (closedCallbackSent) return;
+  closedCallbackSent = true;
+  options.onClosed?.();
 }
 }
