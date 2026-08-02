@@ -15,14 +15,46 @@ import { RewardSessionLogFollower } from "@kar-mi/spirit-vale-tools-rewards";
 import { CaptureCoordinator } from "./capture-coordinator.ts";
 
 describe("central capture coordinator", () => {
-  test("reports game and data activity after target status arrives before capture startup", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-status-"));
+  test("reports a missing game once until it has been detected again", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-missing-game-"));
     const capture = new FakeCapture();
-    capture.initialTargetState = "active";
+    const errorReports: Array<{ title: string; reason: string; details?: Readonly<Record<string, unknown>> }> = [];
     try {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
+        onError: (report) => errorReports.push(report),
+      });
+      await coordinator.start();
+
+      capture.target("waiting");
+      expect(errorReports).toHaveLength(1);
+      expect(errorReports[0]).toMatchObject({
+        title: "Game was not detected for capture",
+        reason: expect.stringContaining("SpiritVale.exe was not found by Windows process inspection"),
+        details: { "Expected process": "SpiritVale.exe" },
+      });
+
+      capture.target("active", [4242]);
+      capture.target("waiting");
+      capture.target("waiting");
+      expect(errorReports).toHaveLength(2);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("reports game and data activity after target status arrives before capture startup", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-status-"));
+    const capture = new FakeCapture();
+    capture.initialTargetState = "active";
+    const errorReports: Array<{ title: string; reason: string; details?: Readonly<Record<string, unknown>> }> = [];
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        onError: (report) => errorReports.push(report),
       });
       await coordinator.start();
 
@@ -39,6 +71,18 @@ describe("central capture coordinator", () => {
 
       capture.target("active", [4242]);
       expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map if recently launched).");
+      capture.target("active", [4242]);
+      expect(errorReports.map((report) => report.title)).toEqual([
+        "Game was not detected for capture",
+        "Game detected, but capture is waiting for data",
+      ]);
+      expect(errorReports[1]).toMatchObject({
+        reason: expect.stringContaining("has not received game network data since it was last detected"),
+        details: {
+          "Expected process": "SpiritVale.exe",
+          "Network adapter": "Automatic selection",
+        },
+      });
       await coordinator.stop();
     } finally {
       await rm(directory, { recursive: true, force: true });

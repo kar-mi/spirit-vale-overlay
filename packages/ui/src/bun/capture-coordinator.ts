@@ -90,7 +90,10 @@ export class CaptureCoordinator {
   private reconfiguring = false;
   private lifecycleStopped = false;
   private targetState: CaptureTargetStatus["state"] = "waiting";
+  private missingGameReported = false;
   private receivedDataForCurrentGame = false;
+  private hasReceivedCaptureData = false;
+  private waitingForDataReported = false;
   private activeConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
   private localCharacterObjectId?: number;
@@ -225,6 +228,8 @@ export class CaptureCoordinator {
     this.market.reset();
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
+    this.hasReceivedCaptureData = false;
+    this.waitingForDataReported = false;
     this.activeConnectionId = undefined;
     this.lastAuthenticated = undefined;
     const session = this.session;
@@ -402,7 +407,32 @@ export class CaptureCoordinator {
       processIds: target.processIds,
     });
     this.targetState = target.state;
-    if (target.state === "waiting") this.receivedDataForCurrentGame = false;
+    if (target.state === "waiting") {
+      this.receivedDataForCurrentGame = false;
+      if (!this.missingGameReported) {
+        this.missingGameReported = true;
+        this.reportError(
+          "Game was not detected for capture",
+          `${target.processName} was not found by Windows process inspection. The game may not be running, may still be starting, or process inspection may be blocked.`,
+          { "Expected process": target.processName },
+        );
+      }
+    } else {
+      // A later transition back to waiting represents a new game exit/detection problem and
+      // deserves one new entry. Repeated waiting updates remain suppressed.
+      this.missingGameReported = false;
+      if (this.hasReceivedCaptureData && !this.receivedDataForCurrentGame && !this.waitingForDataReported) {
+        this.waitingForDataReported = true;
+        this.reportError(
+          "Game detected, but capture is waiting for data",
+          `${target.processName} is running again, but capture has not received game network data since it was last detected. Changing channel or map may create a fresh connection; otherwise verify the selected network adapter or VPN routing.`,
+          {
+            "Expected process": target.processName,
+            "Network adapter": this.options.deviceName ?? "Automatic selection",
+          },
+        );
+      }
+    }
     this.refreshCaptureDetail();
   }
 
@@ -440,6 +470,8 @@ export class CaptureCoordinator {
     }
     if (!this.receivedDataForCurrentGame) {
       this.receivedDataForCurrentGame = true;
+      this.hasReceivedCaptureData = true;
+      this.waitingForDataReported = false;
       this.refreshCaptureDetail();
     }
     let characterHandled = false;
