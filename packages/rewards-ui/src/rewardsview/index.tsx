@@ -57,6 +57,16 @@ function formatDecimal(value: string): string {
   }
 }
 
+/**
+ * Every kill is counted, but a reward only lands on one when a single mob died inside the
+ * correlation window. The rewarded count is shown when it differs so the XP columns are not read as
+ * this mob's per-kill yield.
+ */
+function killsLabel(mob: { kills: number; attributedKills: number }): string {
+  if (mob.attributedKills >= mob.kills) return format.format(mob.kills);
+  return `${format.format(mob.kills)} (${format.format(mob.attributedKills)} rewarded)`;
+}
+
 function formatChance(value: number): string {
   return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(value)}%`;
 }
@@ -177,7 +187,7 @@ function App() {
                       key={mob.mobId}
                       rowKey={`summary-${mob.mobId}`}
                       name={mob.displayName}
-                      values={[format.format(mob.level), format.format(mob.kills), format.format(mob.experience), format.format(mob.jobExperience), formatDecimal(mob.coins)]}
+                      values={[format.format(mob.level), killsLabel(mob), format.format(mob.experience), format.format(mob.jobExperience), formatDecimal(mob.coins)]}
                       drops={mob.drops}
                       expanded={expanded}
                       onToggle={toggleExpanded}
@@ -190,9 +200,9 @@ function App() {
         </section>
 
         <section hidden={next.view !== "recent"}>
-          <div class="section-head"><h1>Recent kills</h1><p>Newest confirmed attribution first.</p></div>
+          <div class="section-head"><h1>Recent kills</h1><p>Newest first. Rewards show only where they could be attributed to one kill.</p></div>
           {next.kills.length === 0 ? (
-              <div class="empty-state">{next.mode === "replay" ? "No confirmed kills in this replay." : "Waiting for a confirmed mob reward."}</div>
+              <div class="empty-state">{next.mode === "replay" ? "No kills in this replay." : "Waiting for a mob kill."}</div>
             ) : (
               <div class="table-scroll rewards-table-scroll">
                 <table class="data-table rewards-table recent-rewards-table" aria-label="Recent kills">

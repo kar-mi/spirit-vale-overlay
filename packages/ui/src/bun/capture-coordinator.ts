@@ -20,7 +20,7 @@ import type {
   LogWriteFailure,
 } from "@kar-mi/spirit-vale-tools-logging";
 import { FishNetMarketTracker, marketEventLogData } from "@kar-mi/spirit-vale-tools-market";
-import { FishNetMobDirectory, FishNetMobRewardTracker } from "@kar-mi/spirit-vale-tools-rewards";
+import { FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
 
 import type { CaptureStatus, LauncherState } from "../launcher-types.ts";
 
@@ -58,6 +58,10 @@ export class CaptureCoordinator {
     healingTraitsResolver: (actorId: number) => {
       return actorId === this.localCharacterObjectId ? this.localHealingTraits() : undefined;
     },
+    // Names each hit's target from the monster's spawn packet. The combat log carries no spawn
+    // packets, so a name not stamped onto the event here cannot be recovered when the log is
+    // replayed — which is why enemies that died without acting indexed as "Enemy <id>".
+    monsterCatalog: mobDefinitionsById(),
   });
   private readonly rewards = new FishNetMobRewardTracker();
   private readonly mobs = new FishNetMobDirectory();

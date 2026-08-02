@@ -32,6 +32,8 @@ export interface RewardsUiSummary {
   displayName: string;
   level: number;
   kills: number;
+  /** Kills a reward could be attributed to; the rest still count but contribute no XP or loot. */
+  attributedKills: number;
   experience: number;
   jobExperience: number;
   coins: string;
