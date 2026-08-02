@@ -307,6 +307,63 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("logs only local reward kills and attributes a coalesced reward to the local group", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-local-rewards-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+      });
+      coordinator.setCachedCharacter(syntheticCachedCharacter());
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet({
+        tick: 2,
+        packetId: 10,
+        packetName: "serverRpc",
+        objectId: 10,
+        rpcName: "SyntheticLocalCallback_C",
+        raw: Buffer.alloc(0),
+        payload: Buffer.alloc(0),
+      });
+      capture.packet(identityPacket(3, 10, "Fictional Hero", "test-connection"));
+      capture.packet(monsterIdentityPacket(4, 900));
+      capture.packet(monsterIdentityPacket(5, 901));
+      capture.packet(monsterIdentityPacket(6, 902));
+      capture.packet(experiencePacket(7, 0, 0n));
+
+      const otherDeath = damagePacket(9, 900, 20);
+      otherDeath.rpcName = "Death_C";
+      capture.packet(otherDeath);
+
+      for (const [tick, target] of [[10, 901], [11, 902]] as const) {
+        capture.packet(damagePacket(tick, target, 10));
+        const death = damagePacket(tick + 1, target, 10);
+        death.rpcName = "Death_C";
+        capture.packet(death);
+      }
+      capture.packet(experiencePacket(14, 200, 20n));
+      capture.packet({ tick: 80, packetId: 2, packetName: "pingPong", raw: Buffer.alloc(0), payload: Buffer.alloc(0) });
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("rewards", directory);
+      const rewardRecords = records(await readFile(pointer!.path, "utf8")) as Array<{
+        type: string;
+        data?: { kind?: string; attributed?: boolean; experience?: number; mob?: { objectId?: number } };
+      }>;
+      const kills = rewardRecords.filter((record) => record.type === "rewards.kill");
+      expect(kills.map((record) => record.data?.mob?.objectId)).toEqual([901, 902]);
+      expect(kills.every((record) => record.data?.attributed)).toBe(true);
+      expect(kills.reduce((total, record) => total + (record.data?.experience ?? 0), 0)).toBe(200);
+      expect(kills.find((record) => record.data?.mob?.objectId === 902)?.data?.experience).toBe(200);
+      expect(rewardRecords.some((record) => record.type === "rewards.unmatched")).toBe(false);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("writes a resolved victim identity before a player-death event", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-death-identity-"));
     const capture = new FakeCapture();
