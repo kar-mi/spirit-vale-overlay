@@ -3,14 +3,21 @@ import path from "node:path";
 import { BrowserView, BrowserWindow } from "electrobun/bun";
 import { mountRoundedWindow, publishSafely } from "@spiritvale/ui-core/window-publish";
 import {
-  emptySnapshot,
   inspectRewardsReplaySummary,
+  LiveRewardService,
+  LiveRewardSessionLogFollower,
   loadBundledMobRewardCatalog,
   loadRewardReplay,
   queryMobRewardCatalog,
-  RewardSessionLogFollower,
+  RewardHistoryStore,
 } from "@kar-mi/spirit-vale-tools-rewards";
-import type { RewardLogStatus, XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
+import type {
+  RewardAggregateSnapshot,
+  RewardLogStatus,
+  XpAggregateSnapshot,
+} from "@kar-mi/spirit-vale-tools-rewards";
+import { sessionStreamPath } from "@kar-mi/spirit-vale-tools-logging";
+import type { ReadModel } from "@kar-mi/spirit-vale-tools-sqlite";
 import type {
   RewardsAppMode,
   RewardsAppRpc,
@@ -26,9 +33,16 @@ import { createSessionPicker } from "@spiritvale/ui-core/session-picker";
 import { registerUiScaleWindow, scaledSize, unscaledSize } from "@spiritvale/ui-core/ui-scale-window";
 import { visibleScaledWindowFrame, type WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
+import { chartBuckets, chartSample, CHART_POINTS, RECENT_KILL_LIMIT } from "../reward-chart.ts";
 
 const POLL_MS = 1_000;
 const catalog = loadBundledMobRewardCatalog();
+
+/** The desktop process's shared SQLite read model, when it is available. */
+export interface RewardsReadModelSource {
+  model(): ReadModel | undefined;
+  indexSession(sessionId: string, stream: "combat" | "rewards", options?: { finalize?: boolean }): Promise<boolean>;
+}
 
 /** The Rewards window's XP Tracker tab reads from (and can reset) a tracker owned centrally, shared with the overlay, so both stay in sync. */
 export interface XpTrackerSource {
@@ -39,6 +53,8 @@ export interface XpTrackerSource {
 
 export interface RewardsWindowOptions {
   logDirectory: string;
+  /** Replays are read from here when present; without it they fall back to a full in-memory load. */
+  readModel?: RewardsReadModelSource;
   xp: XpTrackerSource;
   getCharacterState(): { snapshot?: { level: number; experience: number } };
   subscribeCharacter(listener: () => void): () => void;
@@ -51,7 +67,10 @@ export interface RewardsWindowOptions {
 
 export async function createRewardsWindow(options: RewardsWindowOptions) {
 const settings = await loadRewardsSettings(options.settingsPath);
-const follower = new RewardSessionLogFollower(options.logDirectory);
+const follower = new LiveRewardSessionLogFollower(options.logDirectory, {
+  recentKillLimit: RECENT_KILL_LIMIT,
+  chartPoints: CHART_POINTS,
+});
 
 let window: BrowserWindow;
 let catalogWindow: BrowserWindow | undefined;
@@ -59,8 +78,8 @@ let mode: RewardsAppMode = "live";
 let status: RewardsAppStatus = "waiting";
 let statusDetail = "Waiting for rewards data from the central capture.";
 let catalogQuery = "";
-let liveSnapshot = emptySnapshot();
-let replaySnapshot = emptySnapshot();
+let liveSnapshot = emptyAggregate();
+let replaySnapshot = emptyAggregate();
 let replayFileName: string | undefined;
 let replayWarnings = 0;
 let polling = false;
@@ -104,7 +123,7 @@ const rpc = BrowserView.defineRPC<RewardsAppRpc>({
           publish();
           try {
             await options.onReset();
-            liveSnapshot = emptySnapshot();
+            liveSnapshot = emptyAggregate();
           } catch {
             // Keep the existing snapshot unchanged when rotation fails.
           } finally {
@@ -235,7 +254,8 @@ function appState(): RewardsAppState {
     resetting,
     ...(replayFileName ? { replayFileName } : {}),
     replayWarnings,
-    kills: snapshot.kills.slice(0, 100).map((kill) => ({
+    // Already bounded to RECENT_KILL_LIMIT by the aggregator, newest first.
+    kills: snapshot.recentKills.map((kill) => ({
       id: kill.id,
       ...(kill.recordedAt === undefined ? {} : { timestamp: kill.recordedAt }),
       mobId: kill.mob.mobId,
@@ -246,12 +266,7 @@ function appState(): RewardsAppState {
       coins: kill.coins.toString(),
       drops: kill.drops.map((drop) => ({ ...drop, itemName: itemName(drop.itemId) })),
     })),
-    graphSamples: snapshot.kills.flatMap((kill) => kill.recordedAt === undefined ? [] : [{
-      recordedAt: kill.recordedAt,
-      experience: kill.experience,
-      jobExperience: kill.jobExperience,
-      coins: kill.coins.toString(),
-    }]),
+    graphSamples: snapshot.chart.map(chartSample),
     summaries: snapshot.mobs.map((mob) => ({
       ...mob,
       coins: mob.coins.toString(),
@@ -339,19 +354,76 @@ async function poll(): Promise<void> {
 
 async function loadReplayPath(selectedPath: string): Promise<void> {
   try {
-    const replay = await loadRewardReplay(selectedPath);
-    replaySnapshot = replay.snapshot;
-    replayWarnings = replay.invalidLines;
+    replaySnapshot = await indexedReplay(selectedPath) ?? await fullReplay(selectedPath);
     replayFileName = path.basename(selectedPath);
     mode = "replay";
   } catch {
-    replaySnapshot = emptySnapshot();
+    replaySnapshot = emptyAggregate();
     replayWarnings = 0;
     replayFileName = undefined;
     publish();
     throw new Error("rewards replay could not be loaded");
   }
   publish();
+}
+
+/**
+ * Reads a replay out of the shared read model, which indexes the log in one streaming pass and
+ * returns only the bounded summary. Resolves to undefined when there is no read model, or when the
+ * chosen file is not a managed session log (a file picked from anywhere on disk has no session id),
+ * leaving the caller to fall back to the full in-memory load.
+ */
+async function indexedReplay(selectedPath: string): Promise<RewardAggregateSnapshot | undefined> {
+  const source = options.readModel;
+  if (!source) return undefined;
+  const sessionId = managedSessionId(selectedPath);
+  if (!sessionId) return undefined;
+  if (!await source.indexSession(sessionId, "rewards", { finalize: true })) return undefined;
+  const model = source.model();
+  if (!model) return undefined;
+  const summary = new RewardHistoryStore(model).getSummary(sessionId, {
+    recentKillLimit: RECENT_KILL_LIMIT,
+    chartPoints: CHART_POINTS,
+  });
+  replayWarnings = 0;
+  return summary;
+}
+
+/**
+ * Fallback for a log the read model cannot index: load the whole session, then keep only the
+ * bounded projection of it the UI actually renders. Totals, per-mob summaries and unmatched counts
+ * come straight from the full snapshot, so nothing is lost by bounding the kills and the chart.
+ */
+async function fullReplay(selectedPath: string): Promise<RewardAggregateSnapshot> {
+  const replay = await loadRewardReplay(selectedPath);
+  replayWarnings = replay.invalidLines;
+  const snapshot = replay.snapshot;
+  return {
+    revision: 0,
+    killCount: snapshot.kills.length,
+    recentKills: snapshot.kills.slice(0, RECENT_KILL_LIMIT),
+    mobs: snapshot.mobs,
+    chart: chartBuckets(snapshot.kills),
+    totalExperience: snapshot.totalExperience,
+    totalJobExperience: snapshot.totalJobExperience,
+    totalCoins: snapshot.totalCoins,
+    unmatched: snapshot.unmatched,
+    unmatchedDrops: snapshot.unmatchedDrops,
+    unmatchedByReason: snapshot.unmatchedByReason,
+  };
+}
+
+/** The session id for a log inside the managed directory, or undefined for any other path. */
+function managedSessionId(selectedPath: string): string | undefined {
+  const resolved = path.resolve(selectedPath);
+  const sessionId = path.basename(path.dirname(resolved));
+  if (!sessionId) return undefined;
+  const expected = path.resolve(sessionStreamPath(sessionId, "rewards", options.logDirectory));
+  return expected === resolved ? sessionId : undefined;
+}
+
+function emptyAggregate(): RewardAggregateSnapshot {
+  return new LiveRewardService({ recentKillLimit: RECENT_KILL_LIMIT, chartPoints: CHART_POINTS }).snapshot();
 }
 
 function itemName(itemId: string): string {
@@ -423,8 +495,8 @@ async function shutdown(): Promise<void> {
   unsubscribeCharacter();
   catalogWindow?.close();
   catalogWindow = undefined;
-  liveSnapshot = emptySnapshot();
-  replaySnapshot = emptySnapshot();
+  liveSnapshot = emptyAggregate();
+  replaySnapshot = emptyAggregate();
   if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
   await settingsPersistence.flush(settings);
 }

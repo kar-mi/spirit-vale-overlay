@@ -22,6 +22,7 @@ import {
 } from "../actor-identity-storage.ts";
 import { CaptureCoordinator } from "./capture-coordinator.ts";
 import { createXpTrackerCoordinator } from "./xp-tracker-coordinator.ts";
+import { createReadModelService } from "./read-model-service.ts";
 import { createCharacterWindow } from "./character-window.ts";
 import { createDeathLogWindow, createDpsWindow } from "@spiritvale/combat-ui";
 import { createOverlayWindow } from "@spiritvale/overlay";
@@ -48,6 +49,9 @@ const storagePaths = resolveDesktopStoragePaths({
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,
 });
 const logDirectory = storagePaths.logDirectory;
+// One read model for the whole process: a disposable SQLite cache over the canonical JSON Lines
+// logs, so tool windows can page history from disk instead of each rebuilding it in memory.
+const readModel = await createReadModelService({ logDirectory });
 const xpTracker = createXpTrackerCoordinator({ logDirectory });
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
@@ -132,6 +136,7 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
 }));
 const rewardsWindow = new WindowSlot((onClosed) => createRewardsWindow({
   logDirectory,
+  readModel,
   xp: xpTracker,
   getCharacterState: () => capture.characterState(),
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
@@ -533,6 +538,7 @@ async function shutdown(): Promise<void> {
     await launcherSettingsPersistence.flush();
     await placements.flush();
     xpTracker.shutdown();
+    await readModel.close();
   } finally {
     try { await capture.stop(); } finally { Utils.quit(); }
   }

@@ -49,7 +49,9 @@
     "packages/rewards-ui": {
       "name": "@spiritvale/rewards-ui",
       "dependencies": {
+        "@kar-mi/spirit-vale-tools-logging": "0.4.0",
         "@kar-mi/spirit-vale-tools-rewards": "0.4.0",
+        "@kar-mi/spirit-vale-tools-sqlite": "0.1.1",
         "@preact/signals": "^2.9.4",
         "@spiritvale/ui-core": "workspace:*",
         "electrobun": "1.18.1",
