@@ -53,6 +53,7 @@ function kill(index: number): FishNetMobRewardEvent {
     kind: "kill",
     id: `kill-${index}`,
     tick: index,
+    attributed: true,
     mob: {
       objectId: 1_000 + (index % 7),
       mobId: `mob-${index % 7}`,

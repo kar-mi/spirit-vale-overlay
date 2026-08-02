@@ -71,6 +71,7 @@ function kill(index: number): RecordedMobRewardKill {
     id: `kill-${index}`,
     tick: index,
     recordedAt: new Date(ORIGIN_MS + index * 1_000).toISOString(),
+    attributed: true,
     mob: {
       objectId: 1_000 + (index % 7),
       mobId: `mob-${index % 7}`,
