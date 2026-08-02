@@ -16,6 +16,12 @@ import type { WindowFrame } from "./window-chrome.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "./window-lifecycle.ts";
 
 const MAX_RECENT_SESSIONS = 100;
+/**
+ * Sessions inspected while filling the list. Empty sessions are skipped, so the scan has to reach
+ * past MAX_RECENT_SESSIONS to still show that many — bounded so a directory full of empty sessions
+ * cannot turn one refresh into an unbounded summarize pass.
+ */
+const MAX_SCANNED_SESSIONS = MAX_RECENT_SESSIONS * 3;
 
 export interface SessionPickerOptions {
   logDirectory: string;
@@ -126,7 +132,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
     publish();
     try {
       const cache = await summaryCache();
-      const sessions = await listLogSessions(options.stream, options.logDirectory, MAX_RECENT_SESSIONS);
+      const sessions = await listLogSessions(options.stream, options.logDirectory, MAX_SCANNED_SESSIONS);
       const nextPaths = new Map<string, string>();
       const items: SessionPickerState["sessions"] = [];
       for (let offset = 0; offset < sessions.length && items.length < MAX_RECENT_SESSIONS; offset += 10) {
