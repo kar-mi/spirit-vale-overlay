@@ -9,9 +9,12 @@ import {
   normalizeOverlaySettings,
   saveOverlaySettings,
 } from "./settings.ts";
+import { requiredStatusOptions } from "./required-statuses.ts";
 
 let temporaryRoot: string | undefined;
 const bounds = { x: 0, y: 0, width: 1280, height: 720 };
+const someBuffId = requiredStatusOptions("buffs")[0]!.statusId;
+const someToggleId = requiredStatusOptions("toggles")[0]!.statusId;
 
 afterEach(async () => {
   if (temporaryRoot) await rm(temporaryRoot, { recursive: true, force: true });
@@ -180,6 +183,45 @@ describe("overlay settings", () => {
       bounds,
     );
     expect(reassigned.shortcuts.cycleMeterStatType).toBe("Ctrl+F7");
+  });
+
+  test("arms no missing-buff warning by default", () => {
+    expect(defaultOverlaySettings(bounds).requiredStatuses).toEqual({ buffs: [], toggles: [] });
+  });
+
+  test("keeps only selectable status ids for each warning category", () => {
+    const settings = normalizeOverlaySettings({
+      schemaVersion: 4,
+      requiredStatuses: {
+        buffs: [someBuffId, someBuffId, someToggleId, "NotARealStatus", 7],
+        toggles: [someToggleId],
+      },
+    }, bounds);
+
+    // A toggle cannot be required of the buffs tile: it never appears there, so the warning
+    // could never be cleared.
+    expect(settings.requiredStatuses.buffs).toEqual([someBuffId]);
+    expect(settings.requiredStatuses.toggles).toEqual([someToggleId]);
+  });
+
+  test("adds the missing-buff warning field without replacing current schema-four customizations", () => {
+    const settings = normalizeOverlaySettings({
+      schemaVersion: 4,
+      elements: { health: { enabled: false, x: 25, width: 325 } },
+    }, bounds);
+
+    expect(settings.elements.health).toMatchObject({ enabled: false, x: 25, width: 325 });
+    expect(settings.requiredStatuses).toEqual({ buffs: [], toggles: [] });
+  });
+
+  test("round-trips armed statuses", async () => {
+    const settingsPath = await createSettingsPath();
+    const settings = defaultOverlaySettings(bounds);
+    settings.requiredStatuses.buffs = [someBuffId];
+    await saveOverlaySettings(settings, settingsPath);
+
+    expect((await loadOverlaySettings(settingsPath, bounds)).requiredStatuses)
+      .toEqual({ buffs: [someBuffId], toggles: [] });
   });
 
   test("defaults the party meter stat type to damage and normalizes invalid values", () => {

@@ -4,8 +4,9 @@ import type { CharacterWeight } from "@kar-mi/spirit-vale-tools-character";
 import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
 import type { MeterEncounterSnapshot } from "@spiritvale/combat-ui/app-types";
 import type { StatType } from "@spiritvale/ui-core/stat-type-select";
+import type { RequiredStatusCategory } from "./required-statuses.ts";
 
-export type { StatType };
+export type { StatType, RequiredStatusCategory };
 
 export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "characterXp", "jobXp", "weight", "xpTracker", "xpChart", "buffs", "debuffs", "toggles"] as const;
 export type OverlayElementId = (typeof OVERLAY_ELEMENT_IDS)[number];
@@ -68,6 +69,10 @@ export interface OverlayState {
   buffs?: FishNetActiveStatus[];
   debuffs?: FishNetActiveStatus[];
   toggles?: FishNetActiveStatus[];
+  /** Statuses the user armed a missing-status warning for, per tile. */
+  requiredStatuses: Record<RequiredStatusCategory, string[]>;
+  /** Of those, the ones not currently active — non-empty means the tile is highlighted. */
+  missingStatuses: Record<RequiredStatusCategory, string[]>;
 }
 
 type OverlaySharedRequests = {
@@ -79,6 +84,10 @@ type OverlaySharedRequests = {
   };
   setOverlayVisible: { params: { visible: boolean }; response: OverlayState };
   setShortcut: { params: { action: KeybindAction; shortcut: string }; response: OverlayState };
+  setRequiredStatuses: {
+    params: { category: RequiredStatusCategory; statusIds: string[] };
+    response: OverlayState;
+  };
   resetXpTracker: { params: Record<string, never>; response: OverlayState };
 };
 

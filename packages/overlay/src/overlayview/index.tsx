@@ -27,6 +27,9 @@ const MIN_ELEMENT_WIDTH = 160;
 const MIN_ELEMENT_HEIGHT = 100;
 const MIN_BAR_HEIGHT = 24;
 const MIN_COMPACT_ELEMENT_HEIGHT = 40;
+/** Buffs flash once they fall below this share of their own duration, if they last long enough. */
+const FLASH_REMAINING_FRACTION = 0.15;
+const FLASH_MINIMUM_DURATION_MS = 59_000;
 const GRID_SIZE = 10;
 const RESIZE_EDGES = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
 const CLASS_ICON_BY_ARCHETYPE: Readonly<Record<number, string>> = {
@@ -122,13 +125,24 @@ function App() {
       <OverlayElement id="partyRanking" settings={next.elements.partyRanking} locked={next.locked}>
         <PartyRankingElement state={next} />
       </OverlayElement>
-      <OverlayElement id="buffs" settings={next.elements.buffs} locked={next.locked}>
-        <StatusGridElement statuses={next.buffs} />
+      <OverlayElement
+        id="buffs"
+        settings={next.elements.buffs}
+        locked={next.locked}
+        warn={next.missingStatuses.buffs.length > 0}
+      >
+        <StatusGridElement statuses={next.buffs} flashExpiring />
       </OverlayElement>
+      {/* Debuffs deliberately do not flash: one running out is good news. */}
       <OverlayElement id="debuffs" settings={next.elements.debuffs} locked={next.locked}>
         <StatusGridElement statuses={next.debuffs} />
       </OverlayElement>
-      <OverlayElement id="toggles" settings={next.elements.toggles} locked={next.locked}>
+      <OverlayElement
+        id="toggles"
+        settings={next.elements.toggles}
+        locked={next.locked}
+        warn={next.missingStatuses.toggles.length > 0}
+      >
         <StatusGridElement statuses={next.toggles} />
       </OverlayElement>
     </main>
@@ -139,10 +153,12 @@ interface OverlayElementProps {
   id: OverlayElementId;
   settings: OverlayElementSettings;
   locked: boolean;
+  /** Outlines the tile in red, e.g. a status the user armed a missing-buff warning for is down. */
+  warn?: boolean;
   children: ComponentChildren;
 }
 
-function OverlayElement({ id, settings, locked, children }: OverlayElementProps) {
+function OverlayElement({ id, settings, locked, warn, children }: OverlayElementProps) {
   const [gesture, setGesture] = useState<PointerGesture>();
   const [preview, setPreview] = useState<ElementRect>();
   if (locked && !settings.enabled) return null;
@@ -150,6 +166,7 @@ function OverlayElement({ id, settings, locked, children }: OverlayElementProps)
   const className = [
     "overlay-element",
     !settings.enabled && "hidden-preview",
+    warn && settings.enabled && "missing-statuses",
     gesture?.kind === "resize" ? "resizing" : gesture?.kind === "drag" ? "dragging" : undefined,
   ].filter(Boolean).join(" ");
   const move = (event: PointerEvent): void => {
@@ -531,7 +548,9 @@ function PartyRankingElement({ state: next }: { state: OverlayState }) {
   );
 }
 
-function StatusGridElement({ statuses }: { statuses: FishNetActiveStatus[] | undefined }) {
+function StatusGridElement(
+  { statuses, flashExpiring }: { statuses: FishNetActiveStatus[] | undefined; flashExpiring?: boolean },
+) {
   const list = statuses ?? [];
   if (list.length === 0) {
     return (
@@ -542,12 +561,15 @@ function StatusGridElement({ statuses }: { statuses: FishNetActiveStatus[] | und
   }
   return (
     <div class="status-grid">
-      {list.map((status) => <StatusCell key={status.statusId} status={status} />)}
+      {list.map((status) =>
+        <StatusCell key={status.statusId} status={status} flashExpiring={flashExpiring} />)}
     </div>
   );
 }
 
-function StatusCell({ status }: { status: FishNetActiveStatus }) {
+function StatusCell(
+  { status, flashExpiring }: { status: FishNetActiveStatus; flashExpiring?: boolean },
+) {
   // A sprite id no longer guarantees the artwork shipped: summons resolve theirs from the skill
   // catalog, which covers far more skills than the icons copied into views/assets/status-icons.
   // Drop the cell rather than leaving an empty frame behind, matching how icon-less statuses are
@@ -558,8 +580,13 @@ function StatusCell({ status }: { status: FishNetActiveStatus }) {
   const remainingFraction = totalMs !== undefined && totalMs > 0 && status.remainingMs !== undefined
     ? Math.max(0, Math.min(1, status.remainingMs / totalMs))
     : undefined;
+  // Short buffs spend their whole life near the threshold, so flashing them would be constant
+  // noise; only buffs long enough for the last 15% to be a usable warning pulse.
+  const expiring = flashExpiring
+    && totalMs !== undefined && totalMs > FLASH_MINIMUM_DURATION_MS
+    && remainingFraction !== undefined && remainingFraction <= FLASH_REMAINING_FRACTION;
   return (
-    <div class="status-cell" title={status.displayName}>
+    <div class={expiring ? "status-cell expiring" : "status-cell"} title={status.displayName}>
       <div
         class="status-icon-frame"
         style={remainingFraction === undefined ? undefined : `--status-remaining:${Math.round(remainingFraction * 100)}%`}

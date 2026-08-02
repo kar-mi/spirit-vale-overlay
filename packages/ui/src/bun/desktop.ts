@@ -269,6 +269,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
         await overlayWindow.withWindow((overlay) => overlay.setShortcut(action, shortcut));
         return sharedSettingsState();
       },
+      setOverlayRequiredStatuses: async ({ category, statusIds }) => {
+        await overlayWindow.withWindow((overlay) => overlay.setRequiredStatuses(category, statusIds));
+        return sharedSettingsState();
+      },
       windowAction: ({ action }) => {
         if (action === "minimize") settingsWindow?.minimize();
         else settingsWindow?.close();
