@@ -11,6 +11,11 @@ import {
   type OverlayElementSettings,
   type StatType,
 } from "./app-types.ts";
+import {
+  REQUIRED_STATUS_CATEGORIES,
+  normalizeRequiredStatusIds,
+  type RequiredStatusCategory,
+} from "./required-statuses.ts";
 
 export { KEYBIND_ACTIONS, OVERLAY_ELEMENT_IDS };
 export type { KeybindAction, OverlayElementId, OverlayElementSettings };
@@ -21,6 +26,8 @@ export interface OverlaySettings {
   shortcuts: Record<KeybindAction, string>;
   elements: Record<OverlayElementId, OverlayElementSettings>;
   meterStatType: StatType;
+  /** Statuses the user expects to keep up; the matching tile is highlighted while any is missing. */
+  requiredStatuses: Record<RequiredStatusCategory, string[]>;
 }
 
 const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
@@ -105,7 +112,15 @@ export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBoun
     shortcuts,
     elements,
     meterStatType: normalizeMeterStatType(source.meterStatType),
+    requiredStatuses: normalizeRequiredStatuses(source.requiredStatuses),
   };
+}
+
+function normalizeRequiredStatuses(value: unknown): Record<RequiredStatusCategory, string[]> {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return Object.fromEntries(REQUIRED_STATUS_CATEGORIES.map(
+    (category) => [category, normalizeRequiredStatusIds(category, source[category])],
+  )) as Record<RequiredStatusCategory, string[]>;
 }
 
 function normalizeMeterStatType(value: unknown): StatType {

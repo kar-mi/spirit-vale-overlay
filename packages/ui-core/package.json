@@ -12,6 +12,7 @@
     "./settings-button": "./settings-button.tsx",
     "./status-dot": "./status-dot.tsx",
     "./enemy-filter": "./enemy-filter.tsx",
+    "./checkbox-multi-select": "./checkbox-multi-select.tsx",
     "./custom-select": "./custom-select.tsx",
     "./stat-type-select": "./stat-type-select.tsx",
     "./interactive-chart": "./interactive-chart.tsx",

@@ -4,6 +4,7 @@ import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@spiritvale/ui-core/title-bar";
 import { CustomSelect } from "@spiritvale/ui-core/custom-select";
+import { CheckboxMultiSelect } from "@spiritvale/ui-core/checkbox-multi-select";
 import { UI_SCALE_VALUES } from "@spiritvale/ui-core/ui-scale";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 import {
@@ -11,10 +12,12 @@ import {
   OVERLAY_ELEMENT_IDS,
   OVERLAY_ELEMENT_LABELS,
   type KeybindAction,
+  type RequiredStatusCategory,
 } from "@spiritvale/overlay/app-types";
+import { REQUIRED_STATUS_CATEGORIES, requiredStatusOptions } from "@spiritvale/overlay/required-statuses";
 import type { LauncherSettingsRpc, SharedSettingsState } from "../launcher-types.ts";
 
-type Tab = "general" | "network" | "overlay" | "keybinds";
+type Tab = "general" | "network" | "overlay" | "status" | "keybinds";
 const state = signal<SharedSettingsState | undefined>(undefined);
 const recordingAction = signal<KeybindAction | undefined>(undefined);
 const rpc = Electroview.defineRPC<LauncherSettingsRpc>({
@@ -29,6 +32,16 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   openLiveDeathLog: "Open live death log", toggleOverlayVisible: "Show/hide overlay",
   cycleMeterStatType: "Cycle party meter",
 };
+const REQUIRED_STATUS_LABELS: Record<RequiredStatusCategory, string> = { buffs: "Buffs", toggles: "Toggles" };
+/** Status sprites are copied into a single shared assets folder for every view. */
+const REQUIRED_STATUS_OPTIONS = Object.fromEntries(REQUIRED_STATUS_CATEGORIES.map((category) => [
+  category,
+  requiredStatusOptions(category).map((option) => ({
+    value: option.statusId,
+    label: option.displayName,
+    iconSrc: `views://assets/status-icons/${option.spriteId}.webp`,
+  })),
+])) as Record<RequiredStatusCategory, { value: string; label: string; iconSrc: string }[]>;
 
 function App() {
   const [tab, setTab] = useState<Tab>("general");
@@ -62,7 +75,7 @@ function App() {
     <section class="settings-content">
       {(launcher.storageWarning || overlay.shortcutErrors.openLiveDeathLog) && <div class="banner is-warn" aria-live="polite">{launcher.storageWarning ?? overlay.shortcutErrors.openLiveDeathLog}</div>}
       <div class="settings-tabs" role="tablist" aria-label="Settings sections">
-        {(["general", "network", "overlay", "keybinds"] as const).map((id) =>
+        {(["general", "network", "overlay", "status", "keybinds"] as const).map((id) =>
           <button class={tab === id ? "settings-tab is-active" : "settings-tab"} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
             {id[0]!.toUpperCase() + id.slice(1)}
           </button>)}
@@ -88,6 +101,49 @@ function App() {
         <div class="settings-card settings-row"><span><strong>{overlay.overlayVisible ? "Overlay shown" : "Overlay hidden"}</strong></span><button class="btn" type="button" onClick={() => update(electroview.rpc?.request.setOverlayVisible({ visible: !overlay.overlayVisible }))}>{overlay.overlayVisible ? "Hide overlay" : "Show overlay"}</button></div>
         <div class="settings-card"><h2>Visible elements</h2>{OVERLAY_ELEMENT_IDS.map((id) => <label class="settings-check settings-element"><input type="checkbox" checked={overlay.elements[id].enabled} onChange={(event) => update(electroview.rpc?.request.setOverlayElementEnabled({ id, enabled: event.currentTarget.checked }))} /><span>{OVERLAY_ELEMENT_LABELS[id]}</span></label>)}</div>
         <p class="settings-hint">{overlay.personalName ? `Detected character: ${overlay.personalName}` : "Waiting to detect your active character."}</p>
+      </section>
+
+      <section class="settings-panel" hidden={tab !== "status"}>
+        <header class="settings-heading"><h1>Status</h1><p>Warn when the buffs you rely on drop off.</p></header>
+        <div class="settings-card">
+          <h2>Missing buff warning</h2>
+          {REQUIRED_STATUS_CATEGORIES.map((category) => {
+            const armed = new Set(overlay.requiredStatuses[category]);
+            const setArmed = (statusIds: string[]): void =>
+              update(electroview.rpc?.request.setOverlayRequiredStatuses({ category, statusIds }));
+            return <div class="settings-field" key={category}>
+              <span>{REQUIRED_STATUS_LABELS[category]}</span>
+              <CheckboxMultiSelect
+                options={REQUIRED_STATUS_OPTIONS[category]}
+                selected={armed}
+                onChange={(next) => setArmed([...next])}
+                ariaLabel={`Warn when these ${REQUIRED_STATUS_LABELS[category].toLowerCase()} are missing`}
+                searchPlaceholder="Search buffs"
+                clearLabel="Clear selection"
+                noMatchLabel={(query) => `No buffs match "${query}".`}
+                summarize={(chosen) => chosen.size === 0 ? "Select buffs…" : `${chosen.size} selected`}
+              />
+              {armed.size > 0 && <ul class="status-chips">
+                {/* Listed in the picker's own order so a chip does not jump when others are removed. */}
+                {REQUIRED_STATUS_OPTIONS[category].filter((option) => armed.has(option.value)).map((option) =>
+                  <li class="status-chip" key={option.value}>
+                    <img src={option.iconSrc} alt="" aria-hidden="true" />
+                    <span>{option.label}</span>
+                    <button
+                      type="button"
+                      class="status-chip-remove"
+                      aria-label={`Stop warning when ${option.label} is missing`}
+                      onClick={() => setArmed([...armed].filter((statusId) => statusId !== option.value))}
+                    >
+                      ×
+                    </button>
+                  </li>)}
+              </ul>}
+            </div>;
+          })}
+          <p class="settings-hint">Selected buffs that aren't active outline the matching overlay tile in red.</p>
+        </div>
+        <p class="settings-hint">The Buffs and Toggles tiles must be enabled under Overlay for the warning to be visible.</p>
       </section>
 
       <section class="settings-panel" hidden={tab !== "keybinds"}>

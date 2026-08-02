@@ -1,7 +1,12 @@
 import type { RPCSchema } from "electrobun";
 import type { WindowFrame } from "@spiritvale/ui-core/window-chrome";
 import type { UiScale } from "@spiritvale/ui-core/ui-scale";
-import type { KeybindAction, OverlayElementId, OverlayState } from "@spiritvale/overlay/app-types";
+import type {
+  KeybindAction,
+  OverlayElementId,
+  OverlayState,
+  RequiredStatusCategory,
+} from "@spiritvale/overlay/app-types";
 
 export type CaptureStatus = "starting" | "capturing" | "unavailable" | "stopped";
 export type ToolWindow = "combat" | "overlay" | "rewards" | "market" | "character";
@@ -74,6 +79,10 @@ export type LauncherSettingsRpc = {
     setOverlayElementEnabled: { params: { id: OverlayElementId; enabled: boolean }; response: SharedSettingsState };
     setOverlayVisible: { params: { visible: boolean }; response: SharedSettingsState };
     setShortcut: { params: { action: KeybindAction; shortcut: string }; response: SharedSettingsState };
+    setOverlayRequiredStatuses: {
+      params: { category: RequiredStatusCategory; statusIds: string[] };
+      response: SharedSettingsState;
+    };
     windowAction: { params: { action: "minimize" | "close" }; response: void };
     getWindowFrame: { params: Record<string, never>; response: WindowFrame };
     setWindowFrame: { params: WindowFrame; response: void };

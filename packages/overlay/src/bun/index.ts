@@ -16,8 +16,9 @@ import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement"
 import { DisposableStore, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/bun";
 
-import type { KeybindAction, OverlayRpc, OverlayState, OverlayStatus } from "../app-types.ts";
+import type { KeybindAction, OverlayRpc, OverlayState, OverlayStatus, RequiredStatusCategory } from "../app-types.ts";
 import { KEYBIND_ACTIONS, METER_STAT_TYPE_CYCLE } from "../app-types.ts";
+import { missingRequiredStatuses } from "../required-statuses.ts";
 import { detectedPersonalName } from "../personal-character.ts";
 import { personalExperience } from "../personal-experience.ts";
 import { personalResources } from "../personal-resources.ts";
@@ -148,6 +149,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
           return appState();
         },
         setShortcut: ({ action, shortcut }) => setShortcut(action, shortcut),
+        setRequiredStatuses: ({ category, statusIds }) => setRequiredStatuses(category, statusIds),
         resetXpTracker: () => {
           options.xp.reset();
           return appState();
@@ -202,6 +204,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     setElementEnabled,
     setOverlayVisible: updateOverlayVisible,
     setShortcut,
+    setRequiredStatuses,
   };
 
   function appState(): OverlayState {
@@ -217,6 +220,9 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     // omitted entirely rather than shown as a text-initials placeholder.
     const activeStatuses = statusTracker.getActiveStatusesForName(personalName, snapshotNowMs ?? 0)
       .filter((activeStatus) => activeStatus.spriteId !== undefined);
+    // This split is mirrored by the pickers in ../required-statuses.ts; keep both in sync.
+    const buffs = activeStatuses.filter((activeStatus) => !activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined);
+    const toggles = activeStatuses.filter((activeStatus) => activeStatus.expiresAtMs === undefined);
     return {
       locked: settings.locked,
       personalName,
@@ -234,9 +240,14 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       ...experience,
       ...(characterState.weight ? { weight: characterState.weight } : {}),
       xp: options.xp.getSnapshot(),
-      buffs: activeStatuses.filter((activeStatus) => !activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined),
+      buffs,
       debuffs: activeStatuses.filter((activeStatus) => activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined),
-      toggles: activeStatuses.filter((activeStatus) => activeStatus.expiresAtMs === undefined),
+      toggles,
+      requiredStatuses: settings.requiredStatuses,
+      missingStatuses: {
+        buffs: missingRequiredStatuses(settings.requiredStatuses.buffs, buffs),
+        toggles: missingRequiredStatuses(settings.requiredStatuses.toggles, toggles),
+      },
     };
   }
 
@@ -252,6 +263,16 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     settings = normalizeOverlaySettings({
       ...settings,
       elements: { ...settings.elements, [id]: { ...element, enabled } },
+    }, bounds);
+    persist();
+    publish();
+    return appState();
+  }
+
+  function setRequiredStatuses(category: RequiredStatusCategory, statusIds: string[]): OverlayState {
+    settings = normalizeOverlaySettings({
+      ...settings,
+      requiredStatuses: { ...settings.requiredStatuses, [category]: statusIds },
     }, bounds);
     persist();
     publish();

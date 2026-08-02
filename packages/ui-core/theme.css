@@ -526,13 +526,13 @@ button { cursor: pointer; }
 
 input[type="checkbox"] { accent-color: var(--primary); }
 
-/* ---- enemy filter (searchable multi-select) ---- */
+/* ---- searchable checkbox multi-select (enemy filter, required-status pickers) ---- */
 
-.enemy-filter { position: relative; }
+.multi-select { position: relative; }
 
-.enemy-filter-toggle { min-width: 140px; }
+.multi-select-toggle { min-width: 140px; }
 
-.enemy-filter-panel {
+.multi-select-panel {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
@@ -547,11 +547,11 @@ input[type="checkbox"] { accent-color: var(--primary); }
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
 }
 
-.enemy-filter-search { margin-bottom: 8px; }
+.multi-select-search { margin-bottom: 8px; }
 
-.enemy-filter-list { min-height: 0; overflow-y: auto; }
+.multi-select-list { min-height: 0; overflow-y: auto; }
 
-.enemy-filter-row {
+.multi-select-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -560,11 +560,13 @@ input[type="checkbox"] { accent-color: var(--primary); }
   font-size: 12px;
 }
 
-.enemy-filter-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.multi-select-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.enemy-filter-empty { margin: 8px 4px; color: var(--on-surface-variant); font-size: 12px; }
+.multi-select-icon { flex: none; width: 18px; height: 18px; border-radius: 4px; }
 
-.enemy-filter-clear { margin-top: 8px; align-self: flex-start; }
+.multi-select-empty { margin: 8px 4px; color: var(--on-surface-variant); font-size: 12px; }
+
+.multi-select-clear { margin-top: 8px; align-self: flex-start; }
 
 /* ---- dialogs ---- */
 

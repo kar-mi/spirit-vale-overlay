@@ -40,11 +40,15 @@
         "@kar-mi/spirit-vale-tools-combat": "1.2.5",
         "@kar-mi/spirit-vale-tools-logging": "0.4.0",
         "@kar-mi/spirit-vale-tools-rewards": "0.4.1",
+        "@kar-mi/spirit-vale-tools-statuses": "0.2.2",
         "@preact/signals": "^2.9.4",
         "@spiritvale/combat-ui": "workspace:*",
         "@spiritvale/ui-core": "workspace:*",
         "electrobun": "1.18.1",
         "preact": "^10.29.7",
+      },
+      "devDependencies": {
+        "@kar-mi/spirit-vale-tools-skills": "0.2.0",
       },
     },
     "packages/rewards-ui": {
