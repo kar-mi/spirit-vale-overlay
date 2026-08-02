@@ -512,9 +512,9 @@ describe("central capture coordinator", () => {
       });
       const receivedConnections: string[] = [];
       const internal = coordinator as unknown as {
-        character: { consume: (packet: CapturedFishNetPacket) => boolean };
+        character: { consumeBeforeAdmission: (packet: CapturedFishNetPacket) => boolean };
       };
-      internal.character.consume = (packet) => {
+      internal.character.consumeBeforeAdmission = (packet) => {
         if (packet.rpcName !== "CharacterCallback_T") return false;
         receivedConnections.push(packet.connectionId);
         return true;
@@ -548,13 +548,8 @@ describe("central capture coordinator", () => {
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
       });
-      const received: Array<[string, string, string | undefined]> = [];
       const internal = coordinator as unknown as {
-        character: { consume: (packet: CapturedFishNetPacket) => boolean };
-      };
-      internal.character.consume = (packet) => {
-        received.push([packet.connectionId, packet.packetName, packet.rpcName]);
-        return packet.rpcName === "CharacterCallback_T";
+        character: { physicalObjectId: () => number | undefined };
       };
       await coordinator.start();
 
@@ -589,10 +584,7 @@ describe("central capture coordinator", () => {
         connectionId: "conn-a",
       });
 
-      expect(received).toEqual([
-        ["spiritvale-active-character", "serverRpc", undefined],
-        ["conn-a", "rpcLink", "CharacterCallback_T"],
-      ]);
+      expect(internal.character.physicalObjectId()).toBe(202);
       await coordinator.stop();
     } finally {
       await rm(directory, { recursive: true, force: true });

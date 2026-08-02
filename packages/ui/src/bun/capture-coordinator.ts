@@ -1,6 +1,6 @@
 import { FishNetActorDirectory, FishNetCombatTracker } from "@kar-mi/spirit-vale-tools-combat";
 import type { FishNetCombatEvent, FishNetKnownIdentity } from "@kar-mi/spirit-vale-tools-combat";
-import { FishNetCharacterTracker, resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
+import { resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterSnapshot, CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import type { CapturedFishNetPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
@@ -23,6 +23,7 @@ import { FishNetMarketTracker, marketEventLogData } from "@kar-mi/spirit-vale-to
 import { FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
 
 import type { CaptureStatus, LauncherState } from "../launcher-types.ts";
+import { LocalCharacterRouter } from "./local-character-router.ts";
 import { RewardEventAttributor } from "./reward-event-attributor.ts";
 
 const SPAWN_PAYLOAD_LOG_LIMIT = 2_048;
@@ -33,9 +34,6 @@ const WRITE_MONITOR_INTERVAL_MS = 5_000;
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
-const CHARACTER_CALLBACK_RPCS = new Set(["LoadCharacter_T", "CharacterCallback_T"]);
-const ACTIVE_CHARACTER_CONNECTION_ID = "spiritvale-active-character";
-const ACTIVE_CHARACTER_OBJECT_ID = -1;
 type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail">;
 
 export interface CaptureErrorReport {
@@ -69,7 +67,7 @@ export class CaptureCoordinator {
   private readonly combat = new FishNetCombatTracker({
     actorIdentityResolver: (actorId) => this.actors.getAttribution(actorId),
     healingTraitsResolver: (actorId: number) => {
-      return actorId === this.localCharacterObjectId ? this.localHealingTraits() : undefined;
+      return actorId === this.character.physicalObjectId() ? this.localHealingTraits() : undefined;
     },
     // Names each hit's target from the monster's spawn packet. The combat log carries no spawn
     // packets, so a name not stamped onto the event here cannot be recovered when the log is
@@ -81,7 +79,10 @@ export class CaptureCoordinator {
   private readonly locallyDamagedRewardTargets = new Set<number>();
   private readonly mobs = new FishNetMobDirectory();
   private readonly market = new FishNetMarketTracker();
-  private readonly character = new FishNetCharacterTracker();
+  private readonly character = new LocalCharacterRouter({
+    onHandled: () => this.syncLocalActorIdentity(),
+    onError: (packet, error) => this.logCharacterWarning(packet, error),
+  });
   private session?: LogSession;
   private combatLog?: JsonLinesLogger;
   private rewardsLog?: JsonLinesLogger;
@@ -99,7 +100,6 @@ export class CaptureCoordinator {
   private waitingForDataReported = false;
   private activeConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
-  private localCharacterObjectId?: number;
   private resettingSession?: Promise<void>;
   private handoff = false;
   private packetBuffer: CapturedFishNetPacket[] = [];
@@ -477,21 +477,12 @@ export class CaptureCoordinator {
       this.waitingForDataReported = false;
       this.refreshCaptureDetail();
     }
-    // PlayerSave callbacks describe the character rather than a connection-scoped unit and may
-    // arrive before the new game-server connection is selected. Object-bound character packets
-    // must wait for selection: a trailing serverRpc from the outgoing connection would otherwise
-    // re-pin the tracker there and blank health/mana until another map change.
-    const characterCallback = packet.rpcName !== undefined && CHARACTER_CALLBACK_RPCS.has(packet.rpcName);
-    let characterHandled = characterCallback ? this.consumeCharacterPacket(packet) : false;
+    // Character-save callbacks are connection-independent; object-bound character data is routed
+    // only after the same active-connection admission used by every other capture domain.
+    let characterHandled = this.character.consumeBeforeAdmission(packet);
     if (!this.admitPacket(packet)) return;
-    // Authentication selects the routed connection, but is not sufficient evidence that the
-    // local unit changed. FishNet can authenticate again while the same object and tick stream
-    // continue; releasing the character pin here makes the next serverRpc erase HP/MP even though
-    // no replacement resource sync follows. An accepted serverRpc performs the real re-pin, and
-    // disconnect/despawn still release it normally.
-    if (!characterCallback && packet.packetName !== "authenticated") {
-      characterHandled = this.consumeCharacterPacket(packet, true);
-    }
+    const admittedCharacterHandled = this.character.consumeAdmitted(packet);
+    characterHandled ||= admittedCharacterHandled;
     if (packet.splitDropReason !== undefined) {
       this.combatLog?.log("combat.warning", {
         message: `split reassembly dropped (${packet.splitDropReason}) at tick ${packet.tick}`,
@@ -555,39 +546,15 @@ export class CaptureCoordinator {
     if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
   }
 
-  private consumeCharacterPacket(packet: CapturedFishNetPacket, normalizeConnection = false): boolean {
-    try {
-      // admitPacket rejects inactive physical connections, while localCharacterObjectId identifies
-      // the accepted connection's player object. Present both as one logical local-player stream:
-      // some maps do not send an initial HP/MP sync for the new local object, so treating every
-      // physical object id as a fresh character erases valid resources indefinitely. Remote-player
-      // syncs retain their real object ids and remain buffered rather than contaminating local data.
-      const localObjectPacket = packet.packetName === "serverRpc"
-        || packet.objectId !== undefined && packet.objectId === this.localCharacterObjectId;
-      const characterPacket = normalizeConnection
-        ? {
-            ...packet,
-            connectionId: ACTIVE_CHARACTER_CONNECTION_ID,
-            ...(localObjectPacket ? { objectId: ACTIVE_CHARACTER_OBJECT_ID } : {}),
-          }
-        : packet;
-      const handled = this.character.consume(characterPacket);
-      if (packet.packetName === "serverRpc" && packet.objectId !== undefined) {
-        this.localCharacterObjectId = packet.objectId;
-      }
-      if (handled) this.syncLocalActorIdentity();
-      return handled;
-    } catch (error) {
-      this.otherLog?.log("capture.warning", {
-        domain: "character",
-        message: `skipped character payload: ${errorMessage(error)}`,
-        rpcName: packet.rpcName ?? null,
-        objectId: packet.objectId ?? null,
-        payloadHex: packet.payload.subarray(0, SPAWN_PAYLOAD_LOG_LIMIT).toString("hex"),
-        payloadBytes: packet.payload.length,
-      });
-      return true;
-    }
+  private logCharacterWarning(packet: CapturedFishNetPacket, error: unknown): void {
+    this.otherLog?.log("capture.warning", {
+      domain: "character",
+      message: `skipped character payload: ${errorMessage(error)}`,
+      rpcName: packet.rpcName ?? null,
+      objectId: packet.objectId ?? null,
+      payloadHex: packet.payload.subarray(0, SPAWN_PAYLOAD_LOG_LIMIT).toString("hex"),
+      payloadBytes: packet.payload.length,
+    });
   }
 
   private localHealingTraits(): { hasSiphonHealth: boolean; hasHealthLeech: boolean } | undefined {
@@ -617,7 +584,7 @@ export class CaptureCoordinator {
   }
 
   private isLocalRewardActor(actorId: number): boolean {
-    if (actorId === this.localCharacterObjectId) return true;
+    if (actorId === this.character.physicalObjectId()) return true;
     const characterName = this.character.current()?.name;
     return characterName !== undefined && this.actors.getAttribution(actorId)?.displayName === characterName;
   }
