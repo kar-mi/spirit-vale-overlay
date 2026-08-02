@@ -15,6 +15,7 @@
     "./custom-select": "./custom-select.tsx",
     "./stat-type-select": "./stat-type-select.tsx",
     "./interactive-chart": "./interactive-chart.tsx",
+    "./managed-session": "./managed-session.ts",
     "./safe-save": "./safe-save.ts",
     "./json-settings": "./json-settings.ts",
     "./format": "./format.ts",

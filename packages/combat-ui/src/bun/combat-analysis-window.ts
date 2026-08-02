@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { BrowserView, BrowserWindow } from "electrobun/bun";
 import { loadDpsReplay } from "@kar-mi/spirit-vale-tools-combat";
-import type { FishNetDpsActorRow, FishNetDpsEncounterSnapshot, FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
+import type { CombatHistoryStore, FishNetDpsActorRow, FishNetDpsEncounterSnapshot, FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
 import { formatDuration } from "@spiritvale/ui-core/format";
 import { applyRoundedCorners, setWindowIcon } from "@spiritvale/ui-core/win32";
 import { appIconPath } from "@spiritvale/ui-core/window-publish";
@@ -20,10 +20,10 @@ import type {
   StatType,
 } from "../app-types.ts";
 import { createDeathLogWindow } from "./death-log-window.ts";
-import { loadEnemyBreakdown } from "../enemy-breakdown.ts";
-import type { EnemyBreakdownEncounter, EnemyDamageRow, EnemySkillStats } from "../enemy-breakdown.ts";
-import { loadTpsReplay } from "../tps-replay.ts";
-import { loadHpsReplay } from "../hps-replay.ts";
+import type { EnemyDamageRow, EnemySkillStats } from "../enemy-breakdown.ts";
+import { indexCombatSession, loadIndexedEncounter } from "../combat-history.ts";
+import type { CombatReadModelSource, IndexedEncounter, IndexedEncounterSummary } from "../combat-history.ts";
+import { managedSessionId } from "@spiritvale/ui-core/managed-session";
 import { validSelectedEnemyIds } from "../analysis-selection.ts";
 import { buildLivePlayerDetailState, emptyDpsRow } from "../live-player-detail.ts";
 
@@ -57,26 +57,38 @@ export interface LivePlayerDetailRefresh {
 }
 
 export interface CombatAnalysisControllerOptions {
+  logDirectory?: string;
+  /** Managed session logs are read from here; anything else falls back to replaying the file. */
+  readModel?: CombatReadModelSource;
   placements?: WindowPlacementStore;
   onOpenSettings?: () => void;
   onStateChanged?: (state: CombatAnalysisState) => void;
 }
+
+/** Encounters listed per log. Matches the session picker's cap on how far back the UI looks. */
+const MAX_ENCOUNTERS = 500;
 
 /** Owns past-log analysis state plus the reusable live/past selected-player detail child. */
 export function createCombatAnalysisController(options: CombatAnalysisControllerOptions = {}): CombatAnalysisController {
   let detailWindow: BrowserWindow | undefined;
   let detailLifecycle: DisposableStore | undefined;
   const deathLogWindow = createDeathLogWindow({
+    ...(options.logDirectory === undefined ? {} : { logDirectory: options.logDirectory }),
+    ...(options.readModel === undefined ? {} : { readModel: options.readModel }),
     placements: options.placements,
     placementKey: "combat-analysis-death-log",
     onOpenSettings: options.onOpenSettings,
   });
   let state: CombatAnalysisState = loadingState();
   let detailState: CombatAnalysisDetailState | undefined;
-  let snapshots: FishNetDpsEncounterSnapshot[] = [];
-  let enemyBreakdowns: EnemyBreakdownEncounter[] = [];
-  let tpsSnapshots: MeterEncounterSnapshot[] = [];
-  let healSnapshots: MeterEncounterSnapshot[] = [];
+  // Only the selected encounter is resident. Everything else is a list of ids and durations, and the
+  // encounter itself is re-read from the index whenever the selection changes.
+  let encounters: IndexedEncounterSummary[] = [];
+  let selected: IndexedEncounter | undefined;
+  let store: CombatHistoryStore | undefined;
+  let sessionId: string | undefined;
+  // Populated only on the fallback path, for a log outside the managed directory.
+  let replayEncounters: IndexedEncounter[] = [];
   let loadedPath: string | undefined;
   let liveDetailActorId: number | undefined;
   let loadSequence = 0;
@@ -128,45 +140,30 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     const sequence = ++loadSequence;
     closeDetails();
     deathLogWindow.close();
-    snapshots = [];
-    enemyBreakdowns = [];
-    tpsSnapshots = [];
-    healSnapshots = [];
+    clearLoaded();
     loadedPath = selectedPath;
     state = loadingState(path.basename(selectedPath), state.statType);
     publish();
     try {
-      const replay = await loadDpsReplay(selectedPath);
-      const nextSnapshots = replay.meter.getSnapshots();
-      const nextEnemyBreakdowns = (await loadEnemyBreakdown(selectedPath, nextSnapshots)).encounters;
-      const nextTpsSnapshots = (await loadTpsReplay(selectedPath, nextSnapshots)).snapshots;
-      const nextHealSnapshots = (await loadHpsReplay(selectedPath, nextSnapshots)).snapshots;
+      const invalidLines = await load(selectedPath);
       if (sequence !== loadSequence) return;
-      snapshots = nextSnapshots;
-      enemyBreakdowns = nextEnemyBreakdowns;
-      tpsSnapshots = nextTpsSnapshots;
-      healSnapshots = nextHealSnapshots;
-      const selectedEncounterId = snapshots.at(-1)?.id;
-      const lastSnapshot = snapshots.at(-1);
+      const count = encounters.length;
+      const lastId = encounters.at(-1)?.encounterId;
       state = {
         status: "ready",
-        statusDetail: snapshots.length === 0 ? "This log contains no player damage." : `${snapshots.length} encounter${snapshots.length === 1 ? "" : "s"} loaded`,
+        statusDetail: count === 0 ? "This log contains no player damage." : `${count} encounter${count === 1 ? "" : "s"} loaded`,
         fileName: path.basename(selectedPath),
-        invalidLines: replay.invalidLines,
-        encounters: encounterOptions(snapshots),
+        invalidLines,
+        encounters: encounterOptions(encounters),
         statType: state.statType,
-        enemies: enemyBreakdownFor(selectedEncounterId)?.enemies ?? [],
-        actorEnemyBreakdown: lastSnapshot && selectedEncounterId ? buildActorEnemyBreakdown(selectedEncounterId, lastSnapshot) : {},
-        ...(selectedEncounterId === undefined ? {} : {
-          selectedEncounterId,
-          snapshot: lastSnapshot,
-          tankedSnapshot: tpsSnapshotFor(selectedEncounterId),
-          healSnapshot: healSnapshotFor(selectedEncounterId),
-        }),
+        enemies: [],
+        actorEnemyBreakdown: {},
       };
+      if (lastId) applySelection(lastId);
       publish();
     } catch {
       if (sequence !== loadSequence) return;
+      clearLoaded();
       state = {
         status: "error",
         statusDetail: "The selected combat log could not be read.",
@@ -177,40 +174,87 @@ export function createCombatAnalysisController(options: CombatAnalysisController
         enemies: [],
         actorEnemyBreakdown: {},
       };
-      snapshots = [];
-      enemyBreakdowns = [];
-      tpsSnapshots = [];
-      healSnapshots = [];
       publish();
       throw new Error("combat analysis log could not be loaded");
     }
+  }
+
+  /**
+   * Indexes the log and lists its encounters, or replays it when it is not a managed session log.
+   * Returns the count of unparseable lines, which only the replay path can report.
+   */
+  async function load(selectedPath: string): Promise<number> {
+    const id = options.logDirectory === undefined
+      ? undefined
+      : managedSessionId(selectedPath, "combat", options.logDirectory);
+    if (id !== undefined) {
+      const indexed = await indexCombatSession(options.readModel, id, MAX_ENCOUNTERS);
+      if (indexed) {
+        sessionId = id;
+        store = indexed.store;
+        encounters = indexed.encounters;
+        return 0;
+      }
+    }
+    const replay = await loadDpsReplay(selectedPath);
+    // Without an index the whole log is in memory anyway, so keep the rendered encounters rather
+    // than re-reading the file per selection. Tanked, healing and the enemy breakdown come from the
+    // index only, so those tabs stay empty for a log outside the managed directory.
+    replayEncounters = replay.meter.getSnapshots().map((snapshot) => ({
+      snapshot,
+      breakdown: { encounterId: snapshot.id, enemies: [], bySkill: new Map() },
+    }));
+    encounters = replayEncounters.map((entry) => ({
+      encounterId: entry.snapshot.id,
+      durationMs: entry.snapshot.durationMs,
+    }));
+    return replay.invalidLines;
+  }
+
+  function loadEncounter(encounterId: string): IndexedEncounter | undefined {
+    if (store && sessionId !== undefined) return loadIndexedEncounter(store, sessionId, encounterId);
+    return replayEncounters.find((entry) => entry.snapshot.id === encounterId);
+  }
+
+  /** Reads one encounter in and folds it into the published state. */
+  function applySelection(encounterId: string): void {
+    selected = loadEncounter(encounterId);
+    if (!selected) {
+      state = { ...state, selectedEncounterId: encounterId, enemies: [], actorEnemyBreakdown: {} };
+      return;
+    }
+    state = {
+      ...state,
+      selectedEncounterId: encounterId,
+      snapshot: selected.snapshot,
+      ...(selected.tankedSnapshot === undefined ? {} : { tankedSnapshot: selected.tankedSnapshot }),
+      ...(selected.healSnapshot === undefined ? {} : { healSnapshot: selected.healSnapshot }),
+      enemies: selected.breakdown.enemies,
+      actorEnemyBreakdown: buildActorEnemyBreakdown(selected.snapshot),
+    };
+  }
+
+  function clearLoaded(): void {
+    encounters = [];
+    replayEncounters = [];
+    selected = undefined;
+    store = undefined;
+    sessionId = undefined;
   }
 
   function close(): void {
     loadSequence += 1;
     closeDetails();
     deathLogWindow.close();
-    snapshots = [];
-    enemyBreakdowns = [];
-    tpsSnapshots = [];
-    healSnapshots = [];
+    clearLoaded();
     loadedPath = undefined;
     state = loadingState(undefined, state.statType);
   }
 
   function selectEncounter(id: string): CombatAnalysisState {
-    if (state.snapshot?.id !== id && state.encounters.some((encounter) => encounter.id === id)) {
+    if (state.selectedEncounterId !== id && state.encounters.some((encounter) => encounter.id === id)) {
       closeDetails();
-      const snapshot = selectedSnapshot(id);
-      state = {
-        ...state,
-        selectedEncounterId: id,
-        snapshot,
-        tankedSnapshot: tpsSnapshotFor(id),
-        healSnapshot: healSnapshotFor(id),
-        enemies: enemyBreakdownFor(id)?.enemies ?? [],
-        actorEnemyBreakdown: snapshot ? buildActorEnemyBreakdown(id, snapshot) : {},
-      };
+      applySelection(id);
       publish();
     }
     return state;
@@ -225,9 +269,9 @@ export function createCombatAnalysisController(options: CombatAnalysisController
   function openPlayerDetails(actorId: number, selectedEnemyIds: readonly number[]): void {
     liveDetailActorId = undefined;
     const snapshot = state.snapshot;
-    if (!snapshot || !state.fileName) return;
-    const tankedSnapshot = tpsSnapshotFor(snapshot.id);
-    const healSnapshot = healSnapshotFor(snapshot.id);
+    if (!snapshot || !state.fileName || !selected) return;
+    const tankedSnapshot = selected.tankedSnapshot;
+    const healSnapshot = selected.healSnapshot;
     const dpsPlayer = snapshot.actors.find((actor) => actor.actorIds.includes(actorId));
     const tankedPlayer = tankedSnapshot?.actors.find((actor) => actor.actorIds.includes(actorId));
     const healPlayer = healSnapshot?.actors.find((actor) => actor.actorIds.includes(actorId));
@@ -238,9 +282,8 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     const identity = dpsPlayer ?? tankedPlayer ?? healPlayer;
     if (!identity) return;
     const player = dpsPlayer ?? emptyDpsRow(identity, snapshot.durationMs);
-    const breakdown = enemyBreakdownFor(snapshot.id);
-    const skillsByEnemy = buildSkillsByEnemy(snapshot.id, player, snapshot.durationMs);
-    const enemies = breakdown?.enemies.filter((enemy) => enemy.targetId in skillsByEnemy) ?? [];
+    const skillsByEnemy = buildSkillsByEnemy(player, snapshot.durationMs);
+    const enemies = selected.breakdown.enemies.filter((enemy) => enemy.targetId in skillsByEnemy);
     detailState = {
       fileName: state.fileName,
       encounterLabel: state.encounters.find((encounter) => encounter.id === snapshot.id)?.label ?? "Encounter",
@@ -341,24 +384,8 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     await deathLogWindow.open(loadedPath, false);
   }
 
-  function selectedSnapshot(id: string): FishNetDpsEncounterSnapshot | undefined {
-    return snapshots.find((snapshot) => snapshot.id === id);
-  }
-
-  function enemyBreakdownFor(encounterId: string | undefined): EnemyBreakdownEncounter | undefined {
-    return encounterId === undefined ? undefined : enemyBreakdowns.find((entry) => entry.encounterId === encounterId);
-  }
-
-  function tpsSnapshotFor(encounterId: string | undefined): MeterEncounterSnapshot | undefined {
-    return encounterId === undefined ? undefined : tpsSnapshots.find((snapshot) => snapshot.id === encounterId);
-  }
-
-  function healSnapshotFor(encounterId: string | undefined): MeterEncounterSnapshot | undefined {
-    return encounterId === undefined ? undefined : healSnapshots.find((snapshot) => snapshot.id === encounterId);
-  }
-
-  function buildActorEnemyBreakdown(encounterId: string, snapshot: FishNetDpsEncounterSnapshot): Record<number, EnemyDamageRow[]> {
-    const breakdown = enemyBreakdownFor(encounterId);
+  function buildActorEnemyBreakdown(snapshot: FishNetDpsEncounterSnapshot): Record<number, EnemyDamageRow[]> {
+    const breakdown = selected?.breakdown;
     const result: Record<number, EnemyDamageRow[]> = {};
     if (!breakdown) return result;
     for (const actor of snapshot.actors) {
@@ -381,8 +408,8 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     return result;
   }
 
-  function buildSkillsByEnemy(encounterId: string, player: FishNetDpsActorRow, durationMs: number): Record<number, FishNetDpsSkillRow[]> {
-    const breakdown = enemyBreakdownFor(encounterId);
+  function buildSkillsByEnemy(player: FishNetDpsActorRow, durationMs: number): Record<number, FishNetDpsSkillRow[]> {
+    const breakdown = selected?.breakdown;
     const result: Record<number, FishNetDpsSkillRow[]> = {};
     if (!breakdown) return result;
     const durationSeconds = Math.max(1, durationMs) / 1000;
@@ -445,9 +472,9 @@ function loadingState(fileName?: string, statType: StatType = "damage"): CombatA
   };
 }
 
-function encounterOptions(snapshots: readonly FishNetDpsEncounterSnapshot[]): DpsEncounterOption[] {
-  return snapshots.map((encounter, index) => ({
-    id: encounter.id,
+function encounterOptions(summaries: readonly IndexedEncounterSummary[]): DpsEncounterOption[] {
+  return summaries.map((encounter, index) => ({
+    id: encounter.encounterId,
     label: `Encounter ${index + 1} · ${formatDuration(encounter.durationMs)}`,
   }));
 }

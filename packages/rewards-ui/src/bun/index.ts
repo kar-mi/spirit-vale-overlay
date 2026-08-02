@@ -16,7 +16,6 @@ import type {
   RewardLogStatus,
   XpAggregateSnapshot,
 } from "@kar-mi/spirit-vale-tools-rewards";
-import { sessionStreamPath } from "@kar-mi/spirit-vale-tools-logging";
 import type { ReadModel } from "@kar-mi/spirit-vale-tools-sqlite";
 import type {
   RewardsAppMode,
@@ -33,6 +32,7 @@ import { createSessionPicker } from "@spiritvale/ui-core/session-picker";
 import { registerUiScaleWindow, scaledSize, unscaledSize } from "@spiritvale/ui-core/ui-scale-window";
 import { visibleScaledWindowFrame, type WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
+import { managedSessionId } from "@spiritvale/ui-core/managed-session";
 import { chartBuckets, chartSample, CHART_POINTS, RECENT_KILL_LIMIT } from "../reward-chart.ts";
 
 const POLL_MS = 1_000;
@@ -376,7 +376,7 @@ async function loadReplayPath(selectedPath: string): Promise<void> {
 async function indexedReplay(selectedPath: string): Promise<RewardAggregateSnapshot | undefined> {
   const source = options.readModel;
   if (!source) return undefined;
-  const sessionId = managedSessionId(selectedPath);
+  const sessionId = managedSessionId(selectedPath, "rewards", options.logDirectory);
   if (!sessionId) return undefined;
   if (!await source.indexSession(sessionId, "rewards", { finalize: true })) return undefined;
   const model = source.model();
@@ -411,15 +411,6 @@ async function fullReplay(selectedPath: string): Promise<RewardAggregateSnapshot
     unmatchedDrops: snapshot.unmatchedDrops,
     unmatchedByReason: snapshot.unmatchedByReason,
   };
-}
-
-/** The session id for a log inside the managed directory, or undefined for any other path. */
-function managedSessionId(selectedPath: string): string | undefined {
-  const resolved = path.resolve(selectedPath);
-  const sessionId = path.basename(path.dirname(resolved));
-  if (!sessionId) return undefined;
-  const expected = path.resolve(sessionStreamPath(sessionId, "rewards", options.logDirectory));
-  return expected === resolved ? sessionId : undefined;
 }
 
 function emptyAggregate(): RewardAggregateSnapshot {

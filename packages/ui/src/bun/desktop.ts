@@ -82,6 +82,8 @@ let actorIdentityStorageWarning: string | undefined;
 let liveCombatLogPath: string | undefined;
 
 const liveDeathLogWindow = createDeathLogWindow({
+  logDirectory,
+  readModel,
   placements,
   placementKey: "live-combat-death-log",
   defaultFrame: { x: 220, y: 180, width: 850, height: 680 },
@@ -108,6 +110,7 @@ const actorIdentityPersistence = new SafeSaveQueue<ActorIdentityCache>({
 
 const combatWindow = new WindowSlot((onClosed) => createDpsWindow({
   logDirectory,
+  readModel,
   getCharacterState: () => capture.characterState(),
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
   settingsPath: storagePaths.dpsSettingsPath,

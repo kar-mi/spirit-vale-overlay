@@ -9,12 +9,22 @@ import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-
 
 import type { CombatDeathLogRpc, CombatDeathLogState } from "../app-types.ts";
 import { loadDeathLogReplay, selectionAfterDeathLogRefresh } from "../death-log.ts";
+import type { DeathLogEntry } from "../death-log.ts";
+import { toDeathLogEntries } from "../combat-history.ts";
+import type { CombatReadModelSource } from "../combat-history.ts";
+import { managedSessionId } from "@spiritvale/ui-core/managed-session";
+import { CombatHistoryStore } from "@kar-mi/spirit-vale-tools-combat";
 
 const FRAME = { x: 220, y: 180, width: 895, height: 789 };
+/** Deaths held at once. The view lists them newest first and has no paging control. */
+const MAX_DEATHS = 500;
 const MINIMUM_WIDTH = 680;
 const MINIMUM_HEIGHT = 500;
 
 export interface DeathLogWindowOptions {
+  logDirectory?: string;
+  /** Managed session logs are read from here; anything else falls back to replaying the file. */
+  readModel?: CombatReadModelSource;
   placements?: WindowPlacementStore;
   placementKey?: string;
   defaultFrame?: { x: number; y: number; width: number; height: number };
@@ -90,19 +100,41 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
 
   async function load(filePath: string, opening: boolean): Promise<void> {
     const sequence = ++loadSequence;
-    const replay = await loadDeathLogReplay(filePath);
+    const loaded = await readDeaths(filePath);
     if (sequence !== loadSequence) return;
     const sameFile = loadedPath === filePath;
     const previousSelection = sameFile ? state?.selectedDeathId : undefined;
-    const selectedDeathId = selectionAfterDeathLogRefresh(previousSelection, replay.deaths);
+    const selectedDeathId = selectionAfterDeathLogRefresh(previousSelection, loaded.deaths);
     loadedPath = filePath;
     state = {
       fileName: path.basename(filePath),
-      deaths: replay.deaths,
-      invalidLines: replay.invalidLines,
+      deaths: loaded.deaths,
+      invalidLines: loaded.invalidLines,
       ...(selectedDeathId === undefined ? {} : { selectedDeathId }),
     };
     if (!opening || window) publish();
+  }
+
+  /**
+   * Reads deaths from the index when the file is a managed session log, so a live refresh is a
+   * bounded query rather than another full pass over a growing file. Anything else is replayed.
+   */
+  async function readDeaths(filePath: string): Promise<{ deaths: DeathLogEntry[]; invalidLines: number }> {
+    const source = options.readModel;
+    const sessionId = options.logDirectory === undefined
+      ? undefined
+      : managedSessionId(filePath, "combat", options.logDirectory);
+    if (source && sessionId !== undefined) {
+      // A live log keeps growing, so its trailing encounter must stay open for the next pass.
+      const indexed = await source.indexSession(sessionId, "combat", { finalize: !live });
+      const model = source.model();
+      if (indexed && model) {
+        const page = new CombatHistoryStore(model).getDeathLog({ sessionId, limit: MAX_DEATHS });
+        return { deaths: toDeathLogEntries(page.items), invalidLines: 0 };
+      }
+    }
+    const replay = await loadDeathLogReplay(filePath);
+    return { deaths: [...replay.deaths], invalidLines: replay.invalidLines };
   }
 
   function ensureWindow(): void {

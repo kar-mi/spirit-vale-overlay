@@ -26,6 +26,7 @@ import type { SessionPickerState } from "@spiritvale/ui-core/session-picker-type
 import { activeDeathLogSource } from "../combat-navigation.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 import { detectedPersonalName } from "../personal-character.ts";
+import type { CombatReadModelSource } from "../combat-history.ts";
 
 const MINIMUM_WIDTH = DPS_WINDOW_MINIMUM_WIDTH;
 const MINIMUM_HEIGHT = DPS_WINDOW_MINIMUM_HEIGHT;
@@ -35,6 +36,8 @@ const MAX_RECENT_SESSIONS = 100;
 const TIMELINE_POINTS = 720;
 export interface DpsWindowOptions {
   logDirectory: string;
+  /** Past analysis and the death log read managed session logs from here when it is available. */
+  readModel?: CombatReadModelSource;
   getCharacterState: () => CharacterViewState;
   subscribeCharacter: (listener: (state: CharacterViewState) => void) => () => void;
   settingsPath?: string;
@@ -81,6 +84,8 @@ const settingsPersistence = new SafeSaveQueue<typeof settings>({
 });
 
 const analysis = createCombatAnalysisController({
+  logDirectory: options.logDirectory,
+  ...(options.readModel === undefined ? {} : { readModel: options.readModel }),
   placements: options.placements,
   onOpenSettings: options.onOpenSettings,
   onStateChanged: (nextAnalysis) => {
