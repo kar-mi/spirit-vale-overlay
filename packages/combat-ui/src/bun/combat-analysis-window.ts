@@ -65,7 +65,10 @@ export interface CombatAnalysisControllerOptions {
   onStateChanged?: (state: CombatAnalysisState) => void;
 }
 
-/** Encounters listed per log. Matches the session picker's cap on how far back the UI looks. */
+/**
+ * Encounters offered per log. A guard against a pathological session rather than an expected limit;
+ * when it bites, the *newest* are kept and the status says how many were left out.
+ */
 const MAX_ENCOUNTERS = 500;
 
 /** Owns past-log analysis state plus the reusable live/past selected-player detail child. */
@@ -89,6 +92,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
   let sessionId: string | undefined;
   // Populated only on the fallback path, for a log outside the managed directory.
   let replayEncounters: IndexedEncounter[] = [];
+  let omittedEncounters = 0;
   let loadedPath: string | undefined;
   let liveDetailActorId: number | undefined;
   let loadSequence = 0;
@@ -151,7 +155,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
       const lastId = encounters.at(-1)?.encounterId;
       state = {
         status: "ready",
-        statusDetail: count === 0 ? "This log contains no player damage." : `${count} encounter${count === 1 ? "" : "s"} loaded`,
+        statusDetail: encounterStatus(count, omittedEncounters),
         fileName: path.basename(selectedPath),
         invalidLines,
         encounters: encounterOptions(encounters),
@@ -193,7 +197,8 @@ export function createCombatAnalysisController(options: CombatAnalysisController
         sessionId = id;
         store = indexed.store;
         encounters = indexed.encounters;
-        return 0;
+        omittedEncounters = indexed.omitted;
+        return indexed.invalidLines;
       }
     }
     const replay = await loadDpsReplay(selectedPath);
@@ -236,6 +241,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
 
   function clearLoaded(): void {
     encounters = [];
+    omittedEncounters = 0;
     replayEncounters = [];
     selected = undefined;
     store = undefined;
@@ -470,6 +476,12 @@ function loadingState(fileName?: string, statType: StatType = "damage"): CombatA
     enemies: [],
     actorEnemyBreakdown: {},
   };
+}
+
+function encounterStatus(count: number, omitted: number): string {
+  if (count === 0) return "This log contains no player damage.";
+  const loaded = `${count} encounter${count === 1 ? "" : "s"} loaded`;
+  return omitted === 0 ? loaded : `${loaded} · ${omitted} older encounter${omitted === 1 ? "" : "s"} not shown`;
 }
 
 function encounterOptions(summaries: readonly IndexedEncounterSummary[]): DpsEncounterOption[] {

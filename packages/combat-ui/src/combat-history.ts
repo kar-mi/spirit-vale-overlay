@@ -12,7 +12,11 @@ import type { EnemyBreakdownEncounter, EnemySkillStats } from "./enemy-breakdown
 /** The desktop process's shared SQLite read model, when it is available. */
 export interface CombatReadModelSource {
   model(): ReadModel | undefined;
-  indexSession(sessionId: string, stream: "combat" | "rewards", options?: { finalize?: boolean }): Promise<boolean>;
+  indexSession(
+    sessionId: string,
+    stream: "combat" | "rewards",
+    options?: { finalize?: boolean },
+  ): Promise<{ ok: boolean }>;
 }
 
 /** One encounter's three meters plus its enemy breakdown, as the analysis views consume them. */
@@ -29,6 +33,15 @@ export interface IndexedEncounterSummary {
   durationMs: number;
 }
 
+export interface IndexedSession {
+  store: CombatHistoryStore;
+  /** Oldest first, matching the order the encounters occurred in. */
+  encounters: IndexedEncounterSummary[];
+  /** Encounters the log holds beyond those listed, dropped from the oldest end. */
+  omitted: number;
+  invalidLines: number;
+}
+
 /**
  * Indexes a combat log and lists its encounters, without loading any of them.
  *
@@ -39,24 +52,36 @@ export async function indexCombatSession(
   source: CombatReadModelSource | undefined,
   sessionId: string,
   limit: number,
-): Promise<{ store: CombatHistoryStore; encounters: IndexedEncounterSummary[] } | undefined> {
+): Promise<IndexedSession | undefined> {
   if (!source) return undefined;
-  if (!await source.indexSession(sessionId, "combat", { finalize: true })) return undefined;
+  const indexed = await source.indexSession(sessionId, "combat", { finalize: true });
+  if (!indexed.ok) return undefined;
   const model = source.model();
   if (!model) return undefined;
   const store = new CombatHistoryStore(model);
-  const encounters: IndexedEncounterSummary[] = [];
+
+  // Page through the whole list before applying the cap. Summaries are an id and a duration, so
+  // holding them all costs nothing, and encounters come back oldest first — stopping early would
+  // keep the oldest and hide the most recent, which is the opposite of what the view wants.
+  const all: IndexedEncounterSummary[] = [];
   let cursor: string | undefined;
   do {
-    const page = store.listEncounters({ sessionId, limit, ...(cursor ? { cursor } : {}) });
-    for (const item of page.items) {
-      if (encounters.length >= limit) break;
-      encounters.push({ encounterId: item.encounterId, durationMs: item.durationMs });
-    }
-    cursor = encounters.length >= limit ? undefined : page.nextCursor;
+    const page = store.listEncounters({ sessionId, limit: PAGE_SIZE, ...(cursor ? { cursor } : {}) });
+    for (const item of page.items) all.push({ encounterId: item.encounterId, durationMs: item.durationMs });
+    cursor = page.nextCursor;
   } while (cursor);
-  return { store, encounters };
+
+  const encounters = all.length > limit ? all.slice(all.length - limit) : all;
+  return {
+    store,
+    encounters,
+    omitted: all.length - encounters.length,
+    invalidLines: store.invalidLines(sessionId),
+  };
 }
+
+/** Rows per keyset page while enumerating encounter summaries. */
+const PAGE_SIZE = 500;
 
 /** Loads one encounter's meters and enemy breakdown. Nothing else stays resident. */
 export function loadIndexedEncounter(

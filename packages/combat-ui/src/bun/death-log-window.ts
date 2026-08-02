@@ -16,7 +16,7 @@ import { managedSessionId } from "@spiritvale/ui-core/managed-session";
 import { CombatHistoryStore } from "@kar-mi/spirit-vale-tools-combat";
 
 const FRAME = { x: 220, y: 180, width: 895, height: 789 };
-/** Deaths held at once. The view lists them newest first and has no paging control. */
+/** Deaths held at once. The view lists them newest first, so the cap drops the oldest. */
 const MAX_DEATHS = 500;
 const MINIMUM_WIDTH = 680;
 const MINIMUM_HEIGHT = 500;
@@ -125,12 +125,14 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
       ? undefined
       : managedSessionId(filePath, "combat", options.logDirectory);
     if (source && sessionId !== undefined) {
-      // A live log keeps growing, so its trailing encounter must stay open for the next pass.
-      const indexed = await source.indexSession(sessionId, "combat", { finalize: !live });
+      // Whether the trailing encounter may be closed is the read model's call: only it knows if this
+      // is the session still being captured.
+      const indexed = await source.indexSession(sessionId, "combat");
       const model = source.model();
-      if (indexed && model) {
-        const page = new CombatHistoryStore(model).getDeathLog({ sessionId, limit: MAX_DEATHS });
-        return { deaths: toDeathLogEntries(page.items), invalidLines: 0 };
+      if (indexed.ok && model) {
+        const store = new CombatHistoryStore(model);
+        const page = store.getDeathLog({ sessionId, limit: MAX_DEATHS });
+        return { deaths: toDeathLogEntries(page.items), invalidLines: store.invalidLines(sessionId) };
       }
     }
     const replay = await loadDeathLogReplay(filePath);

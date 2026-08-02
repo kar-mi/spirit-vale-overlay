@@ -41,7 +41,11 @@ const catalog = loadBundledMobRewardCatalog();
 /** The desktop process's shared SQLite read model, when it is available. */
 export interface RewardsReadModelSource {
   model(): ReadModel | undefined;
-  indexSession(sessionId: string, stream: "combat" | "rewards", options?: { finalize?: boolean }): Promise<boolean>;
+  indexSession(
+    sessionId: string,
+    stream: "combat" | "rewards",
+    options?: { finalize?: boolean },
+  ): Promise<{ ok: boolean }>;
 }
 
 /** The Rewards window's XP Tracker tab reads from (and can reset) a tracker owned centrally, shared with the overlay, so both stay in sync. */
@@ -374,7 +378,7 @@ async function indexedReplay(selectedPath: string): Promise<RewardAggregateSnaps
   if (!source) return undefined;
   const sessionId = managedSessionId(selectedPath, "rewards", options.logDirectory);
   if (!sessionId) return undefined;
-  if (!await source.indexSession(sessionId, "rewards", { finalize: true })) return undefined;
+  if (!(await source.indexSession(sessionId, "rewards")).ok) return undefined;
   const model = source.model();
   if (!model) return undefined;
   const summary = new RewardHistoryStore(model).getSummary(sessionId, {
