@@ -28,6 +28,7 @@ import { RewardEventAttributor } from "./reward-event-attributor.ts";
 const SPAWN_PAYLOAD_LOG_LIMIT = 2_048;
 const HANDOFF_PACKET_LIMIT = 4_096;
 const HANDOFF_BYTE_LIMIT = 16 * 1024 * 1024;
+const CAPTURE_LOG_BUFFER_BYTES = 1024 * 1024 * 1024;
 const WRITE_MONITOR_INTERVAL_MS = 5_000;
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
@@ -144,6 +145,7 @@ export class CaptureCoordinator {
           producer: "desktop-capture",
           streams,
           logDirectory: this.options.logDirectory,
+          maxBufferedBytes: CAPTURE_LOG_BUFFER_BYTES,
           onWriteError: (failure) => this.logWriteFailure(failure),
         });
         this.combatLog = this.session.logger("combat");
@@ -269,6 +271,7 @@ export class CaptureCoordinator {
       streams,
       logDirectory: this.options.logDirectory,
       activate: false,
+      maxBufferedBytes: CAPTURE_LOG_BUFFER_BYTES,
       onWriteError: (failure) => this.logWriteFailure(failure),
     });
 
