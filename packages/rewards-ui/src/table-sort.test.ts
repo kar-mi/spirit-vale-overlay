@@ -23,7 +23,7 @@ describe("rewards table sorting", () => {
 });
 
 function summary(mobId: string, displayName: string, kills: number, coins: string): RewardsUiSummary {
-  return { mobId, displayName, level: 1, kills, experience: 10, jobExperience: 5, coins, drops: [] };
+  return { mobId, displayName, level: 1, kills, attributedKills: kills, experience: 10, jobExperience: 5, coins, drops: [] };
 }
 
 function kill(id: string, displayName: string, timestamp: string): RewardsUiKill {
