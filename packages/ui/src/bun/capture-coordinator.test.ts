@@ -499,14 +499,20 @@ describe("central capture coordinator", () => {
   test("reports capture startup failure without throwing or closing the session", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-failure-"));
     const capture = new FakeCapture(new Error("synthetic capture unavailable"));
+    const errorReports: Array<{ title: string; reason: string }> = [];
     try {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
         diagnosticLogging: false,
+        onError: (report) => errorReports.push(report),
       });
       await coordinator.start();
       expect(coordinator.state()).toEqual({ captureStatus: "unavailable", statusDetail: "Unable to capture data" });
+      expect(errorReports).toEqual([{
+        title: "Capture could not start",
+        reason: "synthetic capture unavailable",
+      }]);
       expect(await readCurrentLogStream("combat", directory)).toBeDefined();
       expect(await readCurrentLogStream("rewards", directory)).toBeDefined();
       expect(await readCurrentLogStream("market", directory)).toBeDefined();

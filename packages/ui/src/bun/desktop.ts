@@ -37,6 +37,7 @@ import { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
 import { launcherMinimizeAction, trayAction } from "./launcher-tray-actions.ts";
 import { findAvailableUpdate } from "../update-check.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
+import { HumanReadableErrorLog } from "./human-readable-error-log.ts";
 
 makeProcessDpiAware();
 
@@ -49,6 +50,7 @@ const storagePaths = resolveDesktopStoragePaths({
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,
 });
 const logDirectory = storagePaths.logDirectory;
+const errorLog = new HumanReadableErrorLog(localRoot);
 // One read model for the whole process: a disposable SQLite cache over the canonical JSON Lines
 // logs, so tool windows can page history from disk instead of each rebuilding it in memory.
 const readModel = await createReadModelService({ logDirectory });
@@ -158,6 +160,7 @@ const capture = new CaptureCoordinator({
     launcherState = { ...launcherState, ...state };
     publish();
   },
+  onError: (report) => errorLog.write(report),
   knownIdentities: actorIdentityCache.entries,
   onIdentityLearned: (identity) => {
     actorIdentityCache = updateActorIdentityCache(actorIdentityCache, { ...identity, lastSeenAtMs: Date.now() });
@@ -353,6 +356,11 @@ async function checkForUpdate(): Promise<void> {
 async function initializeCapture(): Promise<void> {
   await refreshCaptureDevices();
   if (launcherState.npcapAvailability !== "ready") {
+    errorLog.write({
+      title: "Capture could not start",
+      reason: launcherState.npcapDetail,
+      details: { "Npcap status": launcherState.npcapAvailability },
+    });
     launcherState = { ...launcherState, captureStatus: "unavailable", statusDetail: launcherState.npcapDetail };
     publish();
     return;
@@ -361,21 +369,21 @@ async function initializeCapture(): Promise<void> {
 }
 
 async function refreshCaptureDevices(): Promise<void> {
-  const status = await getNpcapStatus();
-  if (status.availability !== "ready") {
-    launcherState = {
-      ...launcherState,
-      npcapAvailability: status.availability,
-      npcapDetail: status.detail,
-      ...(status.version ? { npcapVersion: status.version } : {}),
-      adapters: [],
-      effectiveAdapter: undefined,
-      adapterFallback: false,
-    };
-    publish();
-    return;
-  }
   try {
+    const status = await getNpcapStatus();
+    if (status.availability !== "ready") {
+      launcherState = {
+        ...launcherState,
+        npcapAvailability: status.availability,
+        npcapDetail: status.detail,
+        ...(status.version ? { npcapVersion: status.version } : {}),
+        adapters: [],
+        effectiveAdapter: undefined,
+        adapterFallback: false,
+      };
+      publish();
+      return;
+    }
     const devices = await listNpcapDevices();
     const requested = settings.captureAdapter === "auto" ? undefined : settings.captureAdapter;
     const resolved = await resolveCaptureDevice(devices, requested);
@@ -390,10 +398,12 @@ async function refreshCaptureDevices(): Promise<void> {
       adapters: devices.map((device) => ({ id: device.name, label: device.description })),
     };
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    errorLog.write({ title: "Network adapters could not be inspected", reason: message });
     launcherState = {
       ...launcherState,
       npcapAvailability: "error",
-      npcapDetail: error instanceof Error ? error.message : String(error),
+      npcapDetail: message,
       adapters: [],
       effectiveAdapter: undefined,
       adapterFallback: false,
