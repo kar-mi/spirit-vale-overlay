@@ -31,6 +31,8 @@ const HANDOFF_PACKET_LIMIT = 4_096;
 const HANDOFF_BYTE_LIMIT = 16 * 1024 * 1024;
 const CAPTURE_LOG_BUFFER_BYTES = 1024 * 1024 * 1024;
 const WRITE_MONITOR_INTERVAL_MS = 5_000;
+const UNRESOLVED_REPORT_INTERVAL_MS = 60_000;
+const UNRESOLVED_REPORT_ENTRIES = 5;
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
@@ -69,6 +71,10 @@ export class CaptureCoordinator {
     healingTraitsResolver: (actorId: number) => {
       return actorId === this.character.physicalObjectId() ? this.localHealingTraits() : undefined;
     },
+    // Attributes a summon calibration recovered from an unnamed packet. Those carry no object id of
+    // their own, and CalibrateSummons_T is a targetRpc no other client receives, so the local
+    // character is the only possible recipient.
+    localActorIdResolver: () => this.character.physicalObjectId(),
     // Names each hit's target from the monster's spawn packet. The combat log carries no spawn
     // packets, so a name not stamped onto the event here cannot be recovered when the log is
     // replayed — which is why enemies that died without acting indexed as "Enemy <id>".
@@ -77,6 +83,8 @@ export class CaptureCoordinator {
   private readonly rewards = new FishNetMobRewardTracker();
   private readonly rewardAttributor = new RewardEventAttributor();
   private readonly locallyDamagedRewardTargets = new Set<number>();
+  private readonly unresolvedCounts = new Map<string, number>();
+  private unresolvedReportedAtMs = 0;
   private readonly mobs = new FishNetMobDirectory();
   private readonly market = new FishNetMarketTracker();
   private readonly character = new LocalCharacterRouter({
@@ -483,6 +491,7 @@ export class CaptureCoordinator {
     if (!this.admitPacket(packet)) return;
     const admittedCharacterHandled = this.character.consumeAdmitted(packet);
     characterHandled ||= admittedCharacterHandled;
+    this.countUnresolvedPacket(packet);
     if (packet.splitDropReason !== undefined) {
       this.combatLog?.log("combat.warning", {
         message: `split reassembly dropped (${packet.splitDropReason}) at tick ${packet.tick}`,
@@ -507,6 +516,15 @@ export class CaptureCoordinator {
           // death event so replay analysis can identify every victim, not only attackers.
           identities.push(...this.actors.observePlayerActor(event.targetId, event.tick));
         }
+      }
+      for (const event of events) {
+        if (event.kind !== "summon" || !event.recovered) continue;
+        // Recovery only fires when the capture could not name the packet at all, which means this
+        // connection is losing summon traffic wholesale. Keep the rate visible rather than letting a
+        // heuristic quietly paper over it.
+        this.combatLog?.log("combat.warning", {
+          message: `recovered an unnamed summon calibration (${event.skillId} ×${event.stacks}) at tick ${event.tick}`,
+        });
       }
       handled ||= identities.length > 0 || events.length > 0;
       for (const event of identities) this.combatLog?.log("combat.actorIdentity", jsonObject(event));
@@ -544,6 +562,43 @@ export class CaptureCoordinator {
     }
 
     if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
+  }
+
+  /**
+   * Counts packets the decoder could not attribute, and reports a per-window summary.
+   *
+   * Both counters are silent killers: an rpcLink whose registration was never seen carries no object
+   * id or method name, and an `ambiguous` packet carries no method name, so either way the packet is
+   * simply dropped by every domain tracker. A session where clone tracking or damage attribution
+   * "just stops working" looks identical in the combat log to one where the game sent nothing —
+   * these counts are what tell the two apart.
+   */
+  private countUnresolvedPacket(packet: CapturedFishNetPacket): void {
+    if (packet.packetName === "rpcLink" && packet.linkResolved === false) {
+      this.unresolvedCounts.set("rpcLink:unregistered", (this.unresolvedCounts.get("rpcLink:unregistered") ?? 0) + 1);
+    } else if (packet.rpcResolution === "recovered") {
+      // Not a loss — a quarantined registration that survived corroboration. Counted so the
+      // promotion rate stays visible next to the losses it is offsetting.
+      this.unresolvedCounts.set("rpcLink:recovered", (this.unresolvedCounts.get("rpcLink:recovered") ?? 0) + 1);
+    } else if (packet.rpcResolution === "ambiguous") {
+      const key = `ambiguous:${packet.packetName}:hash=${packet.rpcHash}:component=${packet.networkBehaviourIndex}`;
+      this.unresolvedCounts.set(key, (this.unresolvedCounts.get(key) ?? 0) + 1);
+    } else {
+      return;
+    }
+    const now = Date.now();
+    this.unresolvedReportedAtMs ||= now;
+    if (now - this.unresolvedReportedAtMs < UNRESOLVED_REPORT_INTERVAL_MS) return;
+    const summary = [...this.unresolvedCounts.entries()]
+      .sort(([, left], [, right]) => right - left)
+      .slice(0, UNRESOLVED_REPORT_ENTRIES)
+      .map(([key, count]) => `${key}=${count}`)
+      .join(", ");
+    this.combatLog?.log("combat.warning", {
+      message: `unattributed packets in the last ${Math.round((now - this.unresolvedReportedAtMs) / 1000)}s: ${summary}`,
+    });
+    this.unresolvedCounts.clear();
+    this.unresolvedReportedAtMs = now;
   }
 
   private logCharacterWarning(packet: CapturedFishNetPacket, error: unknown): void {
