@@ -6,7 +6,7 @@ import path from "node:path";
 
 import type { CharacterSnapshot } from "@kar-mi/spirit-vale-tools-character";
 import { DpsSessionLogFollower } from "@kar-mi/spirit-vale-tools-combat";
-import type { CapturedFishNetPacket, CaptureConfig } from "@kar-mi/spirit-vale-tools-capture";
+import type { CapturedFishNetPacket, CapturedLiteNetLibPacket, CaptureConfig } from "@kar-mi/spirit-vale-tools-capture";
 import type { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import { readCurrentLogStream } from "@kar-mi/spirit-vale-tools-logging";
 import { MarketSessionLogFollower } from "@kar-mi/spirit-vale-tools-market";
@@ -134,6 +134,59 @@ describe("central capture coordinator", () => {
       expect(market.map((record) => record.type)).toContain("market.event");
       expect(other.filter((record) => record.type === "fishnet.packet")).toHaveLength(2);
       expect(other.at(-1)?.type).toBe("capture.lifecycle");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("diagnostic mode traces map-transition wire traffic, connection admission, and status decoding", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-transition-diagnostics-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        diagnosticLogging: true,
+      });
+      await coordinator.start();
+
+      const now = Date.now();
+      capture.liteNet(liteNetPacket(new Date(now - 6_000), Buffer.from("too-old")));
+      capture.liteNet(liteNetPacket(new Date(now - 100), Buffer.from("before")));
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      capture.packet(statusPacket(1_010, 10, "conn-b"));
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet(statusPacket(60, 20, "conn-b"));
+      capture.liteNet(liteNetPacket(new Date(now + 100), Buffer.from("after")));
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("other", directory);
+      const diagnosticRecords = records(await readFile(pointer!.path, "utf8")) as Array<{
+        type: string;
+        data: Record<string, unknown>;
+      }>;
+      const wire = diagnosticRecords.filter((record) => record.type === "capture.liteNetPacket");
+      expect(wire.map((record) => record.data.phase)).toContain("before-authenticated");
+      expect(wire.map((record) => record.data.phase)).toContain("after-authenticated");
+      const firstTransition = diagnosticRecords.find((record) => record.type === "capture.mapTransition");
+      expect(firstTransition?.data).toMatchObject({ bufferedLiteNetPackets: 1, droppedBufferedPackets: 1 });
+
+      const admissions = diagnosticRecords.filter((record) => record.type === "capture.packetAdmission");
+      expect(admissions.some((record) => record.data.decision === "rejected"
+        && record.data.reason === "inactive-connection"
+        && record.data.rpcName === "ApplyEffect_T")).toBe(true);
+      expect(admissions.some((record) => record.data.decision === "accepted"
+        && record.data.rpcName === "ApplyEffect_T")).toBe(true);
+
+      const statuses = diagnosticRecords.filter((record) => record.type === "capture.statusPacket");
+      expect(statuses.filter((record) => record.data.phase === "input")).toHaveLength(2);
+      const output = statuses.find((record) => record.data.phase === "output");
+      expect(output?.data.statusEvents).toEqual([expect.objectContaining({
+        kind: "status",
+        actorId: 20,
+        statusId: "Haste",
+        action: "applied",
+      })]);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -950,6 +1003,10 @@ class FakeCapture extends EventEmitter {
     this.emit("fishNetPacket", { connectionId: "test-connection", ...packet } as CapturedFishNetPacket);
   }
 
+  liteNet(packet: CapturedLiteNetLibPacket): void {
+    this.emit("liteNetPacket", packet);
+  }
+
   fail(error: Error): void {
     this.emit("error", error);
   }
@@ -972,6 +1029,57 @@ function experiencePacket(tick: number, experience: number, coins: bigint): Test
 
 function authenticatedPacket(tick: number, connectionId: string): TestPacket {
   return { tick, packetId: 0, packetName: "authenticated", raw: Buffer.alloc(0), payload: Buffer.alloc(0), connectionId };
+}
+
+function statusPacket(tick: number, objectId: number, connectionId: string): TestPacket {
+  return {
+    tick,
+    packetId: 1,
+    packetName: "targetRpc",
+    objectId,
+    rpcName: "ApplyEffect_T",
+    rpcResolution: "verified",
+    networkBehaviourType: "StatusComponent",
+    decodedFields: [
+      { name: "statusId", codec: "stringUtf8Packed", value: "Haste" },
+      { name: "level", codec: "packedInt32", value: 1 },
+    ],
+    raw: Buffer.from([1, 2]),
+    payload: Buffer.from([1, 2]),
+    connectionId,
+  };
+}
+
+function liteNetPacket(capturedAt: Date, raw: Buffer): CapturedLiteNetLibPacket {
+  return {
+    mergePath: [],
+    packet: {
+      propertyId: 1,
+      property: "channeled",
+      connectionNumber: 0,
+      fragmented: false,
+      sequence: 1,
+      channel: 0,
+      raw,
+      payload: raw,
+    },
+    udpPacket: {
+      timestampTicks: 0n,
+      capturedAt,
+      interfaceIndex: 1,
+      subinterfaceIndex: 0,
+      direction: "inbound",
+      loopback: false,
+      ipVersion: 4,
+      sourceIP: "127.0.0.1",
+      destinationIP: "127.0.0.1",
+      sourcePort: 7000,
+      destinationPort: 7001,
+      truncated: false,
+      payload: raw,
+      protocol: "udp",
+    },
+  };
 }
 
 function characterPinPacket(tick: number, objectId: number, connectionId: string): TestPacket {

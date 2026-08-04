@@ -3,7 +3,7 @@ import type { FishNetCombatEvent, FishNetKnownIdentity } from "@kar-mi/spirit-va
 import { resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterSnapshot, CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
-import type { CapturedFishNetPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
+import type { CapturedFishNetPacket, CapturedLiteNetLibPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
 import {
   activateLogSession,
   createLogSession,
@@ -33,6 +33,17 @@ const CAPTURE_LOG_BUFFER_BYTES = 1024 * 1024 * 1024;
 const WRITE_MONITOR_INTERVAL_MS = 5_000;
 const UNRESOLVED_REPORT_INTERVAL_MS = 60_000;
 const UNRESOLVED_REPORT_ENTRIES = 5;
+const DIAGNOSTIC_PRE_AUTH_MS = 5_000;
+const DIAGNOSTIC_POST_AUTH_MS = 10_000;
+const DIAGNOSTIC_PRE_AUTH_BYTE_LIMIT = 8 * 1024 * 1024;
+const DIAGNOSTIC_TRANSITION_BYTE_LIMIT = 32 * 1024 * 1024;
+const STATUS_RPC_NAMES = new Set([
+  "ApplyEffect_T",
+  "RemoveEffect_T",
+  "ApplyEffectDisplays_O",
+  "ApplySkillDisplay_O",
+  "RemoveSkillDisplay_O",
+]);
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
@@ -108,6 +119,13 @@ export class CaptureCoordinator {
   private waitingForDataReported = false;
   private activeConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
+  private diagnosticLiteNetBuffer: Array<{ capturedAtMs: number; bytes: number; data: JsonObject }> = [];
+  private diagnosticLiteNetBufferBytes = 0;
+  private diagnosticLiteNetDropped = 0;
+  private diagnosticTransitionId = 0;
+  private diagnosticTransitionUntilMs = 0;
+  private diagnosticTransitionBytes = 0;
+  private diagnosticTransitionTruncated = false;
   private resettingSession?: Promise<void>;
   private handoff = false;
   private packetBuffer: CapturedFishNetPacket[] = [];
@@ -129,6 +147,9 @@ export class CaptureCoordinator {
     this.capture.on("targetStatus", (target) => this.targetStatus(target));
     this.capture.on("warning", (message) => this.captureWarning(message));
     this.capture.on("error", (error) => this.captureError(error));
+    if (this.diagnosticLogging) {
+      this.capture.on("liteNetPacket", (packet) => this.captureLiteNetDiagnostic(packet));
+    }
     this.capture.on("fishNetPacket", (packet) => this.routePacket(packet));
     this.capture.on("stopped", () => this.captureStopped());
   }
@@ -243,6 +264,7 @@ export class CaptureCoordinator {
     this.waitingForDataReported = false;
     this.activeConnectionId = undefined;
     this.lastAuthenticated = undefined;
+    this.clearDiagnosticTransition();
     const session = this.session;
     this.session = undefined;
     this.combatLog = undefined;
@@ -476,8 +498,13 @@ export class CaptureCoordinator {
 
   private routePacket(packet: CapturedFishNetPacket): void {
     if (this.handoff) {
+      this.logPacketAdmission(packet, "buffered", "capture-session-handoff", this.activeConnectionId);
       this.bufferHandoffPacket(packet);
       return;
+    }
+    if (packet.packetName === "authenticated") this.beginTransitionDiagnostic(packet);
+    if (isStatusPacket(packet)) {
+      this.otherLog?.log("capture.statusPacket", jsonObject({ phase: "input", ...fishNetPacketDiagnostic(packet) }));
     }
     if (!this.receivedDataForCurrentGame) {
       this.receivedDataForCurrentGame = true;
@@ -507,6 +534,15 @@ export class CaptureCoordinator {
       const identities = this.actors.consume(packet);
       const events = this.combat.consume(packet);
       combatEvents = events;
+      if (isStatusPacket(packet)) {
+        this.otherLog?.log("capture.statusPacket", jsonObject({
+          phase: "output",
+          tick: packet.tick,
+          connectionId: packet.connectionId,
+          rpcName: packet.rpcName,
+          statusEvents: events.filter((event) => event.kind === "status"),
+        }));
+      }
       for (const event of events) {
         if ((event.kind === "damage" || event.kind === "death") && event.team === 0) {
           identities.push(...this.actors.observePlayerActor(event.actorId, event.tick));
@@ -669,19 +705,127 @@ export class CaptureCoordinator {
    */
   private admitPacket(packet: CapturedFishNetPacket): boolean {
     const connectionId = packet.connectionId;
+    const activeBefore = this.activeConnectionId;
     this.activeConnectionId ??= connectionId;
     if (connectionId !== this.activeConnectionId) {
-      if (packet.packetName !== "authenticated") return false;
+      if (packet.packetName !== "authenticated") {
+        this.logPacketAdmission(packet, "rejected", "inactive-connection", activeBefore);
+        return false;
+      }
       this.activeConnectionId = connectionId;
     }
     if (packet.packetName === "authenticated") {
       if (this.lastAuthenticated?.connectionId === connectionId && this.lastAuthenticated.tick === packet.tick) {
+        this.logPacketAdmission(packet, "rejected", "duplicate-authenticated", activeBefore);
         return false;
       }
       this.lastAuthenticated = { connectionId, tick: packet.tick };
     }
     if (packet.packetName === "disconnect") this.activeConnectionId = undefined;
+    if (packet.packetName === "authenticated" || packet.packetName === "disconnect" || isStatusPacket(packet)) {
+      this.logPacketAdmission(packet, "accepted", undefined, activeBefore);
+    }
     return true;
+  }
+
+  private logPacketAdmission(
+    packet: CapturedFishNetPacket,
+    decision: "accepted" | "rejected" | "buffered",
+    reason: string | undefined,
+    activeConnectionId: string | undefined,
+  ): void {
+    if (!this.diagnosticLogging) return;
+    this.otherLog?.log("capture.packetAdmission", jsonObject({
+      decision,
+      reason,
+      activeConnectionId,
+      packetConnectionId: packet.connectionId,
+      tick: packet.tick,
+      packetName: packet.packetName,
+      rpcName: packet.rpcName,
+      objectId: packet.objectId,
+      rpcResolution: packet.rpcResolution,
+    }));
+  }
+
+  /**
+   * Retains a small amount of LiteNet traffic so an authenticated packet can flush the wire-level
+   * lead-in to a map transition, then records a bounded post-authentication window. This sits below
+   * FishNet decoding and connection admission, which lets a diagnostic session distinguish a server
+   * omission from a decoder or routing loss without making raw traffic logging permanently unbounded.
+   */
+  private captureLiteNetDiagnostic(packet: CapturedLiteNetLibPacket): void {
+    const capturedAtMs = packet.udpPacket.capturedAt.getTime();
+    const bytes = packet.packet.raw.length;
+    const data = liteNetPacketDiagnostic(packet);
+    if (capturedAtMs <= this.diagnosticTransitionUntilMs) {
+      if (this.diagnosticTransitionBytes + bytes <= DIAGNOSTIC_TRANSITION_BYTE_LIMIT) {
+        this.diagnosticTransitionBytes += bytes;
+        this.otherLog?.log("capture.liteNetPacket", jsonObject({
+          transitionId: this.diagnosticTransitionId,
+          phase: "after-authenticated",
+          ...data,
+        }));
+      } else if (!this.diagnosticTransitionTruncated) {
+        this.diagnosticTransitionTruncated = true;
+        this.otherLog?.log("capture.diagnosticLimit", {
+          transitionId: this.diagnosticTransitionId,
+          phase: "after-authenticated",
+          byteLimit: DIAGNOSTIC_TRANSITION_BYTE_LIMIT,
+        });
+      }
+      return;
+    }
+
+    this.diagnosticLiteNetBuffer.push({ capturedAtMs, bytes, data });
+    this.diagnosticLiteNetBufferBytes += bytes;
+    const oldestAllowed = capturedAtMs - DIAGNOSTIC_PRE_AUTH_MS;
+    while (this.diagnosticLiteNetBuffer[0]
+      && (this.diagnosticLiteNetBuffer[0].capturedAtMs < oldestAllowed
+        || this.diagnosticLiteNetBufferBytes > DIAGNOSTIC_PRE_AUTH_BYTE_LIMIT)) {
+      const dropped = this.diagnosticLiteNetBuffer.shift()!;
+      this.diagnosticLiteNetBufferBytes -= dropped.bytes;
+      this.diagnosticLiteNetDropped += 1;
+    }
+  }
+
+  private beginTransitionDiagnostic(packet: CapturedFishNetPacket): void {
+    if (!this.diagnosticLogging) return;
+    const capturedAtMs = packet.liteNetPacket?.udpPacket.capturedAt.getTime() ?? Date.now();
+    this.diagnosticTransitionId += 1;
+    this.diagnosticTransitionUntilMs = capturedAtMs + DIAGNOSTIC_POST_AUTH_MS;
+    this.diagnosticTransitionBytes = 0;
+    this.diagnosticTransitionTruncated = false;
+    this.otherLog?.log("capture.mapTransition", {
+      transitionId: this.diagnosticTransitionId,
+      tick: packet.tick,
+      connectionId: packet.connectionId,
+      bufferedLiteNetPackets: this.diagnosticLiteNetBuffer.length,
+      bufferedLiteNetBytes: this.diagnosticLiteNetBufferBytes,
+      droppedBufferedPackets: this.diagnosticLiteNetDropped,
+      preAuthenticatedMs: DIAGNOSTIC_PRE_AUTH_MS,
+      postAuthenticatedMs: DIAGNOSTIC_POST_AUTH_MS,
+    });
+    for (const entry of this.diagnosticLiteNetBuffer) {
+      this.diagnosticTransitionBytes += entry.bytes;
+      this.otherLog?.log("capture.liteNetPacket", jsonObject({
+        transitionId: this.diagnosticTransitionId,
+        phase: "before-authenticated",
+        ...entry.data,
+      }));
+    }
+    this.diagnosticLiteNetBuffer = [];
+    this.diagnosticLiteNetBufferBytes = 0;
+    this.diagnosticLiteNetDropped = 0;
+  }
+
+  private clearDiagnosticTransition(): void {
+    this.diagnosticLiteNetBuffer = [];
+    this.diagnosticLiteNetBufferBytes = 0;
+    this.diagnosticLiteNetDropped = 0;
+    this.diagnosticTransitionUntilMs = 0;
+    this.diagnosticTransitionBytes = 0;
+    this.diagnosticTransitionTruncated = false;
   }
 
   private syncLocalActorIdentity(): void {
@@ -799,9 +943,14 @@ export class CaptureCoordinator {
   }
 }
 
-function unclassifiedPacket(packet: CapturedFishNetPacket): JsonObject {
+function isStatusPacket(packet: CapturedFishNetPacket): boolean {
+  return packet.rpcName !== undefined && STATUS_RPC_NAMES.has(packet.rpcName);
+}
+
+function fishNetPacketDiagnostic(packet: CapturedFishNetPacket): JsonObject {
   return jsonObject({
     tick: packet.tick,
+    connectionId: packet.connectionId,
     packetId: packet.packetId,
     packetName: packet.packetName,
     objectId: packet.objectId,
@@ -826,6 +975,32 @@ function unclassifiedPacket(packet: CapturedFishNetPacket): JsonObject {
     payloadHex: packet.payload,
     undecodedPayloadHex: packet.undecodedPayload,
     rawHex: packet.raw,
+  });
+}
+
+function unclassifiedPacket(packet: CapturedFishNetPacket): JsonObject {
+  return fishNetPacketDiagnostic(packet);
+}
+
+function liteNetPacketDiagnostic(packet: CapturedLiteNetLibPacket): JsonObject {
+  const udp = packet.udpPacket;
+  const liteNet = packet.packet;
+  return jsonObject({
+    capturedAt: udp.capturedAt,
+    direction: udp.direction,
+    sourceIP: udp.sourceIP,
+    sourcePort: udp.sourcePort,
+    destinationIP: udp.destinationIP,
+    destinationPort: udp.destinationPort,
+    interfaceIndex: udp.interfaceIndex,
+    truncated: udp.truncated,
+    property: liteNet.property,
+    connectionNumber: liteNet.connectionNumber,
+    sequence: "sequence" in liteNet ? liteNet.sequence : undefined,
+    channel: "channel" in liteNet ? liteNet.channel : undefined,
+    fragment: "fragment" in liteNet ? liteNet.fragment : undefined,
+    mergePath: packet.mergePath,
+    rawHex: liteNet.raw,
   });
 }
 
