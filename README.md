@@ -56,7 +56,7 @@ The portable app keeps its settings, logs, and writable runtime data inside the 
 
 ### Run from source
 
-This path is only for developers building the application. It requires Bun 1.3.13 or newer and access to the `@kar-mi/spirit-vale-tools-*` GitHub Packages.
+This path is only for developers building the application. It requires Bun 1.3.14 or newer and access to the `@kar-mi/spirit-vale-tools-*` GitHub Packages.
 
 Create a local `.npmrc` file
 

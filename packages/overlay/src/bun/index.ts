@@ -31,6 +31,7 @@ import { missingRequiredStatuses } from "../required-statuses.ts";
 import { detectedPersonalName } from "../personal-character.ts";
 import { personalExperience } from "../personal-experience.ts";
 import { personalResources } from "../personal-resources.ts";
+import { OverlayLogClock } from "../live-log-clock.ts";
 import { emptyMeterState, overlayMeterState } from "../meter-presentation.ts";
 import { OverlayPublishCadence } from "../publish-cadence.ts";
 import {
@@ -100,8 +101,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   let overlayVisible = true;
   const shortcutRegistered = new Map<KeybindAction, boolean>();
   const shortcutErrors = new Map<KeybindAction, string>();
-  let lastEventObservedAtMs: number | undefined;
-  let lastEventWallMs: number | undefined;
+  const logClock = new OverlayLogClock();
   let hasMeterRecord = false;
   const publishCadence = new OverlayPublishCadence(METER_PUBLISH_MS);
   let lastControlJson: string | undefined;
@@ -449,29 +449,28 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       const batch = await liveLog.poll();
       options.onLiveLogPathChanged?.(batch.path ?? liveLogOverride);
       if (batch.reset) {
+        // Only the meter starts over: resetting the session is about the damage numbers. The status
+        // tracker deliberately survives, because it is the only record of what is currently active -
+        // the game states buffs on apply/refresh and never re-states them for a new log session, so
+        // rebuilding it here would blank the buff tiles until every buff happened to be recast.
+        // Statuses that genuinely stop applying still clear themselves: they time out via advance(),
+        // and a relog or zone change sends an actorIdentity "reset" the tracker already acts on.
         meter = createLiveMeter();
-        statusTracker = new FishNetStatusTracker();
-        lastEventObservedAtMs = undefined;
-        lastEventWallMs = undefined;
+        logClock.rotate();
         publishCadence.reset();
         hasMeterRecord = false;
       }
-      let batchLastObservedAtMs: number | undefined;
       for (const { event, observedAtMs } of batch.events) {
+        const timelineMs = logClock.observe(observedAtMs);
         if (event.kind === "actorIdentity") {
-          meter.consumeIdentity(event, observedAtMs);
+          meter.consumeIdentity(event, timelineMs);
           statusTracker.consumeIdentity(event);
         } else {
-          meter.consumeCombat(event, observedAtMs);
-          statusTracker.consume(event, observedAtMs);
+          meter.consumeCombat(event, timelineMs);
+          statusTracker.consume(event, timelineMs);
         }
-        batchLastObservedAtMs = Math.max(batchLastObservedAtMs ?? observedAtMs, observedAtMs);
       }
-      if (batchLastObservedAtMs !== undefined) {
-        lastEventObservedAtMs = batchLastObservedAtMs;
-        lastEventWallMs = Date.now();
-        publishCadence.observeEvents();
-      }
+      if (batch.events.length > 0) publishCadence.observeEvents();
       const nowMs = relativeNowMs();
       if (nowMs !== undefined) {
         meter.advance(nowMs);
@@ -503,8 +502,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   }
 
   function relativeNowMs(): number | undefined {
-    if (lastEventObservedAtMs === undefined || lastEventWallMs === undefined) return undefined;
-    return lastEventObservedAtMs + (Date.now() - lastEventWallMs);
+    return logClock.nowMs();
   }
 
   function createLiveMeter(): LiveCombatService {

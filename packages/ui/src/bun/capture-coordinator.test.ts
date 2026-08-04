@@ -103,16 +103,7 @@ describe("central capture coordinator", () => {
       capture.packet({ tick: 1, packetId: 0, packetName: "authenticated", raw: Buffer.alloc(0), payload: Buffer.alloc(0) });
       capture.packet(experiencePacket(2, 0, 0n));
       capture.packet(experiencePacket(3, 10, 2n));
-      capture.packet({
-        tick: 4,
-        packetId: 1,
-        packetName: "rpcLink",
-        rpcName: "VendingCollectResult_T",
-        rpcResolution: "verified",
-        networkBehaviourType: "PlayerController",
-        raw: Buffer.from([1]),
-        payload: Buffer.from([1]),
-      });
+      capture.packet(marketListingPacket(4));
       capture.packet({ tick: 5, packetId: 2, packetName: "pingPong", raw: Buffer.alloc(0), payload: Buffer.alloc(0) });
       await coordinator.stop();
 
@@ -206,16 +197,7 @@ describe("central capture coordinator", () => {
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(experiencePacket(2, 0, 0n));
       capture.packet(experiencePacket(3, 10, 2n));
-      capture.packet({
-        tick: 4,
-        packetId: 1,
-        packetName: "rpcLink",
-        rpcName: "VendingCollectResult_T",
-        rpcResolution: "verified",
-        networkBehaviourType: "PlayerController",
-        raw: Buffer.from([1]),
-        payload: Buffer.from([1]),
-      });
+      capture.packet(marketListingPacket(4));
       capture.packet({
         tick: 5,
         packetId: 5,
@@ -235,6 +217,7 @@ describe("central capture coordinator", () => {
       expect(combat.events.length).toBeGreaterThan(0);
       expect(rewards.snapshot.unmatched).toBeGreaterThan(0);
       expect(market).toMatchObject({ missing: false, status: "stopped" });
+      expect(market.listings.map((listing) => listing.id)).toEqual(["listing-a"]);
       expect(await readCurrentLogStream("other", directory)).toBeUndefined();
 
       const combatPointer = await readCurrentLogStream("combat", directory);
@@ -1025,6 +1008,31 @@ function records(content: string): Array<{ type: string }> {
 function experiencePacket(tick: number, experience: number, coins: bigint): TestPacket {
   const payload = Buffer.concat([packed(experience), packed(1), packed(0), packed(1), packed(coins)]);
   return { tick, packetId: 4, packetName: "targetRpc", rpcName: "ExpCoinsChanged_T", raw: payload, payload };
+}
+
+function marketListingPacket(tick: number): TestPacket {
+  const listingsJson = JSON.stringify([{
+    ListingId: "listing-a",
+    SellerAccountId: "seller-a",
+    SellerDisplayName: "Merchant Alpha",
+    ItemDisplayName: "Fictional Blade",
+    Item: { ItemId: "fictional-blade", Type: 1, Quantity: 3, PayloadJson: "{}" },
+    AvailableQuantity: 3,
+    SoldQuantity: 1,
+    UnitPrice: "2500",
+    ExpiresAt: "2100-01-01T00:00:00Z",
+  }]);
+  return {
+    tick,
+    packetId: 1,
+    packetName: "rpcLink",
+    rpcName: "RequestVendorItemList_T",
+    rpcResolution: "verified",
+    networkBehaviourType: "PlayerController",
+    decodedFields: [{ name: "listingsJson", codec: "stringUtf8Packed", value: listingsJson }],
+    raw: Buffer.from([1]),
+    payload: Buffer.from([1]),
+  };
 }
 
 function authenticatedPacket(tick: number, connectionId: string): TestPacket {
