@@ -4,6 +4,7 @@ import { appIconPath } from "@spiritvale/ui-core/window-publish";
 import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/spirit-vale-tools-capture/capture";
 
 import { createMarketWindow } from "@spiritvale/market-ui";
+import { createBuildExportWindow } from "@spiritvale/build-export";
 import { createRewardsWindow } from "@spiritvale/rewards-ui";
 import type { LauncherRpc, LauncherSettingsRpc, LauncherState, ToolWindow } from "../launcher-types.ts";
 import { loadLauncherSettings, saveLauncherSettings } from "../launcher-settings.ts";
@@ -177,6 +178,13 @@ const unsubscribeCharacterPersistence = capture.subscribeCharacter((state) => {
 const characterWindow = new WindowSlot((onClosed) => createCharacterWindow({
   getState: () => capture.characterState(),
   subscribe: (listener) => capture.subscribeCharacter(listener),
+  placements,
+  onClosed,
+  onOpenSettings: openSettings,
+}));
+const buildExportWindow = new WindowSlot((onClosed) => createBuildExportWindow({
+  getCharacter: () => capture.characterState().snapshot,
+  subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
   placements,
   onClosed,
   onOpenSettings: openSettings,
@@ -417,6 +425,7 @@ async function openTool(tool: ToolWindow): Promise<void> {
   else if (tool === "overlay") await overlayWindow.open();
   else if (tool === "rewards") await rewardsWindow.open();
   else if (tool === "market") await marketWindow.open();
+  else if (tool === "build-export") await buildExportWindow.open();
   else await characterWindow.open();
 }
 
@@ -545,7 +554,7 @@ async function shutdown(): Promise<void> {
   launcherWindow.hide();
   settingsWindow?.close();
   try {
-    await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), marketWindow.close(), characterWindow.close()]);
+    await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), marketWindow.close(), characterWindow.close(), buildExportWindow.close()]);
     liveDeathLogWindow.close();
     unsubscribeCharacterPersistence();
     const character = capture.characterState().snapshot;

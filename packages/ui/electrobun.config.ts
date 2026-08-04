@@ -58,6 +58,7 @@ export default {
       sessionpickerview: { entrypoint: "src/sessionpickerview/index.tsx" },
       analysisdetailview: { entrypoint: "../combat-ui/src/analysisdetailview/index.tsx" },
       deathlogview: { entrypoint: "../combat-ui/src/deathlogview/index.tsx" },
+      buildexportview: { entrypoint: "../build-export/src/buildexportview/index.tsx" },
     },
     copy: {
       "../../static/icon/eggplant_icon_320px.png": "views/assets/app-icon.png",
@@ -117,11 +118,14 @@ export default {
       "../combat-ui/src/deathlogview/index.html": "views/deathlogview/index.html",
       "../combat-ui/src/deathlogview/index.css": "views/deathlogview/index.css",
       [themeCssSource(14)]: "views/deathlogview/theme.css",
+      "../build-export/src/buildexportview/index.html": "views/buildexportview/index.html",
+      "../build-export/src/buildexportview/index.css": "views/buildexportview/index.css",
+      [themeCssSource(3)]: "views/buildexportview/theme.css",
     },
     buildFolder: "dist/electrobun",
     artifactFolder: "dist/artifacts",
     targets: "win-x64",
-    watch: ["src", "../combat-ui/src", "../market-ui/src", "../overlay/src", "../rewards-ui/src", "../ui-core"],
+    watch: ["src", "../build-export/src", "../combat-ui/src", "../market-ui/src", "../overlay/src", "../rewards-ui/src", "../ui-core"],
     win: {
       bundleCEF: false,
       defaultRenderer: "native",
