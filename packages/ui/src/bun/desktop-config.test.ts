@@ -20,13 +20,13 @@ test("Electrobun builds the DPS view and overlay without a separate overlay sett
   expect(config.build.views.overlayview).toEqual({ entrypoint: "../overlay/src/overlayview/index.tsx" });
   expect("overlaysettingsview" in config.build.views).toBe(false);
   expect(config.build.copy["../overlay/src/overlayview/index.html"]).toBe("views/overlayview/index.html");
-  expect(config.build.copy["../overlay/src/overlaysettingsview/index.html"]).toBeUndefined();
+  expect("../overlay/src/overlaysettingsview/index.html" in config.build.copy).toBe(false);
 });
 
 test("Electrobun builds the embedded combat analysis and player-detail view", () => {
   expect("analysisview" in config.build.views).toBe(false);
   expect(config.build.views.analysisdetailview).toEqual({ entrypoint: "../combat-ui/src/analysisdetailview/index.tsx" });
-  expect(config.build.copy["../combat-ui/src/analysisview/index.html"]).toBeUndefined();
+  expect("../combat-ui/src/analysisview/index.html" in config.build.copy).toBe(false);
   expect(config.build.copy["../combat-ui/src/analysisdetailview/index.html"]).toBe("views/analysisdetailview/index.html");
 });
 
