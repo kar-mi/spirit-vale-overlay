@@ -71,3 +71,22 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 }
 .provenance a { color: inherit; }
 .provenance .stale { color: var(--error, #f2b8b5); }
+
+.source-picker { display: flex; gap: 8px; flex-wrap: wrap; }
+.source-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 12px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.source-tab:hover { background: var(--surface-container); }
+.source-tab.is-active { border-color: var(--primary, #a8c7fa); background: var(--surface-container); }
+.source-tab strong { font-size: 13px; font-weight: 500; }
+.source-tab span { font-size: 11px; color: var(--on-surface-variant); }

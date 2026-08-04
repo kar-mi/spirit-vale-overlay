@@ -16,6 +16,8 @@ export interface BuildExportCharacter {
   cardCount: number;
   skillCount: number;
   grimoireCount: number;
+  /** ISO timestamp of the inspect this came from. Absent for your own character. */
+  inspectedAt?: string;
   /** Present only for a Gunslinger with stored weapon-swap sets. */
   weaponSetCount?: number;
 }
@@ -25,10 +27,25 @@ export interface BuildExportUnresolvedGroup {
   items: string[];
 }
 
+/** One exportable character: your own, or a player you inspected. */
+export interface BuildExportSource {
+  /** `self`, or `inspect:<character name>`. */
+  id: string;
+  name: string;
+  kind: "self" | "inspected";
+  cls: string;
+  level: number;
+  /** ISO timestamp of the inspect that produced this entry. Absent for your own character. */
+  inspectedAt?: string;
+}
+
 export interface BuildExportState {
   status: BuildExportStatus;
   statusDetail: string;
   character?: BuildExportCharacter;
+  /** Your character first, then inspected players most-recent first. */
+  sources: BuildExportSource[];
+  selectedId: string;
   /** Everything the pinned catalog could not resolve, so the player is never quietly misled. */
   unresolved: BuildExportUnresolvedGroup[];
   missing: number;
@@ -52,6 +69,8 @@ export type BuildExportRpc = {
       getPlannerLink: { params: Record<string, never>; response: { link: string } };
       /** Attribution link, required by the snapshot's licence grant. */
       openSite: { params: Record<string, never>; response: void };
+      /** Switches which captured character is being exported. */
+      selectCharacter: { params: { id: string }; response: BuildExportState };
     };
   }>;
   webview: RPCSchema<{ messages: { stateChanged: BuildExportState } }>;

@@ -185,6 +185,8 @@ const characterWindow = new WindowSlot((onClosed) => createCharacterWindow({
 const buildExportWindow = new WindowSlot((onClosed) => createBuildExportWindow({
   getCharacter: () => capture.characterState().snapshot,
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
+  getInspected: () => capture.inspectedCharacters(),
+  subscribeInspected: (listener) => capture.subscribeInspectedCharacters(() => listener()),
   placements,
   onClosed,
   onOpenSettings: openSettings,

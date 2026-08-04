@@ -87,6 +87,12 @@ function sanitizeSnapshot(snapshot: CharacterSnapshot): CharacterSnapshot {
     equipment: structuredClone(snapshot.equipment),
     artifacts: structuredClone(snapshot.artifacts),
     skills: structuredClone(snapshot.skills),
+    // Positional/derived fields must be listed explicitly: this allowlist rebuild is why a cached
+    // character silently exported with zero grimoires and no weapon-swap sets. Nested additions
+    // ride the structuredClone above; new TOP-LEVEL ones do not.
+    ...(snapshot.grimoires === undefined ? {} : { grimoires: structuredClone(snapshot.grimoires) }),
+    ...(snapshot.assignedSkills === undefined ? {} : { assignedSkills: structuredClone(snapshot.assignedSkills) }),
+    ...(snapshot.loadouts === undefined ? {} : { loadouts: structuredClone(snapshot.loadouts) }),
     ...(snapshot.playtimeSeconds === undefined ? {} : { playtimeSeconds: snapshot.playtimeSeconds }),
     ...(snapshot.monsterKills === undefined ? {} : { monsterKills: snapshot.monsterKills }),
     ...(snapshot.bossKills === undefined ? {} : { bossKills: snapshot.bossKills }),

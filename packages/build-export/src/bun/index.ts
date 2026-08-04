@@ -6,7 +6,7 @@ import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement"
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 import type { CharacterSnapshot } from "@kar-mi/spirit-vale-tools-character";
 
-import type { BuildExportRpc, BuildExportState, BuildExportUnresolvedGroup } from "../app-types.ts";
+import type { BuildExportRpc, BuildExportSource, BuildExportState, BuildExportUnresolvedGroup } from "../app-types.ts";
 import { buildExportCatalog } from "../catalog.ts";
 import { buildPlannerLink, SITE_ORIGIN } from "../site-links.ts";
 import { snapshotToBuild } from "../snapshot-to-build.ts";
@@ -14,14 +14,21 @@ import { snapshotToBuild } from "../snapshot-to-build.ts";
 const MINIMUM_WIDTH = 520;
 const MINIMUM_HEIGHT = 520;
 
+export interface InspectedCharacterEntry {
+  snapshot: CharacterSnapshot;
+  inspectedAt: string;
+}
+
 export interface BuildExportWindowOptions {
   /**
-   * The character to export. Deliberately a provider rather than a fixed source: the translation
-   * does not care whose character it is, so a future "export the player you just inspected" only
-   * has to supply a different snapshot here.
+   * The local player's character. Deliberately a provider rather than a fixed source: the
+   * translation does not care whose character it is.
    */
   getCharacter: () => CharacterSnapshot | undefined;
   subscribeCharacter: (listener: () => void) => () => void;
+  /** Players seen via the inspect RPC, most recently inspected first. */
+  getInspected?: () => InspectedCharacterEntry[];
+  subscribeInspected?: (listener: () => void) => () => void;
   /** Overridable so a local site checkout can be targeted during development. */
   origin?: string;
   placements?: WindowPlacementStore;
@@ -37,14 +44,51 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
   let lastExportedAt: string | undefined;
   const lifecycle = new DisposableStore();
 
+  let selectedId = "self";
+
+  /** Your character first, then inspected players most-recent first. */
+  const sources = (): BuildExportSource[] => {
+    const list: BuildExportSource[] = [];
+    const own = options.getCharacter();
+    if (own) {
+      list.push({ id: "self", name: own.name, kind: "self", cls: own.archetypes.at(-1) ?? "", level: own.level });
+    }
+    for (const entry of options.getInspected?.() ?? []) {
+      // Inspecting yourself would otherwise produce a duplicate of the entry above.
+      if (own && entry.snapshot.name === own.name) continue;
+      list.push({
+        id: `inspect:${entry.snapshot.name}`,
+        name: entry.snapshot.name,
+        kind: "inspected",
+        cls: entry.snapshot.archetypes.at(-1) ?? "",
+        level: entry.snapshot.level,
+        inspectedAt: entry.inspectedAt,
+      });
+    }
+    return list;
+  };
+
+  const snapshotFor = (id: string): CharacterSnapshot | undefined => {
+    if (id === "self") return options.getCharacter();
+    const name = id.startsWith("inspect:") ? id.slice("inspect:".length) : undefined;
+    if (name === undefined) return undefined;
+    return options.getInspected?.().find((entry) => entry.snapshot.name === name)?.snapshot;
+  };
+
   const translate = () => {
-    const character = options.getCharacter();
+    const character = snapshotFor(selectedId);
     return character ? snapshotToBuild(character, { catalog }) : undefined;
   };
 
   const appState = (): BuildExportState => {
+    const available = sources();
+    // A selected player can age out of the roster; fall back rather than showing an empty panel.
+    if (!available.some((entry) => entry.id === selectedId)) selectedId = available[0]?.id ?? "self";
     const result = translate();
+    const selected = available.find((entry) => entry.id === selectedId);
     const base = {
+      sources: available,
+      selectedId,
       unresolved: [] as BuildExportUnresolvedGroup[],
       missing: 0,
       notes: [] as string[],
@@ -59,7 +103,7 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
       return {
         ...base,
         status: "waiting",
-        statusDetail: "Waiting for character data. Log in, or change map, and the game will send it.",
+        statusDetail: "Waiting for character data. Log in, or change map, and the game will send it. Inspect another player to add them here.",
       };
     }
 
@@ -85,6 +129,7 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
         skillCount: Object.keys(build.skills).length,
         grimoireCount: build.grim.filter(Boolean).length,
         ...(build.wload ? { weaponSetCount: build.wload.filter((set) => set.mainhand ?? set.offhand).length } : {}),
+        ...(selected?.kind === "inspected" ? { inspectedAt: selected.inspectedAt } : {}),
       },
       unresolved: Object.entries(unresolved)
         .filter(([, items]) => items.length)
@@ -107,6 +152,10 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
     handlers: {
       requests: {
         getState: () => appState(),
+        selectCharacter: ({ id }) => {
+          selectedId = id;
+          return appState();
+        },
         exportToPlanner: () => {
           const result = translate();
           if (result) {
@@ -150,6 +199,7 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
   const disposePlacement = options.placements?.track("build-export", window);
   if (disposePlacement) lifecycle.add(disposePlacement);
   lifecycle.add(options.subscribeCharacter(() => publish()));
+  if (options.subscribeInspected) lifecycle.add(options.subscribeInspected(() => publish()));
   lifecycle.add(onWindowEvent(window, "resize", (event: { data: { width: number; height: number } }) => {
     const width = Math.max(scaledSize(MINIMUM_WIDTH), event.data.width);
     const height = Math.max(scaledSize(MINIMUM_HEIGHT), event.data.height);

@@ -42,6 +42,18 @@ function App() {
     return () => { setStateExternal = undefined; };
   }, []);
 
+  // These requests answer with the new state. Nothing publishes a stateChanged for them, so the
+  // response has to be applied here or the click appears to do nothing.
+  async function selectCharacter(id: string): Promise<void> {
+    const next = await electroview.rpc?.request.selectCharacter({ id });
+    if (next) setState(repairRendererPayload(next));
+  }
+
+  async function exportToPlanner(): Promise<void> {
+    const next = await electroview.rpc?.request.exportToPlanner({});
+    if (next) setState(repairRendererPayload(next));
+  }
+
   async function copyLink(): Promise<void> {
     const response = await electroview.rpc?.request.getPlannerLink({});
     if (!response?.link) return;
@@ -72,6 +84,26 @@ function App() {
           <p>{state?.statusDetail ?? "Loading\u2026"}</p>
         </div>
 
+        {state && state.sources.length > 1
+          ? (
+            <div class="source-picker" role="tablist" aria-label="Captured characters">
+              {state.sources.map((source) => (
+                <button
+                  key={source.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={source.id === state.selectedId}
+                  class={`source-tab${source.id === state.selectedId ? " is-active" : ""}`}
+                  onClick={() => void selectCharacter(source.id)}
+                >
+                  <strong>{source.name}</strong>
+                  <span>{source.kind === "self" ? "You" : `${source.cls} \u00b7 Lv ${source.level}`}</span>
+                </button>
+              ))}
+            </div>
+          )
+          : null}
+
         {character
           ? (
             <div class="character-card">
@@ -83,6 +115,9 @@ function App() {
                     : character.cls}
                   {" \u00b7 "}Level {character.level}
                   {" \u00b7 "}Job {character.jobLevel}
+                  {character.inspectedAt
+                    ? ` \u00b7 inspected ${new Date(character.inspectedAt).toLocaleTimeString()}`
+                    : ""}
                 </span>
               </div>
               <div class="tally">
@@ -124,7 +159,7 @@ function App() {
             class="primary-button"
             type="button"
             disabled={!ready}
-            onClick={() => void electroview.rpc?.request.exportToPlanner({})}
+            onClick={() => void exportToPlanner()}
           >
             Open in build planner
           </button>
