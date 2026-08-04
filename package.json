@@ -22,8 +22,5 @@
   "engines": {
     "bun": ">=1.3.0"
   },
-  "packageManager": "bun@1.3.13",
-  "dependencies": {
-    "@kar-mi/spirit-vale-tools-capture": "^1.2.1"
-  }
+  "packageManager": "bun@1.3.13"
 }

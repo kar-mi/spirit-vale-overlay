@@ -4,9 +4,6 @@
   "workspaces": {
     "": {
       "name": "spirit-vale-overlay",
-      "dependencies": {
-        "@kar-mi/spirit-vale-tools-capture": "^1.2.1",
-      },
       "devDependencies": {
         "@types/bun": "latest",
         "resedit": "3.0.2",
