@@ -83,6 +83,23 @@ bun run package:portable
 bun run verify:portable
 ```
 
+### Capture diagnostics
+
+For a short reproduction of a packet-capture or map-transition issue, launch the app from PowerShell
+with diagnostic logging enabled:
+
+```powershell
+$env:SPIRIT_VALE_DIAGNOSTIC_LOGS = "1"
+bun run dev
+```
+
+The resulting session includes `other.jsonl` alongside `combat.jsonl`. Around each authenticated game
+connection it records five seconds of buffered LiteNet traffic and ten seconds after authentication,
+plus connection-admission decisions and status-RPC decoder input/output. Raw transition traffic is
+bounded to 8 MiB before and 32 MiB after authentication; a `capture.diagnosticLimit` record reports
+truncation. Diagnostic logs contain raw game-network payloads and endpoint addresses, so review them
+before sharing and disable the environment variable after reproducing the issue.
+
 ## VPN Issues
 ![Potential solutions to vpn issues](VPN_ISSUES.md)
 
