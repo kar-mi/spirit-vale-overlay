@@ -3,6 +3,8 @@ import type { MarketLogStatus } from "@kar-mi/spirit-vale-tools-market";
 import type { MaximizableWindowChromeRequests, WindowChromeRequests } from "@spiritvale/ui-core/window-rpc";
 
 export type MarketUiStatus = MarketLogStatus;
+/** Which capture stream the visible table is drawn from: the global market, or player stalls. */
+export type MarketUiSource = "market" | "stall";
 export type MarketUiSortKey = "name" | "price" | "available" | "seller" | "shopName" | "mapId";
 export type MarketUiSortDirection = "ascending" | "descending";
 
@@ -35,6 +37,10 @@ export interface MarketUiListing {
 export interface MarketUiState {
   status: MarketUiStatus;
   statusDetail: string;
+  source: MarketUiSource;
+  /** Total captured listings per source, for the tab counts — unaffected by query and filters. */
+  marketCount: number;
+  stallCount: number;
   query: string;
   sortKey: MarketUiSortKey;
   sortDirection: MarketUiSortDirection;
@@ -57,6 +63,7 @@ export type MarketUiRpc = {
     requests: MaximizableWindowChromeRequests & {
       getState: { params: Record<string, never>; response: MarketUiState };
       setQuery: { params: { query: string }; response: MarketUiState };
+      setSource: { params: { source: MarketUiSource }; response: MarketUiState };
       setSort: { params: { key: MarketUiSortKey; direction: MarketUiSortDirection }; response: MarketUiState };
       setFilters: { params: { filters: MarketUiFilter[] }; response: MarketUiState };
       openFilters: { params: Record<string, never>; response: void };

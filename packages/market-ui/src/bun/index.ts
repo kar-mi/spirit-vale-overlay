@@ -6,7 +6,6 @@ import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-
 
 import {
   FISHNET_MARKET_STAT_NAMES,
-  MarketSessionLogFollower,
   queryFishNetMarketListings,
 } from "@kar-mi/spirit-vale-tools-market";
 import type { FishNetMarketListingView, FishNetMarketStatFilter } from "@kar-mi/spirit-vale-tools-market";
@@ -18,9 +17,11 @@ import type {
   MarketUiRpc,
   MarketUiSortDirection,
   MarketUiSortKey,
+  MarketUiSource,
   MarketUiState,
   MarketUiStatus,
 } from "../app-types.ts";
+import { MarketSourceSessionLogFollower } from "./source-follower.ts";
 import { validateMarketUiFilters } from "../filter-model.ts";
 import { sortMarketListings } from "../market-sort.ts";
 import { hasMoreListings, MARKET_PAGE_SIZE as PAGE_SIZE, nextVisibleLimit } from "../market-paging.ts";
@@ -35,13 +36,18 @@ export interface MarketWindowOptions {
 }
 
 export function createMarketWindow(options: MarketWindowOptions) {
-const follower = new MarketSessionLogFollower(options.logDirectory);
+const follower = new MarketSourceSessionLogFollower(options.logDirectory);
 
 let window: BrowserWindow;
 let filterWindow: BrowserWindow | undefined;
 let status: MarketUiStatus = "waiting";
-let statusDetail = "Waiting for market data from the central capture.";
-let listings: FishNetMarketListingView[] = [];
+// The status line counts the active tab's listings, so it has to be derived in `appState()` rather
+// than cached at poll time — switching tabs changes the count without a new batch arriving.
+let invalidLines = 0;
+/** Distinguishes a local read failure from an error the capture itself reported. */
+let readFailed = false;
+let listings: Record<MarketUiSource, FishNetMarketListingView[]> = { market: [], stall: [] };
+let source: MarketUiSource = "market";
 let query = "";
 let filters: MarketUiFilter[] = [];
 let sortKey: MarketUiSortKey = "price";
@@ -60,6 +66,17 @@ const rpc = BrowserView.defineRPC<MarketUiRpc>({
       getState: () => appState(),
       setQuery: ({ query: nextQuery }) => {
         query = nextQuery.trim().slice(0, 200);
+        visibleLimit = PAGE_SIZE;
+        return appState();
+      },
+      setSource: ({ source: nextSource }) => {
+        source = nextSource;
+        // The Market tab hides the shop and map columns, so a sort left over from the Stalls tab
+        // would be both invisible and impossible to clear from there.
+        if (source === "market" && (sortKey === "shopName" || sortKey === "mapId")) {
+          sortKey = "price";
+          sortDirection = "ascending";
+        }
         visibleLimit = PAGE_SIZE;
         return appState();
       },
@@ -166,7 +183,8 @@ return {
 
 function appState(): MarketUiState {
   const marketFilters: FishNetMarketStatFilter[] = filters.map((filter) => ({ ...filter }));
-  const matches = queryFishNetMarketListings(listings, {
+  const active = listings[source];
+  const matches = queryFishNetMarketListings(active, {
     text: query,
     stats: marketFilters,
     statMode: "all",
@@ -175,13 +193,16 @@ function appState(): MarketUiState {
   const sorted = sortMarketListings(matches.map(listingView), sortKey, sortDirection);
   return {
     status,
-    statusDetail,
+    statusDetail: detailFor(status, source, active.length, invalidLines),
+    source,
+    marketCount: listings.market.length,
+    stallCount: listings.stall.length,
     query,
     sortKey,
     sortDirection,
     filters: filters.map((filter) => ({ ...filter })),
     statOptions: FISHNET_MARKET_STAT_NAMES.map((name, type) => ({ type, name })),
-    capturedCount: listings.length,
+    capturedCount: active.length,
     matchCount: matches.length,
     visibleLimit,
     hasMore: hasMoreListings(matches.length, visibleLimit),
@@ -261,28 +282,34 @@ async function pollMarket(): Promise<void> {
   try {
     const batch = await follower.poll();
     if (batch.changed || batch.reset || batch.status !== status) {
-      listings = batch.listings;
+      listings = { market: batch.market, stall: batch.stall };
       status = batch.status;
-      statusDetail = detailFor(batch.status, listings.length, batch.invalidLines);
+      invalidLines = batch.invalidLines;
+      readFailed = false;
       publish();
     }
   } catch {
     status = "error";
-    statusDetail = "The current market session log could not be read.";
+    readFailed = true;
     publish();
   } finally {
     polling = false;
   }
 }
 
-function detailFor(nextStatus: MarketUiStatus, count: number, invalidLines: number): string {
-  const skipped = invalidLines > 0 ? ` · ${invalidLines} malformed ${invalidLines === 1 ? "record" : "records"} skipped` : "";
+function detailFor(nextStatus: MarketUiStatus, activeSource: MarketUiSource, count: number, skippedLines: number): string {
+  const skipped = skippedLines > 0 ? ` · ${skippedLines} malformed ${skippedLines === 1 ? "record" : "records"} skipped` : "";
+  const prompt = activeSource === "market"
+    ? "Open the in-game market to receive listings."
+    : "Open a player vending stall in game to receive its listings.";
   switch (nextStatus) {
     case "waiting": return "Waiting for market data from the central capture.";
-    case "watching": return `Market session found. Open the in-game market to receive listings.${skipped}`;
+    case "watching": return `Market session found. ${prompt}${skipped}`;
     case "ready": return `${count.toLocaleString()} listings captured in the current session${skipped}`;
     case "stopped": return `Market session stopped; showing its last snapshot${skipped}`;
-    case "error": return "The market session reported an error.";
+    case "error": return readFailed
+      ? "The current market session log could not be read."
+      : "The market session reported an error.";
   }
 }
 
@@ -298,7 +325,7 @@ function stopPolling(): void {
   lifecycle.dispose();
   filterLifecycle?.dispose();
   filterLifecycle = undefined;
-  listings = [];
+  listings = { market: [], stall: [] };
   notifyClosed();
 }
 

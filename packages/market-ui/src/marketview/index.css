@@ -10,12 +10,43 @@ html, body {
 
 .app-shell {
   display: grid;
-  grid-template-rows: 40px auto auto minmax(0, 1fr) auto;
+  /* title bar · source tabs · search bar · status strip · results · load more */
+  grid-template-rows: 40px auto auto auto minmax(0, 1fr) auto;
   width: 100%;
   height: 100%;
   min-width: 520px;
   min-height: 480px;
   background: var(--surface);
+}
+
+.tabs { margin: 10px 16px 0; }
+/* `.seg > button` is not itself a flex box, so the count chip needs one to centre against the label. */
+.tabs > button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.tab-count {
+  display: inline-grid;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  place-items: center;
+  border-radius: var(--shape-full);
+  background: var(--surface-variant);
+  color: var(--on-surface-variant);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.tabs > button.active .tab-count {
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .search-bar {
@@ -63,12 +94,21 @@ html, body {
 .market-table { min-width: 100%; table-layout: fixed; }
 .market-table :is(th, td) { overflow: hidden; padding: 5px 6px; text-overflow: ellipsis; }
 .market-table thead th.sortable-column { padding: 0; }
-.market-table :is(th, td):nth-child(1) { width: 22%; }
-.market-table :is(th, td):nth-child(2) { width: 13%; }
-.market-table :is(th, td):nth-child(3) { width: 9%; }
-.market-table :is(th, td):nth-child(4), .market-table :is(th, td):nth-child(5) { width: 16%; }
-.market-table :is(th, td):nth-child(6) { width: 14%; }
-.market-table :is(th, td):nth-child(7) { width: 10%; }
+/* Item · Price · Qty · Seller · Shop · Map · Stats */
+.market-table.has-stall-columns :is(th, td):nth-child(1) { width: 22%; }
+.market-table.has-stall-columns :is(th, td):nth-child(2) { width: 13%; }
+.market-table.has-stall-columns :is(th, td):nth-child(3) { width: 9%; }
+.market-table.has-stall-columns :is(th, td):nth-child(4),
+.market-table.has-stall-columns :is(th, td):nth-child(5) { width: 16%; }
+.market-table.has-stall-columns :is(th, td):nth-child(6) { width: 14%; }
+.market-table.has-stall-columns :is(th, td):nth-child(7) { width: 10%; }
+
+/* Shop and map are dropped on the Market tab; the freed width goes to item and seller. */
+.market-table:not(.has-stall-columns) :is(th, td):nth-child(1) { width: 34%; }
+.market-table:not(.has-stall-columns) :is(th, td):nth-child(2) { width: 16%; }
+.market-table:not(.has-stall-columns) :is(th, td):nth-child(3) { width: 10%; }
+.market-table:not(.has-stall-columns) :is(th, td):nth-child(4) { width: 26%; }
+.market-table:not(.has-stall-columns) :is(th, td):nth-child(5) { width: 14%; }
 .primary-cell, .secondary-cell { display: block; overflow: hidden; text-overflow: ellipsis; }
 .secondary-cell { margin-top: 2px; color: var(--on-surface-variant); font-size: 10px; font-weight: 400; }
 
