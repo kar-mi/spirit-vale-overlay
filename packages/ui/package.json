@@ -11,7 +11,7 @@
     "@preact/signals": "^2.9.4",
     "preact": "^10.29.7",
     "@kar-mi/spirit-vale-tools-character": "0.3.1",
-    "@kar-mi/spirit-vale-tools-combat": "1.4.0",
+    "@kar-mi/spirit-vale-tools-combat": "1.4.1",
     "@spiritvale/combat-ui": "workspace:*",
     "@kar-mi/spirit-vale-tools-capture": "1.2.0",
     "@kar-mi/spirit-vale-tools-items": "0.1.5",
