@@ -6,7 +6,6 @@ import {
   FishNetStatusTracker,
   LiveCombatService,
 } from "@kar-mi/spirit-vale-tools-combat";
-import type { CombatEncounterRecord } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { loadBundledMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
 import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
@@ -16,12 +15,24 @@ import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement"
 import { DisposableStore, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
 import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/bun";
 
-import type { KeybindAction, OverlayRpc, OverlayState, OverlayStatus, RequiredStatusCategory } from "../app-types.ts";
+import type {
+  KeybindAction,
+  OverlayCharacterState,
+  OverlayControlState,
+  OverlayRpc,
+  OverlaySettingsState,
+  OverlayStatus,
+  OverlayStatusState,
+  OverlayViewState,
+  RequiredStatusCategory,
+} from "../app-types.ts";
 import { KEYBIND_ACTIONS, METER_STAT_TYPE_CYCLE } from "../app-types.ts";
 import { missingRequiredStatuses } from "../required-statuses.ts";
 import { detectedPersonalName } from "../personal-character.ts";
 import { personalExperience } from "../personal-experience.ts";
 import { personalResources } from "../personal-resources.ts";
+import { emptyMeterState, overlayMeterState } from "../meter-presentation.ts";
+import { OverlayPublishCadence } from "../publish-cadence.ts";
 import {
   loadOverlaySettings,
   normalizeSingleShortcut,
@@ -30,7 +41,8 @@ import {
   type OverlayElementId,
 } from "../settings.ts";
 
-const LIVE_LOG_POLL_MS = 1_000;
+const LIVE_LOG_POLL_MS = 250;
+const METER_PUBLISH_MS = 1_000;
 /** Timeline buckets retained per encounter. Beyond this, adjacent buckets merge. */
 const TIMELINE_POINTS = 720;
 const EXPERIENCE_REQUIREMENTS = loadBundledMobRewardCatalog().experienceRequirements;
@@ -60,7 +72,7 @@ export interface OverlayWindowOptions {
   onReset?: () => Promise<void>;
   onOpenLiveDeathLog?: () => Promise<void> | void;
   onLiveLogPathChanged?: (path: string | undefined) => void;
-  onSettingsStateChanged?: (state: OverlayState) => void;
+  onSettingsStateChanged?: (state: OverlaySettingsState) => void;
   onClosed?: () => void;
 }
 
@@ -83,7 +95,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     : "Looking for a combat session…";
   let overlayWindow: BrowserWindow;
   let polling = false;
-  let publishing = false;
   let shuttingDown = false;
   let closedCallbackSent = false;
   let overlayVisible = true;
@@ -91,6 +102,12 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   const shortcutErrors = new Map<KeybindAction, string>();
   let lastEventObservedAtMs: number | undefined;
   let lastEventWallMs: number | undefined;
+  let hasMeterRecord = false;
+  const publishCadence = new OverlayPublishCadence(METER_PUBLISH_MS);
+  let lastControlJson: string | undefined;
+  let lastCharacterJson: string | undefined;
+  let lastStatusesJson: string | undefined;
+  let lastMeterJson: string | undefined;
   let unsubscribeCharacter = () => {};
   const lifecycle = new DisposableStore();
 
@@ -100,7 +117,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     onWarning: (warning) => {
       status = "error";
       statusDetail = warning ?? "Could not save overlay settings";
-      publish();
+      publishControl();
     },
   });
 
@@ -108,10 +125,10 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     maxRequestTime: 30_000,
     handlers: {
       requests: {
-        getState: () => appState(),
+        getState: () => viewState(),
         setLocked: ({ locked }) => {
           updateLocked(locked);
-          return appState();
+          return controlState();
         },
         setElementEnabled: ({ id, enabled }) => setElementEnabled(id, enabled),
         setElementPosition: ({ id, x, y }) => {
@@ -121,8 +138,8 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
             elements: { ...settings.elements, [id]: { ...element, x, y } },
           }, bounds);
           persist();
-          publish();
-          return appState();
+          publishControl();
+          return controlState();
         },
         setElementBounds: ({ id, x, y, width, height }) => {
           const element = settings.elements[id];
@@ -131,8 +148,8 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
             elements: { ...settings.elements, [id]: { ...element, x, y, width, height } },
           }, bounds);
           persist();
-          publish();
-          return appState();
+          publishControl();
+          return controlState();
         },
         setElementOpacity: ({ id, opacity }) => {
           const element = settings.elements[id];
@@ -141,18 +158,19 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
             elements: { ...settings.elements, [id]: { ...element, opacity } },
           }, bounds);
           persist();
-          publish();
-          return appState();
+          publishControl();
+          return controlState();
         },
         setOverlayVisible: ({ visible }) => {
           updateOverlayVisible(visible);
-          return appState();
+          return controlState();
         },
         setShortcut: ({ action, shortcut }) => setShortcut(action, shortcut),
         setRequiredStatuses: ({ category, statusIds }) => setRequiredStatuses(category, statusIds),
         resetXpTracker: () => {
           options.xp.reset();
-          return appState();
+          publishCharacter();
+          return overlayCharacterState();
         },
       },
       messages: {},
@@ -184,9 +202,12 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   unsubscribeCharacter = options.subscribeCharacter((next) => {
     characterState = next;
     meter.setPersonalName(detectedPersonalName(characterState));
-    publish();
+    publishControl();
+    publishCharacter();
+    publishStatuses(relativeNowMs() ?? 0, true);
+    publishMeter(true);
   });
-  const unsubscribeXp = options.xp.subscribe(() => publish());
+  const unsubscribeXp = options.xp.subscribe(() => publishCharacter());
 
   if (options.lockOnCreate) persistence.schedule(settings);
   void pollLiveLog();
@@ -199,7 +220,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       overlayWindow.close();
       notifyClosed();
     },
-    getSettingsState: () => appState(),
+    getSettingsState: () => settingsState(),
     setLocked: updateLocked,
     setElementEnabled,
     setOverlayVisible: updateOverlayVisible,
@@ -207,25 +228,10 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     setRequiredStatuses,
   };
 
-  function appState(): OverlayState {
-    const snapshotNowMs = relativeNowMs();
-    const record = latestRecord();
-    const snapshot = record?.dps;
-    const tankedSnapshot = record?.tps.detail;
-    const healSnapshot = record?.hps.detail;
-    const resources = personalResources(characterState.records);
-    const experience = personalExperience(characterState.snapshot, EXPERIENCE_REQUIREMENTS);
-    const personalName = detectedPersonalName(characterState);
-    // Statuses with no data-mine icon (a small upstream gap, e.g. SlowImmunity/BlindImmunity) are
-    // omitted entirely rather than shown as a text-initials placeholder.
-    const activeStatuses = statusTracker.getActiveStatusesForName(personalName, snapshotNowMs ?? 0)
-      .filter((activeStatus) => activeStatus.spriteId !== undefined);
-    // This split is mirrored by the pickers in ../required-statuses.ts; keep both in sync.
-    const buffs = activeStatuses.filter((activeStatus) => !activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined);
-    const toggles = activeStatuses.filter((activeStatus) => activeStatus.expiresAtMs === undefined);
+  function controlState(): OverlayControlState {
     return {
       locked: settings.locked,
-      personalName,
+      personalName: detectedPersonalName(characterState),
       status,
       statusDetail,
       elements: settings.elements,
@@ -233,17 +239,47 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       shortcuts: settings.shortcuts,
       shortcutErrors: Object.fromEntries(shortcutErrors),
       overlayVisible,
-      ...(snapshot ? { snapshot, snapshotNowMs: snapshotNowMs ?? snapshot.lastDamageAtMs } : {}),
-      ...(tankedSnapshot ? { tankedSnapshot } : {}),
-      ...(healSnapshot ? { healSnapshot } : {}),
+      requiredStatuses: settings.requiredStatuses,
+    };
+  }
+
+  function settingsState(): OverlaySettingsState {
+    const control = controlState();
+    return {
+      locked: control.locked,
+      personalName: control.personalName,
+      elements: control.elements,
+      shortcuts: control.shortcuts,
+      shortcutErrors: control.shortcutErrors,
+      overlayVisible: control.overlayVisible,
+      requiredStatuses: control.requiredStatuses,
+    };
+  }
+
+  function overlayCharacterState(): OverlayCharacterState {
+    const resources = personalResources(characterState.records);
+    const experience = personalExperience(characterState.snapshot, EXPERIENCE_REQUIREMENTS);
+    return {
       ...resources,
       ...experience,
       ...(characterState.weight ? { weight: characterState.weight } : {}),
       xp: options.xp.getSnapshot(),
+    };
+  }
+
+  function overlayStatusState(nowMs: number): OverlayStatusState {
+    const personalName = detectedPersonalName(characterState);
+    // Statuses with no data-mine icon (a small upstream gap, e.g. SlowImmunity/BlindImmunity) are
+    // omitted entirely rather than shown as a text-initials placeholder.
+    const activeStatuses = statusTracker.getActiveStatusesForName(personalName, nowMs)
+      .filter((activeStatus) => activeStatus.spriteId !== undefined);
+    // This split is mirrored by the pickers in ../required-statuses.ts; keep both in sync.
+    const buffs = activeStatuses.filter((activeStatus) => !activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined);
+    const toggles = activeStatuses.filter((activeStatus) => activeStatus.expiresAtMs === undefined);
+    return {
       buffs,
       debuffs: activeStatuses.filter((activeStatus) => activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined),
       toggles,
-      requiredStatuses: settings.requiredStatuses,
       missingStatuses: {
         buffs: missingRequiredStatuses(settings.requiredStatuses.buffs, buffs),
         toggles: missingRequiredStatuses(settings.requiredStatuses.toggles, toggles),
@@ -251,45 +287,60 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     };
   }
 
+  function viewState(): OverlayViewState {
+    const nowMs = relativeNowMs() ?? 0;
+    const meterState = meter.getState(nowMs);
+    const record = meterState.current ?? meterState.latestFinished;
+    publishCadence.recordMeterState(meterState.current !== undefined);
+    hasMeterRecord = record !== undefined;
+    return {
+      control: controlState(),
+      character: overlayCharacterState(),
+      statuses: overlayStatusState(nowMs),
+      meter: overlayMeterState(record, settings.meterStatType, nowMs),
+    };
+  }
+
   function updateLocked(locked: boolean): void {
     settings.locked = locked;
     setWindowClickThrough(overlayWindow.ptr, locked);
     persist();
-    publish();
+    publishControl();
   }
 
-  function setElementEnabled(id: OverlayElementId, enabled: boolean): OverlayState {
+  function setElementEnabled(id: OverlayElementId, enabled: boolean): OverlayControlState {
     const element = settings.elements[id];
     settings = normalizeOverlaySettings({
       ...settings,
       elements: { ...settings.elements, [id]: { ...element, enabled } },
     }, bounds);
     persist();
-    publish();
-    return appState();
+    publishControl();
+    return controlState();
   }
 
-  function setRequiredStatuses(category: RequiredStatusCategory, statusIds: string[]): OverlayState {
+  function setRequiredStatuses(category: RequiredStatusCategory, statusIds: string[]): OverlayControlState {
     settings = normalizeOverlaySettings({
       ...settings,
       requiredStatuses: { ...settings.requiredStatuses, [category]: statusIds },
     }, bounds);
     persist();
-    publish();
-    return appState();
+    publishControl();
+    publishStatuses(relativeNowMs() ?? 0, true);
+    return controlState();
   }
 
-  function setShortcut(action: KeybindAction, shortcut: string): OverlayState {
+  function setShortcut(action: KeybindAction, shortcut: string): OverlayControlState {
     const normalized = normalizeSingleShortcut(action, shortcut);
     const collidingAction = KEYBIND_ACTIONS.find((other) => other !== action && settings.shortcuts[other] === normalized);
     if (normalized !== shortcut || collidingAction) {
       shortcutErrors.set(action, collidingAction
         ? `Choose a shortcut that isn't already used for ${KEYBIND_LABELS[collidingAction]}.`
         : "Choose a supported shortcut.");
-      publish();
-      return appState();
+      publishControl();
+      return controlState();
     }
-    if (normalized === settings.shortcuts[action] && shortcutRegistered.get(action)) return appState();
+    if (normalized === settings.shortcuts[action] && shortcutRegistered.get(action)) return controlState();
 
     const previousShortcut = settings.shortcuts[action];
     if (shortcutRegistered.get(action)) GlobalShortcut.unregister(previousShortcut);
@@ -303,15 +354,15 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       shortcutErrors.set(action, `${normalized} is unavailable; the previous shortcut was restored.`);
     }
     shortcutRegistered.set(action, registered);
-    publish();
-    return appState();
+    publishControl();
+    return controlState();
   }
 
   function updateOverlayVisible(visible: boolean): void {
     overlayVisible = visible;
     if (visible) overlayWindow.showInactive();
     else overlayWindow.hide();
-    publish();
+    publishControl();
   }
 
   function cycleMeterStatType(): void {
@@ -319,7 +370,8 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     const next = METER_STAT_TYPE_CYCLE[(currentIndex + 1) % METER_STAT_TYPE_CYCLE.length]!;
     settings = { ...settings, meterStatType: next };
     persist();
-    publish();
+    publishControl();
+    publishMeter(true);
   }
 
   function registerShortcut(action: KeybindAction, shortcut: string): boolean {
@@ -334,7 +386,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       else if (action === "resetSession" && options.onReset) {
         void options.onReset().catch(() => {
           shortcutErrors.set(action, "Could not reset the capture session.");
-          publish();
+          publishControl();
         });
       }
     });
@@ -346,18 +398,48 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     persistence.schedule(settings);
   }
 
-  function publish(): void {
-    if (publishing || shuttingDown) return;
-    publishing = true;
-    try {
-      const state = appState();
-      try { overlayRpc.send.stateChanged(state); } catch { /* View may still be connecting. */ }
-      options.onSettingsStateChanged?.(state);
-    } catch (error) {
-      console.error("[spiritvale-overlay] publish failed:", error);
-    } finally {
-      publishing = false;
-    }
+  function publishControl(force = false): void {
+    if (shuttingDown) return;
+    const next = controlState();
+    const json = JSON.stringify(next);
+    if (!force && json === lastControlJson) return;
+    lastControlJson = json;
+    try { overlayRpc.send.controlChanged(next); } catch { /* View may still be connecting. */ }
+    options.onSettingsStateChanged?.(settingsState());
+  }
+
+  function publishCharacter(force = false): void {
+    if (shuttingDown) return;
+    const next = overlayCharacterState();
+    const json = JSON.stringify(next);
+    if (!force && json === lastCharacterJson) return;
+    lastCharacterJson = json;
+    try { overlayRpc.send.characterChanged(next); } catch { /* View may still be connecting. */ }
+  }
+
+  function publishStatuses(nowMs: number, force = false): void {
+    if (shuttingDown) return;
+    const next = overlayStatusState(nowMs);
+    const json = JSON.stringify(next);
+    if (!force && json === lastStatusesJson) return;
+    lastStatusesJson = json;
+    try { overlayRpc.send.statusesChanged(next); } catch { /* View may still be connecting. */ }
+  }
+
+  function publishMeter(force = false): void {
+    if (shuttingDown) return;
+    if (!publishCadence.shouldPublishMeter(Date.now(), force)) return;
+    const nowMs = relativeNowMs() ?? 0;
+    const liveState = meter.getState(nowMs);
+    const record = liveState.current ?? liveState.latestFinished;
+    publishCadence.recordMeterState(liveState.current !== undefined);
+    if (liveState.current === undefined) publishCadence.reset();
+    hasMeterRecord = record !== undefined;
+    const next = record ? overlayMeterState(record, settings.meterStatType, nowMs) : emptyMeterState();
+    const json = JSON.stringify(next);
+    if (!force && json === lastMeterJson) return;
+    lastMeterJson = json;
+    try { overlayRpc.send.meterChanged(next); } catch { /* View may still be connecting. */ }
   }
 
   async function pollLiveLog(): Promise<void> {
@@ -371,6 +453,8 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
         statusTracker = new FishNetStatusTracker();
         lastEventObservedAtMs = undefined;
         lastEventWallMs = undefined;
+        publishCadence.reset();
+        hasMeterRecord = false;
       }
       let batchLastObservedAtMs: number | undefined;
       for (const { event, observedAtMs } of batch.events) {
@@ -386,6 +470,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       if (batchLastObservedAtMs !== undefined) {
         lastEventObservedAtMs = batchLastObservedAtMs;
         lastEventWallMs = Date.now();
+        publishCadence.observeEvents();
       }
       const nowMs = relativeNowMs();
       if (nowMs !== undefined) {
@@ -400,14 +485,18 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
         status = "capturing";
         statusDetail = batch.invalidLines > 0 ? `Reading ${fileName} with skipped lines` : `Reading ${fileName}`;
       } else {
-        status = latestRecord() ? "ready" : "waiting";
+        status = hasMeterRecord ? "ready" : "waiting";
         statusDetail = `Watching ${fileName}`;
       }
-      publish();
+      publishControl();
+      publishStatuses(nowMs ?? 0);
+      if (batch.reset) {
+        publishMeter(true);
+      } else if (publishCadence.hasActiveMeter()) publishMeter();
     } catch {
       status = "error";
       statusDetail = `Could not read ${path.basename(liveLogOverride ?? "combat.jsonl")}`;
-      publish();
+      publishControl();
     } finally {
       polling = false;
     }
@@ -423,12 +512,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       personalName: detectedPersonalName(characterState),
       timelinePoints: TIMELINE_POINTS,
     });
-  }
-
-  /** The encounter in progress, or the most recent one once it has ended. */
-  function latestRecord(): CombatEncounterRecord | undefined {
-    const state = meter.getState(relativeNowMs());
-    return state.current ?? state.latestFinished;
   }
 
   async function shutdown(): Promise<void> {

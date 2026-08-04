@@ -1,4 +1,4 @@
-import { signal } from "@preact/signals";
+import { batch, signal } from "@preact/signals";
 import { render, type ComponentChildren } from "preact";
 import { useCallback, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
@@ -7,18 +7,20 @@ import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 import { InteractiveChart } from "@spiritvale/ui-core/interactive-chart";
 import type { ChartRange, ChartRenderResult } from "@spiritvale/ui-core/interactive-chart";
 
-import type { FishNetActiveStatus, FishNetDpsEncounterSnapshot, FishNetDpsTimelinePoint } from "@kar-mi/spirit-vale-tools-combat";
-import type { MeterEncounterSnapshot } from "@spiritvale/combat-ui/app-types";
+import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import {
   OVERLAY_ELEMENT_LABELS,
   type OverlayElementId,
   type OverlayElementSettings,
+  type OverlayCharacterState,
+  type OverlayControlState,
+  type OverlayMeterPoint,
+  type OverlayMeterState,
   type OverlayResource,
   type OverlayRpc,
-  type OverlayState,
+  type OverlayStatusState,
 } from "../app-types.ts";
 import { resourceFill } from "../personal-resources.ts";
-import { visiblePartyActors } from "./party-ranking.ts";
 import { buildXpEwmaTrend } from "./xp-ewma-trend.ts";
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
@@ -64,17 +66,33 @@ interface ElementRect { x: number; y: number; width: number; height: number }
 type PointerGesture =
   | { kind: "drag"; pointerId: number; originX: number; originY: number; start: ElementRect }
   | { kind: "resize"; pointerId: number; originX: number; originY: number; start: ElementRect; edge: ResizeEdge };
-const state = signal<OverlayState | undefined>(undefined);
+const controlState = signal<OverlayControlState | undefined>(undefined);
+const characterState = signal<OverlayCharacterState | undefined>(undefined);
+const statusState = signal<OverlayStatusState | undefined>(undefined);
+const meterState = signal<OverlayMeterState | undefined>(undefined);
 const gridEnabled = signal(false);
 
 const rpc = Electroview.defineRPC<OverlayRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
+  handlers: { requests: {}, messages: {
+    controlChanged: (next) => { controlState.value = repairRendererPayload(next); },
+    characterChanged: (next) => { characterState.value = repairRendererPayload(next); },
+    statusesChanged: (next) => { statusState.value = repairRendererPayload(next); },
+    meterChanged: (next) => { meterState.value = repairRendererPayload(next); },
+  } },
 });
 const electroview = new Electroview({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+void electroview.rpc?.request.getState({}).then((next) => {
+  const repaired = repairRendererPayload(next);
+  batch(() => {
+    controlState.value = repaired.control;
+    characterState.value = repaired.character;
+    statusState.value = repaired.statuses;
+    meterState.value = repaired.meter;
+  });
+});
 
 function App() {
-  const next = state.value;
+  const next = controlState.value;
   if (!next) return <main class="overlay-root" />;
   return (
     <main class={next.locked ? "overlay-root" : "overlay-root editing"}>
@@ -96,55 +114,50 @@ function App() {
         </div>
       )}
       <OverlayElement id="dpsChart" settings={next.elements.dpsChart} locked={next.locked}>
-        <DpsChartElement state={next} />
+        <DpsChartElement />
       </OverlayElement>
       <OverlayElement id="personalDps" settings={next.elements.personalDps} locked={next.locked}>
-        <PersonalDpsElement state={next} />
+        <PersonalDpsElement />
       </OverlayElement>
       <OverlayElement id="health" settings={next.elements.health} locked={next.locked}>
-        <ResourceElement kind="health" resource={next.health} />
+        <CharacterResourceElement kind="health" />
       </OverlayElement>
       <OverlayElement id="mana" settings={next.elements.mana} locked={next.locked}>
-        <ResourceElement kind="mana" resource={next.mana} />
+        <CharacterResourceElement kind="mana" />
       </OverlayElement>
       <OverlayElement id="characterXp" settings={next.elements.characterXp} locked={next.locked}>
-        <ResourceElement kind="character-xp" resource={next.characterXp} />
+        <CharacterResourceElement kind="character-xp" />
       </OverlayElement>
       <OverlayElement id="jobXp" settings={next.elements.jobXp} locked={next.locked}>
-        <ResourceElement kind="job-xp" resource={next.jobXp} />
+        <CharacterResourceElement kind="job-xp" />
       </OverlayElement>
       <OverlayElement id="weight" settings={next.elements.weight} locked={next.locked}>
-        <WeightElement state={next} />
+        <WeightElement />
       </OverlayElement>
       <OverlayElement id="xpTracker" settings={next.elements.xpTracker} locked={next.locked}>
-        <XpTrackerElement state={next} locked={next.locked} />
+        <XpTrackerElement locked={next.locked} />
       </OverlayElement>
       <OverlayElement id="xpChart" settings={next.elements.xpChart} locked={next.locked}>
-        <XpChartElement state={next} />
+        <XpChartElement />
       </OverlayElement>
       <OverlayElement id="partyRanking" settings={next.elements.partyRanking} locked={next.locked}>
-        <PartyRankingElement state={next} />
+        <PartyRankingElement />
       </OverlayElement>
-      <OverlayElement
+      <StatusOverlayElement
         id="buffs"
         settings={next.elements.buffs}
         locked={next.locked}
-        warn={next.missingStatuses.buffs.length > 0}
-      >
-        <StatusGridElement statuses={next.buffs} flashExpiring />
-      </OverlayElement>
+        category="buffs"
+        flashExpiring
+      />
       {/* Debuffs deliberately do not flash: one running out is good news. */}
-      <OverlayElement id="debuffs" settings={next.elements.debuffs} locked={next.locked}>
-        <StatusGridElement statuses={next.debuffs} />
-      </OverlayElement>
-      <OverlayElement
+      <StatusOverlayElement id="debuffs" settings={next.elements.debuffs} locked={next.locked} category="debuffs" />
+      <StatusOverlayElement
         id="toggles"
         settings={next.elements.toggles}
         locked={next.locked}
-        warn={next.missingStatuses.toggles.length > 0}
-      >
-        <StatusGridElement statuses={next.toggles} />
-      </OverlayElement>
+        category="toggles"
+      />
     </main>
   );
 }
@@ -156,6 +169,27 @@ interface OverlayElementProps {
   /** Outlines the tile in red, e.g. a status the user armed a missing-buff warning for is down. */
   warn?: boolean;
   children: ComponentChildren;
+}
+
+function StatusOverlayElement({
+  id,
+  settings,
+  locked,
+  category,
+  flashExpiring,
+}: Omit<OverlayElementProps, "children" | "warn"> & {
+  category: "buffs" | "debuffs" | "toggles";
+  flashExpiring?: boolean;
+}) {
+  const next = statusState.value;
+  const warn = category === "buffs" || category === "toggles"
+    ? (next?.missingStatuses[category].length ?? 0) > 0
+    : false;
+  return (
+    <OverlayElement id={id} settings={settings} locked={locked} warn={warn}>
+      <StatusGridElement statuses={next?.[category]} flashExpiring={flashExpiring} />
+    </OverlayElement>
+  );
 }
 
 function OverlayElement({ id, settings, locked, warn, children }: OverlayElementProps) {
@@ -196,7 +230,7 @@ function OverlayElement({ id, settings, locked, warn, children }: OverlayElement
     }
     void request.then(
       (next) => {
-        state.value = next;
+        controlState.value = next;
         setPreview(undefined);
       },
       () => {
@@ -258,7 +292,7 @@ function OverlayElement({ id, settings, locked, warn, children }: OverlayElement
                 id,
                 opacity: event.currentTarget.valueAsNumber,
               });
-              void request?.then((next) => { state.value = next; });
+              void request?.then((next) => { controlState.value = next; });
             }}
           />
         </label>
@@ -332,35 +366,26 @@ function snapToGrid(value: number): number {
   return Math.round(value / GRID_SIZE) * GRID_SIZE;
 }
 
-type MeterSnapshot = FishNetDpsEncounterSnapshot | MeterEncounterSnapshot;
-
-/** The party/map meter (dpsChart, partyRanking) cycles through this via its keybind (default F7). */
-function activeMeterSnapshot(next: OverlayState): MeterSnapshot | undefined {
-  return next.meterStatType === "tanked" ? next.tankedSnapshot
-    : next.meterStatType === "heal" ? next.healSnapshot
-    : next.snapshot;
-}
-
-function meterMetricLabel(next: OverlayState): string {
+function meterMetricLabel(next: OverlayControlState): string {
   return next.meterStatType === "tanked" ? "TPS" : next.meterStatType === "heal" ? "HPS" : "DPS";
 }
 
-function DpsChartElement({ state: next }: { state: OverlayState }) {
-  const snapshot = activeMeterSnapshot(next);
-  const metricLabel = meterMetricLabel(next);
-  const personal = snapshot?.personal;
-  const points = personal?.timeline ?? partyTimeline(snapshot);
-  const duration = personal?.durationMs ?? snapshot?.durationMs ?? 0;
+function DpsChartElement() {
+  const meter = meterState.value;
+  const control = controlState.value!;
+  const metricLabel = meterMetricLabel(control);
+  const points = meter?.chart ?? [];
+  const duration = meter?.chartDurationMs ?? 0;
   return (
     <div class="element-content">
-      <h2 class="element-title">{personal ? `Personal ${metricLabel} over time` : `Map ${metricLabel} over time`}</h2>
+      <h2 class="element-title">{meter?.personalChart ? `Personal ${metricLabel} over time` : `Map ${metricLabel} over time`}</h2>
       {points.length ? <DamageChart points={points} durationMs={duration} metricLabel={metricLabel} /> : <WaitingForDps />}
     </div>
   );
 }
 
 function DamageChart(
-  { points, durationMs, metricLabel }: { points: readonly FishNetDpsTimelinePoint[]; durationMs: number; metricLabel: string },
+  { points, durationMs, metricLabel }: { points: readonly OverlayMeterPoint[]; durationMs: number; metricLabel: string },
 ) {
   const width = 640;
   const height = 220;
@@ -386,8 +411,8 @@ function DamageChart(
   );
 }
 
-function PersonalDpsElement({ state: next }: { state: OverlayState }) {
-  const personal = next.snapshot?.personal;
+function PersonalDpsElement() {
+  const personal = meterState.value?.personal;
   return (
     <div class="element-content">
       <div class="personal-heading">
@@ -407,8 +432,8 @@ function PersonalDpsElement({ state: next }: { state: OverlayState }) {
   );
 }
 
-function WeightElement({ state: next }: { state: OverlayState }) {
-  const weight = next.weight;
+function WeightElement() {
+  const weight = characterState.value?.weight;
   return (
     <div class={`weight-value${weight ? "" : " weight-waiting"}`}>
       <strong class="weight-label">Weight</strong>
@@ -423,8 +448,9 @@ function WeightElement({ state: next }: { state: OverlayState }) {
   );
 }
 
-function XpTrackerElement({ state: next, locked }: { state: OverlayState; locked: boolean }) {
-  const xp = next.xp;
+function XpTrackerElement({ locked }: { locked: boolean }) {
+  const xp = characterState.value?.xp;
+  if (!xp) return <WaitingForDps label="Waiting for XP" />;
   return (
     <div class="element-content xp-tracker">
       <h2 class="element-title">Character XP</h2>
@@ -439,7 +465,7 @@ function XpTrackerElement({ state: next, locked }: { state: OverlayState; locked
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => {
-            void electroview.rpc?.request.resetXpTracker({}).then((nextState) => { state.value = nextState; });
+            void electroview.rpc?.request.resetXpTracker({}).then((nextState) => { characterState.value = nextState; });
           }}
         >
           Reset
@@ -449,8 +475,8 @@ function XpTrackerElement({ state: next, locked }: { state: OverlayState; locked
   );
 }
 
-function XpChartElement({ state: next }: { state: OverlayState }) {
-  const buckets = next.xp.timeline;
+function XpChartElement() {
+  const buckets = characterState.value?.xp.timeline ?? [];
   const rangeEnd = Date.now();
   const rollingRange = { start: rangeEnd - 10 * 60_000, end: rangeEnd };
   const computeRender = useCallback((range: ChartRange, _width: number): ChartRenderResult => {
@@ -512,15 +538,22 @@ function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: Ove
   );
 }
 
-function PartyRankingElement({ state: next }: { state: OverlayState }) {
-  const snapshot = activeMeterSnapshot(next);
-  const metricLabel = meterMetricLabel(next);
-  const actors = visiblePartyActors(
-    snapshot?.actors ?? [],
-    next.snapshotNowMs ?? snapshot?.lastDamageAtMs ?? 0,
-  );
+function CharacterResourceElement({ kind }: { kind: ResourceKind }) {
+  const next = characterState.value;
+  const resource = kind === "health" ? next?.health
+    : kind === "mana" ? next?.mana
+    : kind === "character-xp" ? next?.characterXp
+    : next?.jobXp;
+  return <ResourceElement kind={kind} resource={resource} />;
+}
+
+function PartyRankingElement() {
+  const meter = meterState.value;
+  const control = controlState.value!;
+  const metricLabel = meterMetricLabel(control);
+  const actors = meter?.party ?? [];
   const maxDps = Math.max(1, ...actors.map((actor) => actor.dps));
-  const duration = snapshot?.durationMs ?? 0;
+  const duration = meter?.partyDurationMs ?? 0;
   return (
     <div class="element-content">
       <div class="party-heading">
@@ -528,12 +561,12 @@ function PartyRankingElement({ state: next }: { state: OverlayState }) {
           <h2 class="element-title">Map encounter {metricLabel}</h2>
           <span class="party-duration">{formatDuration(duration)}</span>
         </div>
-        <span class="party-reset-hint">{next.shortcuts.resetSession} to reset · {next.shortcuts.cycleMeterStatType} to switch</span>
+        <span class="party-reset-hint">{control.shortcuts.resetSession} to reset · {control.shortcuts.cycleMeterStatType} to switch</span>
       </div>
       {actors.length ? <div class="ranking">{actors.map((actor, index) => (
         <div
           class="ranking-row"
-          key={actor.actorIds[0]}
+          key={actor.actorId}
           style={`--row-fill:${actor.dps / maxDps * 100}%;--row-color:${PARTY_ROW_COLORS[index % PARTY_ROW_COLORS.length]}`}
         >
           <span class="ranking-player">
@@ -630,28 +663,12 @@ function classIcon(archetype: number | undefined): string {
   return `views://assets/class-icons/class-${icon}.webp`;
 }
 
-function partyTimeline(snapshot: MeterSnapshot | undefined): FishNetDpsTimelinePoint[] {
-  const buckets = new Map<number, FishNetDpsTimelinePoint>();
-  for (const actor of snapshot?.actors ?? []) {
-    for (const point of actor.timeline) {
-      const current = buckets.get(point.elapsedMs);
-      buckets.set(point.elapsedMs, {
-        elapsedMs: point.elapsedMs,
-        damage: (current?.damage ?? 0) + point.damage,
-        dps: (current?.dps ?? 0) + point.dps,
-        cumulativeDamage: (current?.cumulativeDamage ?? 0) + point.cumulativeDamage,
-      });
-    }
-  }
-  return [...buckets.values()].sort((left, right) => left.elapsedMs - right.elapsedMs);
-}
-
 function setLocked(locked: boolean): Promise<void> {
-  return electroview.rpc?.request.setLocked({ locked }).then((next) => { state.value = next; }) ?? Promise.resolve();
+  return electroview.rpc?.request.setLocked({ locked }).then((next) => { controlState.value = next; }) ?? Promise.resolve();
 }
 
 function setElementEnabled(id: OverlayElementId, enabled: boolean): Promise<void> {
-  return electroview.rpc?.request.setElementEnabled({ id, enabled }).then((next) => { state.value = next; }) ?? Promise.resolve();
+  return electroview.rpc?.request.setElementEnabled({ id, enabled }).then((next) => { controlState.value = next; }) ?? Promise.resolve();
 }
 
 

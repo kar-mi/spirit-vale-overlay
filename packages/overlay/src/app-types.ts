@@ -1,8 +1,7 @@
 import type { RPCSchema } from "electrobun";
-import type { FishNetActiveStatus, FishNetDpsEncounterSnapshot } from "@kar-mi/spirit-vale-tools-combat";
+import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterWeight } from "@kar-mi/spirit-vale-tools-character";
 import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
-import type { MeterEncounterSnapshot } from "@spiritvale/combat-ui/app-types";
 import type { StatType } from "@spiritvale/ui-core/stat-type-select";
 import type { RequiredStatusCategory } from "./required-statuses.ts";
 
@@ -45,50 +44,96 @@ export interface OverlayExperienceProgress extends OverlayResource {
   capped: boolean;
 }
 
-export interface OverlayState {
+export interface OverlayControlState {
   locked: boolean;
   personalName: string;
   status: OverlayStatus;
   statusDetail: string;
   elements: Record<OverlayElementId, OverlayElementSettings>;
-  /** Which metric the party/map meter (dpsChart, partyRanking) currently displays. */
+  /** Which metric the party/map meter currently displays. */
   meterStatType: StatType;
-  snapshot?: FishNetDpsEncounterSnapshot;
-  tankedSnapshot?: MeterEncounterSnapshot;
-  healSnapshot?: MeterEncounterSnapshot;
-  snapshotNowMs?: number;
   shortcuts: Record<KeybindAction, string>;
   shortcutErrors: Partial<Record<KeybindAction, string>>;
   overlayVisible: boolean;
+  requiredStatuses: Record<RequiredStatusCategory, string[]>;
+}
+
+export interface OverlayCharacterState {
   health?: OverlayResource;
   mana?: OverlayResource;
   characterXp?: OverlayExperienceProgress;
   jobXp?: OverlayExperienceProgress;
   weight?: CharacterWeight;
   xp: XpAggregateSnapshot;
+}
+
+export interface OverlayStatusState {
   buffs?: FishNetActiveStatus[];
   debuffs?: FishNetActiveStatus[];
   toggles?: FishNetActiveStatus[];
-  /** Statuses the user armed a missing-status warning for, per tile. */
-  requiredStatuses: Record<RequiredStatusCategory, string[]>;
   /** Of those, the ones not currently active — non-empty means the tile is highlighted. */
   missingStatuses: Record<RequiredStatusCategory, string[]>;
 }
 
+export interface OverlayMeterPoint {
+  elapsedMs: number;
+  dps: number;
+}
+
+export interface OverlayMeterActor {
+  actorId: number;
+  displayName: string;
+  archetype?: number;
+  dps: number;
+}
+
+export interface OverlayMeterState {
+  /** True when the chart represents the configured personal actor rather than the map total. */
+  personalChart: boolean;
+  chartDurationMs: number;
+  chart: OverlayMeterPoint[];
+  partyDurationMs: number;
+  party: OverlayMeterActor[];
+  personal?: {
+    archetype?: number;
+    currentDps: number;
+    damage: number;
+    critRate?: number;
+  };
+}
+
+export interface OverlayViewState {
+  control: OverlayControlState;
+  character: OverlayCharacterState;
+  statuses: OverlayStatusState;
+  meter: OverlayMeterState;
+}
+
+/** The subset consumed by the separate Settings window. */
+export interface OverlaySettingsState {
+  locked: boolean;
+  personalName: string;
+  elements: Record<OverlayElementId, OverlayElementSettings>;
+  shortcuts: Record<KeybindAction, string>;
+  shortcutErrors: Partial<Record<KeybindAction, string>>;
+  overlayVisible: boolean;
+  requiredStatuses: Record<RequiredStatusCategory, string[]>;
+}
+
 type OverlaySharedRequests = {
-  getState: { params: Record<string, never>; response: OverlayState };
-  setLocked: { params: { locked: boolean }; response: OverlayState };
+  getState: { params: Record<string, never>; response: OverlayViewState };
+  setLocked: { params: { locked: boolean }; response: OverlayControlState };
   setElementEnabled: {
     params: { id: OverlayElementId; enabled: boolean };
-    response: OverlayState;
+    response: OverlayControlState;
   };
-  setOverlayVisible: { params: { visible: boolean }; response: OverlayState };
-  setShortcut: { params: { action: KeybindAction; shortcut: string }; response: OverlayState };
+  setOverlayVisible: { params: { visible: boolean }; response: OverlayControlState };
+  setShortcut: { params: { action: KeybindAction; shortcut: string }; response: OverlayControlState };
   setRequiredStatuses: {
     params: { category: RequiredStatusCategory; statusIds: string[] };
-    response: OverlayState;
+    response: OverlayControlState;
   };
-  resetXpTracker: { params: Record<string, never>; response: OverlayState };
+  resetXpTracker: { params: Record<string, never>; response: OverlayCharacterState };
 };
 
 export type OverlayRpc = {
@@ -96,17 +141,22 @@ export type OverlayRpc = {
     requests: OverlaySharedRequests & {
       setElementPosition: {
         params: { id: OverlayElementId; x: number; y: number };
-        response: OverlayState;
+        response: OverlayControlState;
       };
       setElementBounds: {
         params: { id: OverlayElementId; x: number; y: number; width: number; height: number };
-        response: OverlayState;
+        response: OverlayControlState;
       };
       setElementOpacity: {
         params: { id: OverlayElementId; opacity: number };
-        response: OverlayState;
+        response: OverlayControlState;
       };
     };
   }>;
-  webview: RPCSchema<{ messages: { stateChanged: OverlayState } }>;
+  webview: RPCSchema<{ messages: {
+    controlChanged: OverlayControlState;
+    characterChanged: OverlayCharacterState;
+    statusesChanged: OverlayStatusState;
+    meterChanged: OverlayMeterState;
+  } }>;
 };

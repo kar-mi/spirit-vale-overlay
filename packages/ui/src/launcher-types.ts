@@ -4,7 +4,7 @@ import type { UiScale } from "@spiritvale/ui-core/ui-scale";
 import type {
   KeybindAction,
   OverlayElementId,
-  OverlayState,
+  OverlaySettingsState,
   RequiredStatusCategory,
 } from "@spiritvale/overlay/app-types";
 
@@ -39,7 +39,7 @@ export interface LauncherState {
 
 export interface SharedSettingsState {
   launcher: LauncherState;
-  overlay: OverlayState;
+  overlay: OverlaySettingsState;
 }
 
 type LauncherSharedRequests = {
