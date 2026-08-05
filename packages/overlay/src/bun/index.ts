@@ -34,6 +34,7 @@ import { personalResources } from "../personal-resources.ts";
 import { OverlayLogClock } from "../live-log-clock.ts";
 import { emptyMeterState, overlayMeterState } from "../meter-presentation.ts";
 import { OverlayPublishCadence } from "../publish-cadence.ts";
+import { OverlayStatusLinger } from "../status-linger.ts";
 import {
   loadOverlaySettings,
   normalizeSingleShortcut,
@@ -104,6 +105,8 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   const logClock = new OverlayLogClock();
   let hasMeterRecord = false;
   const publishCadence = new OverlayPublishCadence(METER_PUBLISH_MS);
+  const statusLinger = new OverlayStatusLinger();
+  let lastPersonalName = detectedPersonalName(characterState);
   let lastControlJson: string | undefined;
   let lastCharacterJson: string | undefined;
   let lastStatusesJson: string | undefined;
@@ -201,7 +204,12 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   const pollTimer = setInterval(() => void pollLiveLog(), LIVE_LOG_POLL_MS);
   unsubscribeCharacter = options.subscribeCharacter((next) => {
     characterState = next;
-    meter.setPersonalName(detectedPersonalName(characterState));
+    const personalName = detectedPersonalName(characterState);
+    // What the linger is holding belongs to whoever was being tracked; carrying it across a
+    // character switch would show their buffs on the new one.
+    if (personalName !== lastPersonalName) statusLinger.reset();
+    lastPersonalName = personalName;
+    meter.setPersonalName(personalName);
     publishControl();
     publishCharacter();
     publishStatuses(relativeNowMs() ?? 0, true);
@@ -271,8 +279,14 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     const personalName = detectedPersonalName(characterState);
     // Statuses with no data-mine icon (a small upstream gap, e.g. SlowImmunity/BlindImmunity) are
     // omitted entirely rather than shown as a text-initials placeholder.
-    const activeStatuses = statusTracker.getActiveStatusesForName(personalName, nowMs)
-      .filter((activeStatus) => activeStatus.spriteId !== undefined);
+    // The server drops and re-adds a nearby player's group boons within a fraction of a second, so
+    // the toggles they land in are held briefly across that gap. Doing it here rather than per tile
+    // means the missing-status warnings below see the held set too and stop flashing in sympathy.
+    const activeStatuses = statusLinger.apply(
+      statusTracker.getActiveStatusesForName(personalName, nowMs)
+        .filter((activeStatus) => activeStatus.spriteId !== undefined),
+      nowMs,
+    );
     // This split is mirrored by the pickers in ../required-statuses.ts; keep both in sync.
     const buffs = activeStatuses.filter((activeStatus) => !activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined);
     const toggles = activeStatuses.filter((activeStatus) => activeStatus.expiresAtMs === undefined);
@@ -464,6 +478,10 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
         const timelineMs = logClock.observe(observedAtMs);
         if (event.kind === "actorIdentity") {
           meter.consumeIdentity(event, timelineMs);
+          // A zone transition or relog clears the tracker outright, so there is nothing left for the
+          // linger to be holding open. Note this is deliberately not done for `batch.reset`, where
+          // the tracker's view of the world survives on purpose.
+          if (event.operation === "reset") statusLinger.reset();
           statusTracker.consumeIdentity(event);
         } else {
           meter.consumeCombat(event, timelineMs);
