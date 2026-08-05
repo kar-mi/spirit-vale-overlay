@@ -5,9 +5,9 @@
     "": {
       "name": "spirit-vale-overlay",
       "devDependencies": {
-        "@types/bun": "latest",
+        "@types/bun": "1.3.14",
         "resedit": "3.0.2",
-        "typescript": "latest",
+        "typescript": "7.0.2",
       },
     },
     "packages/build-export": {
