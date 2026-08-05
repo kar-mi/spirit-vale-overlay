@@ -199,6 +199,31 @@ describe("MarketSourceLogFollower", () => {
     expect(batch.stall[0]?.countTraded).toBe(1);
   });
 
+  /**
+   * "Riftbreaker" with a Crit roll of 73 is a real captured listing. The game shows Crit 9; before
+   * the item-type correction the listing's equipment (wire type 3) was scored as an artifact, Crit
+   * had no artifact cap, and the view printed the raw roll instead.
+   */
+  test("substats are scored against the corrected item type", async () => {
+    const payload = JSON.stringify({
+      UID: "d9779252-2d16-4735-9a64-e2cd86df9823",
+      Refine: 0,
+      Substats: [{ Type: 15, Value: 73, ValueStr: "" }],
+      Cards: [],
+      Id: "Riftbreaker",
+    });
+    await writeLog([
+      eventRecord(stallListingsEvent([listing({ id: "stall-listing-1", itemId: "Riftbreaker", itemType: 3, json: payload })])),
+    ]);
+
+    const batch = await new MarketSourceLogFollower(logPath).poll();
+    const stat = batch.stall[0]?.stats?.[0];
+
+    expect(stat?.name).toBe("Crit");
+    expect(stat?.roll).toBe(73);
+    expect(stat?.value).toBe(9);
+  });
+
   test("malformed lines are counted rather than thrown", async () => {
     await writeLog(["{ not json", record("market.event", { kind: "nonsense" }), eventRecord(catalogEvent(listing()))]);
 

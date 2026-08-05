@@ -1,6 +1,11 @@
 import { JsonlTailReader, LiveLogSessionFollower, parseLogRecord } from "@kar-mi/spirit-vale-tools-logging";
 import type { JsonObject, LiveLogStatus } from "@kar-mi/spirit-vale-tools-logging";
-import { FishNetMarketTracker, marketListingKey, parseMarketEventLogData } from "@kar-mi/spirit-vale-tools-market";
+import {
+  FishNetMarketTracker,
+  marketListingKey,
+  parseFishNetMarketStats,
+  parseMarketEventLogData,
+} from "@kar-mi/spirit-vale-tools-market";
 import type { FishNetMarketEvent, FishNetMarketListingView } from "@kar-mi/spirit-vale-tools-market";
 
 export type MarketSourceStatus = LiveLogStatus;
@@ -111,11 +116,11 @@ export class MarketSourceLogFollower {
       case "account":
       case "collectResult":
         this.marketTracker.apply(event);
-        this.market = this.named(this.marketTracker.query());
+        this.market = this.repaired(this.marketTracker.query());
         return;
       case "listings":
         this.stallTracker.apply(event);
-        this.stall = this.named(this.stallTracker.query());
+        this.stall = this.repaired(this.stallTracker.query());
         return;
       case "stalls":
       case "stallUpsert":
@@ -123,8 +128,8 @@ export class MarketSourceLogFollower {
         // Shop name and map only resolve through each tracker's own stall map, so both need these.
         this.marketTracker.apply(event);
         this.stallTracker.apply(event);
-        this.market = this.named(this.marketTracker.query());
-        this.stall = this.named(this.stallTracker.query());
+        this.market = this.repaired(this.marketTracker.query());
+        this.stall = this.repaired(this.stallTracker.query());
     }
   }
 
@@ -175,17 +180,24 @@ export class MarketSourceLogFollower {
   }
 
   /**
-   * Applies the harvested names.
+   * Restores the two fields the tracker gets wrong for market listings.
    *
-   * The game's own name wins over the bundled catalog's: the catalog is a per-build datamine that
-   * drifts, while this value is what the player is looking at in game right now.
+   * The name comes from the harvested server value, which wins over the bundled catalog's: the
+   * catalog is a per-build datamine that drifts, while this is what the player sees in game now.
+   *
+   * The substats are recomputed against the corrected item type — see {@link catalogItemType}.
    */
-  private named(views: FishNetMarketListingView[]): FishNetMarketListingView[] {
-    if (this.serverNames.size === 0) return views;
+  private repaired(views: FishNetMarketListingView[]): FishNetMarketListingView[] {
     return views.map((view) => {
       const name = this.serverNames.get(marketListingKey(view));
-      if (name === undefined || name === view.displayName) return view;
-      return { ...view, displayName: name, searchText: view.searchText ?? name };
+      const stats = parseFishNetMarketStats(view.json, catalogItemType(view.itemType)) ?? view.stats;
+      const renamed = name !== undefined && name !== view.displayName;
+      if (!renamed && stats === view.stats) return view;
+      return {
+        ...view,
+        ...(renamed ? { displayName: name, searchText: view.searchText ?? name } : {}),
+        ...(stats ? { stats } : {}),
+      };
     });
   }
 
@@ -212,6 +224,23 @@ export class MarketSourceLogFollower {
       ...(this.observedAt ? { observedAt: this.observedAt } : {}),
     };
   }
+}
+
+/**
+ * Converts a market listing's item type to the one the bundled item catalog uses.
+ *
+ * The vending wire enum sits exactly one above the catalog's: equipment is 3 on a listing but 2 in
+ * the catalog, artifacts 4 against 3, cards 5 against 4, gems 6 against 5. Replaying every market
+ * log in `logs/sessions` resolves 153 of 153 distinct items at this offset and 0 of 153 without it.
+ *
+ * Left uncorrected the damage is twofold: the catalog never resolves, and
+ * `calculateFishNetMarketStatValues` reads a listing's equipment (3) as an artifact and scores its
+ * substats against `ARTIFACT_CAPS`. Only four stats have an artifact cap, so everything else loses
+ * its cap and the view falls back to printing the raw 0-100 roll — "Crit roll 73" for what the game
+ * shows as "Crit 9".
+ */
+function catalogItemType(itemType: number): number {
+  return itemType > 0 ? itemType - 1 : itemType;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
