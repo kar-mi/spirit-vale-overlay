@@ -57,21 +57,6 @@ function stall(overrides: Partial<FishNetMarketStall> = {}): FishNetMarketStall 
   };
 }
 
-/**
- * Re-attaches the `searchText` that `marketEventLogData` drops.
- *
- * Passive capture writes it — it is the game's own `ItemDisplayName` — but the typed event and its
- * serializer both discard it, so the fixtures have to put it back to match a real log on disk.
- */
-function withSearchText(line: string, names: Record<string, string>): string {
-  const parsed = JSON.parse(line) as { data: { listings?: Array<{ id: string; searchText?: string }> } };
-  for (const listing of parsed.data.listings ?? []) {
-    const name = names[listing.id];
-    if (name !== undefined) listing.searchText = name;
-  }
-  return JSON.stringify(parsed);
-}
-
 function record(type: string, data: Record<string, unknown>): string {
   return JSON.stringify({
     schemaVersion: 1,
@@ -157,16 +142,13 @@ describe("MarketSourceLogFollower", () => {
   });
 
   /**
-   * `Armor_Vit` is a real captured id: the game sends "Endurance Plate" as its display name, but the
-   * tracker upserts stall listings with a null name and the bundled catalog files that id under item
-   * type 2 while the listing arrives as type 3 — so the name used to fall back to the raw id.
+   * `Armor_Vit` is a real captured id. A listing carries the vending wire item type, which sits one
+   * above the item catalog's, so the name only resolves once that offset is applied — otherwise it
+   * falls all the way back to the raw id.
    */
-  test("stall listings show the display name the game sent, not the raw id", async () => {
+  test("stall listings resolve their catalogued display name", async () => {
     await writeLog([
-      withSearchText(
-        eventRecord(stallListingsEvent([listing({ id: "stall-listing-1", itemId: "Armor_Vit", itemType: 3 })])),
-        { "stall-listing-1": "Endurance Plate" },
-      ),
+      eventRecord(stallListingsEvent([listing({ id: "stall-listing-1", itemId: "Armor_Vit", itemType: 3 })])),
     ]);
 
     const batch = await new MarketSourceLogFollower(logPath).poll();
@@ -175,27 +157,51 @@ describe("MarketSourceLogFollower", () => {
     expect(batch.stall[0]?.itemId).toBe("Armor_Vit");
   });
 
-  test("a listing with no name from the game still falls back to its id", async () => {
-    await writeLog([eventRecord(stallListingsEvent([listing({ id: "stall-listing-1", itemId: "Armor_Vit", itemType: 3 })]))]);
-
-    const batch = await new MarketSourceLogFollower(logPath).poll();
-
-    expect(batch.stall[0]?.displayName).toBe("Armor_Vit");
-  });
-
-  test("a name captured once survives later events for the same listing", async () => {
+  test("an uncatalogued listing falls back to the name the game sent", async () => {
     await writeLog([
-      withSearchText(
-        eventRecord(stallListingsEvent([listing({ id: "stall-listing-1", itemId: "Auto", itemType: 4 })])),
-        { "stall-listing-1": "Blitzcore" },
-      ),
-      // A refresh of the same stall, this time without the name attached.
-      eventRecord(stallListingsEvent([listing({ id: "stall-listing-1", itemId: "Auto", itemType: 4, countTraded: 1 })])),
+      eventRecord(stallListingsEvent([listing({
+        id: "stall-listing-1",
+        itemId: "fictional-unlisted-item",
+        itemType: 3,
+        searchText: "Fictional Blade",
+      })])),
     ]);
 
     const batch = await new MarketSourceLogFollower(logPath).poll();
 
-    expect(batch.stall[0]?.displayName).toBe("Blitzcore");
+    expect(batch.stall[0]?.displayName).toBe("Fictional Blade");
+  });
+
+  test("an uncatalogued listing with no name from the game falls back to its id", async () => {
+    await writeLog([
+      eventRecord(stallListingsEvent([listing({ id: "stall-listing-1", itemId: "fictional-unlisted-item", itemType: 3 })])),
+    ]);
+
+    const batch = await new MarketSourceLogFollower(logPath).poll();
+
+    expect(batch.stall[0]?.displayName).toBe("fictional-unlisted-item");
+  });
+
+  test("a name sent once survives later events for the same listing", async () => {
+    await writeLog([
+      eventRecord(stallListingsEvent([listing({
+        id: "stall-listing-1",
+        itemId: "fictional-unlisted-item",
+        itemType: 3,
+        searchText: "Fictional Blade",
+      })])),
+      // A refresh of the same stall, this time without the name attached.
+      eventRecord(stallListingsEvent([listing({
+        id: "stall-listing-1",
+        itemId: "fictional-unlisted-item",
+        itemType: 3,
+        countTraded: 1,
+      })])),
+    ]);
+
+    const batch = await new MarketSourceLogFollower(logPath).poll();
+
+    expect(batch.stall[0]?.displayName).toBe("Fictional Blade");
     expect(batch.stall[0]?.countTraded).toBe(1);
   });
 
