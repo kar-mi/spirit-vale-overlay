@@ -1,0 +1,18 @@
+{
+  "name": "@spiritvale/build-export",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "refresh-snapshot": "bun run scripts/refresh-snapshot.ts"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.9.4",
+    "@kar-mi/spirit-vale-tools-character": "0.4.0",
+    "@spiritvale/ui-core": "workspace:*",
+    "electrobun": "1.18.1",
+    "preact": "^10.29.7"
+  }
+}

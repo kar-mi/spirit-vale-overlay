@@ -45,6 +45,29 @@ describe("character cache storage", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  test("round-trips grimoires, the action bar and stored loadouts", async () => {
+    // sanitizeSnapshot rebuilds the snapshot from an allowlist, so a top-level field that is not
+    // named there is dropped on persist. That shipped a cached character exporting zero grimoires
+    // and no weapon-swap sets, with nothing reported as unresolved because they were simply gone.
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-character-cache-"));
+    const file = path.join(directory, "characters.json");
+    try {
+      const live = snapshot("Fictional Gunslinger", ["Scout", "Gunslinger"]);
+      live.grimoires = [{ slot: "Grimoire 2", itemId: "Scout_2", refine: 0, cards: [], substats: [] }];
+      live.assignedSkills = [{ id: "Mount", displayName: "Mount", level: 1, effects: [] }];
+      live.loadouts = [[], [{ slot: "Main hand", itemId: "Thundercoil", refine: 7, cards: [], substats: [] }], []];
+
+      await saveCharacterCache(updateCharacterCache({ characters: [] }, live), file);
+      const restored = activeCharacterSnapshot(await loadCharacterCache(file));
+
+      expect(restored?.grimoires).toEqual(live.grimoires);
+      expect(restored?.assignedSkills).toEqual(live.assignedSkills);
+      expect(restored?.loadouts?.[1]?.[0]?.itemId).toBe("Thundercoil");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 function snapshot(name: string, archetypes: string[]): CharacterSnapshot {

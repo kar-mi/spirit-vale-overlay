@@ -1,7 +1,7 @@
 import { FishNetActorDirectory, FishNetCombatTracker } from "@kar-mi/spirit-vale-tools-combat";
 import type { FishNetCombatEvent, FishNetKnownIdentity } from "@kar-mi/spirit-vale-tools-combat";
-import { resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
-import type { CharacterSnapshot, CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
+import { FishNetInspectRoster, resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
+import type { CharacterSnapshot, CharacterViewState, InspectedCharacter } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import type { CapturedFishNetPacket, CapturedLiteNetLibPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
 import {
@@ -102,6 +102,12 @@ export class CaptureCoordinator {
     onHandled: () => this.syncLocalActorIdentity(),
     onError: (packet, error) => this.logCharacterWarning(packet, error),
   });
+  /**
+   * Characters seen by inspecting other players. Kept apart from `character` on purpose: that
+   * router owns the LOCAL player and merges every payload it accepts, so an inspected stranger
+   * routed through it would overwrite your own character.
+   */
+  private readonly inspected = new FishNetInspectRoster();
   private session?: LogSession;
   private combatLog?: JsonLinesLogger;
   private rewardsLog?: JsonLinesLogger;
@@ -167,6 +173,12 @@ export class CaptureCoordinator {
 
   subscribeCharacter(listener: (state: CharacterViewState) => void): () => void {
     return this.character.subscribe(listener);
+  }
+
+  inspectedCharacters(): InspectedCharacter[] { return this.inspected.list(); }
+
+  subscribeInspectedCharacters(listener: (roster: InspectedCharacter[]) => void): () => void {
+    return this.inspected.subscribe(listener);
   }
 
   async start(): Promise<void> {
@@ -514,10 +526,14 @@ export class CaptureCoordinator {
     }
     // Character-save callbacks are connection-independent; object-bound character data is routed
     // only after the same active-connection admission used by every other capture domain.
+    // Inspect replies are a separate stream: the same CharacterData for a DIFFERENT player. Routed
+    // before admission for the same reason character callbacks are — the reply can arrive on a
+    // connection the active-connection gate would reject, and it belongs to no unit object.
+    const inspectHandled = this.inspected.consume(packet);
     let characterHandled = this.character.consumeBeforeAdmission(packet);
     if (!this.admitPacket(packet)) return;
     const admittedCharacterHandled = this.character.consumeAdmitted(packet);
-    characterHandled ||= admittedCharacterHandled;
+    characterHandled ||= admittedCharacterHandled || inspectHandled;
     this.countUnresolvedPacket(packet);
     if (packet.splitDropReason !== undefined) {
       this.combatLog?.log("combat.warning", {
@@ -830,6 +846,8 @@ export class CaptureCoordinator {
 
   private syncLocalActorIdentity(): void {
     const snapshot = this.character.current();
+    // Inspecting yourself replies on the same RPC, so the roster needs your name to exclude it.
+    this.inspected.setLocalName(snapshot?.name);
     if (!snapshot) return;
     const archetype = this.character.currentArchetypeId();
     this.actors.setLocalIdentity({
