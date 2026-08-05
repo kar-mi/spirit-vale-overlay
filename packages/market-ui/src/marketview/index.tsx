@@ -7,7 +7,7 @@ import { SettingsButton } from "@spiritvale/ui-core/settings-button";
 import { StatusDot } from "@spiritvale/ui-core/status-dot";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
 
-import type { MarketUiRpc, MarketUiSortDirection, MarketUiSortKey, MarketUiState, MarketUiStat } from "../app-types.ts";
+import type { MarketUiRpc, MarketUiSortDirection, MarketUiSortKey, MarketUiSource, MarketUiState, MarketUiStat } from "../app-types.ts";
 
 const STATUS_TONE: Record<MarketUiState["status"], "is-ok" | "is-warn" | "is-err"> = {
   waiting: "is-warn",
@@ -34,6 +34,10 @@ function setQuery(query: string): void {
   queryTimer = setTimeout(() => {
     void electroview.rpc?.request.setQuery({ query }).then((next) => { state.value = repairRendererPayload(next); });
   }, 150);
+}
+
+function setSource(source: MarketUiSource): void {
+  void electroview.rpc?.request.setSource({ source }).then((next) => { state.value = repairRendererPayload(next); });
 }
 
 function loadMore(): void {
@@ -75,6 +79,11 @@ function App() {
 
   if (!next) return <main class="app-shell" />;
 
+  // Shop and map only resolve through the seller-to-stall join, which is what the Stalls tab is
+  // about; on the Market tab those columns are near-always empty, so they are dropped instead.
+  const stalls = next.source === "stall";
+  const columnCount = stalls ? 7 : 5;
+
   const changeSort = (key: MarketUiSortKey): void => {
     const direction: MarketUiSortDirection = next.sortKey === key && next.sortDirection === "ascending" ? "descending" : "ascending";
     void electroview.rpc?.request.setSort({ key, direction }).then((updated) => { state.value = updated; });
@@ -93,6 +102,14 @@ function App() {
         onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
         extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
       />
+      <nav class="seg tabs" role="tablist" aria-label="Listing source">
+        <button type="button" role="tab" aria-controls="results-panel" class={stalls ? undefined : "active"} aria-selected={!stalls} onClick={() => setSource("market")}>
+          Market <span class="tab-count">{numberFormat.format(next.marketCount)}</span>
+        </button>
+        <button type="button" role="tab" aria-controls="results-panel" class={stalls ? "active" : undefined} aria-selected={stalls} onClick={() => setSource("stall")}>
+          Stalls <span class="tab-count">{numberFormat.format(next.stallCount)}</span>
+        </button>
+      </nav>
       <section class="search-bar">
         <label class="field" for="market-query">
           <span aria-hidden="true">⌕</span>
@@ -115,25 +132,27 @@ function App() {
         <StatusDot tone={STATUS_TONE[next.status]} detail={next.statusDetail} />
         <strong id="result-count" class="t-data">{numberFormat.format(next.matchCount)} {next.matchCount === 1 ? "result" : "results"}</strong>
       </section>
-      <section class="results" aria-label="Market listings">
+      <section class="results" id="results-panel" role="tabpanel" aria-label={stalls ? "Stall listings" : "Market listings"}>
         {next.listings.length === 0 ? (
           <div class="empty-state">
             {next.status === "waiting"
-              ? "No active market session. Start the passive market command, then open the in-game market."
+              ? `No active market session. Start the passive market command, then ${stalls ? "open a player vending stall in game" : "open the in-game market"}.`
               : next.capturedCount === 0
-                ? "Waiting for market listings from the current session."
+                ? stalls
+                  ? "Waiting for stall listings. Walk up to a player vending stall in game and open it."
+                  : "Waiting for market listings from the current session."
                 : "No captured listings match this search and filter set."}
           </div>
         ) : (
           <div class="table-scroll results-table-scroll">
-            <table class="data-table market-table">
+            <table class={stalls ? "data-table market-table has-stall-columns" : "data-table market-table"}>
               <thead><tr>
                 <SortableHeader label="Item" sortKey="name" state={next} onSort={changeSort} />
                 <SortableHeader label="Price" sortKey="price" state={next} onSort={changeSort} />
                 <SortableHeader label="Qty" sortKey="available" state={next} onSort={changeSort} />
                 <SortableHeader label="Seller" sortKey="seller" state={next} onSort={changeSort} />
-                <SortableHeader label="Shop" sortKey="shopName" state={next} onSort={changeSort} />
-                <SortableHeader label="Map" sortKey="mapId" state={next} onSort={changeSort} />
+                {stalls && <SortableHeader label="Shop" sortKey="shopName" state={next} onSort={changeSort} />}
+                {stalls && <SortableHeader label="Map" sortKey="mapId" state={next} onSort={changeSort} />}
                 <th>Stats</th>
               </tr></thead>
               <tbody>{next.listings.map((listing) => {
@@ -146,11 +165,11 @@ function App() {
                     <td class="is-value" title={formatPrice(listing.price)}>{formatPrice(listing.price)}</td>
                     <td>{numberFormat.format(listing.available)}</td>
                     <td title={listing.seller}>{listing.seller ?? "—"}</td>
-                    <td title={listing.shopName}>{listing.shopName ?? "—"}</td>
-                    <td title={listing.mapId}>{listing.mapId ?? "—"}</td>
+                    {stalls && <td title={listing.shopName}>{listing.shopName ?? "—"}</td>}
+                    {stalls && <td title={listing.mapId}>{listing.mapId ?? "—"}</td>}
                     <td>{listing.stats.length === 0 ? "—" : listing.stats.length}</td>
                   </tr>
-                  {listing.stats.length > 0 && <tr class="table-detail-row"><td colSpan={7}><div class="table-detail-chips">{listing.stats.map((stat, index) => <span class="chip" key={`${stat.type}-${index}`}>{formatStat(stat)}</span>)}</div></td></tr>}
+                  {listing.stats.length > 0 && <tr class="table-detail-row"><td colSpan={columnCount}><div class="table-detail-chips">{listing.stats.map((stat, index) => <span class="chip" key={`${stat.type}-${index}`}>{formatStat(stat)}</span>)}</div></td></tr>}
                 </Fragment>;
               })}</tbody>
             </table>

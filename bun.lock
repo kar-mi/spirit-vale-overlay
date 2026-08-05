@@ -26,6 +26,7 @@
     "packages/market-ui": {
       "name": "@spiritvale/market-ui",
       "dependencies": {
+        "@kar-mi/spirit-vale-tools-logging": "0.4.1",
         "@kar-mi/spirit-vale-tools-market": "1.0.0",
         "@preact/signals": "^2.9.4",
         "@spiritvale/ui-core": "workspace:*",
