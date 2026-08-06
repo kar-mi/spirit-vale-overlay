@@ -77,6 +77,7 @@ let launcherState: LauncherState = {
   adapters: [],
   uiScale: settings.uiScale,
   minimizeToTray: settings.minimizeToTray,
+  resetMeterOnMapChange: settings.resetMeterOnMapChange,
 };
 let shuttingDown = false;
 let characterStorageWarning: string | undefined;
@@ -162,6 +163,7 @@ const capture = new CaptureCoordinator({
     publish();
   },
   onError: (report) => errorLog.write(report),
+  resetOnMapChange: () => settings.resetMeterOnMapChange,
   knownIdentities: actorIdentityCache.entries,
   onIdentityLearned: (identity) => {
     actorIdentityCache = updateActorIdentityCache(actorIdentityCache, { ...identity, lastSeenAtMs: Date.now() });
@@ -258,6 +260,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       },
       setMinimizeToTray: async ({ minimizeToTray }) => {
         setMinimizeToTray(minimizeToTray);
+        return sharedSettingsState();
+      },
+      setResetMeterOnMapChange: async ({ resetMeterOnMapChange }) => {
+        setResetMeterOnMapChange(resetMeterOnMapChange);
         return sharedSettingsState();
       },
       refreshCaptureDevices: async () => {
@@ -496,6 +502,14 @@ async function setLauncherUiScale(uiScale: typeof settings.uiScale): Promise<Lau
 function setMinimizeToTray(minimizeToTray: boolean): LauncherState {
   settings.minimizeToTray = minimizeToTray;
   launcherState = { ...launcherState, minimizeToTray };
+  launcherSettingsPersistence.schedule(settings);
+  publish();
+  return launcherState;
+}
+
+function setResetMeterOnMapChange(resetMeterOnMapChange: boolean): LauncherState {
+  settings.resetMeterOnMapChange = resetMeterOnMapChange;
+  launcherState = { ...launcherState, resetMeterOnMapChange };
   launcherSettingsPersistence.schedule(settings);
   publish();
   return launcherState;

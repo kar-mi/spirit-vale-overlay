@@ -31,6 +31,7 @@ export interface LauncherState {
   adapters: CaptureAdapterOption[];
   uiScale: UiScale;
   minimizeToTray: boolean;
+  resetMeterOnMapChange: boolean;
   update?: {
     version: string;
     url: string;
@@ -73,6 +74,7 @@ export type LauncherSettingsRpc = {
     setCaptureAdapter: { params: { deviceName: string | null }; response: SharedSettingsState };
     setUiScale: { params: { uiScale: UiScale }; response: SharedSettingsState };
     setMinimizeToTray: { params: { minimizeToTray: boolean }; response: SharedSettingsState };
+    setResetMeterOnMapChange: { params: { resetMeterOnMapChange: boolean }; response: SharedSettingsState };
     refreshCaptureDevices: { params: Record<string, never>; response: SharedSettingsState };
     openNpcapDownload: { params: Record<string, never>; response: void };
     setOverlayLocked: { params: { locked: boolean }; response: SharedSettingsState };

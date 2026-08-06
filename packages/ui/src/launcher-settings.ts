@@ -9,10 +9,17 @@ export interface LauncherSettings {
   captureAdapter: "auto" | string;
   uiScale: UiScale;
   minimizeToTray: boolean;
+  /** Rotates the capture session whenever the game re-authenticates (a map or channel change). */
+  resetMeterOnMapChange: boolean;
   skippedUpdateVersion?: string;
 }
 
-const defaults: LauncherSettings = { captureAdapter: "auto", uiScale: 1, minimizeToTray: false };
+const defaults: LauncherSettings = {
+  captureAdapter: "auto",
+  uiScale: 1,
+  minimizeToTray: false,
+  resetMeterOnMapChange: false,
+};
 export async function loadLauncherSettings(file = defaultSettingsFile()): Promise<LauncherSettings> {
   return loadJsonSettings(file, (value) => {
     const candidate = value as Partial<LauncherSettings>;
@@ -22,6 +29,7 @@ export async function loadLauncherSettings(file = defaultSettingsFile()): Promis
         : defaults.captureAdapter,
       uiScale: normalizeUiScale(candidate.uiScale),
       minimizeToTray: candidate.minimizeToTray === true,
+      resetMeterOnMapChange: candidate.resetMeterOnMapChange === true,
       skippedUpdateVersion: typeof candidate.skippedUpdateVersion === "string" && candidate.skippedUpdateVersion.trim()
         ? candidate.skippedUpdateVersion
         : undefined,
