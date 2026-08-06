@@ -98,6 +98,15 @@ describe("overlay settings", () => {
     expect(settings.elements.jobXp).toMatchObject({ enabled: true, width: 410, height: 30 });
   });
 
+  test("defaults the gold tracker tile on, near the XP tracker", () => {
+    const settings = defaultOverlaySettings({ x: 0, y: 0, width: 2560, height: 1440 });
+
+    expect(settings.elements.goldTracker.enabled).toBe(true);
+    expect(settings.elements.goldTracker).toEqual({
+      enabled: true, opacity: 1, x: 1720, y: 700, width: 160, height: 120,
+    });
+  });
+
   test("allows fully transparent tiles and clamps opacity to the supported range", () => {
     const transparent = normalizeOverlaySettings({ schemaVersion: 4, elements: { dpsChart: { opacity: 0 } } }, bounds);
     const outOfRange = normalizeOverlaySettings({ schemaVersion: 4, elements: {
