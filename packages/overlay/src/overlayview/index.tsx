@@ -137,6 +137,9 @@ function App() {
       <OverlayElement id="xpTracker" settings={next.elements.xpTracker} locked={next.locked}>
         <XpTrackerElement locked={next.locked} />
       </OverlayElement>
+      <OverlayElement id="goldTracker" settings={next.elements.goldTracker} locked={next.locked}>
+        <GoldTrackerElement locked={next.locked} />
+      </OverlayElement>
       <OverlayElement id="xpChart" settings={next.elements.xpChart} locked={next.locked}>
         <XpChartElement />
       </OverlayElement>
@@ -466,6 +469,33 @@ function XpTrackerElement({ locked }: { locked: boolean }) {
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => {
             void electroview.rpc?.request.resetXpTracker({}).then((nextState) => { characterState.value = nextState; });
+          }}
+        >
+          Reset
+        </button>
+      )}
+    </div>
+  );
+}
+
+function GoldTrackerElement({ locked }: { locked: boolean }) {
+  const gold = characterState.value?.gold;
+  if (!gold) return <WaitingForDps label="Waiting for gold" />;
+  return (
+    <div class="element-content gold-tracker">
+      <h2 class="element-title">Gold dropped</h2>
+      <div class="gold-total"><small>Total</small>{compactFormat.format(gold.totalCoins)}</div>
+      <div class="gold-rates">
+        <span>{compactFormat.format(gold.coinsPerSecond)}<small>/s</small></span>
+        <span>{compactFormat.format(gold.coinsPerHour)}<small>/hr</small></span>
+      </div>
+      {!locked && (
+        <button
+          class="gold-reset-button"
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            void electroview.rpc?.request.resetGoldTracker({}).then((nextState) => { characterState.value = nextState; });
           }}
         >
           Reset

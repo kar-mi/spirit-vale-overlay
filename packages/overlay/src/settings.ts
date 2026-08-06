@@ -55,6 +55,7 @@ const DEFAULT_ELEMENTS: Record<OverlayElementId, OverlayElementSettings> = {
   jobXp: { enabled: true, opacity: 1, x: 1770, y: 1120, width: 410, height: 30 },
   weight: { enabled: true, opacity: 1, x: 1720, y: 970, width: 160, height: 60 },
   xpTracker: { enabled: true, opacity: 1, x: 1720, y: 840, width: 160, height: 120 },
+  goldTracker: { enabled: true, opacity: 1, x: 1720, y: 700, width: 160, height: 120 },
   xpChart: { enabled: false, opacity: 1, x: 1040, y: 60, width: 420, height: 300 },
   buffs: { enabled: false, opacity: 1, x: 1040, y: 830, width: 380, height: 70 },
   debuffs: { enabled: false, opacity: 1, x: 1040, y: 760, width: 380, height: 60 },

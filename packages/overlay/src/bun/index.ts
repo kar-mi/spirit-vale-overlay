@@ -16,6 +16,7 @@ import { DisposableStore, onceWindowEvent } from "@spiritvale/ui-core/window-lif
 import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/bun";
 
 import type {
+  CoinsAggregateSnapshot,
   KeybindAction,
   OverlayCharacterState,
   OverlayControlState,
@@ -56,10 +57,12 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   openLiveDeathLog: "open live death log",
 };
 
-/** The overlay's XP tile reads from (and can reset) a tracker owned centrally, shared with the Rewards window, so both stay in sync. */
+/** The overlay's XP and gold tiles read from (and can reset) a tracker owned centrally, shared with the Rewards window, so both stay in sync. */
 export interface XpTrackerSource {
   getSnapshot(): XpAggregateSnapshot;
+  getCoinsSnapshot(): CoinsAggregateSnapshot;
   reset(): void;
+  resetCoins(): void;
   subscribe(listener: () => void): () => void;
 }
 
@@ -175,6 +178,11 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
           publishCharacter();
           return overlayCharacterState();
         },
+        resetGoldTracker: () => {
+          options.xp.resetCoins();
+          publishCharacter();
+          return overlayCharacterState();
+        },
       },
       messages: {},
     },
@@ -272,6 +280,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       ...experience,
       ...(characterState.weight ? { weight: characterState.weight } : {}),
       xp: options.xp.getSnapshot(),
+      gold: options.xp.getCoinsSnapshot(),
     };
   }
 
