@@ -69,15 +69,10 @@ export interface OverlayCharacterState {
 }
 
 /** Gold aggregate mirroring the XP tracker: total dropped, EWMA per-second rate, and the last hour's sum. */
-export interface CoinsAggregateBucket {
-  atMs: number;
-  coins: number;
-}
 export interface CoinsAggregateSnapshot {
   totalCoins: number;
   coinsPerSecond: number;
   coinsPerHour: number;
-  timeline: CoinsAggregateBucket[];
 }
 
 export interface OverlayStatusState {

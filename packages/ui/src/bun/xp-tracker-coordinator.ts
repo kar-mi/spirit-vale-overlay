@@ -37,11 +37,14 @@ export function createXpTrackerCoordinator(options: { logDirectory: string }): X
     stream: "rewards",
     logDirectory: options.logDirectory,
     // One callback per kill record: both trackers are fed from the same record and a single
-    // notify() fires per record, so a kill carrying XP and gold publishes exactly once.
+    // notify() fires per record, so a kill carrying XP and gold publishes exactly once. The
+    // notify is gated on either value being non-zero: at max level a kill can still carry gold
+    // (0 XP + 100 gold must publish), while a record with neither (e.g. an unattributed kill)
+    // should not emit an event.
     createFollower: (path) => new ExperienceLogFollower(path, (experience, coins, recordedAtMs) => {
       if (experience > 0) tracker.record(experience, recordedAtMs);
       if (coins > 0) coinsTracker.record(coins, recordedAtMs);
-      notify();
+      if (experience > 0 || coins > 0) notify();
     }),
     mergeSessionChange: (batch) => batch,
     noStreamBatch: () => {},
@@ -149,6 +152,5 @@ function toCoinsSnapshot(snapshot: XpAggregateSnapshot): CoinsAggregateSnapshot 
     totalCoins: snapshot.totalExperience,
     coinsPerSecond: snapshot.xpPerSecond,
     coinsPerHour: snapshot.xpPerHour,
-    timeline: snapshot.timeline.map(({ atMs, experience }) => ({ atMs, coins: experience })),
   };
 }

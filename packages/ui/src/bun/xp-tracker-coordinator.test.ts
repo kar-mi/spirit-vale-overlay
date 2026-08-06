@@ -32,7 +32,6 @@ describe("XP tracker coordinator", () => {
     expect(coins.totalCoins).toBe(5000);
     expect(coins.coinsPerHour).toBe(5000);
     expect(coins.coinsPerSecond).toBeGreaterThan(0);
-    expect(coins.timeline.length).toBeGreaterThan(0);
 
     // XP is still tracked from the same records.
     expect(coordinator.getSnapshot().totalExperience).toBe(300);
