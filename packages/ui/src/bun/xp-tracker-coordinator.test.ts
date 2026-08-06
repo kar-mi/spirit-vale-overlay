@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { createXpTrackerCoordinator } from "./xp-tracker-coordinator.ts";
+import { createXpTrackerCoordinator, projectedHourlyRate } from "./xp-tracker-coordinator.ts";
+import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
 
 let temporaryRoot: string | undefined;
 
@@ -30,11 +31,13 @@ describe("XP tracker coordinator", () => {
 
     const coins = coordinator.getCoinsSnapshot();
     expect(coins.totalCoins).toBe(5000);
-    expect(coins.coinsPerHour).toBe(5000);
+    // The kills span ~10s of synthetic time; the rate is projected onto a full hour.
+    expect(coins.coinsPerHour).toBeGreaterThan(coins.totalCoins);
     expect(coins.coinsPerSecond).toBeGreaterThan(0);
 
     // XP is still tracked from the same records.
     expect(coordinator.getSnapshot().totalExperience).toBe(300);
+    expect(coordinator.getSnapshot().xpPerHour).toBeGreaterThan(300);
 
     coordinator.shutdown();
   });
@@ -85,6 +88,44 @@ async function waitFor(condition: () => boolean, timeoutMs = 2_000): Promise<voi
     if (Date.now() > deadline) throw new Error("Timed out waiting for the coordinator to ingest the rewards log");
     await Bun.sleep(10);
   }
+}
+
+describe("projectedHourlyRate", () => {
+  test("projects a partial window onto a full hour", () => {
+    // 1000 gained over a 30-minute window → 2000/hr.
+    const snapshot = syntheticSnapshot(1000, 30 * 60_000);
+    expect(projectedHourlyRate(snapshot, Date.now())).toBeCloseTo(2000);
+  });
+
+  test("leaves a full one-hour window unchanged", () => {
+    const snapshot = syntheticSnapshot(1000, 60 * 60_000);
+    expect(projectedHourlyRate(snapshot, Date.now())).toBeCloseTo(1000);
+  });
+
+  test("returns zero for an empty timeline", () => {
+    expect(projectedHourlyRate(emptySnapshot(), Date.now())).toBe(0);
+  });
+
+  test("floors the window to one minute so a brand-new session does not explode", () => {
+    // 1000 gained within the first seconds → projected as if it had taken a minute: 60,000/hr.
+    const snapshot = syntheticSnapshot(1000, 1_000);
+    expect(projectedHourlyRate(snapshot, Date.now())).toBeCloseTo(60_000);
+  });
+});
+
+/** Builds a snapshot whose whole retained hour sum sits in one bucket at `ageMs` in the past. */
+function syntheticSnapshot(hourSum: number, ageMs: number): XpAggregateSnapshot {
+  const atMs = Date.now() - ageMs;
+  return {
+    totalExperience: hourSum,
+    xpPerSecond: 0,
+    xpPerHour: hourSum,
+    timeline: [{ atMs, experience: hourSum }],
+  };
+}
+
+function emptySnapshot(): XpAggregateSnapshot {
+  return { totalExperience: 0, xpPerSecond: 0, xpPerHour: 0, timeline: [] };
 }
 
 async function tempRoot(): Promise<string> {
