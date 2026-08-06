@@ -69,8 +69,14 @@ export function createXpTrackerCoordinator(options: { logDirectory: string }): X
   }
 
   return {
-    getSnapshot: () => tracker.snapshot(Date.now()),
-    getCoinsSnapshot: () => toCoinsSnapshot(coinsTracker.snapshot(Date.now())),
+    getSnapshot: () => {
+      const snapshot = tracker.snapshot(Date.now());
+      return { ...snapshot, xpPerHour: projectedHourlyRate(snapshot, Date.now()) };
+    },
+    getCoinsSnapshot: () => {
+      const snapshot = coinsTracker.snapshot(Date.now());
+      return { ...toCoinsSnapshot(snapshot), coinsPerHour: projectedHourlyRate(snapshot, Date.now()) };
+    },
     reset: () => {
       tracker.reset(Date.now());
       notify();
@@ -89,6 +95,24 @@ export function createXpTrackerCoordinator(options: { logDirectory: string }): X
       clearInterval(timer);
     },
   };
+}
+
+/**
+ * Turns the tracker's per-hour bucket sum into an estimate when less than an hour has elapsed.
+ *
+ * XpAggregateTracker's snapshot xpPerHour is the sum of its retained buckets (a rolling one-hour
+ * window), so before a full hour of data exists it equals the session total — reading as "total"
+ * rather than a rate. Projecting that sum onto a full hour (hourSum * 1h / elapsedWindow) makes
+ * the first minutes behave like an estimate: 1,000 in 30 minutes reads as ~2,000/hr. Once the
+ * retained window covers a full hour the projection ratio is 1 and the value is the true hourly
+ * sum, preserving the existing long-session behavior. The window is floored at one minute so a
+ * brand-new session (a single kill) does not project to an absurdly large number.
+ */
+export function projectedHourlyRate(snapshot: XpAggregateSnapshot, nowMs: number): number {
+  const firstBucket = snapshot.timeline[0];
+  if (!firstBucket) return 0;
+  const elapsedMs = Math.max(60_000, nowMs - firstBucket.atMs);
+  return snapshot.xpPerHour * (3_600_000 / elapsedMs);
 }
 
 /** Follows only the two scalar fields needed by the XP and gold trackers and retains no reward history. */
