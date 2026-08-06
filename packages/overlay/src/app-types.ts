@@ -7,14 +7,14 @@ import type { RequiredStatusCategory } from "./required-statuses.ts";
 
 export type { StatType, RequiredStatusCategory };
 
-export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "characterXp", "jobXp", "weight", "xpTracker", "xpChart", "buffs", "debuffs", "toggles"] as const;
+export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "characterXp", "jobXp", "weight", "xpTracker", "goldTracker", "xpChart", "buffs", "debuffs", "toggles"] as const;
 export type OverlayElementId = (typeof OVERLAY_ELEMENT_IDS)[number];
 
 /** Short label describing each overlay element, shown in the settings toggle list and as an edit-mode badge on the element itself. */
 export const OVERLAY_ELEMENT_LABELS: Record<OverlayElementId, string> = {
   dpsChart: "DPS chart", personalDps: "Personal DPS numbers", partyRanking: "Party DPS ranking",
   health: "HP bar", mana: "MP bar", characterXp: "Character XP bar", jobXp: "Job XP bar",
-  weight: "Weight", xpTracker: "Character XP numbers", xpChart: "Character XP chart", buffs: "Buffs",
+  weight: "Weight", xpTracker: "Character XP numbers", goldTracker: "Gold dropped", xpChart: "Character XP chart", buffs: "Buffs",
   debuffs: "Debuffs", toggles: "Toggles (no timer)",
 };
 
@@ -65,6 +65,14 @@ export interface OverlayCharacterState {
   jobXp?: OverlayExperienceProgress;
   weight?: CharacterWeight;
   xp: XpAggregateSnapshot;
+  gold: CoinsAggregateSnapshot;
+}
+
+/** Gold aggregate mirroring the XP tracker: total dropped, EWMA per-second rate, and the last hour's sum. */
+export interface CoinsAggregateSnapshot {
+  totalCoins: number;
+  coinsPerSecond: number;
+  coinsPerHour: number;
 }
 
 export interface OverlayStatusState {
@@ -134,6 +142,7 @@ type OverlaySharedRequests = {
     response: OverlayControlState;
   };
   resetXpTracker: { params: Record<string, never>; response: OverlayCharacterState };
+  resetGoldTracker: { params: Record<string, never>; response: OverlayCharacterState };
 };
 
 export type OverlayRpc = {
