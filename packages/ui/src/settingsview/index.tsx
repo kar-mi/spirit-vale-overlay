@@ -17,7 +17,7 @@ import {
 import { REQUIRED_STATUS_CATEGORIES, requiredStatusOptions } from "@spiritvale/overlay/required-statuses";
 import type { LauncherSettingsRpc, SharedSettingsState } from "../launcher-types.ts";
 
-type Tab = "general" | "network" | "overlay" | "status" | "keybinds";
+type Tab = "general" | "network" | "overlay" | "combat" | "status" | "keybinds";
 const state = signal<SharedSettingsState | undefined>(undefined);
 const recordingAction = signal<KeybindAction | undefined>(undefined);
 const rpc = Electroview.defineRPC<LauncherSettingsRpc>({
@@ -75,7 +75,7 @@ function App() {
     <section class="settings-content">
       {(launcher.storageWarning || overlay.shortcutErrors.openLiveDeathLog) && <div class="banner is-warn" aria-live="polite">{launcher.storageWarning ?? overlay.shortcutErrors.openLiveDeathLog}</div>}
       <div class="settings-tabs" role="tablist" aria-label="Settings sections">
-        {(["general", "network", "overlay", "status", "keybinds"] as const).map((id) =>
+        {(["general", "network", "overlay", "combat", "status", "keybinds"] as const).map((id) =>
           <button class={tab === id ? "settings-tab is-active" : "settings-tab"} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
             {id[0]!.toUpperCase() + id.slice(1)}
           </button>)}
@@ -101,6 +101,12 @@ function App() {
         <div class="settings-card settings-row"><span><strong>{overlay.overlayVisible ? "Overlay shown" : "Overlay hidden"}</strong></span><button class="btn" type="button" onClick={() => update(electroview.rpc?.request.setOverlayVisible({ visible: !overlay.overlayVisible }))}>{overlay.overlayVisible ? "Hide overlay" : "Show overlay"}</button></div>
         <div class="settings-card"><h2>Visible elements</h2>{OVERLAY_ELEMENT_IDS.map((id) => <label class="settings-check settings-element"><input type="checkbox" checked={overlay.elements[id].enabled} onChange={(event) => update(electroview.rpc?.request.setOverlayElementEnabled({ id, enabled: event.currentTarget.checked }))} /><span>{OVERLAY_ELEMENT_LABELS[id]}</span></label>)}</div>
         <p class="settings-hint">{overlay.personalName ? `Detected character: ${overlay.personalName}` : "Waiting to detect your active character."}</p>
+      </section>
+
+      <section class="settings-panel" hidden={tab !== "combat"}>
+        <header class="settings-heading"><h1>Combat</h1><p>Control how combat tracking behaves.</p></header>
+        <label class="settings-check"><input type="checkbox" checked={launcher.resetMeterOnMapChange} disabled={busy} onChange={(event) => update(electroview.rpc?.request.setResetMeterOnMapChange({ resetMeterOnMapChange: event.currentTarget.checked }))} /><span>Reset meter on map/channel change</span></label>
+        <p class="settings-hint">Starts a new session when you zone or switch channel, exactly as the Reset session keybind does — rewards and the gold tracker start over with it.</p>
       </section>
 
       <section class="settings-panel" hidden={tab !== "status"}>

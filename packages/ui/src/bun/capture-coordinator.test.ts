@@ -831,6 +831,72 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("rotates the session on a map change once the first authentication is behind it", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => true,
+      });
+      await coordinator.start();
+      const loginSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      // Logging in is an authentication too, and must not rotate the session it just opened.
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      await settleRotation();
+      expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(loginSessionId);
+
+      // A duplicate of that same authentication is rejected before it can reach the reset.
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      await settleRotation();
+      expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(loginSessionId);
+
+      // A map change opens a new connection; a channel switch re-authenticates on the same one.
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      const mapChangeSessionId = await waitForSessionChange(directory, loginSessionId);
+      expect(mapChangeSessionId).toBeDefined();
+
+      capture.packet(authenticatedPacket(80, "conn-b"));
+      expect(await waitForSessionChange(directory, mapChangeSessionId)).toBeDefined();
+
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps one session across map changes while the setting is off, and honours it being turned on", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-off-"));
+    const capture = new FakeCapture();
+    let resetOnMapChange = false;
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => resetOnMapChange,
+      });
+      await coordinator.start();
+      const firstSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      await settleRotation();
+      expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(firstSessionId);
+      expect(await readdir(path.join(directory, "sessions"))).toHaveLength(1);
+
+      // The getter is read per transition, so toggling the setting needs no restart.
+      resetOnMapChange = true;
+      capture.packet(authenticatedPacket(25, "conn-c"));
+      expect(await waitForSessionChange(directory, firstSessionId)).toBeDefined();
+
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("leaves the existing session active when replacement session creation fails", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reset-failure-"));
     const capture = new FakeCapture();
@@ -1000,6 +1066,24 @@ class FakeCapture extends EventEmitter {
 }
 
 type TestPacket = Omit<CapturedFishNetPacket, "liteNetPacket" | "connectionId"> & { connectionId?: string };
+
+/**
+ * A map-change rotation is started from the packet handler and cannot be awaited by the caller, so
+ * both helpers give it room to run: one waits for the new session pointer, the other waits long
+ * enough that a rotation which should not have happened would have shown up.
+ */
+async function waitForSessionChange(directory: string, previousSessionId: string | undefined): Promise<string | undefined> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const pointer = await readCurrentLogStream("combat", directory);
+    if (pointer?.sessionId && pointer.sessionId !== previousSessionId) return pointer.sessionId;
+    await Bun.sleep(10);
+  }
+  return undefined;
+}
+
+async function settleRotation(): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) await Bun.sleep(10);
+}
 
 function records(content: string): Array<{ type: string }> {
   return content.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line) as { type: string });
