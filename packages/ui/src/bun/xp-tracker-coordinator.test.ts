@@ -26,7 +26,7 @@ describe("XP tracker coordinator", () => {
     ]);
 
     const coordinator = createXpTrackerCoordinator({ logDirectory: root });
-    await Bun.sleep(100);
+    await waitFor(() => coordinator.getCoinsSnapshot().totalCoins === 5000);
 
     const coins = coordinator.getCoinsSnapshot();
     expect(coins.totalCoins).toBe(5000);
@@ -50,7 +50,7 @@ describe("XP tracker coordinator", () => {
     ]);
 
     const coordinator = createXpTrackerCoordinator({ logDirectory: root });
-    await Bun.sleep(100);
+    await waitFor(() => coordinator.getCoinsSnapshot().totalCoins === 3000);
     expect(coordinator.getCoinsSnapshot().totalCoins).toBe(3000);
 
     coordinator.resetCoins();
@@ -72,12 +72,21 @@ describe("XP tracker coordinator", () => {
     ]);
 
     const coordinator = createXpTrackerCoordinator({ logDirectory: root });
-    await Bun.sleep(100);
+    await waitFor(() => coordinator.getCoinsSnapshot().totalCoins === 750);
 
     expect(coordinator.getCoinsSnapshot().totalCoins).toBe(750);
     coordinator.shutdown();
   });
 });
+
+/** Pumps the coordinator's async first poll until `condition` holds, with a hard timeout. */
+async function waitFor(condition: () => boolean, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error("Timed out waiting for the coordinator to ingest the rewards log");
+    await Bun.sleep(10);
+  }
+}
 
 async function tempRoot(): Promise<string> {
   temporaryRoot ??= await mkdtemp(path.join(tmpdir(), "spiritvale-xp-coordinator-"));

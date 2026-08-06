@@ -36,15 +36,12 @@ export function createXpTrackerCoordinator(options: { logDirectory: string }): X
   const follower = new LiveLogSessionFollower<ExperienceLogFollower, void>({
     stream: "rewards",
     logDirectory: options.logDirectory,
-    createFollower: (path) => new ExperienceLogFollower(path, {
-      onExperience: (experience, recordedAtMs) => {
-        tracker.record(experience, recordedAtMs);
-        notify();
-      },
-      onCoins: (coins, recordedAtMs) => {
-        coinsTracker.record(coins, recordedAtMs);
-        notify();
-      },
+    // One callback per kill record: both trackers are fed from the same record and a single
+    // notify() fires per record, so a kill carrying XP and gold publishes exactly once.
+    createFollower: (path) => new ExperienceLogFollower(path, (experience, coins, recordedAtMs) => {
+      if (experience > 0) tracker.record(experience, recordedAtMs);
+      if (coins > 0) coinsTracker.record(coins, recordedAtMs);
+      notify();
     }),
     mergeSessionChange: (batch) => batch,
     noStreamBatch: () => {},
@@ -100,10 +97,8 @@ class ExperienceLogFollower {
 
   constructor(
     path: string,
-    private readonly handlers: {
-      onExperience: (experience: number, recordedAtMs: number) => void;
-      onCoins: (coins: number, recordedAtMs: number) => void;
-    },
+    /** Called once per kill record with its (possibly zero) XP and coins. */
+    private readonly onKill: (experience: number, coins: number, recordedAtMs: number) => void,
   ) {
     this.reader = new JsonlTailReader(path);
   }
@@ -120,24 +115,35 @@ class ExperienceLogFollower {
       const recordedAtMs = Date.parse(record.recordedAt);
       if (!Number.isFinite(recordedAtMs)) continue;
       const experience = record.data["experience"];
-      if (typeof experience === "number" && Number.isFinite(experience) && experience > 0) {
-        this.handlers.onExperience(experience, recordedAtMs);
-      }
-      const coins = parseCoins(record.data["coins"]);
-      if (coins !== undefined && coins > 0) {
-        this.handlers.onCoins(coins, recordedAtMs);
-      }
+      const coins = parseCoins(record.data["coins"]) ?? 0;
+      this.onKill(
+        typeof experience === "number" && Number.isFinite(experience) && experience > 0 ? experience : 0,
+        coins,
+        recordedAtMs,
+      );
     }
   }
 }
 
-/** Coins are logged as decimal strings (bigint serialized). Undefined when not a valid decimal. */
+/**
+ * Coins are logged as decimal strings (bigint serialized). Undefined when not a valid decimal.
+ *
+ * Precision note: the rewards pipeline keeps coins as bigint end-to-end (reward-tracker,
+ * live-rewards, log serialization). Converting to Number loses exactness above 2^53 (~9e15) —
+ * a single session's gold is unlikely to approach that, but if it ever does the overlay total
+ * will diverge from the exact string shown in the Rewards window.
+ */
 function parseCoins(value: unknown): number | undefined {
   if (typeof value !== "string" || !/^\d+$/.test(value)) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+/**
+ * Maps the generic accumulator's XP-named snapshot onto the coins shape. This is intentional:
+ * XpAggregateTracker is a value-agnostic EWMA/bucket accumulator, so the same fields carry
+ * either metric. Keep in sync if xp-aggregate.ts ever renames its snapshot fields.
+ */
 function toCoinsSnapshot(snapshot: XpAggregateSnapshot): CoinsAggregateSnapshot {
   return {
     totalCoins: snapshot.totalExperience,
