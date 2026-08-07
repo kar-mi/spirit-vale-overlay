@@ -95,5 +95,30 @@ html, body {
   pointer-events: none;
 }
 
+/* Pinned like .log-storage, in the opposite corner. */
+.overlay-hints {
+  position: absolute;
+  left: 18px;
+  bottom: 10px;
+  display: grid;
+  gap: 2px;
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.overlay-hints kbd {
+  display: inline-block;
+  min-width: 26px;
+  padding: 1px 5px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--shape-sm);
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+}
+
 .log-storage strong { color: var(--on-surface); font-variant-numeric: tabular-nums; font-weight: 600; }
 .log-storage-time { opacity: 0.75; font-variant-numeric: tabular-nums; }

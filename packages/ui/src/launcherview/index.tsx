@@ -96,8 +96,19 @@ function App() {
         </div>
       </section>
 
+      {next?.overlayShortcuts && <OverlayHints shortcuts={next.overlayShortcuts} />}
       {next?.logStorage && <LogStorage usage={next.logStorage} />}
     </main>
+  );
+}
+
+/** The two overlay keybinds worth knowing without opening Settings. */
+function OverlayHints({ shortcuts }: { shortcuts: NonNullable<LauncherState["overlayShortcuts"]> }) {
+  return (
+    <footer class="overlay-hints">
+      <span><kbd>{shortcuts.toggleLock}</kbd> — Edit overlay</span>
+      <span><kbd>{shortcuts.toggleOverlayVisible}</kbd> — Toggle overlay</span>
+    </footer>
   );
 }
 

@@ -40,6 +40,8 @@ export interface LauncherState {
   uiScale: UiScale;
   minimizeToTray: boolean;
   resetMeterOnMapChange: boolean;
+  /** Overlay keybinds, shown as a hint on the launcher. Absent until the overlay has started. */
+  overlayShortcuts?: Record<KeybindAction, string>;
   update?: {
     version: string;
     url: string;
