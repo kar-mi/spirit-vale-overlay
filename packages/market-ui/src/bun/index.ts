@@ -25,7 +25,8 @@ import { validateMarketUiFilters } from "../filter-model.ts";
 import { sortMarketListings } from "../market-sort.ts";
 import { hasMoreListings, MARKET_PAGE_SIZE as PAGE_SIZE, nextVisibleLimit } from "../market-paging.ts";
 
-const POLL_MS = 1_000;
+/** Backoff after a failed read. The follow loop is watcher-driven and has no interval otherwise. */
+const READ_RETRY_MS = 1_000;
 
 export interface MarketWindowOptions {
   logDirectory: string;
@@ -47,7 +48,6 @@ let filters: MarketUiFilter[] = [];
 let sortKey: MarketUiSortKey = "price";
 let sortDirection: MarketUiSortDirection = "ascending";
 let visibleLimit = PAGE_SIZE;
-let polling = false;
 let shuttingDown = false;
 let closedCallbackSent = false;
 const lifecycle = new DisposableStore();
@@ -156,8 +156,7 @@ lifecycle.add(onceWindowEvent(window, "close", () => {
   filterWindow?.close();
 }));
 
-const pollTimer = setInterval(() => void pollMarket(), POLL_MS);
-void pollMarket();
+void followMarket();
 return {
   show: () => window.show(),
   activate: () => window.activate(),
@@ -255,23 +254,30 @@ function listingView(listing: FishNetMarketListingView, index: number): MarketUi
   };
 }
 
-async function pollMarket(): Promise<void> {
-  if (polling || shuttingDown) return;
-  polling = true;
-  try {
-    const batch = await follower.poll();
-    if (batch.changed || batch.reset || batch.status !== status) {
-      listings = batch.listings;
-      status = batch.status;
-      statusDetail = detailFor(batch.status, listings.length, batch.invalidLines);
+/**
+ * Follows the market log for as long as the window is open.
+ *
+ * The follower wakes on a filesystem event rather than on a timer, so an idle market window costs
+ * nothing. `close()` settles a parked `next()`, which is what unwinds this on teardown.
+ */
+async function followMarket(): Promise<void> {
+  while (!shuttingDown) {
+    try {
+      const batch = await follower.next();
+      if (shuttingDown) return;
+      if (batch.changed || batch.reset || batch.status !== status) {
+        listings = batch.listings;
+        status = batch.status;
+        statusDetail = detailFor(batch.status, listings.length, batch.invalidLines);
+        publish();
+      }
+    } catch {
+      status = "error";
+      statusDetail = "The current market session log could not be read.";
       publish();
+      // Back off rather than spinning: whatever failed will not be fixed by retrying at once.
+      await new Promise((resolve) => setTimeout(resolve, READ_RETRY_MS));
     }
-  } catch {
-    status = "error";
-    statusDetail = "The current market session log could not be read.";
-    publish();
-  } finally {
-    polling = false;
   }
 }
 
@@ -294,7 +300,9 @@ function publish(): void {
 function stopPolling(): void {
   if (shuttingDown) return;
   shuttingDown = true;
-  clearInterval(pollTimer);
+  // Releases this consumer's hold on the shared log source, which disposes its watchers and fallback
+  // timer once the last consumer lets go. It also unblocks the follow loop.
+  follower.close();
   lifecycle.dispose();
   filterLifecycle?.dispose();
   filterLifecycle = undefined;

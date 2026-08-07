@@ -1,10 +1,16 @@
 import { RateTracker } from "@kar-mi/spirit-vale-tools-metrics";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { RateTotals } from "@spiritvale/overlay";
-import { JsonlTailReader, LiveLogSessionFollower, parseLogRecord } from "@kar-mi/spirit-vale-tools-logging";
+import {
+  isLogStreamHeader,
+  JsonlTailReader,
+  LiveLogSessionFollower,
+  parseLogRecord,
+} from "@kar-mi/spirit-vale-tools-logging";
 import type { JsonlTailReadResult } from "@kar-mi/spirit-vale-tools-logging";
 
-const POLL_MS = 1_000;
+/** Backoff after a failed read. The follow loop is watcher-driven and has no interval otherwise. */
+const READ_RETRY_MS = 1_000;
 
 /**
  * Owns the single, app-wide Character XP and Gold trackers: the overlay tiles and the Rewards
@@ -52,24 +58,28 @@ export function createXpTrackerCoordinator(options: { logDirectory: string }): X
     noStreamBatch: () => {},
   });
 
-  let polling = false;
   let shuttingDown = false;
-  const timer = setInterval(() => void poll(), POLL_MS);
-  void poll();
+  void follow();
 
   function notify(): void {
     for (const listener of listeners) listener();
   }
 
-  async function poll(): Promise<void> {
-    if (polling || shuttingDown) return;
-    polling = true;
-    try {
-      await follower.poll();
-    } catch {
-      // The overlay/Rewards windows' own combat/rewards log readers already surface read errors.
-    } finally {
-      polling = false;
+  /**
+   * Follows the rewards log for the life of the app.
+   *
+   * The follower wakes on a filesystem event rather than on a timer, so the trackers cost nothing
+   * between kills. `close()` settles a parked `next()`, which is what unwinds this on shutdown.
+   */
+  async function follow(): Promise<void> {
+    while (!shuttingDown) {
+      try {
+        await follower.next();
+      } catch {
+        // The overlay/Rewards windows' own combat/rewards log readers already surface read errors.
+        // Back off rather than spinning: whatever failed will not be fixed by retrying at once.
+        await new Promise((resolve) => setTimeout(resolve, READ_RETRY_MS));
+      }
     }
   }
 
@@ -94,7 +104,9 @@ export function createXpTrackerCoordinator(options: { logDirectory: string }): X
     shutdown: () => {
       if (shuttingDown) return;
       shuttingDown = true;
-      clearInterval(timer);
+      // Releases this consumer's hold on the shared log source, which disposes its watchers and
+      // fallback timer once the last consumer lets go. It also unblocks the follow loop.
+      follower.close();
     },
   };
 }
@@ -122,6 +134,9 @@ class ExperienceLogFollower {
       if (!line.trim()) continue;
       let candidate: unknown;
       try { candidate = JSON.parse(line); } catch { continue; }
+      // A v2 stream opens with a header line carrying the session id and producer. It is not a
+      // record, and readers are expected to skip it rather than treat it as a malformed one.
+      if (isLogStreamHeader(candidate)) continue;
       const record = parseLogRecord(candidate);
       if (!record || record.type !== "rewards.kill" || record.data["kind"] !== "kill") continue;
       const recordedAtMs = Date.parse(record.recordedAt);

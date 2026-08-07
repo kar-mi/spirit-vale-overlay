@@ -38,6 +38,8 @@ const MIN_COMPACT_ELEMENT_HEIGHT = 40;
 /** Buffs flash once they fall below this share of their own duration, if they last long enough. */
 const FLASH_REMAINING_FRACTION = 0.15;
 const FLASH_MINIMUM_DURATION_MS = 59_000;
+/** How often the status countdowns are redrawn. Fine enough that the last second reads smoothly. */
+const STATUS_TICK_MS = 100;
 const GRID_SIZE = 10;
 const RESIZE_EDGES = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
 const CLASS_ICON_BY_ARCHETYPE: Readonly<Record<number, string>> = {
@@ -92,6 +94,17 @@ const elementStates = Object.fromEntries(
 ) as Record<OverlayElementId, Signal<OverlayElementSettings | undefined>>;
 const characterState = signal<OverlayCharacterState | undefined>(undefined);
 const statusState = signal<OverlayStatusState | undefined>(undefined);
+/**
+ * Wall clock the status countdowns are drawn against.
+ *
+ * The overlay process publishes when the tracked set of statuses changes, not on a clock - a buff
+ * that is merely running out produces no message at all until it lapses. Counting down here from
+ * the `asOfMs` stamp on the last publish is what keeps the numbers moving, and it moves them more
+ * smoothly than any publish cadence could.
+ */
+const statusNow = signal(Date.now());
+/** Runs only while something is actually counting down; a screen of toggles needs no ticker. */
+let statusTicker: ReturnType<typeof setInterval> | undefined;
 const meterState = signal<OverlayMeterState | undefined>(undefined);
 const gridEnabled = signal(false);
 /** A tile being dragged on another monitor's surface, relayed here so it can be ghosted. */
@@ -148,7 +161,7 @@ const rpc = Electroview.defineRPC<OverlayRpc>({
   handlers: { requests: {}, messages: {
     controlChanged: (next) => { applyControl(repairRendererPayload(next)); },
     characterChanged: (next) => { characterState.value = repairRendererPayload(next); },
-    statusesChanged: (next) => { statusState.value = repairRendererPayload(next); },
+    statusesChanged: (next) => { applyStatuses(repairRendererPayload(next)); },
     meterChanged: (next) => { meterState.value = repairRendererPayload(next); },
     // Numbers and an element id only, so it skips the mojibake repair every other channel pays.
     dragPreviewChanged: (next) => { dragPreview.value = next; },
@@ -160,10 +173,29 @@ void electroview.rpc?.request.getState({}).then((next) => {
   batch(() => {
     applyControl(repaired.control);
     characterState.value = repaired.character;
-    statusState.value = repaired.statuses;
+    applyStatuses(repaired.statuses);
     meterState.value = repaired.meter;
   });
 });
+
+/**
+ * Adopts a status publish and starts or stops the countdown ticker to match it.
+ *
+ * Re-stamping `statusNow` here means the first frame after a publish is drawn against the moment the
+ * state was measured, rather than against a reading up to one tick old.
+ */
+function applyStatuses(next: OverlayStatusState): void {
+  statusState.value = next;
+  statusNow.value = Date.now();
+  const counting = [next.buffs, next.debuffs, next.toggles]
+    .some((statuses) => statuses?.some((status) => status.remainingMs !== undefined));
+  if (counting && statusTicker === undefined) {
+    statusTicker = setInterval(() => { statusNow.value = Date.now(); }, STATUS_TICK_MS);
+  } else if (!counting && statusTicker !== undefined) {
+    clearInterval(statusTicker);
+    statusTicker = undefined;
+  }
+}
 
 function App() {
   const next = chromeState.value;
@@ -283,7 +315,11 @@ function StatusOverlayElement({
     : false;
   return (
     <OverlayElement id={id} locked={locked} warn={warn}>
-      <StatusGridElement statuses={next?.[category]} flashExpiring={flashExpiring} />
+      <StatusGridElement
+        statuses={next?.[category]}
+        asOfMs={next?.asOfMs}
+        flashExpiring={flashExpiring}
+      />
     </OverlayElement>
   );
 }
@@ -767,7 +803,11 @@ function PartyRankingElement() {
 }
 
 function StatusGridElement(
-  { statuses, flashExpiring }: { statuses: FishNetActiveStatus[] | undefined; flashExpiring?: boolean },
+  { statuses, asOfMs, flashExpiring }: {
+    statuses: FishNetActiveStatus[] | undefined;
+    asOfMs: number | undefined;
+    flashExpiring?: boolean;
+  },
 ) {
   const list = statuses ?? [];
   if (list.length === 0) {
@@ -779,14 +819,24 @@ function StatusGridElement(
   }
   return (
     <div class="status-grid">
-      {list.map((status) =>
-        <StatusCell key={status.statusId} status={status} flashExpiring={flashExpiring} />)}
+      {list.map((status) => (
+        <StatusCell
+          key={status.statusId}
+          status={status}
+          asOfMs={asOfMs}
+          flashExpiring={flashExpiring}
+        />
+      ))}
     </div>
   );
 }
 
 function StatusCell(
-  { status, flashExpiring }: { status: FishNetActiveStatus; flashExpiring?: boolean },
+  { status, asOfMs, flashExpiring }: {
+    status: FishNetActiveStatus;
+    asOfMs: number | undefined;
+    flashExpiring?: boolean;
+  },
 ) {
   // A sprite id no longer guarantees the artwork shipped: summons resolve theirs from the skill
   // catalog, which covers far more skills than the icons copied into views/assets/status-icons.
@@ -795,8 +845,13 @@ function StatusCell(
   const [iconMissing, setIconMissing] = useState(false);
   if (iconMissing) return null;
   const totalMs = status.expiresAtMs === undefined ? undefined : status.expiresAtMs - status.appliedAtMs;
-  const remainingFraction = totalMs !== undefined && totalMs > 0 && status.remainingMs !== undefined
-    ? Math.max(0, Math.min(1, status.remainingMs / totalMs))
+  // The published figure was measured when the state was projected; carry it forward to now rather
+  // than waiting for a message that only arrives once the buff is gone.
+  const remainingMs = status.remainingMs === undefined || asOfMs === undefined
+    ? status.remainingMs
+    : Math.max(0, status.remainingMs - Math.max(0, statusNow.value - asOfMs));
+  const remainingFraction = totalMs !== undefined && totalMs > 0 && remainingMs !== undefined
+    ? Math.max(0, Math.min(1, remainingMs / totalMs))
     : undefined;
   // Short buffs spend their whole life near the threshold, so flashing them would be constant
   // noise; only buffs long enough for the last 15% to be a usable warning pulse.
@@ -819,7 +874,7 @@ function StatusCell(
         {remainingFraction !== undefined && <span class="status-timer-fill" aria-hidden="true" />}
         {status.stacks !== undefined && status.stacks > 1 && <span class="status-stacks">{status.stacks}</span>}
       </div>
-      {status.remainingMs !== undefined && <span class="status-remaining">{formatRemaining(status.remainingMs)}</span>}
+      {remainingMs !== undefined && <span class="status-remaining">{formatRemaining(remainingMs)}</span>}
     </div>
   );
 }

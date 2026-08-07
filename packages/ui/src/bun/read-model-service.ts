@@ -103,6 +103,11 @@ export async function createReadModelService(
       if (current === undefined) continue;
       // The active log keeps growing, so never finalize: the trailing encounter must stay open for
       // the next pass to continue instead of being closed and restarted.
+      //
+      // A pass over a quiet session is already cheap: the indexer stats the source first and returns
+      // without reading, hashing or writing when the recorded offset already covers it. There is
+      // deliberately no size/mtime cache of our own in front of this - it would duplicate that stat
+      // and, unlike the indexer's own check, would not know when a domain rebuild reset the offsets.
       await enqueue(() => runIndex(current, stream, false), undefined);
     }
   }

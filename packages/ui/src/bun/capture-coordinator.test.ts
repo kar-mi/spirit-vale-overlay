@@ -210,9 +210,18 @@ describe("central capture coordinator", () => {
       });
       await coordinator.stop();
 
-      const combat = await new DpsSessionLogFollower(directory).poll();
-      const rewards = await new RewardSessionLogFollower(directory).poll();
-      const market = await new MarketSessionLogFollower(directory).poll();
+      // Polling a follower subscribes it to the shared stream source, which holds watchers and a
+      // fallback timer until every subscriber lets go. Closing keeps this test from leaving them
+      // behind for the rest of the run.
+      const combatFollower = new DpsSessionLogFollower(directory);
+      const rewardsFollower = new RewardSessionLogFollower(directory);
+      const marketFollower = new MarketSessionLogFollower(directory);
+      const combat = await combatFollower.poll();
+      const rewards = await rewardsFollower.poll();
+      const market = await marketFollower.poll();
+      combatFollower.close();
+      rewardsFollower.close();
+      marketFollower.close();
       expect(new Set([combat.sessionId, rewards.sessionId, market.sessionId]).size).toBe(1);
       expect(combat.events.length).toBeGreaterThan(0);
       expect(rewards.snapshot.unmatched).toBeGreaterThan(0);

@@ -13,7 +13,7 @@ import {
 } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { listLogSessions } from "@kar-mi/spirit-vale-tools-logging";
-import type { CombatEncounterRecord } from "@kar-mi/spirit-vale-tools-combat";
+import type { CombatEncounterRecord, DpsLogBatch } from "@kar-mi/spirit-vale-tools-combat";
 import { loadDpsAppSettings, saveDpsAppSettings } from "../settings.ts";
 import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppStatus } from "../app-types.ts";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
@@ -30,7 +30,20 @@ import type { CombatReadModelSource } from "../combat-history.ts";
 
 const MINIMUM_WIDTH = DPS_WINDOW_MINIMUM_WIDTH;
 const MINIMUM_HEIGHT = DPS_WINDOW_MINIMUM_HEIGHT;
-const LIVE_LOG_POLL_MS = 1_000;
+/**
+ * Tail interval for the `SPIRIT_VALE_COMBAT_LOG` override only.
+ *
+ * The shipped path is watcher-driven. `DpsLogFollower` tails one fixed file and exposes no watcher,
+ * so that development aid keeps a clock of its own.
+ */
+const LIVE_LOG_OVERRIDE_POLL_MS = 1_000;
+/**
+ * How often an open encounter is redrawn while no events are arriving.
+ *
+ * The DPS figures decay between hits and the idle gap that closes an encounter is measured in wall
+ * time, so an open encounter needs a beat of its own. Nothing is scheduled once it closes.
+ */
+const LIVE_METER_TICK_MS = 1_000;
 const MAX_RECENT_SESSIONS = 100;
 /**
  * Sessions inspected while filling the list. Empty sessions are skipped, so the scan has to reach
@@ -69,8 +82,10 @@ let manualPersonalActorId: number | undefined;
 // One service aggregates DPS, TPS and HPS from the same events. It retains bounded per-encounter
 // buckets and the latest finished encounter, never individual hits or the whole session.
 let liveMeter = createLiveMeter();
-const liveLog = liveLogOverride ? new DpsLogFollower(liveLogOverride) : new DpsSessionLogFollower(options.logDirectory);
-let liveLogPolling = false;
+const liveLog = createLiveLogSource();
+let liveMeterTimer: ReturnType<typeof setTimeout> | undefined;
+/** Wall clock of the last publish driven by the live log, which the floor below is measured from. */
+let lastLivePublishMs = Number.NEGATIVE_INFINITY;
 let publishing = false;
 let shuttingDown = false;
 let closedCallbackSent = false;
@@ -236,9 +251,8 @@ lifecycle.add(onWindowEvent(window, "resize", (event: { data: typeof settings.fr
 }));
 lifecycle.add(onceWindowEvent(window, "close", () => { void shutdown(); }));
 
-const liveLogTimer = setInterval(() => void pollLiveLog(), LIVE_LOG_POLL_MS);
 const unsubscribeCharacter = options.subscribeCharacter(syncDetectedCharacter);
-void pollLiveLog();
+void followLiveLog();
 return {
   show: () => window.show(),
   activate: () => window.activate(),
@@ -284,39 +298,128 @@ function publish(): void {
   }
 }
 
-async function pollLiveLog(): Promise<void> {
-  if (liveLogPolling || shuttingDown) return;
-  liveLogPolling = true;
-  try {
-    const batch = await liveLog.poll();
-    currentLiveLogPath = batch.path ?? liveLogOverride ?? currentLiveLogPath;
-    if (batch.reset) {
-      liveMeter = createLiveMeter();
-      lastEventObservedAtMs = undefined;
-      lastEventWallMs = undefined;
-    }
-    let batchLastObservedAtMs: number | undefined;
-    for (const { event, observedAtMs } of batch.events) {
-      if (event.kind === "actorIdentity") liveMeter.consumeIdentity(event, observedAtMs);
-      else liveMeter.consumeCombat(event, observedAtMs);
-      batchLastObservedAtMs = Math.max(batchLastObservedAtMs ?? observedAtMs, observedAtMs);
-    }
-    if (batchLastObservedAtMs !== undefined) {
-      lastEventObservedAtMs = batchLastObservedAtMs;
-      lastEventWallMs = Date.now();
-    }
-    const nowMs = relativeNowMs();
-    if (nowMs !== undefined) liveMeter.advance(nowMs);
-    const fileName = path.basename(batch.path ?? liveLogOverride ?? "combat.jsonl");
-    if (batch.missing) updateLiveStatus("waiting", `Waiting for ${fileName}`);
-    else if (batch.invalidLines > 0) updateLiveStatus("ready", `Reading ${fileName} with skipped lines`);
-    else if (batch.events.length > 0) updateLiveStatus("capturing", `Reading ${fileName}`);
-    else updateLiveStatus(latestRecord() ? "ready" : "waiting", `Watching ${fileName}`);
-  } catch {
-    updateLiveStatus("error", `Could not read ${path.basename(liveLogOverride ?? "combat.jsonl")}`);
-  } finally {
-    liveLogPolling = false;
+/**
+ * The combat log as this window consumes it.
+ *
+ * The shipped path hands off to the session follower's watcher, which only settles when there is
+ * something to read. The `SPIRIT_VALE_COMBAT_LOG` override has no watcher behind it, so it keeps a
+ * clock of its own.
+ */
+interface LiveLogSource {
+  next(): Promise<DpsLogBatch>;
+  close(): void;
+}
+
+function createLiveLogSource(): LiveLogSource {
+  if (liveLogOverride === undefined) {
+    const follower = new DpsSessionLogFollower(options.logDirectory);
+    return { next: () => follower.next(), close: () => follower.close() };
   }
+  const follower = new DpsLogFollower(liveLogOverride);
+  return {
+    next: async () => {
+      await new Promise((resolve) => setTimeout(resolve, LIVE_LOG_OVERRIDE_POLL_MS));
+      return follower.poll();
+    },
+    close: () => {},
+  };
+}
+
+/**
+ * Consumes the log for as long as the window is open.
+ *
+ * `close()` settles a parked `next()`, so shutdown unwinds this rather than leaving it hanging.
+ */
+async function followLiveLog(): Promise<void> {
+  while (!shuttingDown) {
+    let batch: DpsLogBatch;
+    try {
+      batch = await liveLog.next();
+    } catch {
+      updateLiveStatus("error", `Could not read ${path.basename(liveLogOverride ?? "combat.jsonl")}`);
+      // Back off rather than spinning: whatever failed will not be fixed by retrying at once.
+      await new Promise((resolve) => setTimeout(resolve, LIVE_LOG_OVERRIDE_POLL_MS));
+      continue;
+    }
+    if (shuttingDown) return;
+    applyLiveLogBatch(batch);
+  }
+}
+
+function applyLiveLogBatch(batch: DpsLogBatch): void {
+  // An unchanged batch carries no events and no session change, so there is nothing to fold in and
+  // nothing that could have moved the meter.
+  if (!batch.changed) return;
+  currentLiveLogPath = batch.path ?? liveLogOverride ?? currentLiveLogPath;
+  if (batch.reset) {
+    liveMeter = createLiveMeter();
+    lastEventObservedAtMs = undefined;
+    lastEventWallMs = undefined;
+  }
+  let batchLastObservedAtMs: number | undefined;
+  for (const { event, observedAtMs } of batch.events) {
+    if (event.kind === "actorIdentity") liveMeter.consumeIdentity(event, observedAtMs);
+    else liveMeter.consumeCombat(event, observedAtMs);
+    batchLastObservedAtMs = Math.max(batchLastObservedAtMs ?? observedAtMs, observedAtMs);
+  }
+  if (batchLastObservedAtMs !== undefined) {
+    lastEventObservedAtMs = batchLastObservedAtMs;
+    lastEventWallMs = Date.now();
+  }
+  const nowMs = relativeNowMs();
+  if (nowMs !== undefined) liveMeter.advance(nowMs);
+  const fileName = path.basename(batch.path ?? liveLogOverride ?? "combat.jsonl");
+  const statusChanged = batch.missing
+    ? updateLiveStatus("waiting", `Waiting for ${fileName}`)
+    : batch.invalidLines > 0
+      ? updateLiveStatus("ready", `Reading ${fileName} with skipped lines`)
+      : batch.events.length > 0
+        ? updateLiveStatus("capturing", `Reading ${fileName}`)
+        : updateLiveStatus(latestRecord() ? "ready" : "waiting", `Watching ${fileName}`);
+  // A run of event batches restates the same "Reading …" line, so the status alone cannot be what
+  // decides this: the numbers behind it moved even when the line did not.
+  if (!statusChanged && (batch.events.length > 0 || batch.reset)) publishLiveProgress();
+  // Events carried the meter forward; whether it still needs a beat of its own is decided here.
+  scheduleLiveMeterTick();
+}
+
+/**
+ * Redraws an open encounter while the log is quiet, and arms the next such pass.
+ *
+ * Once the encounter closes there is nothing left that changes without an event, so no timer is
+ * scheduled and an idle window costs nothing.
+ */
+function tickLiveMeter(): void {
+  liveMeterTimer = undefined;
+  if (shuttingDown) return;
+  const nowMs = relativeNowMs();
+  if (nowMs !== undefined) liveMeter.advance(nowMs);
+  lastLivePublishMs = Date.now();
+  publish();
+  scheduleLiveMeterTick();
+}
+
+/**
+ * Publishes progress through the live log, at most once per tick interval.
+ *
+ * Batches arrive as fast as the logger flushes - roughly twenty a second during a fight - and each
+ * publish sends the whole app state, snapshots included. The first event after a quiet stretch still
+ * goes out at once; the rest are carried by the open encounter's own tick, so nothing is dropped.
+ */
+function publishLiveProgress(): void {
+  const now = Date.now();
+  if (now - lastLivePublishMs < LIVE_METER_TICK_MS) return;
+  lastLivePublishMs = now;
+  publish();
+}
+
+function scheduleLiveMeterTick(): void {
+  if (liveMeterTimer !== undefined) clearTimeout(liveMeterTimer);
+  liveMeterTimer = undefined;
+  if (shuttingDown || liveMeter.getState(relativeNowMs()).current === undefined) return;
+  liveMeterTimer = setTimeout(tickLiveMeter, LIVE_METER_TICK_MS);
+  // A pending redraw is never a reason to keep the process alive.
+  liveMeterTimer.unref?.();
 }
 
 function relativeNowMs(): number | undefined {
@@ -504,10 +607,20 @@ function pastPickerLoadingState(): SessionPickerState {
   };
 }
 
-function updateLiveStatus(nextStatus: DpsAppStatus, detail: string): void {
+/**
+ * Records the live status line, republishing only when it actually reads differently.
+ *
+ * Most passes through here restate what is already on screen — "Watching combat.jsonl" for as long
+ * as nothing happens — and publishing sends the whole app state, snapshots included, over RPC.
+ *
+ * @returns whether the line changed, so a caller can tell its own publish apart from this one.
+ */
+function updateLiveStatus(nextStatus: DpsAppStatus, detail: string): boolean {
+  if (status === nextStatus && statusDetail === detail) return false;
   status = nextStatus;
   statusDetail = detail;
   publish();
+  return true;
 }
 
 function clampFrame(frame: DpsAppSettingsFrame): DpsAppSettingsFrame {
@@ -540,7 +653,11 @@ async function shutdown(): Promise<void> {
   analysis.close();
   unsubscribeCharacter();
   if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
-  clearInterval(liveLogTimer);
+  // Releases this consumer's hold on the shared log source, which disposes its watchers and fallback
+  // timer once the last consumer lets go. It also unblocks the follow loop.
+  liveLog.close();
+  if (liveMeterTimer !== undefined) clearTimeout(liveMeterTimer);
+  liveMeterTimer = undefined;
   try {
     await settingsPersistence.flush(settings);
   } finally {

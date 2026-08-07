@@ -36,7 +36,8 @@ import { managedSessionId } from "@spiritvale/ui-core/managed-session";
 import { chartBuckets, chartSample, CHART_POINTS, RECENT_KILL_LIMIT } from "../reward-chart.ts";
 import { attributedKills, attributedMobSummaries } from "../reward-display.ts";
 
-const POLL_MS = 1_000;
+/** Backoff after a failed read. The follow loop is watcher-driven and has no interval otherwise. */
+const READ_RETRY_MS = 1_000;
 const catalog = loadBundledMobRewardCatalog();
 
 /** The desktop process's shared SQLite read model, when it is available. */
@@ -92,7 +93,6 @@ let liveSnapshot = emptyAggregate();
 let replaySnapshot = emptyAggregate();
 let replayFileName: string | undefined;
 let replayWarnings = 0;
-let polling = false;
 let shuttingDown = false;
 let closedCallbackSent = false;
 let storageWarning: string | undefined;
@@ -234,8 +234,7 @@ lifecycle.add(onWindowEvent(window, "resize", (event: { data: typeof settings.fr
 }));
 lifecycle.add(onceWindowEvent(window, "close", () => { void shutdown(); }));
 
-const timer = setInterval(() => void poll(), POLL_MS);
-void poll();
+void followRewards();
 const unsubscribeXp = options.xp.subscribe(() => publish());
 const unsubscribeCharacter = options.subscribeCharacter(() => publish());
 return {
@@ -340,22 +339,31 @@ function openCatalog(): void {
   }));
 }
 
-async function poll(): Promise<void> {
-  if (polling || shuttingDown) return;
-  polling = true;
-  try {
-    const batch = await follower.poll();
-    if (batch.changed || batch.reset || batch.status !== status) {
-      liveSnapshot = batch.snapshot;
-      status = batch.status;
-      statusDetail = detail(batch.status, batch.invalidLines, batch.snapshot.unmatchedByReason.unidentified);
-      if (mode === "live") publish();
+/**
+ * Follows the rewards log for as long as the window is open.
+ *
+ * The follower wakes on a filesystem event rather than on a timer, so an idle rewards window costs
+ * nothing. `close()` settles a parked `next()`, which is what unwinds this on teardown.
+ */
+async function followRewards(): Promise<void> {
+  while (!shuttingDown) {
+    try {
+      const batch = await follower.next();
+      if (shuttingDown) return;
+      if (batch.changed || batch.reset || batch.status !== status) {
+        liveSnapshot = batch.snapshot;
+        status = batch.status;
+        statusDetail = detail(batch.status, batch.invalidLines, batch.snapshot.unmatchedByReason.unidentified);
+        if (mode === "live") publish();
+      }
+    } catch {
+      status = "error";
+      statusDetail = "The current rewards log could not be read.";
+      publish();
+      // Back off rather than spinning: whatever failed will not be fixed by retrying at once.
+      await new Promise((resolve) => setTimeout(resolve, READ_RETRY_MS));
     }
-  } catch {
-    status = "error";
-    statusDetail = "The current rewards log could not be read.";
-    publish();
-  } finally { polling = false; }
+  }
 }
 
 async function loadReplayPath(selectedPath: string): Promise<void> {
@@ -487,7 +495,9 @@ async function shutdown(): Promise<void> {
   catalogLifecycle?.dispose();
   catalogLifecycle = undefined;
   replayPicker.close();
-  clearInterval(timer);
+  // Releases this consumer's hold on the shared log source, which disposes its watchers and fallback
+  // timer once the last consumer lets go. It also unblocks the follow loop.
+  follower.close();
   unsubscribeXp();
   unsubscribeCharacter();
   catalogWindow?.close();

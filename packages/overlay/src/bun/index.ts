@@ -31,7 +31,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   });
 
   reconcileSurfaces();
-  controller.startPolling();
+  controller.start();
 
   return {
     show: () => controller.setOverlayVisible(true),
