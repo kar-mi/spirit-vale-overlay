@@ -176,6 +176,14 @@ describe("overlay settings", () => {
     expect(reassigned.shortcuts.toggleLock).toBe("Ctrl+F1");
   });
 
+  test("reserves Escape as the always-on route out of edit mode", () => {
+    const settings = normalizeOverlaySettings(
+      { schemaVersion: 5, shortcuts: { toggleLock: "Escape" } },
+      displays,
+    );
+    expect(settings.shortcuts.toggleLock).toBe("F11");
+  });
+
   test("falls back later shortcuts to their defaults when they collide with an earlier one", () => {
     const settings = normalizeOverlaySettings(
       { schemaVersion: 4, shortcuts: { toggleLock: "F8", resetSession: "F8", toggleOverlayVisible: "F8" } },

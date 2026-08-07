@@ -194,7 +194,9 @@ function normalizeShortcut(value: unknown, fallback: string): string {
   const tokens = value.split("+").map((token) => token.trim()).filter(Boolean);
   if (tokens.length === 0) return fallback;
   const key = tokens.at(-1)?.toUpperCase();
-  if (!key || !/^(F(?:[1-9]|1[0-9]|2[0-4])|[A-Z0-9]|SPACE|ENTER|ESCAPE|TAB|BACKSPACE|DELETE|HOME|END|PAGEUP|PAGEDOWN|ARROWUP|ARROWDOWN|ARROWLEFT|ARROWRIGHT)$/.test(key)) {
+  // Plain Escape is the always-on route out of edit mode. Keep it
+  // reserved so a configurable action can never prevent that recovery shortcut.
+  if (!key || key === "ESCAPE" || !/^(F(?:[1-9]|1[0-9]|2[0-4])|[A-Z0-9]|SPACE|ENTER|TAB|BACKSPACE|DELETE|HOME|END|PAGEUP|PAGEDOWN|ARROWUP|ARROWDOWN|ARROWLEFT|ARROWRIGHT)$/.test(key)) {
     return fallback;
   }
   const modifiers = new Set(tokens.slice(0, -1).map((token) => token.toLowerCase()));

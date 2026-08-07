@@ -75,6 +75,8 @@ const MAX_TICK_DELAY_MS = 30_000;
  * A publish refused here is deferred to the scheduled wake, never dropped.
  */
 const STATUS_PUBLISH_MS = 250;
+/** A fixed escape hatch from edit mode; it is intentionally not configurable. */
+const ESCAPE_LOCK_SHORTCUT = "Escape";
 /**
  * Collapses repeated lock presses before changing native window styles. This keeps
  * the global-shortcut callback out of a close/create transition for an overlay
@@ -167,6 +169,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
   const lastControlJson = new Map<string, string>();
   const shortcutRegistered = new Map<KeybindAction, boolean>();
   const shortcutErrors = new Map<KeybindAction, string>();
+  let shortcutsSuspended = false;
   const logClock = new OverlayLogClock();
   let hasMeterRecord = false;
   const publishCadence = new OverlayPublishCadence(METER_PUBLISH_MS);
@@ -201,6 +204,10 @@ export async function createOverlayController(options: OverlayControllerOptions)
     },
   });
 
+  // Register this before user-configurable shortcuts so Escape is always reserved
+  // as the way to leave edit mode, even if an old settings file assigned
+  // it to another action.
+  let escapeLockRegistered = registerEscapeLockShortcut();
   for (const action of KEYBIND_ACTIONS) {
     shortcutRegistered.set(action, registerShortcut(action, settings.shortcuts[action]));
   }
@@ -270,6 +277,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     relayDragPreview,
     setOverlayVisible: updateOverlayVisible,
     setShortcut,
+    setShortcutCapture,
     setRequiredStatuses,
     resetXpTracker: () => {
       options.xp.reset();
@@ -298,6 +306,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       for (const action of KEYBIND_ACTIONS) {
         if (shortcutRegistered.get(action)) GlobalShortcut.unregister(settings.shortcuts[action]);
       }
+      if (escapeLockRegistered) GlobalShortcut.unregister(ESCAPE_LOCK_SHORTCUT);
       await persistence.flush(settings);
     },
   };
@@ -524,6 +533,9 @@ export async function createOverlayController(options: OverlayControllerOptions)
   }
 
   function setShortcut(action: KeybindAction, shortcut: string): OverlayControlState {
+    // The captured key has already been delivered to the settings view. Restore
+    // the global registrations before applying it as a new binding.
+    setShortcutCapture(false);
     const normalized = normalizeSingleShortcut(action, shortcut);
     const collidingAction = KEYBIND_ACTIONS.find((other) => other !== action && settings.shortcuts[other] === normalized);
     if (normalized !== shortcut || collidingAction) {
@@ -549,6 +561,24 @@ export async function createOverlayController(options: OverlayControllerOptions)
     shortcutRegistered.set(action, registered);
     publishControl();
     return controlState();
+  }
+
+  /** Suspend every global shortcut while the settings view is listening for a key. */
+  function setShortcutCapture(active: boolean): void {
+    if (active === shortcutsSuspended) return;
+    shortcutsSuspended = active;
+    if (active) {
+      for (const action of KEYBIND_ACTIONS) {
+        if (shortcutRegistered.get(action)) GlobalShortcut.unregister(settings.shortcuts[action]);
+      }
+      if (escapeLockRegistered) GlobalShortcut.unregister(ESCAPE_LOCK_SHORTCUT);
+      return;
+    }
+
+    escapeLockRegistered = registerEscapeLockShortcut();
+    for (const action of KEYBIND_ACTIONS) {
+      shortcutRegistered.set(action, registerShortcut(action, settings.shortcuts[action]));
+    }
   }
 
   function updateOverlayVisible(visible: boolean): void {
@@ -582,8 +612,15 @@ export async function createOverlayController(options: OverlayControllerOptions)
         });
       }
     });
-    if (!registered) shortcutErrors.set(action, `${shortcut} is unavailable; it may already be in use.`);
+    if (registered) shortcutErrors.delete(action);
+    else shortcutErrors.set(action, `${shortcut} is unavailable; it may already be in use.`);
     return registered;
+  }
+
+  function registerEscapeLockShortcut(): boolean {
+    return GlobalShortcut.register(ESCAPE_LOCK_SHORTCUT, () => {
+      if (!shuttingDown && !shortcutsSuspended && !settings.locked) updateLocked(true);
+    });
   }
 
   /**
