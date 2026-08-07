@@ -14,8 +14,8 @@ import {
 import type {
   RewardAggregateSnapshot,
   RewardLogStatus,
-  XpAggregateSnapshot,
 } from "@kar-mi/spirit-vale-tools-rewards";
+import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { ReadModel } from "@kar-mi/spirit-vale-tools-sqlite";
 import type {
   RewardsAppMode,
@@ -51,7 +51,7 @@ export interface RewardsReadModelSource {
 
 /** The Rewards window's XP Tracker tab reads from (and can reset) a tracker owned centrally, shared with the overlay, so both stay in sync. */
 export interface XpTrackerSource {
-  getSnapshot(): XpAggregateSnapshot;
+  getSnapshot(): RateSnapshot;
   reset(): void;
   subscribe(listener: () => void): () => void;
 }

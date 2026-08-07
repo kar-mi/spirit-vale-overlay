@@ -1,6 +1,5 @@
-import { XpAggregateTracker } from "@kar-mi/spirit-vale-tools-rewards";
-import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
-import type { CoinsAggregateSnapshot } from "@spiritvale/overlay";
+import { RateTracker } from "@kar-mi/spirit-vale-tools-metrics";
+import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import { JsonlTailReader, LiveLogSessionFollower, parseLogRecord } from "@kar-mi/spirit-vale-tools-logging";
 
 const POLL_MS = 1_000;
@@ -13,8 +12,8 @@ const POLL_MS = 1_000;
  * both are closed. In-memory only — the totals reset whenever the app itself is (re)launched.
  */
 export interface XpTrackerCoordinator {
-  getSnapshot(): XpAggregateSnapshot;
-  getCoinsSnapshot(): CoinsAggregateSnapshot;
+  getSnapshot(): RateSnapshot;
+  getCoinsSnapshot(): RateSnapshot;
   reset(): void;
   resetCoins(): void;
   subscribe(listener: () => void): () => void;
@@ -22,11 +21,11 @@ export interface XpTrackerCoordinator {
 }
 
 export function createXpTrackerCoordinator(options: { logDirectory: string }): XpTrackerCoordinator {
-  const tracker = new XpAggregateTracker();
+  const tracker = new RateTracker();
   // Gold shares the XP tracker's aggregation semantics (EWMA rate, per-hour buckets, watermark
   // dedup) — the tracker is a generic value accumulator, so a second instance fed with the coins
-  // field of the same kill records gives the same behavior.
-  const coinsTracker = new XpAggregateTracker();
+  // field of the same kill records gives the same behavior, reported through the same shape.
+  const coinsTracker = new RateTracker();
   // A fresh follower replays the current rewards log from the beginning. Establish a launch-time
   // watermark first so an in-memory tracker does not resurrect XP or gold from the previous app run.
   tracker.reset(Date.now());
@@ -73,7 +72,7 @@ export function createXpTrackerCoordinator(options: { logDirectory: string }): X
 
   return {
     getSnapshot: () => tracker.snapshot(Date.now()),
-    getCoinsSnapshot: () => toCoinsSnapshot(coinsTracker.snapshot(Date.now())),
+    getCoinsSnapshot: () => coinsTracker.snapshot(Date.now()),
     reset: () => {
       tracker.reset(Date.now());
       notify();
@@ -140,17 +139,4 @@ function parseCoins(value: unknown): number | undefined {
   if (typeof value !== "string" || !/^\d+$/.test(value)) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-/**
- * Maps the generic accumulator's XP-named snapshot onto the coins shape. This is intentional:
- * XpAggregateTracker is a value-agnostic EWMA/bucket accumulator, so the same fields carry
- * either metric. Keep in sync if xp-aggregate.ts ever renames its snapshot fields.
- */
-function toCoinsSnapshot(snapshot: XpAggregateSnapshot): CoinsAggregateSnapshot {
-  return {
-    totalCoins: snapshot.totalExperience,
-    coinsPerSecond: snapshot.xpPerSecond,
-    coinsPerHour: snapshot.xpPerHour,
-  };
 }

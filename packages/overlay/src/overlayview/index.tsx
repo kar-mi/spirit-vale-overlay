@@ -21,7 +21,7 @@ import {
   type OverlayStatusState,
 } from "../app-types.ts";
 import { resourceFill } from "../personal-resources.ts";
-import { buildXpEwmaTrend } from "./xp-ewma-trend.ts";
+import { ewmaSeries } from "@kar-mi/spirit-vale-tools-metrics";
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
@@ -420,7 +420,7 @@ function PersonalDpsElement() {
     <div class="element-content">
       <div class="personal-heading">
         <img class="personal-class-icon" src={classIcon(personal?.archetype)} alt="" aria-hidden="true" />
-        <h2 class="element-title">Rolling 5s DPS</h2>
+        <h2 class="element-title">Live DPS</h2>
       </div>
       {personal ? (
         <>
@@ -457,10 +457,10 @@ function XpTrackerElement({ locked }: { locked: boolean }) {
   return (
     <div class="element-content xp-tracker">
       <h2 class="element-title">Character XP</h2>
-      <div class="xp-total"><small>Total</small>{compactFormat.format(xp.totalExperience)}</div>
+      <div class="xp-total"><small>Total</small>{compactFormat.format(xp.total)}</div>
       <div class="xp-rates">
-        <span>{compactFormat.format(xp.xpPerSecond)}<small>/s</small></span>
-        <span>{compactFormat.format(xp.xpPerHour)}<small>/hr</small></span>
+        <span>{compactFormat.format(xp.perSecond)}<small>/s</small></span>
+        <span>{compactFormat.format(xp.perHour)}<small>/hr</small></span>
       </div>
       {!locked && (
         <button
@@ -484,10 +484,10 @@ function GoldTrackerElement({ locked }: { locked: boolean }) {
   return (
     <div class="element-content gold-tracker">
       <h2 class="element-title">Gold dropped</h2>
-      <div class="gold-total"><small>Total</small>{compactFormat.format(gold.totalCoins)}</div>
+      <div class="gold-total"><small>Total</small>{compactFormat.format(gold.total)}</div>
       <div class="gold-rates">
-        <span>{compactFormat.format(gold.coinsPerSecond)}<small>/s</small></span>
-        <span>{compactFormat.format(gold.coinsPerHour)}<small>/hr</small></span>
+        <span>{compactFormat.format(gold.perSecond)}<small>/s</small></span>
+        <span>{compactFormat.format(gold.perHour)}<small>/hr</small></span>
       </div>
       {!locked && (
         <button
@@ -510,7 +510,7 @@ function XpChartElement() {
   const rangeEnd = Date.now();
   const rollingRange = { start: rangeEnd - 10 * 60_000, end: rangeEnd };
   const computeRender = useCallback((range: ChartRange, _width: number): ChartRenderResult => {
-    const rates = buildXpEwmaTrend(buckets, range);
+    const rates = ewmaSeries(buckets, range);
     const maximum = rates.reduce((highest, point) => Math.max(highest, point.value), 0);
     return {
       points: rates.map((point) => ({

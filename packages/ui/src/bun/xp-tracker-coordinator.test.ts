@@ -26,15 +26,15 @@ describe("XP tracker coordinator", () => {
     ]);
 
     const coordinator = createXpTrackerCoordinator({ logDirectory: root });
-    await waitFor(() => coordinator.getCoinsSnapshot().totalCoins === 5000);
+    await waitFor(() => coordinator.getCoinsSnapshot().total === 5000);
 
     const coins = coordinator.getCoinsSnapshot();
-    expect(coins.totalCoins).toBe(5000);
-    expect(coins.coinsPerHour).toBe(5000);
-    expect(coins.coinsPerSecond).toBeGreaterThan(0);
+    expect(coins.total).toBe(5000);
+    expect(coins.perHour).toBe(5000);
+    expect(coins.perSecond).toBeGreaterThan(0);
 
     // XP is still tracked from the same records.
-    expect(coordinator.getSnapshot().totalExperience).toBe(300);
+    expect(coordinator.getSnapshot().total).toBe(300);
 
     coordinator.shutdown();
   });
@@ -49,13 +49,13 @@ describe("XP tracker coordinator", () => {
     ]);
 
     const coordinator = createXpTrackerCoordinator({ logDirectory: root });
-    await waitFor(() => coordinator.getCoinsSnapshot().totalCoins === 3000);
-    expect(coordinator.getCoinsSnapshot().totalCoins).toBe(3000);
+    await waitFor(() => coordinator.getCoinsSnapshot().total === 3000);
+    expect(coordinator.getCoinsSnapshot().total).toBe(3000);
 
     coordinator.resetCoins();
-    expect(coordinator.getCoinsSnapshot().totalCoins).toBe(0);
+    expect(coordinator.getCoinsSnapshot().total).toBe(0);
     // XP total is untouched by a coins-only reset.
-    expect(coordinator.getSnapshot().totalExperience).toBe(300);
+    expect(coordinator.getSnapshot().total).toBe(300);
 
     coordinator.shutdown();
   });
@@ -71,9 +71,9 @@ describe("XP tracker coordinator", () => {
     ]);
 
     const coordinator = createXpTrackerCoordinator({ logDirectory: root });
-    await waitFor(() => coordinator.getCoinsSnapshot().totalCoins === 750);
+    await waitFor(() => coordinator.getCoinsSnapshot().total === 750);
 
-    expect(coordinator.getCoinsSnapshot().totalCoins).toBe(750);
+    expect(coordinator.getCoinsSnapshot().total).toBe(750);
     coordinator.shutdown();
   });
 });

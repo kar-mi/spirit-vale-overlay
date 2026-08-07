@@ -205,7 +205,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     // Without an index the whole log is in memory anyway, so keep the rendered encounters rather
     // than re-reading the file per selection. Tanked, healing and the enemy breakdown come from the
     // index only, so those tabs stay empty for a log outside the managed directory.
-    replayEncounters = replay.meter.getSnapshots().map((snapshot) => ({
+    replayEncounters = replay.snapshots.map((snapshot) => ({
       snapshot,
       breakdown: { encounterId: snapshot.id, enemies: [], bySkill: new Map() },
     }));

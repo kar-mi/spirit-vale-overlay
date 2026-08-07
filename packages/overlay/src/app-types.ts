@@ -1,7 +1,7 @@
 import type { RPCSchema } from "electrobun";
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterWeight } from "@kar-mi/spirit-vale-tools-character";
-import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
+import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { StatType } from "@spiritvale/ui-core/stat-type-select";
 import type { RequiredStatusCategory } from "./required-statuses.ts";
 
@@ -64,15 +64,9 @@ export interface OverlayCharacterState {
   characterXp?: OverlayExperienceProgress;
   jobXp?: OverlayExperienceProgress;
   weight?: CharacterWeight;
-  xp: XpAggregateSnapshot;
-  gold: CoinsAggregateSnapshot;
-}
-
-/** Gold aggregate mirroring the XP tracker: total dropped, EWMA per-second rate, and the last hour's sum. */
-export interface CoinsAggregateSnapshot {
-  totalCoins: number;
-  coinsPerSecond: number;
-  coinsPerHour: number;
+  /** Character XP and gold dropped share one shape: both are the same value-agnostic rate tracker. */
+  xp: RateSnapshot;
+  gold: RateSnapshot;
 }
 
 export interface OverlayStatusState {
