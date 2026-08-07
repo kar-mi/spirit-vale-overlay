@@ -75,6 +75,12 @@ const MAX_TICK_DELAY_MS = 30_000;
  * A publish refused here is deferred to the scheduled wake, never dropped.
  */
 const STATUS_PUBLISH_MS = 250;
+/**
+ * Collapses repeated lock presses before changing native window styles. This keeps
+ * the global-shortcut callback out of a close/create transition for an overlay
+ * surface, where WebView2 and Win32 are both updating the same HWND.
+ */
+const LOCK_STYLE_DEBOUNCE_MS = 50;
 /** How often the connected-monitor set is re-read. Electrobun exposes no display-changed event. */
 const DISPLAY_RECONCILE_MS = 5_000;
 /** Timeline buckets retained per encounter. Beyond this, adjacent buckets merge. */
@@ -182,6 +188,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
   let statusPublishDeferred = false;
   /** The one time-driven wake-up, scheduled from whatever is actually due. Absent while idle. */
   let tickTimer: ReturnType<typeof setTimeout> | undefined;
+  /** A pending native hit-testing change; settings state is updated immediately. */
+  let lockStyleTimer: ReturnType<typeof setTimeout> | undefined;
 
   const persistence = new SafeSaveQueue<OverlaySettings>({
     label: "overlay settings",
@@ -282,6 +290,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
       liveLog.close();
       if (tickTimer !== undefined) clearTimeout(tickTimer);
       tickTimer = undefined;
+      if (lockStyleTimer !== undefined) clearTimeout(lockStyleTimer);
+      lockStyleTimer = undefined;
       clearInterval(displayTimer);
       unsubscribeCharacter();
       unsubscribeXp();
@@ -411,12 +421,27 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function updateLocked(locked: boolean): void {
     settings.locked = locked;
-    for (const surface of surfaces.values()) surface.setClickThrough(locked);
+    scheduleClickThroughUpdate();
     persist();
     publishControl();
     // Unlocking opens a surface on every monitor so tiles can be dragged between them; locking
     // closes the ones that hold nothing.
     void options.onSurfacesChanged?.();
+  }
+
+  /**
+   * The shortcut can arrive while a surface is closing or while unlock is adding
+   * a surface for another monitor. Defer native style mutation to the next quiet
+   * turn and use the final state when applying it.
+   */
+  function scheduleClickThroughUpdate(): void {
+    if (lockStyleTimer !== undefined) clearTimeout(lockStyleTimer);
+    lockStyleTimer = setTimeout(() => {
+      lockStyleTimer = undefined;
+      if (shuttingDown) return;
+      for (const surface of surfaces.values()) surface.setClickThrough(settings.locked);
+    }, LOCK_STYLE_DEBOUNCE_MS);
+    lockStyleTimer.unref?.();
   }
 
   function updateElement(

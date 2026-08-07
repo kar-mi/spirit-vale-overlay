@@ -132,6 +132,7 @@ export function setWindowClickThrough(windowPtr: unknown, enabled: boolean): boo
   if (!handle) return false;
   try {
     const user32 = dlopen("user32", {
+      IsWindow: { args: [FFIType.ptr], returns: FFIType.bool },
       GetWindowLongPtrW: { args: [FFIType.ptr, FFIType.i32], returns: FFIType.i64 },
       SetWindowLongPtrW: { args: [FFIType.ptr, FFIType.i32, FFIType.i64], returns: FFIType.i64 },
       SetLayeredWindowAttributes: {
@@ -147,6 +148,10 @@ export function setWindowClickThrough(windowPtr: unknown, enabled: boolean): boo
     const WS_EX_TRANSPARENT = 0x00000020;
     const WS_EX_LAYERED = 0x00080000;
     const WS_EX_NOACTIVATE = 0x08000000;
+    // A BrowserWindow can emit its close event while a queued shortcut callback is
+    // still draining. Do not pass a retired HWND to the style-changing APIs: they
+    // are native calls and an invalid handle can take down the host process.
+    if (!user32.symbols.IsWindow(handle)) return false;
     const current = Number(user32.symbols.GetWindowLongPtrW(handle, GWL_EXSTYLE));
     const wasLayered = (current & WS_EX_LAYERED) !== 0;
     const clickThroughStyles = WS_EX_TRANSPARENT | WS_EX_NOACTIVATE;
