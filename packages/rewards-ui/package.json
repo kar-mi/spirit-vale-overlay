@@ -7,8 +7,8 @@
   },
   "dependencies": {
     "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
-    "@kar-mi/spirit-vale-tools-rewards": "1.0.1",
-    "@kar-mi/spirit-vale-tools-sqlite": "0.1.1",
+    "@kar-mi/spirit-vale-tools-rewards": "1.1.0",
+    "@kar-mi/spirit-vale-tools-sqlite": "0.1.3",
     "@preact/signals": "^2.9.4",
     "@spiritvale/ui-core": "workspace:*",
     "electrobun": "1.18.1",
