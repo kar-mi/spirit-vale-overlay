@@ -83,6 +83,49 @@ export function displaysNeedingSurface(
 }
 
 /**
+ * Which display a tile dropped at these virtual-desktop coordinates belongs to.
+ *
+ * Chosen by largest overlapping area, so a tile straddling a bezel lands on the screen showing
+ * most of it. A tile released entirely in a dead zone of a non-rectangular layout overlaps nothing,
+ * so it falls back to the display whose centre is nearest — dropping a tile must never lose it.
+ */
+export function displayForRect<T extends { bounds: DisplayBounds }>(
+  displays: readonly T[],
+  rect: DisplayBounds,
+): T | undefined {
+  let best: T | undefined;
+  let bestOverlap = 0;
+  for (const display of displays) {
+    const overlap = overlapArea(display.bounds, rect);
+    if (overlap <= bestOverlap) continue;
+    bestOverlap = overlap;
+    best = display;
+  }
+  if (best) return best;
+  let nearest: T | undefined;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const display of displays) {
+    const distance = centreDistance(display.bounds, rect);
+    if (distance >= nearestDistance) continue;
+    nearestDistance = distance;
+    nearest = display;
+  }
+  return nearest;
+}
+
+function overlapArea(a: DisplayBounds, b: DisplayBounds): number {
+  const width = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const height = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  return width > 0 && height > 0 ? width * height : 0;
+}
+
+function centreDistance(a: DisplayBounds, b: DisplayBounds): number {
+  const dx = (a.x + a.width / 2) - (b.x + b.width / 2);
+  const dy = (a.y + a.height / 2) - (b.y + b.height / 2);
+  return dx * dx + dy * dy;
+}
+
+/**
  * The elements assigned to one display, in the order they appear in `elements`.
  *
  * Partial on purpose: a surface is only told about its own tiles, so an unrelated tile cannot

@@ -62,6 +62,10 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
           controller.setElementBounds(id, { x, y, width, height });
           return controller.controlState(key);
         },
+        setElementPlacement: ({ id, display: target, x, y }) => {
+          controller.setElementPlacement(id, target, x, y);
+          return controller.controlState(key);
+        },
         setElementOpacity: ({ id, opacity }) => {
           controller.setElementOpacity(id, opacity);
           return controller.controlState(key);
@@ -81,7 +85,10 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
         resetXpTracker: () => controller.resetXpTracker(),
         resetGoldTracker: () => controller.resetGoldTracker(),
       },
-      messages: {},
+      messages: {
+        dragPreview: (preview) => controller.relayDragPreview(preview),
+        dragPreviewEnded: () => controller.relayDragPreview(undefined),
+      },
     },
   });
 
@@ -117,6 +124,7 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
     sendCharacter: (state) => rpc.send.characterChanged(state),
     sendStatuses: (state) => rpc.send.statusesChanged(state),
     sendMeter: (state) => rpc.send.meterChanged(state),
+    sendDragPreview: (preview) => rpc.send.dragPreviewChanged(preview),
   };
   controller.registerSurface(sink);
 

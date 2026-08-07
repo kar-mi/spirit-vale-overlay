@@ -43,6 +43,33 @@ export interface OverlayDisplayOption {
   primary: boolean;
 }
 
+export interface OverlayDisplayBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** A monitor's position in the virtual desktop, so a surface can map its own coordinates onto it. */
+export interface OverlayDisplayPlacement {
+  display: string;
+  bounds: OverlayDisplayBounds;
+}
+
+/**
+ * A tile mid-drag, in virtual-desktop coordinates.
+ *
+ * A window cannot paint outside its own display, so a tile dragged towards the next monitor clips
+ * at the bezel. Relaying the gesture lets the other surfaces draw a ghost at the matching spot, so
+ * the tile appears to keep travelling instead of sticking to the edge until the mouse is released.
+ */
+export interface OverlayDragPreview {
+  id: OverlayElementId;
+  /** Display key of the surface running the gesture; it draws the real tile, not a ghost. */
+  origin: string;
+  rect: OverlayDisplayBounds;
+}
+
 export type OverlayStatus = "waiting" | "capturing" | "ready" | "error";
 
 export interface OverlayResource {
@@ -61,6 +88,10 @@ export interface OverlayControlState {
   statusDetail: string;
   /** Only the elements assigned to the surface receiving this state — the rest belong to other monitors. */
   elements: Partial<Record<OverlayElementId, OverlayElementSettings>>;
+  /** The display this surface covers. Absent on the aggregate state the Settings window reads. */
+  surface?: OverlayDisplayPlacement;
+  /** Every connected monitor, so a drag released off-screen can work out where it landed. */
+  displayLayout: OverlayDisplayPlacement[];
   /** Which metric the party/map meter currently displays. */
   meterStatType: StatType;
   shortcuts: Record<KeybindAction, string>;
@@ -179,10 +210,23 @@ export type OverlayRpc = {
         params: { id: OverlayElementId; x: number; y: number; width: number; height: number };
         response: OverlayControlState;
       };
+      /**
+       * Move and reassign in one step, for a tile dragged onto another monitor. Doing it as two
+       * calls would clamp the tile into the old display first and make it visibly jump.
+       */
+      setElementPlacement: {
+        params: { id: OverlayElementId; display: string; x: number; y: number };
+        response: OverlayControlState;
+      };
       setElementOpacity: {
         params: { id: OverlayElementId; opacity: number };
         response: OverlayControlState;
       };
+    };
+    messages: {
+      /** Fire-and-forget: sent once per animation frame while a tile is being dragged. */
+      dragPreview: OverlayDragPreview;
+      dragPreviewEnded: Record<string, never>;
     };
   }>;
   webview: RPCSchema<{ messages: {
@@ -190,5 +234,6 @@ export type OverlayRpc = {
     characterChanged: OverlayCharacterState;
     statusesChanged: OverlayStatusState;
     meterChanged: OverlayMeterState;
+    dragPreviewChanged: OverlayDragPreview | undefined;
   } }>;
 };

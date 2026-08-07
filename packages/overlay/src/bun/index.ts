@@ -22,10 +22,12 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
   const surfaces = new Map<string, OverlaySurface>();
   let closedCallbackSent = false;
   let reconciling = false;
+  let reconcileTimer: ReturnType<typeof setTimeout> | undefined;
+  let closing = false;
 
   const controller = await createOverlayController({
     ...options,
-    onSurfacesChanged: () => reconcileSurfaces(),
+    onSurfacesChanged: () => scheduleReconcile(),
   });
 
   reconcileSurfaces();
@@ -35,6 +37,11 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     show: () => controller.setOverlayVisible(true),
     activate: () => controller.setOverlayVisible(true),
     close: async () => {
+      // Set before awaiting: a reconcile scheduled by the last settings flush would otherwise fire
+      // during the await and rebuild the very windows this is tearing down.
+      closing = true;
+      if (reconcileTimer !== undefined) clearTimeout(reconcileTimer);
+      reconcileTimer = undefined;
       await controller.shutdown();
       for (const surface of [...surfaces.values()]) surface.close();
       surfaces.clear();
@@ -51,10 +58,26 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       controller.setRequiredStatuses(category, statusIds),
   };
 
+  /**
+   * Most reconciles are triggered from inside an RPC handler — locking, or enabling the last tile
+   * on a monitor — and closing a window synchronously there would destroy the webview the response
+   * still has to go back through. Deferring to a macrotask lets the handler return first, and
+   * coalesces the burst of settings changes a single gesture produces into one pass.
+   */
+  function scheduleReconcile(): void {
+    if (closing || reconcileTimer !== undefined) return;
+    reconcileTimer = setTimeout(() => {
+      reconcileTimer = undefined;
+      reconcileSurfaces();
+    }, 0);
+    // Never let a pending reconcile be the reason the process stays alive.
+    reconcileTimer.unref?.();
+  }
+
   /** Brings the live window set in line with the displays that currently hold an enabled tile. */
   function reconcileSurfaces(): void {
     // Creating a surface publishes control state, which can re-enter here; one pass is enough.
-    if (reconciling) return;
+    if (closing || reconciling) return;
     reconciling = true;
     try {
       const wanted = new Set(controller.wantedSurfaces());

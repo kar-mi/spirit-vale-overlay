@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  displayForRect,
   displayKey,
   displaysNeedingSurface,
   elementsForDisplay,
@@ -67,6 +68,28 @@ describe("element display resolution", () => {
 
   test("falls back to home when nothing is assigned", () => {
     expect(resolveElementDisplayKey(displays, "", secondaryKey)).toBe(secondaryKey);
+  });
+});
+
+describe("drop targets", () => {
+  test("keeps a tile on the display showing most of it", () => {
+    // Straddling the bezel, 300 of 400px past the boundary.
+    expect(displayForRect(displays, { x: 1820, y: 100, width: 400, height: 200 })).toBe(secondary);
+    expect(displayForRect(displays, { x: 1620, y: 100, width: 400, height: 200 })).toBe(primary);
+  });
+
+  test("picks the display a tile is fully inside", () => {
+    expect(displayForRect(displays, { x: 40, y: 40, width: 200, height: 120 })).toBe(primary);
+    expect(displayForRect(displays, { x: 2400, y: 40, width: 200, height: 120 })).toBe(secondary);
+  });
+
+  test("falls back to the nearest display for a drop into a dead zone", () => {
+    // Below the primary display and left of the secondary: overlaps neither.
+    expect(displayForRect(displays, { x: 200, y: 1400, width: 200, height: 120 })).toBe(primary);
+  });
+
+  test("returns nothing when there are no displays", () => {
+    expect(displayForRect([], { x: 0, y: 0, width: 10, height: 10 })).toBeUndefined();
   });
 });
 

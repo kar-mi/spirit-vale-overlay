@@ -76,6 +76,30 @@
   background: rgba(150, 108, 22, 0.94);
 }
 
+/* A tile mid-drag on another monitor. Deliberately an outline rather than a copy of the tile: it
+   reads as "this is where it will land" and costs one cheap paint per frame, while the real tile
+   stays under the cursor on the surface that owns the gesture. */
+.drag-ghost {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed rgba(190, 170, 255, 0.9);
+  border-radius: 12px;
+  background: rgba(78, 52, 132, 0.28);
+  pointer-events: none;
+}
+
+.drag-ghost span {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(15, 18, 26, 0.88);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .overlay-element {
   position: absolute;
   z-index: 5;

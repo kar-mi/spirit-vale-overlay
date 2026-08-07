@@ -18,6 +18,7 @@ import type {
   RateTotals,
   OverlayCharacterState,
   OverlayControlState,
+  OverlayDragPreview,
   OverlayElementId,
   OverlaySettingsState,
   OverlayStatus,
@@ -102,6 +103,7 @@ export interface OverlaySurfaceSink {
   sendCharacter(state: OverlayCharacterState): void;
   sendStatuses(state: OverlayStatusState): void;
   sendMeter(state: OverlayViewState["meter"]): void;
+  sendDragPreview(preview: OverlayDragPreview | undefined): void;
 }
 
 export type OverlayController = Awaited<ReturnType<typeof createOverlayController>>;
@@ -185,8 +187,17 @@ export async function createOverlayController(options: OverlayControllerOptions)
     get displays() { return displays; },
     get locked() { return settings.locked; },
     get overlayVisible() { return overlayVisible; },
-    /** Display keys that should currently own a window. */
-    wantedSurfaces: () => displaysNeedingSurface(settings.elements),
+    /**
+     * Display keys that should currently own a window.
+     *
+     * While unlocked, that is every connected monitor: the user needs somewhere to drop a tile
+     * they drag off the edge, and the scrim on each screen is what shows them the drop is allowed.
+     * Locking retires the windows that ended up with nothing on them, which is what lets a game on
+     * an empty monitor go back to independent flip.
+     */
+    wantedSurfaces: () => settings.locked
+      ? displaysNeedingSurface(settings.elements)
+      : displays.map(displayKey),
 
     registerSurface(surface: OverlaySurfaceSink): void {
       surfaces.set(surface.display, surface);
@@ -209,7 +220,9 @@ export async function createOverlayController(options: OverlayControllerOptions)
     setHomeDisplay,
     setElementPosition,
     setElementBounds,
+    setElementPlacement,
     setElementOpacity,
+    relayDragPreview,
     setOverlayVisible: updateOverlayVisible,
     setShortcut,
     setRequiredStatuses,
@@ -261,12 +274,15 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   /** Only the tiles on `display`; a surface never learns about another monitor's elements. */
   function controlState(display?: string): OverlayControlState {
+    const layout = displays.map((candidate) => ({ display: displayKey(candidate), bounds: candidate.bounds }));
     return {
       locked: settings.locked,
       personalName: detectedPersonalName(characterState),
       status,
       statusDetail,
       elements: display === undefined ? settings.elements : elementsForDisplay(settings.elements, display),
+      surface: layout.find((candidate) => candidate.display === display),
+      displayLayout: layout,
       meterStatType: settings.meterStatType,
       shortcuts: settings.shortcuts,
       shortcutErrors: Object.fromEntries(shortcutErrors),
@@ -347,6 +363,9 @@ export async function createOverlayController(options: OverlayControllerOptions)
     for (const surface of surfaces.values()) surface.setClickThrough(locked);
     persist();
     publishControl();
+    // Unlocking opens a surface on every monitor so tiles can be dragged between them; locking
+    // closes the ones that hold nothing.
+    void options.onSurfacesChanged?.();
   }
 
   function updateElement(
@@ -395,6 +414,22 @@ export async function createOverlayController(options: OverlayControllerOptions)
     rect: { x: number; y: number; width: number; height: number },
   ): OverlayControlState {
     return updateElement(id, rect);
+  }
+
+  /**
+   * Where a tile dragged across a monitor boundary lands: the assignment and the new
+   * display-relative position are applied together, so the tile is never briefly clamped into the
+   * display it just left.
+   */
+  function setElementPlacement(
+    id: OverlayElementId,
+    display: string,
+    x: number,
+    y: number,
+  ): OverlayControlState {
+    const next = updateElement(id, { display, x, y });
+    void options.onSurfacesChanged?.();
+    return next;
   }
 
   function setElementOpacity(id: OverlayElementId, opacity: number): OverlayControlState {
@@ -473,6 +508,19 @@ export async function createOverlayController(options: OverlayControllerOptions)
     });
     if (!registered) shortcutErrors.set(action, `${shortcut} is unavailable; it may already be in use.`);
     return registered;
+  }
+
+  /**
+   * Forwards an in-flight drag to the *other* surfaces so they can draw a ghost where the tile
+   * would be if their window could see it. The originating surface is skipped: it is already
+   * drawing the real tile under the cursor, and echoing back would fight its local preview.
+   */
+  function relayDragPreview(preview: OverlayDragPreview | undefined): void {
+    if (shuttingDown) return;
+    for (const surface of surfaces.values()) {
+      if (preview && surface.display === preview.origin) continue;
+      publishSafely(() => surface.sendDragPreview(preview));
+    }
   }
 
   function persist(): void {
