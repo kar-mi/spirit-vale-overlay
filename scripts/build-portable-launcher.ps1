@@ -48,8 +48,8 @@ internal static class Program
         if (!File.Exists(launcherPath))
         {
             MessageBox.Show(
-                "Could not find bin\\launcher.exe.\n\nExtract the complete portable ZIP, then run Spirit Vale.exe from the extracted folder.",
-                "Spirit Vale",
+                "Could not find bin\\launcher.exe.\n\nExtract the complete portable ZIP, then run Spirit Vale Overlay.exe from the extracted folder.",
+                "Spirit Vale Overlay",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
             return 1;
@@ -84,8 +84,8 @@ internal static class Program
         catch (Exception exception)
         {
             MessageBox.Show(
-                "Could not start Spirit Vale.\n\n" + exception.Message,
-                "Spirit Vale",
+                "Could not start Spirit Vale Overlay.\n\n" + exception.Message,
+                "Spirit Vale Overlay",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
             return 1;

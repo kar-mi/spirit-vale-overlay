@@ -3,20 +3,27 @@ import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/pro
 import { createHash } from "node:crypto";
 import path from "node:path";
 
+import { productName, setWindowsExecutableMetadata } from "./windows-executable-metadata.ts";
+
 interface PackageJson {
   version?: string;
 }
 
 const projectRoot = path.resolve(import.meta.dir, "..");
 const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8")) as PackageJson;
-const version = packageJson.version;
-if (!version) throw new Error("package.json must define a version before packaging.");
+function requireVersion(value: string | undefined): string {
+  if (!value) throw new Error("package.json must define a version before packaging.");
+  return value;
+}
 
-const folderName = `Spirit-Vale-v${version}-win-x64`;
-const artifactName = `Spirit-Vale-portable-win-x64-v${version}`;
+const version = requireVersion(packageJson.version);
+
+const folderName = `Spirit-Vale-Overlay-v${version}-win-x64`;
+const artifactName = `Spirit-Vale-Overlay-portable-win-x64-v${version}`;
 const stagingRoot = path.join(projectRoot, "dist", "portable-staging");
 const portableRoot = path.join(stagingRoot, folderName);
-const extractedBundle = path.join(portableRoot, "SpiritVale");
+// Electrobun names the bundle folder after the app name with its spaces stripped.
+const extractedBundle = path.join(portableRoot, "SpiritValeOverlay");
 const releasesDirectory = path.join(projectRoot, "dist", "releases");
 const zipPath = path.join(releasesDirectory, `${artifactName}.zip`);
 const temporaryZipPath = path.join(releasesDirectory, `${artifactName}.tmp.zip`);
@@ -48,8 +55,8 @@ async function removeManaged(candidate: string): Promise<void> {
 
 function findStablePayload(): string {
   const candidates = [
-    path.join(projectRoot, "packages", "ui", "dist", "artifacts", "stable-win-x64-SpiritVale.tar.zst"),
-    path.join(projectRoot, "packages", "ui", "dist", "electrobun", "stable-win-x64", "Spirit Vale-Setup.tar.zst"),
+    path.join(projectRoot, "packages", "ui", "dist", "artifacts", "stable-win-x64-SpiritValeOverlay.tar.zst"),
+    path.join(projectRoot, "packages", "ui", "dist", "electrobun", "stable-win-x64", "Spirit Vale Overlay-Setup.tar.zst"),
   ];
   const payload = candidates.find((candidate) => existsSync(candidate));
   if (!payload) throw new Error("Electrobun did not produce the expected stable Windows payload.");
@@ -58,7 +65,7 @@ function findStablePayload(): string {
 
 async function flattenExtractedBundle(): Promise<void> {
   if (!existsSync(extractedBundle)) {
-    throw new Error(`The stable payload did not contain the expected SpiritVale folder.`);
+    throw new Error(`The stable payload did not contain the expected SpiritValeOverlay folder.`);
   }
   for (const entry of await readdir(extractedBundle)) {
     await rename(path.join(extractedBundle, entry), path.join(portableRoot, entry));
@@ -93,6 +100,7 @@ async function main(): Promise<void> {
     throw new Error("The Electrobun build is missing its Windows runtime executables or application icon.");
   }
 
+  const portableLauncher = path.join(portableRoot, `${productName}.exe`);
   run("powershell", [
     "-NoProfile",
     "-ExecutionPolicy",
@@ -100,17 +108,20 @@ async function main(): Promise<void> {
     "-File",
     path.join(projectRoot, "scripts", "build-portable-launcher.ps1"),
     "-OutputPath",
-    path.join(portableRoot, "Spirit Vale.exe"),
+    portableLauncher,
     "-IconPath",
     applicationIcon,
   ]);
+  // csc emits no version resource at all, which leaves the one executable users actually double-click
+  // as the least identifiable file in the ZIP.
+  await setWindowsExecutableMetadata(portableLauncher, { fileDescription: productName, version });
 
   await writeFile(path.join(portableRoot, "README.txt"), [
-    "Spirit Vale Portable",
+    `${productName} Portable`,
     `Version ${version}`,
     "",
-    'Extract the complete folder, then run "Spirit Vale.exe".',
-    "Keep Spirit Vale.exe beside the bin and Resources folders.",
+    `Extract the complete folder, then run "${productName}.exe".`,
+    `Keep ${productName}.exe beside the bin and Resources folders.`,
     "",
     "Npcap is required and is not included. Install it separately with WinPcap API-compatible mode enabled.",
     "",
@@ -119,7 +130,7 @@ async function main(): Promise<void> {
     "- Capture and replay logs: data\\logs\\",
     "- Runtime, browser, and temporary data: data\\runtime\\",
     "",
-    "The portable launcher keeps application data out of Windows AppData. Always start the app with Spirit Vale.exe.",
+    `The portable launcher keeps application data out of Windows AppData. Always start the app with ${productName}.exe.`,
     "",
   ].join("\r\n"), "utf8");
 

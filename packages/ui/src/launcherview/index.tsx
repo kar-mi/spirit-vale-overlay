@@ -60,7 +60,7 @@ function App() {
       <header ref={titlebarRef} class="titlebar">
         <div class="brand">
           <img class="brand-icon" src="views://assets/app-icon.png" alt="" />
-          <span>Spirit Vale</span>
+          <span>Spirit Vale Overlay</span>
           <span class="brand-version">{next ? `v${next.appVersion}` : ""}</span>
           <span class="brand-tag">Tools</span>
         </div>
