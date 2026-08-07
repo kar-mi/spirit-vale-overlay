@@ -49,6 +49,7 @@ function App() {
   const next = state.value;
   if (!next) return <main class="app-shell" />;
   const { launcher, overlay } = next;
+  const displayOptions = overlay.displays.map((display) => ({ value: display.key, label: display.label }));
   const adapterOptions = [
     { value: "auto", label: "Automatic (default route)" },
     ...launcher.adapters.map((adapter) => ({ value: adapter.id, label: adapter.label })),
@@ -99,7 +100,13 @@ function App() {
         <header class="settings-heading"><h1>Overlay</h1><p>Control overlay visibility and layout.</p></header>
         <div class="settings-card settings-row"><span><strong>{overlay.locked ? "Overlay locked" : "Edit mode"}</strong></span><button class="btn" type="button" onClick={() => update(electroview.rpc?.request.setOverlayLocked({ locked: !overlay.locked }))}>{overlay.locked ? "Unlock overlay" : "Lock overlay"}</button></div>
         <div class="settings-card settings-row"><span><strong>{overlay.overlayVisible ? "Overlay shown" : "Overlay hidden"}</strong></span><button class="btn" type="button" onClick={() => update(electroview.rpc?.request.setOverlayVisible({ visible: !overlay.overlayVisible }))}>{overlay.overlayVisible ? "Hide overlay" : "Show overlay"}</button></div>
-        <div class="settings-card"><h2>Visible elements</h2>{OVERLAY_ELEMENT_IDS.map((id) => <label class="settings-check settings-element"><input type="checkbox" checked={overlay.elements[id].enabled} onChange={(event) => update(electroview.rpc?.request.setOverlayElementEnabled({ id, enabled: event.currentTarget.checked }))} /><span>{OVERLAY_ELEMENT_LABELS[id]}</span></label>)}</div>
+        {overlay.displays.length > 1 && <label class="settings-field"><span>Home display</span><CustomSelect ariaLabel="Home display" disabled={busy} value={overlay.homeDisplay} options={displayOptions} onChange={(value) => update(electroview.rpc?.request.setOverlayHomeDisplay({ display: value }))} /></label>}
+        {overlay.displays.length > 1 && <p class="settings-hint">Where new tiles land, and where a tile falls back to if its monitor is disconnected.</p>}
+        <div class="settings-card"><h2>Visible elements</h2>{OVERLAY_ELEMENT_IDS.map((id) => <div class="settings-element-row" key={id}>
+          <label class="settings-check settings-element"><input type="checkbox" checked={overlay.elements[id].enabled} onChange={(event) => update(electroview.rpc?.request.setOverlayElementEnabled({ id, enabled: event.currentTarget.checked }))} /><span>{OVERLAY_ELEMENT_LABELS[id]}</span></label>
+          {/* Tiles cannot be dragged between monitors — separate documents — so the move happens here. */}
+          {overlay.displays.length > 1 && <CustomSelect ariaLabel={`Display for ${OVERLAY_ELEMENT_LABELS[id]}`} disabled={busy} value={overlay.elements[id].display} options={displayOptions} onChange={(value) => update(electroview.rpc?.request.setOverlayElementDisplay({ id, display: value }))} />}
+        </div>)}</div>
         <p class="settings-hint">{overlay.personalName ? `Detected character: ${overlay.personalName}` : "Waiting to detect your active character."}</p>
       </section>
 

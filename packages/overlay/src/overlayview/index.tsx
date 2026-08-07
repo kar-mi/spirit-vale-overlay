@@ -1,4 +1,4 @@
-import { batch, signal } from "@preact/signals";
+import { batch, signal, type Signal } from "@preact/signals";
 import { render, type ComponentChildren } from "preact";
 import { useCallback, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
@@ -9,17 +9,23 @@ import type { ChartRange, ChartRenderResult } from "@spiritvale/ui-core/interact
 
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import {
+  OVERLAY_ELEMENT_IDS,
   OVERLAY_ELEMENT_LABELS,
+  type KeybindAction,
   type OverlayElementId,
   type OverlayElementSettings,
   type OverlayCharacterState,
   type OverlayControlState,
+  type OverlayDisplayPlacement,
+  type OverlayDragPreview,
   type OverlayMeterPoint,
   type OverlayMeterState,
   type OverlayResource,
   type OverlayRpc,
   type OverlayStatusState,
+  type StatType,
 } from "../app-types.ts";
+import { displayForRect } from "../display-layout.ts";
 import { resourceFill } from "../personal-resources.ts";
 import { ewmaSeries } from "@kar-mi/spirit-vale-tools-metrics";
 
@@ -66,25 +72,93 @@ interface ElementRect { x: number; y: number; width: number; height: number }
 type PointerGesture =
   | { kind: "drag"; pointerId: number; originX: number; originY: number; start: ElementRect }
   | { kind: "resize"; pointerId: number; originX: number; originY: number; start: ElementRect; edge: ResizeEdge };
-const controlState = signal<OverlayControlState | undefined>(undefined);
+/** The parts of the control state that affect the whole document rather than one tile. */
+interface OverlayChrome {
+  locked: boolean;
+  meterStatType: StatType;
+  shortcuts: Record<KeybindAction, string>;
+  /** This window's own monitor, and every monitor, so a drag can be resolved across them. */
+  surface?: OverlayDisplayPlacement;
+  displayLayout: OverlayDisplayPlacement[];
+}
+
+// Control state is fanned out into one signal per tile plus one for the shared chrome, each
+// updated only when its own slice actually changed. The control channel republishes whenever the
+// capture status text moves — several times a second while reading a log — and without this split
+// every one of those would re-render all fourteen tiles for data none of them read.
+const chromeState = signal<OverlayChrome | undefined>(undefined);
+const elementStates = Object.fromEntries(
+  OVERLAY_ELEMENT_IDS.map((id) => [id, signal<OverlayElementSettings | undefined>(undefined)]),
+) as Record<OverlayElementId, Signal<OverlayElementSettings | undefined>>;
 const characterState = signal<OverlayCharacterState | undefined>(undefined);
 const statusState = signal<OverlayStatusState | undefined>(undefined);
 const meterState = signal<OverlayMeterState | undefined>(undefined);
 const gridEnabled = signal(false);
+/** A tile being dragged on another monitor's surface, relayed here so it can be ghosted. */
+const dragPreview = signal<OverlayDragPreview | undefined>(undefined);
+let lastChromeJson: string | undefined;
+const lastElementJson = new Map<OverlayElementId, string | undefined>();
+/** Coalesces pointermove to one send per frame; a drag otherwise fires far above refresh rate. */
+let pendingDragPreview: OverlayDragPreview | undefined;
+let dragPreviewFrame = 0;
+
+function sendDragPreview(preview: OverlayDragPreview): void {
+  pendingDragPreview = preview;
+  if (dragPreviewFrame) return;
+  dragPreviewFrame = requestAnimationFrame(() => {
+    dragPreviewFrame = 0;
+    if (pendingDragPreview) electroview.rpc?.send.dragPreview(pendingDragPreview);
+    pendingDragPreview = undefined;
+  });
+}
+
+function endDragPreview(): void {
+  if (dragPreviewFrame) cancelAnimationFrame(dragPreviewFrame);
+  dragPreviewFrame = 0;
+  pendingDragPreview = undefined;
+  electroview.rpc?.send.dragPreviewEnded({});
+}
+
+function applyControl(next: OverlayControlState): void {
+  batch(() => {
+    const chrome: OverlayChrome = {
+      locked: next.locked,
+      meterStatType: next.meterStatType,
+      shortcuts: next.shortcuts,
+      surface: next.surface,
+      displayLayout: next.displayLayout,
+    };
+    const chromeJson = JSON.stringify(chrome);
+    if (chromeJson !== lastChromeJson) {
+      lastChromeJson = chromeJson;
+      chromeState.value = chrome;
+    }
+    for (const id of OVERLAY_ELEMENT_IDS) {
+      // Absent means the tile lives on another monitor's surface, not that it is hidden.
+      const element = next.elements[id];
+      const json = element === undefined ? undefined : JSON.stringify(element);
+      if (json === lastElementJson.get(id)) continue;
+      lastElementJson.set(id, json);
+      elementStates[id].value = element;
+    }
+  });
+}
 
 const rpc = Electroview.defineRPC<OverlayRpc>({
   handlers: { requests: {}, messages: {
-    controlChanged: (next) => { controlState.value = repairRendererPayload(next); },
+    controlChanged: (next) => { applyControl(repairRendererPayload(next)); },
     characterChanged: (next) => { characterState.value = repairRendererPayload(next); },
     statusesChanged: (next) => { statusState.value = repairRendererPayload(next); },
     meterChanged: (next) => { meterState.value = repairRendererPayload(next); },
+    // Numbers and an element id only, so it skips the mojibake repair every other channel pays.
+    dragPreviewChanged: (next) => { dragPreview.value = next; },
   } },
 });
 const electroview = new Electroview({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => {
   const repaired = repairRendererPayload(next);
   batch(() => {
-    controlState.value = repaired.control;
+    applyControl(repaired.control);
     characterState.value = repaired.character;
     statusState.value = repaired.statuses;
     meterState.value = repaired.meter;
@@ -92,7 +166,7 @@ void electroview.rpc?.request.getState({}).then((next) => {
 });
 
 function App() {
-  const next = controlState.value;
+  const next = chromeState.value;
   if (!next) return <main class="overlay-root" />;
   return (
     <main class={next.locked ? "overlay-root" : "overlay-root editing"}>
@@ -100,7 +174,11 @@ function App() {
       {!next.locked && gridEnabled.value && <div class="grid-overlay" aria-hidden="true" />}
       {!next.locked && (
         <div class="edit-controls">
-          <p class="edit-hint">Drag elements to arrange the overlay. Press F11 to lock or unlock.</p>
+          <p class="edit-hint">
+            {next.displayLayout.length > 1
+              ? `Drag elements to arrange the overlay, or onto another screen to move them there. Press ${next.shortcuts.toggleLock} to lock or unlock.`
+              : `Drag elements to arrange the overlay. Press ${next.shortcuts.toggleLock} to lock or unlock.`}
+          </p>
           <div class="edit-buttons">
             <button
               class={gridEnabled.value ? "lock-pill grid-pill active" : "lock-pill grid-pill"}
@@ -113,61 +191,77 @@ function App() {
           </div>
         </div>
       )}
-      <OverlayElement id="dpsChart" settings={next.elements.dpsChart} locked={next.locked}>
+      <OverlayElement id="dpsChart" locked={next.locked}>
         <DpsChartElement />
       </OverlayElement>
-      <OverlayElement id="personalDps" settings={next.elements.personalDps} locked={next.locked}>
+      <OverlayElement id="personalDps" locked={next.locked}>
         <PersonalDpsElement />
       </OverlayElement>
-      <OverlayElement id="health" settings={next.elements.health} locked={next.locked}>
+      <OverlayElement id="health" locked={next.locked}>
         <CharacterResourceElement kind="health" />
       </OverlayElement>
-      <OverlayElement id="mana" settings={next.elements.mana} locked={next.locked}>
+      <OverlayElement id="mana" locked={next.locked}>
         <CharacterResourceElement kind="mana" />
       </OverlayElement>
-      <OverlayElement id="characterXp" settings={next.elements.characterXp} locked={next.locked}>
+      <OverlayElement id="characterXp" locked={next.locked}>
         <CharacterResourceElement kind="character-xp" />
       </OverlayElement>
-      <OverlayElement id="jobXp" settings={next.elements.jobXp} locked={next.locked}>
+      <OverlayElement id="jobXp" locked={next.locked}>
         <CharacterResourceElement kind="job-xp" />
       </OverlayElement>
-      <OverlayElement id="weight" settings={next.elements.weight} locked={next.locked}>
+      <OverlayElement id="weight" locked={next.locked}>
         <WeightElement />
       </OverlayElement>
-      <OverlayElement id="xpTracker" settings={next.elements.xpTracker} locked={next.locked}>
+      <OverlayElement id="xpTracker" locked={next.locked}>
         <XpTrackerElement locked={next.locked} />
       </OverlayElement>
-      <OverlayElement id="goldTracker" settings={next.elements.goldTracker} locked={next.locked}>
+      <OverlayElement id="goldTracker" locked={next.locked}>
         <GoldTrackerElement locked={next.locked} />
       </OverlayElement>
-      <OverlayElement id="xpChart" settings={next.elements.xpChart} locked={next.locked}>
+      <OverlayElement id="xpChart" locked={next.locked}>
         <XpChartElement />
       </OverlayElement>
-      <OverlayElement id="partyRanking" settings={next.elements.partyRanking} locked={next.locked}>
+      <OverlayElement id="partyRanking" locked={next.locked}>
         <PartyRankingElement />
       </OverlayElement>
-      <StatusOverlayElement
-        id="buffs"
-        settings={next.elements.buffs}
-        locked={next.locked}
-        category="buffs"
-        flashExpiring
-      />
+      <StatusOverlayElement id="buffs" locked={next.locked} category="buffs" flashExpiring />
       {/* Debuffs deliberately do not flash: one running out is good news. */}
-      <StatusOverlayElement id="debuffs" settings={next.elements.debuffs} locked={next.locked} category="debuffs" />
-      <StatusOverlayElement
-        id="toggles"
-        settings={next.elements.toggles}
-        locked={next.locked}
-        category="toggles"
-      />
+      <StatusOverlayElement id="debuffs" locked={next.locked} category="debuffs" />
+      <StatusOverlayElement id="toggles" locked={next.locked} category="toggles" />
+      {!next.locked && <DragGhost surface={next.surface} />}
     </main>
+  );
+}
+
+/**
+ * Stand-in for a tile currently being dragged on another monitor.
+ *
+ * Windows cannot paint past their own display, so without this the tile appears to stick to the
+ * bezel until the mouse is released. Drawn at the same virtual-desktop position, mapped into this
+ * surface's local coordinates.
+ */
+function DragGhost({ surface }: { surface?: OverlayDisplayPlacement }) {
+  const preview = dragPreview.value;
+  if (!preview || !surface || preview.origin === surface.display) return null;
+  const x = preview.rect.x - surface.bounds.x;
+  const y = preview.rect.y - surface.bounds.y;
+  // Skip entirely while the tile is still far outside this monitor, so the ghost only shows up
+  // once part of it would genuinely be on screen here.
+  if (x + preview.rect.width < 0 || y + preview.rect.height < 0) return null;
+  if (x > surface.bounds.width || y > surface.bounds.height) return null;
+  return (
+    <div
+      class="drag-ghost"
+      aria-hidden="true"
+      style={{ left: `${x}px`, top: `${y}px`, width: `${preview.rect.width}px`, height: `${preview.rect.height}px` }}
+    >
+      <span>{OVERLAY_ELEMENT_LABELS[preview.id]}</span>
+    </div>
   );
 }
 
 interface OverlayElementProps {
   id: OverlayElementId;
-  settings: OverlayElementSettings;
   locked: boolean;
   /** Outlines the tile in red, e.g. a status the user armed a missing-buff warning for is down. */
   warn?: boolean;
@@ -176,7 +270,6 @@ interface OverlayElementProps {
 
 function StatusOverlayElement({
   id,
-  settings,
   locked,
   category,
   flashExpiring,
@@ -189,16 +282,19 @@ function StatusOverlayElement({
     ? (next?.missingStatuses[category].length ?? 0) > 0
     : false;
   return (
-    <OverlayElement id={id} settings={settings} locked={locked} warn={warn}>
+    <OverlayElement id={id} locked={locked} warn={warn}>
       <StatusGridElement statuses={next?.[category]} flashExpiring={flashExpiring} />
     </OverlayElement>
   );
 }
 
-function OverlayElement({ id, settings, locked, warn, children }: OverlayElementProps) {
+function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
   const [gesture, setGesture] = useState<PointerGesture>();
   const [preview, setPreview] = useState<ElementRect>();
-  if (locked && !settings.enabled) return null;
+  // Read per tile rather than from a shared control object, so a change to one tile does not
+  // re-render the other thirteen. Undefined means this tile lives on another monitor's surface.
+  const settings = elementStates[id].value;
+  if (!settings || (locked && !settings.enabled)) return null;
   const rect = preview ?? settings;
   const className = [
     "overlay-element",
@@ -210,9 +306,12 @@ function OverlayElement({ id, settings, locked, warn, children }: OverlayElement
     if (!gesture || event.pointerId !== gesture.pointerId) return;
     const dx = event.clientX - gesture.originX;
     const dy = event.clientY - gesture.originY;
-    setPreview(gesture.kind === "drag"
+    const next = gesture.kind === "drag"
       ? dragRect(gesture.start, dx, dy)
-      : resizeRect(gesture.start, gesture.edge, dx, dy, id));
+      : resizeRect(gesture.start, gesture.edge, dx, dy, id);
+    setPreview(next);
+    // Only a drag can leave this monitor; a resize is clamped to the window either way.
+    if (gesture.kind === "drag") relayDrag(id, next);
   };
   const finish = (event: PointerEvent): void => {
     if (!gesture || event.pointerId !== gesture.pointerId) return;
@@ -226,18 +325,23 @@ function OverlayElement({ id, settings, locked, warn, children }: OverlayElement
     setPreview(finalRect);
     const request = wasResize
       ? electroview.rpc?.request.setElementBounds({ id, ...finalRect })
-      : electroview.rpc?.request.setElementPosition({ id, x: finalRect.x, y: finalRect.y });
+      : dropRequest(id, finalRect);
     if (!request) {
+      if (!wasResize) endDragPreview();
       setPreview(undefined);
       return;
     }
     void request.then(
       (next) => {
-        controlState.value = next;
+        applyControl(next);
+        // Retire the ghost only once the destination has been told about the tile, otherwise the
+        // ghost clears a frame or two before the real tile arrives and the drop visibly blinks.
+        if (!wasResize) endDragPreview();
         setPreview(undefined);
       },
       () => {
         // Restore the last authoritative position if the update could not be saved.
+        if (!wasResize) endDragPreview();
         setPreview(undefined);
       },
     );
@@ -268,6 +372,7 @@ function OverlayElement({ id, settings, locked, warn, children }: OverlayElement
       onPointerMove={move}
       onPointerUp={finish}
       onPointerCancel={() => {
+        endDragPreview();
         setGesture(undefined);
         setPreview(undefined);
       }}
@@ -295,7 +400,7 @@ function OverlayElement({ id, settings, locked, warn, children }: OverlayElement
                 id,
                 opacity: event.currentTarget.valueAsNumber,
               });
-              void request?.then((next) => { controlState.value = next; });
+              void request?.then((next) => applyControl(next));
             }}
           />
         </label>
@@ -326,14 +431,64 @@ function OverlayElement({ id, settings, locked, warn, children }: OverlayElement
   );
 }
 
+/**
+ * With more than one monitor a drag is deliberately not clamped to this window: pointer capture
+ * keeps delivering moves once the cursor leaves the display, and letting the tile follow it off the
+ * edge is what makes dropping it on the next screen possible. Where it actually lands is resolved
+ * in `dropRequest`, and the bun side clamps it into whichever display that turns out to be.
+ */
 function dragRect(start: ElementRect, dx: number, dy: number): ElementRect {
-  const x = clamp(start.x + dx, 0, Math.max(0, window.innerWidth - start.width));
-  const y = clamp(start.y + dy, 0, Math.max(0, window.innerHeight - start.height));
+  const spansDisplays = (chromeState.value?.displayLayout.length ?? 1) > 1;
+  const x = spansDisplays
+    ? Math.round(start.x + dx)
+    : clamp(start.x + dx, 0, Math.max(0, window.innerWidth - start.width));
+  const y = spansDisplays
+    ? Math.round(start.y + dy)
+    : clamp(start.y + dy, 0, Math.max(0, window.innerHeight - start.height));
   return {
     ...start,
     x: gridEnabled.value ? snapToGrid(x) : x,
     y: gridEnabled.value ? snapToGrid(y) : y,
   };
+}
+
+/** Publishes the in-flight drag in virtual-desktop coordinates so other surfaces can ghost it. */
+function relayDrag(id: OverlayElementId, rect: ElementRect): void {
+  const chrome = chromeState.value;
+  if (!chrome?.surface || chrome.displayLayout.length < 2) return;
+  const origin = chrome.surface.bounds;
+  sendDragPreview({
+    id,
+    origin: chrome.surface.display,
+    rect: { x: origin.x + rect.x, y: origin.y + rect.y, width: rect.width, height: rect.height },
+  });
+}
+
+/**
+ * Commits a finished drag, moving the tile to another monitor if that is where it was released.
+ *
+ * Tile coordinates are stored relative to their own display, so crossing a boundary means going
+ * out to virtual-desktop coordinates via this surface's origin and back down against the target's.
+ */
+function dropRequest(id: OverlayElementId, rect: ElementRect): Promise<OverlayControlState> | undefined {
+  const requests = electroview.rpc?.request;
+  const chrome = chromeState.value;
+  if (!requests) return undefined;
+  if (!chrome?.surface || chrome.displayLayout.length < 2) {
+    return requests.setElementPosition({ id, x: rect.x, y: rect.y });
+  }
+  const origin = chrome.surface.bounds;
+  const dropped = { x: origin.x + rect.x, y: origin.y + rect.y, width: rect.width, height: rect.height };
+  const target = displayForRect(chrome.displayLayout, dropped) ?? chrome.surface;
+  if (target.display === chrome.surface.display) {
+    return requests.setElementPosition({ id, x: rect.x, y: rect.y });
+  }
+  return requests.setElementPlacement({
+    id,
+    display: target.display,
+    x: dropped.x - target.bounds.x,
+    y: dropped.y - target.bounds.y,
+  });
 }
 
 function resizeRect(start: ElementRect, edge: ResizeEdge, dx: number, dy: number, id: OverlayElementId): ElementRect {
@@ -369,13 +524,13 @@ function snapToGrid(value: number): number {
   return Math.round(value / GRID_SIZE) * GRID_SIZE;
 }
 
-function meterMetricLabel(next: OverlayControlState): string {
+function meterMetricLabel(next: OverlayChrome): string {
   return next.meterStatType === "tanked" ? "TPS" : next.meterStatType === "heal" ? "HPS" : "DPS";
 }
 
 function DpsChartElement() {
   const meter = meterState.value;
-  const control = controlState.value!;
+  const control = chromeState.value!;
   const metricLabel = meterMetricLabel(control);
   const points = meter?.chart ?? [];
   const duration = meter?.chartDurationMs ?? 0;
@@ -553,7 +708,7 @@ function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: Ove
   return (
     <div
       class={`resource-value resource-${kind}${resource ? "" : " resource-waiting"}`}
-      style={`--resource-fill:${resource ? resourceFill(resource) : 0}%`}
+      style={`--resource-fill:${resource ? resourceFill(resource) : 0}`}
       aria-label={description}
     >
       <strong class="resource-label">{label}</strong>
@@ -579,7 +734,7 @@ function CharacterResourceElement({ kind }: { kind: ResourceKind }) {
 
 function PartyRankingElement() {
   const meter = meterState.value;
-  const control = controlState.value!;
+  const control = chromeState.value!;
   const metricLabel = meterMetricLabel(control);
   const actors = meter?.party ?? [];
   const maxDps = Math.max(1, ...actors.map((actor) => actor.dps));
@@ -694,11 +849,11 @@ function classIcon(archetype: number | undefined): string {
 }
 
 function setLocked(locked: boolean): Promise<void> {
-  return electroview.rpc?.request.setLocked({ locked }).then((next) => { controlState.value = next; }) ?? Promise.resolve();
+  return electroview.rpc?.request.setLocked({ locked }).then((next) => applyControl(next)) ?? Promise.resolve();
 }
 
 function setElementEnabled(id: OverlayElementId, enabled: boolean): Promise<void> {
-  return electroview.rpc?.request.setElementEnabled({ id, enabled }).then((next) => { controlState.value = next; }) ?? Promise.resolve();
+  return electroview.rpc?.request.setElementEnabled({ id, enabled }).then((next) => applyControl(next)) ?? Promise.resolve();
 }
 
 

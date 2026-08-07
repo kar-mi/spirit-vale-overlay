@@ -27,10 +27,47 @@ export const METER_STAT_TYPE_CYCLE: readonly StatType[] = ["damage", "heal", "ta
 export interface OverlayElementSettings {
   enabled: boolean;
   opacity: number;
+  /** Position and size are relative to the top-left of the element's own display, never the virtual desktop. */
   x: number;
   y: number;
   width: number;
   height: number;
+  /** Bounds-derived key of the monitor this tile lives on; see ./display-layout.ts. */
+  display: string;
+}
+
+/** A connected monitor, as offered in the Settings window's display pickers. */
+export interface OverlayDisplayOption {
+  key: string;
+  label: string;
+  primary: boolean;
+}
+
+export interface OverlayDisplayBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** A monitor's position in the virtual desktop, so a surface can map its own coordinates onto it. */
+export interface OverlayDisplayPlacement {
+  display: string;
+  bounds: OverlayDisplayBounds;
+}
+
+/**
+ * A tile mid-drag, in virtual-desktop coordinates.
+ *
+ * A window cannot paint outside its own display, so a tile dragged towards the next monitor clips
+ * at the bezel. Relaying the gesture lets the other surfaces draw a ghost at the matching spot, so
+ * the tile appears to keep travelling instead of sticking to the edge until the mouse is released.
+ */
+export interface OverlayDragPreview {
+  id: OverlayElementId;
+  /** Display key of the surface running the gesture; it draws the real tile, not a ghost. */
+  origin: string;
+  rect: OverlayDisplayBounds;
 }
 
 export type OverlayStatus = "waiting" | "capturing" | "ready" | "error";
@@ -49,7 +86,12 @@ export interface OverlayControlState {
   personalName: string;
   status: OverlayStatus;
   statusDetail: string;
-  elements: Record<OverlayElementId, OverlayElementSettings>;
+  /** Only the elements assigned to the surface receiving this state — the rest belong to other monitors. */
+  elements: Partial<Record<OverlayElementId, OverlayElementSettings>>;
+  /** The display this surface covers. Absent on the aggregate state the Settings window reads. */
+  surface?: OverlayDisplayPlacement;
+  /** Every connected monitor, so a drag released off-screen can work out where it landed. */
+  displayLayout: OverlayDisplayPlacement[];
   /** Which metric the party/map meter currently displays. */
   meterStatType: StatType;
   shortcuts: Record<KeybindAction, string>;
@@ -125,6 +167,10 @@ export interface OverlaySettingsState {
   locked: boolean;
   personalName: string;
   elements: Record<OverlayElementId, OverlayElementSettings>;
+  /** Connected monitors, for the per-element and home-display pickers. */
+  displays: OverlayDisplayOption[];
+  /** Resolved home display key — where defaults land and where orphaned tiles fall back to. */
+  homeDisplay: string;
   shortcuts: Record<KeybindAction, string>;
   shortcutErrors: Partial<Record<KeybindAction, string>>;
   overlayVisible: boolean;
@@ -138,6 +184,11 @@ type OverlaySharedRequests = {
     params: { id: OverlayElementId; enabled: boolean };
     response: OverlayControlState;
   };
+  setElementDisplay: {
+    params: { id: OverlayElementId; display: string };
+    response: OverlayControlState;
+  };
+  setHomeDisplay: { params: { display: string }; response: OverlayControlState };
   setOverlayVisible: { params: { visible: boolean }; response: OverlayControlState };
   setShortcut: { params: { action: KeybindAction; shortcut: string }; response: OverlayControlState };
   setRequiredStatuses: {
@@ -159,10 +210,23 @@ export type OverlayRpc = {
         params: { id: OverlayElementId; x: number; y: number; width: number; height: number };
         response: OverlayControlState;
       };
+      /**
+       * Move and reassign in one step, for a tile dragged onto another monitor. Doing it as two
+       * calls would clamp the tile into the old display first and make it visibly jump.
+       */
+      setElementPlacement: {
+        params: { id: OverlayElementId; display: string; x: number; y: number };
+        response: OverlayControlState;
+      };
       setElementOpacity: {
         params: { id: OverlayElementId; opacity: number };
         response: OverlayControlState;
       };
+    };
+    messages: {
+      /** Fire-and-forget: sent once per animation frame while a tile is being dragged. */
+      dragPreview: OverlayDragPreview;
+      dragPreviewEnded: Record<string, never>;
     };
   }>;
   webview: RPCSchema<{ messages: {
@@ -170,5 +234,6 @@ export type OverlayRpc = {
     characterChanged: OverlayCharacterState;
     statusesChanged: OverlayStatusState;
     meterChanged: OverlayMeterState;
+    dragPreviewChanged: OverlayDragPreview | undefined;
   } }>;
 };

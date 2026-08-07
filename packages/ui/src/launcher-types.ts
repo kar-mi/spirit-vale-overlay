@@ -40,6 +40,8 @@ export interface LauncherState {
   uiScale: UiScale;
   minimizeToTray: boolean;
   resetMeterOnMapChange: boolean;
+  /** Overlay keybinds, shown as a hint on the launcher. Absent until the overlay has started. */
+  overlayShortcuts?: Record<KeybindAction, string>;
   update?: {
     version: string;
     url: string;
@@ -87,6 +89,8 @@ export type LauncherSettingsRpc = {
     openNpcapDownload: { params: Record<string, never>; response: void };
     setOverlayLocked: { params: { locked: boolean }; response: SharedSettingsState };
     setOverlayElementEnabled: { params: { id: OverlayElementId; enabled: boolean }; response: SharedSettingsState };
+    setOverlayElementDisplay: { params: { id: OverlayElementId; display: string }; response: SharedSettingsState };
+    setOverlayHomeDisplay: { params: { display: string }; response: SharedSettingsState };
     setOverlayVisible: { params: { visible: boolean }; response: SharedSettingsState };
     setShortcut: { params: { action: KeybindAction; shortcut: string }; response: SharedSettingsState };
     setOverlayRequiredStatuses: {

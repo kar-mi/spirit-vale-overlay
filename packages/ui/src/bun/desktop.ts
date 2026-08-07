@@ -28,6 +28,7 @@ import { measureLogStorage } from "./log-storage.ts";
 import { createCharacterWindow } from "./character-window.ts";
 import { createDeathLogWindow, createDpsWindow } from "@spiritvale/combat-ui";
 import { createOverlayWindow } from "@spiritvale/overlay";
+import { KEYBIND_ACTIONS, type KeybindAction } from "@spiritvale/overlay/app-types";
 import { isWorkspaceDevelopmentRoot } from "@spiritvale/ui-core/local-storage";
 import { resolveLocalRoot } from "./paths.ts";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
@@ -137,7 +138,8 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
   xp: xpTracker,
   settingsPath: storagePaths.overlaySettingsPath,
-  placements,
+  // No `placements` here: each overlay surface is pinned to a whole display, so there is no
+  // user-moved frame to remember.
   lockOnCreate: true,
   onReset: () => capture.resetSession(),
   onOpenLiveDeathLog: openLiveDeathLog,
@@ -145,7 +147,10 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
     liveCombatLogPath = nextPath;
     if (nextPath) void liveDeathLogWindow.refresh(nextPath);
   },
-  onSettingsStateChanged: (overlayState) => { void publishSettings(overlayState); },
+  onSettingsStateChanged: (overlayState) => {
+    rememberOverlayShortcuts(overlayState.shortcuts);
+    void publishSettings(overlayState);
+  },
   onClosed,
 }));
 const rewardsWindow = new WindowSlot((onClosed) => createRewardsWindow({
@@ -285,6 +290,14 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       },
       setOverlayElementEnabled: async ({ id, enabled }) => {
         await overlayWindow.withWindow((overlay) => overlay.setElementEnabled(id, enabled));
+        return sharedSettingsState();
+      },
+      setOverlayElementDisplay: async ({ id, display }) => {
+        await overlayWindow.withWindow((overlay) => overlay.setElementDisplay(id, display));
+        return sharedSettingsState();
+      },
+      setOverlayHomeDisplay: async ({ display }) => {
+        await overlayWindow.withWindow((overlay) => overlay.setHomeDisplay(display));
         return sharedSettingsState();
       },
       setOverlayVisible: async ({ visible }) => {
@@ -535,6 +548,17 @@ function setResetMeterOnMapChange(resetMeterOnMapChange: boolean): LauncherState
   launcherSettingsPersistence.schedule(settings);
   publish();
   return launcherState;
+}
+
+/**
+ * Mirrors the overlay's keybinds onto the launcher so it can show them as a hint. The overlay
+ * republishes its settings state several times a second, so this only pushes on a real change.
+ */
+function rememberOverlayShortcuts(shortcuts: Record<KeybindAction, string>): void {
+  const current = launcherState.overlayShortcuts;
+  if (current && KEYBIND_ACTIONS.every((action) => current[action] === shortcuts[action])) return;
+  launcherState = { ...launcherState, overlayShortcuts: { ...shortcuts } };
+  publish();
 }
 
 function minimizeLauncher(): void {

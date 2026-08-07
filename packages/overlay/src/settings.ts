@@ -7,6 +7,7 @@ import {
   KEYBIND_ACTIONS,
   OVERLAY_ELEMENT_IDS,
   type KeybindAction,
+  type OverlayDisplayOption,
   type OverlayElementId,
   type OverlayElementSettings,
   type StatType,
@@ -16,12 +17,26 @@ import {
   normalizeRequiredStatusIds,
   type RequiredStatusCategory,
 } from "./required-statuses.ts";
+import {
+  displayKey,
+  resolveElementDisplay,
+  resolveElementDisplayKey,
+  resolveHomeDisplayKey,
+  type DisplayBounds,
+  type OverlayDisplay,
+} from "./display-layout.ts";
 
 export { KEYBIND_ACTIONS, OVERLAY_ELEMENT_IDS };
 export type { KeybindAction, OverlayElementId, OverlayElementSettings };
+export type { DisplayBounds, OverlayDisplay };
 
 export interface OverlaySettings {
-  schemaVersion: 4;
+  schemaVersion: 5;
+  /**
+   * Where new tiles land and where a tile whose monitor was unplugged falls back to. Empty means
+   * "use the primary display", which is also what an unrecognised key resolves to.
+   */
+  homeDisplay: string;
   locked: boolean;
   shortcuts: Record<KeybindAction, string>;
   elements: Record<OverlayElementId, OverlayElementSettings>;
@@ -38,14 +53,8 @@ const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
   cycleMeterStatType: "F7",
 };
 
-export interface DisplayBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-const DEFAULT_ELEMENTS: Record<OverlayElementId, OverlayElementSettings> = {
+/** Positions assume a ~1920x1200 display; they are clamped into whatever the home display really is. */
+const DEFAULT_ELEMENTS: Record<OverlayElementId, Omit<OverlayElementSettings, "display">> = {
   dpsChart: { enabled: false, opacity: 1, x: 860, y: 20, width: 462, height: 226 },
   personalDps: { enabled: false, opacity: 1, x: 862, y: 242, width: 161, height: 135 },
   partyRanking: { enabled: true, opacity: 1, x: 730, y: 540, width: 290, height: 610 },
@@ -62,17 +71,17 @@ const DEFAULT_ELEMENTS: Record<OverlayElementId, OverlayElementSettings> = {
   toggles: { enabled: false, opacity: 1, x: 1430, y: 840, width: 280, height: 60 },
 };
 
-export function defaultOverlaySettings(bounds: DisplayBounds): OverlaySettings {
-  return normalizeOverlaySettings({ schemaVersion: 4 }, bounds);
+export function defaultOverlaySettings(displays: readonly OverlayDisplay[]): OverlaySettings {
+  return normalizeOverlaySettings({ schemaVersion: 5 }, displays);
 }
 
 export async function loadOverlaySettings(
   settingsPath: string | undefined,
-  bounds: DisplayBounds,
+  displays: readonly OverlayDisplay[],
 ): Promise<OverlaySettings> {
   return loadJsonSettings(await resolveSettingsPath(settingsPath),
-    (candidate) => normalizeOverlaySettings(candidate, bounds),
-    () => defaultOverlaySettings(bounds));
+    (candidate) => normalizeOverlaySettings(candidate, displays),
+    () => defaultOverlaySettings(displays));
 }
 
 export async function saveOverlaySettings(settings: OverlaySettings, settingsPath?: string): Promise<void> {
@@ -81,9 +90,21 @@ export async function saveOverlaySettings(settings: OverlaySettings, settingsPat
   await writeFile(target, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
 }
 
-export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBounds): OverlaySettings {
+/**
+ * Schema four is accepted as a migration source: it carried no per-element display, so every
+ * element is stamped with the resolved home display on the way through.
+ */
+export function normalizeOverlaySettings(
+  candidate: unknown,
+  displays: readonly OverlayDisplay[],
+): OverlaySettings {
   const parsed = candidate && typeof candidate === "object" ? candidate as Record<string, unknown> : {};
-  const source = parsed.schemaVersion === 4 ? parsed : {};
+  const source = parsed.schemaVersion === 4 || parsed.schemaVersion === 5 ? parsed : {};
+  const homeDisplay = resolveHomeDisplayKey(
+    displays,
+    typeof source.homeDisplay === "string" ? source.homeDisplay : "",
+  );
+  const fallbackBounds = displays[0]?.bounds ?? { x: 0, y: 0, width: 0, height: 0 };
   const sourceElements = source.elements && typeof source.elements === "object"
     ? source.elements as Record<string, unknown>
     : {};
@@ -92,6 +113,11 @@ export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBoun
     const value = sourceElements[id] && typeof sourceElements[id] === "object"
       ? sourceElements[id] as Record<string, unknown>
       : {};
+    const assigned = typeof value.display === "string" ? value.display : "";
+    // An element on an unplugged monitor falls back to home rather than disappearing, and is
+    // then clamped into whatever that display's bounds are.
+    const display = resolveElementDisplayKey(displays, assigned, homeDisplay);
+    const bounds = resolveElementDisplay(displays, assigned, homeDisplay)?.bounds ?? fallbackBounds;
     const width = clampNumber(value.width, defaults.width, 160, Math.max(160, bounds.width));
     const minimumHeight = id === "health" || id === "mana" || id === "characterXp" || id === "jobXp"
       ? 24
@@ -104,17 +130,29 @@ export function normalizeOverlaySettings(candidate: unknown, bounds: DisplayBoun
       y: clampNumber(value.y, defaults.y, 0, Math.max(0, bounds.height - height)),
       width,
       height,
+      display,
     }];
   })) as unknown as Record<OverlayElementId, OverlayElementSettings>;
   const shortcuts = normalizeShortcuts(source);
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
+    homeDisplay,
     locked: typeof source.locked === "boolean" ? source.locked : false,
     shortcuts,
     elements,
     meterStatType: normalizeMeterStatType(source.meterStatType),
     requiredStatuses: normalizeRequiredStatuses(source.requiredStatuses),
   };
+}
+
+/** Human-readable choices for the Settings window's display pickers. */
+export function overlayDisplayOptions(displays: readonly OverlayDisplay[]): OverlayDisplayOption[] {
+  return displays.map((display, index) => ({
+    key: displayKey(display),
+    label: `Display ${index + 1} — ${Math.round(display.bounds.width)}×${Math.round(display.bounds.height)}`
+      + (display.isPrimary ? " (primary)" : ""),
+    primary: display.isPrimary === true,
+  }));
 }
 
 function normalizeRequiredStatuses(value: unknown): Record<RequiredStatusCategory, string[]> {
