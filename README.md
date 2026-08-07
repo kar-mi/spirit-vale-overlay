@@ -1,6 +1,6 @@
-# Spirit Vale
+# Spirit Vale Overlay
 
-Spirit Vale is a passive Windows companion app for live combat, character, reward, and in-game overlay information. It uses your existing Npcap installation in non-promiscuous mode and never sends, modifies, drops, or injects game traffic. Disclaimer for packet capture dps tools, packet capture is based on proxmity, so dps for other players will go down when out of range.
+Spirit Vale Overlay is a passive Windows companion app for live combat, character, reward, and in-game overlay information. It uses your existing Npcap installation in non-promiscuous mode and never sends, modifies, drops, or injects game traffic. Disclaimer for packet capture dps tools, packet capture is based on proxmity, so dps for other players will go down when out of range.
 
 **[Jump to Installation ↓](#installation)**
 
@@ -39,7 +39,7 @@ The death log breaks down the hits taken in the seconds leading up to a death.
 
 ### Pre-install
 
-Before installing Spirit Vale, download and install Npcap from
+Before installing Spirit Vale Overlay, download and install Npcap from
 [npcap.com/#download](https://npcap.com/#download). Select **Install Npcap in
 WinPcap API-compatible Mode** and leave **Restrict Npcap driver's access to
 Administrators only** unchecked.
@@ -48,9 +48,9 @@ Administrators only** unchecked.
 
 ### Portable release
 
-1. Download the latest `Spirit-Vale-portable-win-x64-v*.zip` from [GitHub Releases](https://github.com/kar-mi/spirit-vale-overlay/releases/latest).
+1. Download the latest `Spirit-Vale-Overlay-portable-win-x64-v*.zip` from [GitHub Releases](https://github.com/kar-mi/spirit-vale-overlay/releases/latest).
 2. Extract the complete ZIP.
-3. Run the top-level `Spirit Vale.exe`.
+3. Run the top-level `Spirit Vale Overlay.exe`.
 
 The portable app keeps its settings, logs, and writable runtime data inside the extracted folder.
 

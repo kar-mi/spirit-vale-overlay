@@ -29,3 +29,9 @@ test("portable launcher embeds the configured Windows application icon", () => {
   expect(launcherScript).toContain("[string]$IconPath");
   expect(launcherScript).toContain('"/win32icon:$IconPath"');
 });
+
+test("portable launcher dialogs name the renamed product", () => {
+  expect(launcherScript).toContain("run Spirit Vale Overlay.exe from the extracted folder");
+  expect(launcherScript).toContain('"Spirit Vale Overlay",');
+  expect(launcherScript).not.toContain('"Spirit Vale",');
+});

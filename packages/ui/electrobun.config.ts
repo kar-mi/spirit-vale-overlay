@@ -38,7 +38,7 @@ function directoryCopy(sourceDirectory: string, destinationDirectory: string): R
 
 export default {
   app: {
-    name: "Spirit Vale",
+    name: "Spirit Vale Overlay",
     identifier: "dev.spiritvale.desktop",
     version: packageJson.version,
     description: "Centralized capture and desktop tools for Spirit Vale.",

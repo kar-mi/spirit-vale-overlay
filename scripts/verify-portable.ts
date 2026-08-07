@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
+import { companyName, productName, toWindowsVersion } from "./windows-executable-metadata.ts";
+
 interface PackageJson {
   version?: string;
 }
@@ -12,15 +14,15 @@ const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.js
 const version = packageJson.version;
 if (!version) throw new Error("package.json must define a version before verification.");
 
-const folderName = `Spirit-Vale-v${version}-win-x64`;
-const defaultZip = path.join(projectRoot, "dist", "releases", `Spirit-Vale-portable-win-x64-v${version}.zip`);
+const folderName = `Spirit-Vale-Overlay-v${version}-win-x64`;
+const defaultZip = path.join(projectRoot, "dist", "releases", `Spirit-Vale-Overlay-portable-win-x64-v${version}.zip`);
 const zipPath = path.resolve(projectRoot, Bun.argv[2] ?? defaultZip);
 const checksumPath = `${zipPath}.sha256`;
 const checkRoot = path.join(projectRoot, "dist", "portable-check");
 const extractedRoot = path.join(checkRoot, folderName);
 
 const requiredPaths = [
-  "Spirit Vale.exe",
+  `${productName}.exe`,
   "README.txt",
   "bin/launcher.exe",
   "bin/bun.exe",
@@ -30,11 +32,15 @@ const requiredPaths = [
 ] as const;
 
 const forbiddenPaths = [
-  "Spirit Vale-Setup.exe",
-  "Spirit Vale-Setup.metadata.json",
-  "Spirit Vale-Setup.tar.zst",
-  "SpiritVale-Setup.zip",
+  "Spirit Vale.exe",
+  `${productName}-Setup.exe`,
+  `${productName}-Setup.metadata.json`,
+  `${productName}-Setup.tar.zst`,
+  "SpiritValeOverlay-Setup.zip",
 ] as const;
+
+/** Executables that must carry the version metadata antivirus heuristics look for. */
+const metadataPaths = [`${productName}.exe`, "bin/launcher.exe", "bin/bun.exe"] as const;
 
 function run(command: string, args: string[]): void {
   const result = Bun.spawnSync([command, ...args], {
@@ -43,6 +49,24 @@ function run(command: string, args: string[]): void {
     stderr: "inherit",
   });
   if (result.exitCode !== 0) throw new Error(`${command} failed with exit code ${result.exitCode}`);
+}
+
+/**
+ * Reads the version block the way Explorer does rather than by parsing the PE resources again:
+ * a block can round-trip through a resource library and still show blank in Windows, which is
+ * exactly the property sheet users and antivirus heuristics look at.
+ */
+function readVersionInfo(executablePath: string): Record<string, string | null> {
+  const result = Bun.spawnSync([
+    "powershell",
+    "-NoProfile",
+    "-Command",
+    `(Get-Item -LiteralPath '${executablePath.replaceAll("'", "''")}').VersionInfo | `
+    + "Select-Object CompanyName, FileDescription, FileVersion, LegalCopyright, OriginalFilename, "
+    + "ProductName, ProductVersion | ConvertTo-Json -Compress",
+  ], { stdout: "pipe", stderr: "inherit" });
+  if (result.exitCode !== 0) throw new Error(`Could not read version metadata for ${executablePath}`);
+  return JSON.parse(new TextDecoder().decode(result.stdout)) as Record<string, string | null>;
 }
 
 async function sha256(file: string): Promise<string> {
@@ -73,10 +97,29 @@ for (const relativePath of forbiddenPaths) {
   }
 }
 
+for (const relativePath of metadataPaths) {
+  const metadata = readVersionInfo(path.join(extractedRoot, relativePath));
+  const expectedEntries = {
+    CompanyName: companyName,
+    FileVersion: toWindowsVersion(version),
+    OriginalFilename: path.basename(relativePath),
+    ProductName: productName,
+    ProductVersion: toWindowsVersion(version),
+  };
+  for (const [key, expected] of Object.entries(expectedEntries)) {
+    if (metadata[key] !== expected) {
+      throw new Error(`Portable executable ${relativePath} has ${key} "${metadata[key]}", expected "${expected}".`);
+    }
+  }
+  for (const key of ["FileDescription", "LegalCopyright"]) {
+    if (!metadata[key]?.trim()) throw new Error(`Portable executable ${relativePath} is missing ${key}.`);
+  }
+}
+
 const readme = await readFile(path.join(extractedRoot, "README.txt"), "utf8");
 for (const expected of [
   `Version ${version}`,
-  'run "Spirit Vale.exe"',
+  `run "${productName}.exe"`,
   "data\\settings\\",
   "data\\logs\\",
   "data\\runtime\\",

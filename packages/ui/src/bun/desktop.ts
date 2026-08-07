@@ -324,7 +324,7 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
 });
 
 launcherWindow = new BrowserWindow({
-  title: "Spirit Vale",
+  title: "Spirit Vale Overlay",
   url: "views://launcherview/index.html",
   frame: placements.frame("launcher", { x: 80, y: 80, width: 1200, height: 538 }, { width: 900, height: 430 }),
   titleBarStyle: "hidden",
@@ -337,7 +337,7 @@ launcherLifecycle.add(registerUiScaleWindow(launcherWindow, { scaleInitialFrame:
 launcherLifecycle.add(placements.track("launcher", launcherWindow));
 
 const tray = new Tray({
-  title: "Spirit Vale",
+  title: "Spirit Vale Overlay",
   image: "views://assets/app-icon.ico",
   width: 32,
   height: 32,
@@ -396,7 +396,7 @@ async function checkForUpdate(): Promise<void> {
     launcherState = { ...launcherState, update };
     publish();
     Utils.showNotification({
-      title: "Spirit Vale update available",
+      title: "Spirit Vale Overlay update available",
       body: `Version ${update.version} is ready to download.`,
     });
   } catch {
@@ -484,7 +484,7 @@ function openSettings(): void {
     return;
   }
   const nextWindow = new BrowserWindow({
-    title: "Spirit Vale Settings",
+    title: "Spirit Vale Overlay Settings",
     url: "views://settingsview/index.html",
     frame: placements.frame(
       "launcher-settings",
