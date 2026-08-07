@@ -2,6 +2,7 @@ import { RateTracker } from "@kar-mi/spirit-vale-tools-metrics";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { RateTotals } from "@spiritvale/overlay";
 import { JsonlTailReader, LiveLogSessionFollower, parseLogRecord } from "@kar-mi/spirit-vale-tools-logging";
+import type { JsonlTailReadResult } from "@kar-mi/spirit-vale-tools-logging";
 
 const POLL_MS = 1_000;
 
@@ -111,7 +112,11 @@ class ExperienceLogFollower {
   }
 
   async poll(): Promise<void> {
-    const { missing, lines } = await this.reader.read();
+    this.consumeRead(await this.reader.read());
+  }
+
+  /** Folds a read performed on this follower's behalf (by the shared stream source) into the trackers. */
+  consumeRead({ missing, lines }: JsonlTailReadResult): void {
     if (missing) return;
     for (const line of lines) {
       if (!line.trim()) continue;
