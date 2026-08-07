@@ -1,9 +1,11 @@
 {
   "name": "spirit-vale-overlay",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "build": "bun run --filter @spiritvale/ui build",
     "build:stable": "bun run --filter @spiritvale/ui build -- --env=stable",

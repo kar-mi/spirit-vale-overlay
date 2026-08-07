@@ -16,8 +16,9 @@ import {
   trendExtent,
 } from "@kar-mi/spirit-vale-tools-rewards";
 import type { TrendMetric, TrendMode, TrendRange, TrendSample } from "@kar-mi/spirit-vale-tools-rewards";
+import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 
-import type { RewardsAppRpc, RewardsAppState, RewardsAppView, RewardsUiDrop, RewardsUiXpBucket } from "../app-types.ts";
+import type { RewardsAppRpc, RewardsAppState, RewardsAppView, RewardsUiDrop } from "../app-types.ts";
 import { sortRewardKills, sortRewardSummaries } from "../table-sort.ts";
 import type { KillSortKey, SortDirection, SummarySortKey, TableSort } from "../table-sort.ts";
 
@@ -264,9 +265,9 @@ function XpTrackerSection({ xp }: { xp: RewardsAppState["xp"] }) {
           <thead><tr><th>Total XP</th><th>XP / sec</th><th>XP / hr</th></tr></thead>
           <tbody>
             <tr>
-              <td>{format.format(xp.totalExperience)}</td>
-              <td>{format.format(xp.xpPerSecond)}</td>
-              <td>{format.format(xp.xpPerHour)}</td>
+              <td>{format.format(xp.total)}</td>
+              <td>{format.format(xp.perSecond)}</td>
+              <td>{format.format(xp.perHour)}</td>
             </tr>
           </tbody>
         </table>
@@ -286,10 +287,11 @@ function XpTrackerSection({ xp }: { xp: RewardsAppState["xp"] }) {
   );
 }
 
-function bucketsToTrendSamples(buckets: readonly RewardsUiXpBucket[]): TrendSample[] {
+/** The tracker's neutral buckets, re-keyed onto the `experience` field `buildRateTrend` reads. */
+function bucketsToTrendSamples(buckets: RateSnapshot["timeline"]): TrendSample[] {
   return buckets.map((bucket) => ({
     recordedAt: new Date(bucket.atMs).toISOString(),
-    experience: bucket.experience,
+    experience: bucket.value,
     jobExperience: 0,
     coins: "0",
   }));

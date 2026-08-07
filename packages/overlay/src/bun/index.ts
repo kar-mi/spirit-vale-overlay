@@ -8,7 +8,7 @@ import {
 } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { loadBundledMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
-import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
+import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
 import { hideWindowFromTaskbar, setWindowClickThrough } from "@spiritvale/ui-core/win32";
 import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
@@ -16,8 +16,8 @@ import { DisposableStore, onceWindowEvent } from "@spiritvale/ui-core/window-lif
 import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/bun";
 
 import type {
-  CoinsAggregateSnapshot,
   KeybindAction,
+  RateTotals,
   OverlayCharacterState,
   OverlayControlState,
   OverlayRpc,
@@ -59,8 +59,8 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
 
 /** The overlay's XP and gold tiles read from (and can reset) a tracker owned centrally, shared with the Rewards window, so both stay in sync. */
 export interface XpTrackerSource {
-  getSnapshot(): XpAggregateSnapshot;
-  getCoinsSnapshot(): CoinsAggregateSnapshot;
+  getSnapshot(): RateSnapshot;
+  getCoinsSnapshot(): RateTotals;
   reset(): void;
   resetCoins(): void;
   subscribe(listener: () => void): () => void;

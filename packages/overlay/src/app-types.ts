@@ -1,7 +1,7 @@
 import type { RPCSchema } from "electrobun";
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterWeight } from "@kar-mi/spirit-vale-tools-character";
-import type { XpAggregateSnapshot } from "@kar-mi/spirit-vale-tools-rewards";
+import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { StatType } from "@spiritvale/ui-core/stat-type-select";
 import type { RequiredStatusCategory } from "./required-statuses.ts";
 
@@ -64,16 +64,19 @@ export interface OverlayCharacterState {
   characterXp?: OverlayExperienceProgress;
   jobXp?: OverlayExperienceProgress;
   weight?: CharacterWeight;
-  xp: XpAggregateSnapshot;
-  gold: CoinsAggregateSnapshot;
+  /** Character XP and gold dropped come from the same value-agnostic rate tracker. */
+  xp: RateSnapshot;
+  gold: RateTotals;
 }
 
-/** Gold aggregate mirroring the XP tracker: total dropped, EWMA per-second rate, and the last hour's sum. */
-export interface CoinsAggregateSnapshot {
-  totalCoins: number;
-  coinsPerSecond: number;
-  coinsPerHour: number;
-}
+/**
+ * A tracker snapshot without its bucket timeline.
+ *
+ * Gold has no chart, so publishing its timeline would serialize an hour of one-second buckets
+ * (~127KB) on every `publishCharacter`, and retain that again in the `lastCharacterJson` dedupe
+ * string, for data nothing reads. XP keeps its timeline because the XP chart draws from it.
+ */
+export type RateTotals = Omit<RateSnapshot, "timeline">;
 
 export interface OverlayStatusState {
   buffs?: FishNetActiveStatus[];

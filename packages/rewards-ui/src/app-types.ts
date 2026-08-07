@@ -1,5 +1,6 @@
 import type { RPCSchema } from "electrobun";
 import type { RewardLogStatus } from "@kar-mi/spirit-vale-tools-rewards";
+import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { MaximizableWindowChromeRequests } from "@spiritvale/ui-core/window-rpc";
 
 export type RewardsAppMode = "live" | "replay";
@@ -47,14 +48,6 @@ export interface RewardsUiGraphSample {
   coins: string;
 }
 
-export interface RewardsUiXpBucket { atMs: number; experience: number }
-export interface RewardsUiXpState {
-  totalExperience: number;
-  xpPerSecond: number;
-  xpPerHour: number;
-  timeline: RewardsUiXpBucket[];
-}
-
 export interface RewardsAppState {
   mode: RewardsAppMode;
   view: RewardsAppView;
@@ -75,7 +68,8 @@ export interface RewardsAppState {
   unmatched: number;
   unmatchedDrops: RewardsUiDrop[];
   unidentified: number;
-  xp: RewardsUiXpState;
+  /** The all-time XP tracker. Distinct from `totalExperience` above, which is this session's rewards. */
+  xp: RateSnapshot;
 }
 
 export type RewardsAppRpc = {

@@ -1003,6 +1003,77 @@ describe("central capture coordinator", () => {
     }
   });
 
+  /**
+   * The handoff buffer only runs while a session rotation is in flight, which on a fast machine is
+   * over before the next packet arrives — so these drive packets across the whole rotation rather
+   * than trying to hit the window with one shot. A regression here previously reached CI as a
+   * TypeError, because nothing local ever executed the path.
+   */
+  describe("session handoff buffer", () => {
+    test("buffers packets arriving mid-rotation and replays them once it completes", async () => {
+      const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-handoff-buffer-"));
+      const capture = new FakeCapture();
+      try {
+        const coordinator = new CaptureCoordinator({
+          logDirectory: directory,
+          captureFactory: () => capture as unknown as PacketCapture,
+          diagnosticLogging: true,
+        });
+        await coordinator.start();
+        capture.packet(authenticatedPacket(1_000, "conn-a"));
+
+        const sentTicks = await sendAcross(coordinator.resetSession(), (tick) => {
+          capture.packet(statusPacket(tick, 10, "conn-a"));
+        });
+        await coordinator.stop();
+
+        const admissions = admissionRecords(await readOtherLog(directory));
+        const buffered = admissions.filter((record) => record.decision === "buffered");
+        expect(buffered.length).toBeGreaterThan(0);
+        expect(buffered.every((record) => record.reason === "capture-session-handoff")).toBe(true);
+        expect(sentTicks).toContain(buffered[0]!.tick as number);
+
+        // Buffering must defer a packet, not discard it: every buffered tick is admitted again
+        // once the rotation drains the buffer.
+        const acceptedTicks = new Set(admissions.filter((record) => record.decision === "accepted").map((record) => record.tick));
+        for (const record of buffered) expect(acceptedTicks.has(record.tick)).toBe(true);
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    });
+
+    test("fails the rotation and stops capture when buffered packets exceed the byte limit", async () => {
+      const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-handoff-overflow-"));
+      const capture = new FakeCapture();
+      const errorReports: Array<{ title: string; reason: string }> = [];
+      try {
+        const coordinator = new CaptureCoordinator({
+          logDirectory: directory,
+          captureFactory: () => capture as unknown as PacketCapture,
+          onError: (report) => errorReports.push(report),
+        });
+        await coordinator.start();
+        capture.packet(authenticatedPacket(1_000, "conn-a"));
+
+        // One packet larger than the 16MB budget overflows the buffer on its own. The same branch
+        // guards the 4096-packet cap, which is impractical to reach through a real rotation window.
+        const oversized = Buffer.alloc(16 * 1024 * 1024 + 1);
+        let rejection: unknown;
+        const rotation = coordinator.resetSession().catch((error: unknown) => { rejection = error; });
+        await sendAcross(rotation, (tick) => {
+          capture.packet({ ...statusPacket(tick, 10, "conn-a"), raw: oversized, payload: oversized });
+        });
+
+        expect(errorMessageOf(rejection)).toContain("exceeded its bounded packet buffer");
+        expect(errorReports.map((report) => report.title)).toContain("Capture session reset could not keep up with incoming data");
+        expect(errorReports.some((report) => report.reason.includes("exceeded its bounded packet buffer"))).toBe(true);
+        expect(coordinator.state()).toMatchObject({ captureStatus: "unavailable" });
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    });
+  });
+
   test("creates a fresh session and restores error handling after a full restart", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-restart-"));
     const capture = new FakeCapture();
@@ -1030,6 +1101,37 @@ describe("central capture coordinator", () => {
   });
 });
 
+/**
+ * Fires a packet on every tick until `rotation` settles, so packets land throughout the handoff
+ * window rather than depending on a single well-timed shot. Returns the ticks it sent.
+ */
+async function sendAcross(rotation: Promise<unknown>, send: (tick: number) => void): Promise<number[]> {
+  const ticks: number[] = [];
+  let settled = false;
+  const tracked = rotation.finally(() => { settled = true; });
+  for (let tick = 2_000; !settled && tick < 2_400; tick += 1) {
+    send(tick);
+    ticks.push(tick);
+    await Bun.sleep(0);
+  }
+  await tracked;
+  return ticks;
+}
+
+async function readOtherLog(directory: string): Promise<Array<{ type: string; data: Record<string, unknown> }>> {
+  const pointer = await readCurrentLogStream("other", directory);
+  if (!pointer) return [];
+  return records(await readFile(pointer.path, "utf8")) as Array<{ type: string; data: Record<string, unknown> }>;
+}
+
+function admissionRecords(all: Array<{ type: string; data: Record<string, unknown> }>): Array<Record<string, unknown>> {
+  return all.filter((record) => record.type === "capture.packetAdmission").map((record) => record.data);
+}
+
+function errorMessageOf(value: unknown): string {
+  return value instanceof Error ? value.message : String(value);
+}
+
 class FakeCapture extends EventEmitter {
   readonly configs: CaptureConfig[] = [];
   failDeviceName?: string;
@@ -1048,8 +1150,18 @@ class FakeCapture extends EventEmitter {
     this.emit("stopped");
   }
 
+  /**
+   * `liteNetPacket` is not optional on a real captured packet, and the handoff buffer sizes packets
+   * from it. Synthesizing one here keeps the fake honest: a packet arriving mid-rotation is buffered
+   * rather than crashing on a field the fixture forgot to carry.
+   */
   packet(packet: TestPacket): void {
-    this.emit("fishNetPacket", { connectionId: "test-connection", ...packet } as CapturedFishNetPacket);
+    const captured: CapturedFishNetPacket = {
+      connectionId: "test-connection",
+      liteNetPacket: liteNetPacket(new Date(), packet.raw),
+      ...packet,
+    };
+    this.emit("fishNetPacket", captured);
   }
 
   liteNet(packet: CapturedLiteNetLibPacket): void {
