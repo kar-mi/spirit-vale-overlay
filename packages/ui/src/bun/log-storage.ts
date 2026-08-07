@@ -35,30 +35,59 @@ interface Totals {
 }
 
 /**
- * Sums a directory tree.
+ * Entries inspected at once.
  *
- * Children are totalled in parallel and then reduced, rather than each accumulating into a shared
- * counter: `total += await …` reads the counter before awaiting, so concurrent callbacks overwrite
- * each other's updates and the walk silently under-reports.
+ * Recursing with an unbounded `Promise.all` per directory put one `stat` in flight for roughly every
+ * file in the tree, not every file in a directory: each subdirectory fanned out concurrently with
+ * its siblings, so the peaks multiplied with depth. One session directory is written per capture, so
+ * a long-lived install reaches thousands of simultaneous handles on the one walk this does at launch.
  */
-async function walk(directory: string): Promise<Totals> {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const totals = await Promise.all(entries.map(async (entry): Promise<Totals> => {
-    const full = path.join(directory, entry.name);
-    // Symlinks are not followed: a link out of the log directory is not the log directory's usage,
-    // and a link back into it would be counted twice or loop forever.
-    if (entry.isSymbolicLink()) return { bytes: 0, files: 0 };
-    if (entry.isDirectory()) return walk(full);
-    if (!entry.isFile()) return { bytes: 0, files: 0 };
-    try {
-      return { bytes: (await stat(full)).size, files: 1 };
-    } catch {
-      // Removed or locked between listing and stat; skipping it beats failing the whole walk.
-      return { bytes: 0, files: 0 };
-    }
-  }));
-  return totals.reduce(
-    (sum, entry) => ({ bytes: sum.bytes + entry.bytes, files: sum.files + entry.files }),
-    { bytes: 0, files: 0 },
-  );
+const WALK_CONCURRENCY = 16;
+
+/**
+ * Sums a directory tree, one level at a time.
+ *
+ * Breadth-first rather than recursive so the concurrency limit means something: the work at each
+ * level is a flat list, and no level starts before the one above it is done.
+ */
+async function walk(root: string): Promise<Totals> {
+  const totals: Totals = { bytes: 0, files: 0 };
+  let level = [root];
+  while (level.length > 0) {
+    const directories: string[] = [];
+    const files: string[] = [];
+    await forEachLimited(level, async (directory) => {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const full = path.join(directory, entry.name);
+        // Symlinks are not followed: a link out of the log directory is not the log directory's
+        // usage, and a link back into it would be counted twice or loop forever.
+        if (entry.isSymbolicLink()) continue;
+        if (entry.isDirectory()) directories.push(full);
+        else if (entry.isFile()) files.push(full);
+      }
+    });
+    await forEachLimited(files, async (file) => {
+      try {
+        const { size } = await stat(file);
+        // Read and assign after the await, never `totals.bytes += await …`: that form reads the
+        // counter before suspending, so concurrent callbacks overwrite each other and the walk
+        // silently under-reports.
+        totals.bytes += size;
+        totals.files += 1;
+      } catch {
+        // Removed or locked between listing and stat; skipping it beats failing the whole walk.
+      }
+    });
+    level = directories;
+  }
+  return totals;
+}
+
+/** Runs `run` over every item with at most {@link WALK_CONCURRENCY} in flight. */
+async function forEachLimited<T>(items: readonly T[], run: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    for (let index = next++; index < items.length; index = next++) await run(items[index]!);
+  };
+  await Promise.all(Array.from({ length: Math.min(WALK_CONCURRENCY, items.length) }, worker));
 }

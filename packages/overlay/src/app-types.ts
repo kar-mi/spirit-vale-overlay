@@ -126,6 +126,16 @@ export interface OverlayStatusState {
   toggles?: FishNetActiveStatus[];
   /** Of those, the ones not currently active — non-empty means the tile is highlighted. */
   missingStatuses: Record<RequiredStatusCategory, string[]>;
+  /**
+   * Wall-clock time each `remainingMs` was measured at, so the view can keep counting down between
+   * publishes.
+   *
+   * The overlay publishes when the tracked set changes rather than on a clock, so a buff that is
+   * simply running out produces no publish at all until it lapses. The countdowns are ticked in the
+   * webview from this stamp instead. It is wall clock deliberately: `remainingMs` is derived from
+   * the log's own timeline, which the view has no way to place.
+   */
+  asOfMs: number;
 }
 
 export interface OverlayMeterPoint {

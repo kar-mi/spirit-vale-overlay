@@ -24,8 +24,31 @@ test("holds a toggle the server dropped and re-applied within the window", () =>
 test("lets a toggle go once it has been absent for the whole window", () => {
   const linger = new OverlayStatusLinger();
   linger.apply([toggle("Might")], 0);
-  expect(linger.apply([], STATUS_LINGER_MS)).toHaveLength(1);
-  expect(linger.apply([], STATUS_LINGER_MS + 1)).toHaveLength(0);
+  linger.apply([], 100);
+  expect(linger.apply([], 100 + STATUS_LINGER_MS)).toHaveLength(1);
+  expect(linger.apply([], 100 + STATUS_LINGER_MS + 1)).toHaveLength(0);
+});
+
+test("times the hold from the absence, not from the last sighting", () => {
+  const linger = new OverlayStatusLinger();
+  linger.apply([toggle("Might")], 0);
+  // The overlay projects when the tracker changes, so a quiet stretch can sit between the last
+  // projection and the removal. That gap must not count against the hold.
+  const quietGapMs = STATUS_LINGER_MS * 5;
+  expect(linger.apply([], quietGapMs)).toHaveLength(1);
+  expect(linger.apply([], quietGapMs + STATUS_LINGER_MS)).toHaveLength(1);
+});
+
+test("reports the deadline of a held chip, since no event will announce it", () => {
+  const linger = new OverlayStatusLinger();
+  linger.apply([toggle("Might")], 0);
+  // Nothing is absent yet, so there is nothing to wake for.
+  expect(linger.nextDeadlineMs()).toBeUndefined();
+  linger.apply([], 400);
+  expect(linger.nextDeadlineMs()).toBe(400 + STATUS_LINGER_MS);
+  // Coming back clears the deadline again.
+  linger.apply([toggle("Might")], 500);
+  expect(linger.nextDeadlineMs()).toBeUndefined();
 });
 
 test("is idempotent for a given now, since the state is derived twice per poll", () => {

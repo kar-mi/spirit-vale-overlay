@@ -6,6 +6,7 @@ import {
   FishNetStatusTracker,
   LiveCombatService,
 } from "@kar-mi/spirit-vale-tools-combat";
+import type { DpsLogBatch } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { loadBundledMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
@@ -50,8 +51,30 @@ import {
   type OverlaySettings,
 } from "../settings.ts";
 
-const LIVE_LOG_POLL_MS = 250;
+/**
+ * Tail interval for the `SPIRIT_VALE_COMBAT_LOG` override only.
+ *
+ * The shipped path is watcher-driven and has no interval at all. `DpsLogFollower` tails one fixed
+ * file and exposes no watcher, so that development aid keeps a clock of its own.
+ */
+const LIVE_LOG_OVERRIDE_POLL_MS = 250;
 const METER_PUBLISH_MS = 1_000;
+/**
+ * Ceiling on how long the overlay will sleep between time-driven passes.
+ *
+ * Every wake-up is scheduled from something concrete - a status expiry, a lingered chip's deadline,
+ * the meter's publish cadence - so this only bounds the arithmetic; nothing normally waits this long.
+ */
+const MAX_TICK_DELAY_MS = 30_000;
+/**
+ * Floor on how often the status chips are republished.
+ *
+ * Batches now arrive as fast as the logger flushes - roughly twenty a second during a fight - where
+ * the old poll capped this at four. The chips are a tile of icons, so drawing them at the log's rate
+ * buys nothing, and the countdowns on them are ticked in the webview rather than by these messages.
+ * A publish refused here is deferred to the scheduled wake, never dropped.
+ */
+const STATUS_PUBLISH_MS = 250;
 /** How often the connected-monitor set is re-read. Electrobun exposes no display-changed event. */
 const DISPLAY_RECONCILE_MS = 5_000;
 /** Timeline buckets retained per encounter. Beyond this, adjacent buckets merge. */
@@ -108,6 +131,9 @@ export interface OverlaySurfaceSink {
 
 export type OverlayController = Awaited<ReturnType<typeof createOverlayController>>;
 
+/** The status chips before the wall-clock stamp the view ticks them from is attached. */
+type ProjectedStatusState = Omit<OverlayStatusState, "asOfMs">;
+
 /**
  * Everything the overlay does that is not a window: the log pipeline, the settings file, the
  * global shortcuts. Exactly one of these exists however many monitors have tiles on them, so the
@@ -123,14 +149,11 @@ export async function createOverlayController(options: OverlayControllerOptions)
   let meter = createLiveMeter();
   let statusTracker = new FishNetStatusTracker();
   const liveLogOverride = process.env.SPIRIT_VALE_COMBAT_LOG;
-  const liveLog = liveLogOverride
-    ? new DpsLogFollower(liveLogOverride)
-    : new DpsSessionLogFollower(options.logDirectory);
+  const liveLog = createLiveLogSource();
   let status: OverlayStatus = "waiting";
   let statusDetail = liveLogOverride
     ? `Looking for ${path.basename(liveLogOverride)}…`
     : "Looking for a combat session…";
-  let polling = false;
   let shuttingDown = false;
   let overlayVisible = true;
   const surfaces = new Map<string, OverlaySurfaceSink>();
@@ -146,6 +169,19 @@ export async function createOverlayController(options: OverlayControllerOptions)
   let lastCharacterJson: string | undefined;
   let lastStatusesJson: string | undefined;
   let lastMeterJson: string | undefined;
+  /**
+   * Tracker revision the published status state was projected from.
+   *
+   * The projection walks every active status and the JSON compare below stringifies the result, and
+   * the display feed re-states statuses that are merely still active. Comparing revisions first
+   * skips both for the re-states, which is most of what arrives.
+   */
+  let lastStatusRevision: number | undefined;
+  /** Wall clock of the last status publish, and whether one was deferred waiting on the floor. */
+  let lastStatusPublishMs = Number.NEGATIVE_INFINITY;
+  let statusPublishDeferred = false;
+  /** The one time-driven wake-up, scheduled from whatever is actually due. Absent while idle. */
+  let tickTimer: ReturnType<typeof setTimeout> | undefined;
 
   const persistence = new SafeSaveQueue<OverlaySettings>({
     label: "overlay settings",
@@ -161,7 +197,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     shortcutRegistered.set(action, registerShortcut(action, settings.shortcuts[action]));
   }
 
-  const pollTimer = setInterval(() => void pollLiveLog(), LIVE_LOG_POLL_MS);
   // Cheap enough at 0.2 Hz to be noise, and it is the only thing that stops a window being
   // stranded on a monitor that has been unplugged.
   const displayTimer = setInterval(() => reconcileDisplays(), DISPLAY_RECONCILE_MS);
@@ -178,6 +213,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
     publishCharacter();
     publishStatuses(relativeNowMs() ?? 0, true);
     publishMeter(true);
+    // Resetting the linger above retires whatever deadline it was holding.
+    scheduleTick();
   });
   const unsubscribeXp = options.xp.subscribe(() => publishCharacter());
 
@@ -212,7 +249,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     controlState,
     settingsState,
     overlayCharacterState,
-    startPolling: () => { void pollLiveLog(); },
+    start: () => { void followLiveLog(); },
 
     updateLocked,
     setElementEnabled,
@@ -240,7 +277,11 @@ export async function createOverlayController(options: OverlayControllerOptions)
     async shutdown(): Promise<void> {
       if (shuttingDown) return;
       shuttingDown = true;
-      clearInterval(pollTimer);
+      // Releases this consumer's hold on the shared log source, which disposes its watchers and
+      // fallback timer once the last consumer lets go. It also unblocks the follow loop.
+      liveLog.close();
+      if (tickTimer !== undefined) clearTimeout(tickTimer);
+      tickTimer = undefined;
       clearInterval(displayTimer);
       unsubscribeCharacter();
       unsubscribeXp();
@@ -318,7 +359,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     };
   }
 
-  function overlayStatusState(nowMs: number): OverlayStatusState {
+  function overlayStatusState(nowMs: number): ProjectedStatusState {
     const personalName = detectedPersonalName(characterState);
     // Statuses with no data-mine icon (a small upstream gap, e.g. SlowImmunity/BlindImmunity) are
     // omitted entirely rather than shown as a text-initials placeholder.
@@ -344,6 +385,16 @@ export async function createOverlayController(options: OverlayControllerOptions)
     };
   }
 
+  /**
+   * Attaches the wall-clock reading the countdowns are ticked from.
+   *
+   * Kept out of {@link overlayStatusState} so the dedupe below compares the chips themselves - a
+   * stamp taken per call would differ every time and defeat it.
+   */
+  function stampedStatusState(projected: ProjectedStatusState): OverlayStatusState {
+    return { ...projected, asOfMs: Date.now() };
+  }
+
   function viewState(display: string): OverlayViewState {
     const nowMs = relativeNowMs() ?? 0;
     const meterState = meter.getState(nowMs);
@@ -353,7 +404,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     return {
       control: controlState(display),
       character: overlayCharacterState(),
-      statuses: overlayStatusState(nowMs),
+      statuses: stampedStatusState(overlayStatusState(nowMs)),
       meter: overlayMeterState(record, settings.meterStatType, nowMs),
     };
   }
@@ -550,10 +601,31 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function publishStatuses(nowMs: number, force = false): void {
     if (shuttingDown) return;
-    const next = overlayStatusState(nowMs);
-    const json = JSON.stringify(next);
-    if (!force && json === lastStatusesJson) return;
+    // The display feed re-states statuses that are merely still active, so most of what reaches here
+    // leaves the chips identical. The tracker's revision settles that without walking the active set
+    // or stringifying the projection; the linger keeps its say while it is holding a chip, because
+    // its deadline moves on no revision at all.
+    if (!force
+      && statusTracker.revision === lastStatusRevision
+      && statusLinger.nextDeadlineMs() === undefined) return;
+    // Holding the revision back is what makes this a deferral rather than a drop: the next pass
+    // still sees a revision it has not drawn, and the scheduled wake is what brings it back.
+    if (!force && Date.now() - lastStatusPublishMs < STATUS_PUBLISH_MS) {
+      statusPublishDeferred = true;
+      return;
+    }
+    lastStatusRevision = statusTracker.revision;
+    const projected = overlayStatusState(nowMs);
+    const json = JSON.stringify(projected);
+    if (!force && json === lastStatusesJson) {
+      // Nothing to send, so nothing is owed and the floor stays unspent for a real change.
+      statusPublishDeferred = false;
+      return;
+    }
     lastStatusesJson = json;
+    statusPublishDeferred = false;
+    lastStatusPublishMs = Date.now();
+    const next = stampedStatusState(projected);
     for (const surface of surfaces.values()) publishSafely(() => surface.sendStatuses(next));
   }
 
@@ -573,67 +645,167 @@ export async function createOverlayController(options: OverlayControllerOptions)
     for (const surface of surfaces.values()) publishSafely(() => surface.sendMeter(next));
   }
 
-  async function pollLiveLog(): Promise<void> {
-    if (polling || shuttingDown) return;
-    polling = true;
-    try {
-      const batch = await liveLog.poll();
-      options.onLiveLogPathChanged?.(batch.path ?? liveLogOverride);
-      if (batch.reset) {
-        // Only the meter starts over: resetting the session is about the damage numbers. The status
-        // tracker deliberately survives, because it is the only record of what is currently active -
-        // the game states buffs on apply/refresh and never re-states them for a new log session, so
-        // rebuilding it here would blank the buff tiles until every buff happened to be recast.
-        // Statuses that genuinely stop applying still clear themselves: they time out via advance(),
-        // and a relog or zone change sends an actorIdentity "reset" the tracker already acts on.
-        meter = createLiveMeter();
-        logClock.rotate();
-        publishCadence.reset();
-        hasMeterRecord = false;
-      }
-      for (const { event, observedAtMs } of batch.events) {
-        const timelineMs = logClock.observe(observedAtMs);
-        if (event.kind === "actorIdentity") {
-          meter.consumeIdentity(event, timelineMs);
-          // A zone transition or relog clears the tracker outright, so there is nothing left for the
-          // linger to be holding open. Note this is deliberately not done for `batch.reset`, where
-          // the tracker's view of the world survives on purpose.
-          if (event.operation === "reset") statusLinger.reset();
-          statusTracker.consumeIdentity(event);
-        } else {
-          meter.consumeCombat(event, timelineMs);
-          statusTracker.consume(event, timelineMs);
-        }
-      }
-      if (batch.events.length > 0) publishCadence.observeEvents();
-      const nowMs = relativeNowMs();
-      if (nowMs !== undefined) {
-        meter.advance(nowMs);
-        statusTracker.advance(nowMs);
-      }
-      const fileName = path.basename(batch.path ?? liveLogOverride ?? "combat.jsonl");
-      if (batch.missing) {
-        status = "waiting";
-        statusDetail = `Waiting for ${fileName}`;
-      } else if (batch.events.length > 0) {
-        status = "capturing";
-        statusDetail = batch.invalidLines > 0 ? `Reading ${fileName} with skipped lines` : `Reading ${fileName}`;
-      } else {
-        status = hasMeterRecord ? "ready" : "waiting";
-        statusDetail = `Watching ${fileName}`;
-      }
-      publishControl();
-      publishStatuses(nowMs ?? 0);
-      if (batch.reset) {
-        publishMeter(true);
-      } else if (publishCadence.hasActiveMeter()) publishMeter();
-    } catch {
-      status = "error";
-      statusDetail = `Could not read ${path.basename(liveLogOverride ?? "combat.jsonl")}`;
-      publishControl();
-    } finally {
-      polling = false;
+  /**
+   * The combat log as this controller consumes it.
+   *
+   * The shipped path hands off to the session follower's watcher: `next()` settles when a filesystem
+   * event says there is something to read, so an idle overlay does no work at all. The
+   * `SPIRIT_VALE_COMBAT_LOG` override tails one fixed file through `DpsLogFollower`, which has no
+   * watcher and no shared source behind it, so that development aid keeps a clock of its own.
+   */
+  interface LiveLogSource {
+    next(): Promise<DpsLogBatch>;
+    close(): void;
+  }
+
+  function createLiveLogSource(): LiveLogSource {
+    if (liveLogOverride === undefined) {
+      const follower = new DpsSessionLogFollower(options.logDirectory);
+      return { next: () => follower.next(), close: () => follower.close() };
     }
+    const follower = new DpsLogFollower(liveLogOverride);
+    return {
+      next: async () => {
+        await new Promise((resolve) => setTimeout(resolve, LIVE_LOG_OVERRIDE_POLL_MS));
+        return follower.poll();
+      },
+      close: () => {},
+    };
+  }
+
+  /**
+   * Consumes the log for as long as the overlay is open.
+   *
+   * The opening `next()` is what establishes the session path and the initial status; after that the
+   * loop is woken by the watcher rather than by a timer. `close()` settles a parked `next()`, so
+   * shutdown unwinds this rather than leaving it hanging.
+   */
+  async function followLiveLog(): Promise<void> {
+    while (!shuttingDown) {
+      let batch: DpsLogBatch;
+      try {
+        batch = await liveLog.next();
+      } catch {
+        status = "error";
+        statusDetail = `Could not read ${path.basename(liveLogOverride ?? "combat.jsonl")}`;
+        publishControl();
+        // Back off rather than spinning: whatever failed is unlikely to be fixed by retrying at once.
+        await new Promise((resolve) => setTimeout(resolve, LIVE_LOG_OVERRIDE_POLL_MS));
+        continue;
+      }
+      if (shuttingDown) return;
+      applyBatch(batch);
+    }
+  }
+
+  function applyBatch(batch: DpsLogBatch): void {
+    // An unchanged batch carries no events, no session change and no truncation, so there is nothing
+    // to fold in and nothing that could have moved a projection. The watcher rarely produces one -
+    // `next()` settles on something to report - but a merged empty read still can.
+    if (!batch.changed) return;
+    options.onLiveLogPathChanged?.(batch.path ?? liveLogOverride);
+    if (batch.reset) {
+      // Only the meter starts over: resetting the session is about the damage numbers. The status
+      // tracker deliberately survives, because it is the only record of what is currently active -
+      // the game states buffs on apply/refresh and never re-states them for a new log session, so
+      // rebuilding it here would blank the buff tiles until every buff happened to be recast.
+      // Statuses that genuinely stop applying still clear themselves: they time out via advance(),
+      // and a relog or zone change sends an actorIdentity "reset" the tracker already acts on.
+      meter = createLiveMeter();
+      logClock.rotate();
+      publishCadence.reset();
+      hasMeterRecord = false;
+    }
+    for (const { event, observedAtMs } of batch.events) {
+      const timelineMs = logClock.observe(observedAtMs);
+      if (event.kind === "actorIdentity") {
+        meter.consumeIdentity(event, timelineMs);
+        // A zone transition or relog clears the tracker outright, so there is nothing left for the
+        // linger to be holding open. Note this is deliberately not done for `batch.reset`, where
+        // the tracker's view of the world survives on purpose.
+        if (event.operation === "reset") statusLinger.reset();
+        statusTracker.consumeIdentity(event);
+      } else {
+        meter.consumeCombat(event, timelineMs);
+        statusTracker.consume(event, timelineMs);
+      }
+    }
+    if (batch.events.length > 0) publishCadence.observeEvents();
+    const nowMs = relativeNowMs();
+    if (nowMs !== undefined) {
+      meter.advance(nowMs);
+      statusTracker.advance(nowMs);
+    }
+    const fileName = path.basename(batch.path ?? liveLogOverride ?? "combat.jsonl");
+    if (batch.missing) {
+      status = "waiting";
+      statusDetail = `Waiting for ${fileName}`;
+    } else if (batch.events.length > 0) {
+      status = "capturing";
+      statusDetail = batch.invalidLines > 0 ? `Reading ${fileName} with skipped lines` : `Reading ${fileName}`;
+    } else {
+      status = hasMeterRecord ? "ready" : "waiting";
+      statusDetail = `Watching ${fileName}`;
+    }
+    publishControl();
+    publishStatuses(nowMs ?? 0);
+    if (batch.reset) {
+      publishMeter(true);
+    } else if (publishCadence.hasActiveMeter()) publishMeter();
+    scheduleTick();
+  }
+
+  /**
+   * Runs the work that is driven by the clock rather than by the log: expiring statuses, dropping a
+   * held chip, closing an idle encounter, and refreshing the meter while its numbers are decaying.
+   */
+  function tick(): void {
+    if (shuttingDown) return;
+    tickTimer = undefined;
+    const nowMs = relativeNowMs();
+    if (nowMs !== undefined) {
+      meter.advance(nowMs);
+      statusTracker.advance(nowMs);
+    }
+    publishStatuses(nowMs ?? 0);
+    if (publishCadence.hasActiveMeter()) publishMeter();
+    scheduleTick();
+  }
+
+  /**
+   * Arms the next time-driven pass, or leaves the overlay asleep when nothing is due.
+   *
+   * Everything else the overlay reacts to arrives as a filesystem event. What remains are three
+   * deadlines nothing will announce - a status lapsing, a lingered chip dropping, and the meter's
+   * own republish cadence while an encounter is open - so the wake-up is scheduled from those
+   * rather than from a fixed interval. With no encounter and no statuses there is no timer at all.
+   */
+  function scheduleTick(): void {
+    if (shuttingDown) return;
+    if (tickTimer !== undefined) clearTimeout(tickTimer);
+    tickTimer = undefined;
+
+    const nowMs = relativeNowMs();
+    let delayMs: number | undefined;
+    const consider = (candidate: number): void => {
+      delayMs = delayMs === undefined ? candidate : Math.min(delayMs, candidate);
+    };
+    if (nowMs !== undefined) {
+      const expiresAtMs = statusTracker.nextExpiryAtMs();
+      if (expiresAtMs !== undefined) consider(expiresAtMs - nowMs);
+      const deadlineMs = statusLinger.nextDeadlineMs();
+      if (deadlineMs !== undefined) consider(deadlineMs - nowMs);
+    }
+    // A publish the floor turned away is owed one as soon as the floor lifts.
+    if (statusPublishDeferred) consider(lastStatusPublishMs + STATUS_PUBLISH_MS - Date.now());
+    // An open encounter is the one case that needs a steady beat: the DPS figures decay between
+    // events, and the idle gap that closes the encounter is measured in wall time.
+    if (publishCadence.hasActiveMeter()) consider(METER_PUBLISH_MS);
+    if (delayMs === undefined) return;
+
+    tickTimer = setTimeout(tick, Math.min(Math.max(delayMs, 0), MAX_TICK_DELAY_MS));
+    // A pending redraw is never a reason to keep the process alive; the follow loop is.
+    tickTimer.unref?.();
   }
 
   function relativeNowMs(): number | undefined {

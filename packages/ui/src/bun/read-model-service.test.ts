@@ -60,6 +60,19 @@ function indexedStreams(service: ReadModelService): number {
   return model.database.query<{ count: number }, []>("select count(*) as count from indexed_streams").get()?.count ?? 0;
 }
 
+/**
+ * When a pass last wrote progress, which is rewritten on every pass whether or not it read anything.
+ * Unlike the byte offset, this moves for a pass that found no new records — so a value that stays
+ * put is evidence the pass was skipped rather than that it ran and found nothing.
+ */
+function lastIndexedAt(service: ReadModelService): string {
+  const model = service.model();
+  if (!model) return "";
+  return model.database
+    .query<{ latest: string }, []>("select coalesce(max(indexed_at), '') as latest from indexed_streams")
+    .get()?.latest ?? "";
+}
+
 /** How far the periodic pass has read, which only advances when a pass actually runs. */
 function offset(service: ReadModelService): number {
   const model = service.model();
@@ -102,6 +115,40 @@ describe("read model service", () => {
         ]);
         // All complete; the point is that none throws or corrupts the shared database by overlapping.
         for (const result of results) expect(result.ok).toBe(true);
+      } finally {
+        await service.close();
+      }
+    } finally {
+      await context.cleanup();
+    }
+  });
+
+  // The tick runs every 5s for as long as a window holds the read model, so an open-but-quiet
+  // session must not cost a write per tick. The skip itself lives in the indexer, which stats the
+  // source and returns before reading or writing when the recorded offset already covers it; this
+  // pins the property the app depends on rather than the layer that provides it.
+  test("does not rewrite progress while the active stream is quiet", async () => {
+    const context = await workspace();
+    try {
+      await setCurrent(context.logDirectory, SESSION);
+      await appendRecord(context.logDirectory, SESSION);
+      const service = await createReadModelService({ logDirectory: context.logDirectory, indexIntervalMs: 10 });
+      try {
+        const release = service.acquire();
+        await settle();
+        const indexedAt = lastIndexedAt(service);
+        expect(indexedAt).not.toBe("");
+
+        // A window left up outside combat must not pay a write per tick to rediscover that the log
+        // has not moved.
+        await settle();
+        expect(lastIndexedAt(service)).toBe(indexedAt);
+
+        // Growth resumes the passes.
+        await appendRecord(context.logDirectory, SESSION);
+        await settle();
+        expect(lastIndexedAt(service)).not.toBe(indexedAt);
+        release();
       } finally {
         await service.close();
       }

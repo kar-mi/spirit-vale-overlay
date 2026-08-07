@@ -46,6 +46,20 @@ describe("log storage measurement", () => {
     });
   });
 
+  test("descends past the two levels the log layout normally has", async () => {
+    // The walk is breadth-first so its concurrency limit applies to a flat list per level. Nesting
+    // deeper than sessions/<id>/ is what proves the levels chain rather than stopping at the first.
+    await withDirectory(async (root) => {
+      let directory = root;
+      for (let depth = 0; depth < 6; depth += 1) {
+        directory = path.join(directory, `level-${depth}`);
+        await mkdir(directory, { recursive: true });
+        await writeFile(path.join(directory, "combat.jsonl"), "x".repeat(10));
+      }
+      expect(await measureLogStorage(root)).toMatchObject({ bytes: 60, files: 6 });
+    });
+  });
+
   test("counts an empty tree as zero rather than failing", async () => {
     await withDirectory(async (root) => {
       await mkdir(path.join(root, "sessions"), { recursive: true });
