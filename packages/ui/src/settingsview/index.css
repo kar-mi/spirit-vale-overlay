@@ -21,6 +21,8 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .settings-card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--outline-variant); border-radius: var(--shape-md); background: var(--surface-container-low); }
 .settings-card h2 { margin: 0 0 4px; font-size: 14px; }
 .settings-element { min-height: 26px; }
+.settings-element-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.settings-element-row .custom-select { min-width: 190px; }
 .status-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 0; padding: 0; list-style: none; }
 .status-chip { display: flex; align-items: center; gap: 6px; padding: 3px 4px 3px 6px; border: 1px solid var(--outline-variant); border-radius: var(--shape-sm); background: var(--surface-container-high); font-size: 12px; }
 .status-chip img { width: 18px; height: 18px; border-radius: 4px; }

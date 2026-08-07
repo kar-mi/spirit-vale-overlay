@@ -27,10 +27,20 @@ export const METER_STAT_TYPE_CYCLE: readonly StatType[] = ["damage", "heal", "ta
 export interface OverlayElementSettings {
   enabled: boolean;
   opacity: number;
+  /** Position and size are relative to the top-left of the element's own display, never the virtual desktop. */
   x: number;
   y: number;
   width: number;
   height: number;
+  /** Bounds-derived key of the monitor this tile lives on; see ./display-layout.ts. */
+  display: string;
+}
+
+/** A connected monitor, as offered in the Settings window's display pickers. */
+export interface OverlayDisplayOption {
+  key: string;
+  label: string;
+  primary: boolean;
 }
 
 export type OverlayStatus = "waiting" | "capturing" | "ready" | "error";
@@ -49,7 +59,8 @@ export interface OverlayControlState {
   personalName: string;
   status: OverlayStatus;
   statusDetail: string;
-  elements: Record<OverlayElementId, OverlayElementSettings>;
+  /** Only the elements assigned to the surface receiving this state — the rest belong to other monitors. */
+  elements: Partial<Record<OverlayElementId, OverlayElementSettings>>;
   /** Which metric the party/map meter currently displays. */
   meterStatType: StatType;
   shortcuts: Record<KeybindAction, string>;
@@ -125,6 +136,10 @@ export interface OverlaySettingsState {
   locked: boolean;
   personalName: string;
   elements: Record<OverlayElementId, OverlayElementSettings>;
+  /** Connected monitors, for the per-element and home-display pickers. */
+  displays: OverlayDisplayOption[];
+  /** Resolved home display key — where defaults land and where orphaned tiles fall back to. */
+  homeDisplay: string;
   shortcuts: Record<KeybindAction, string>;
   shortcutErrors: Partial<Record<KeybindAction, string>>;
   overlayVisible: boolean;
@@ -138,6 +153,11 @@ type OverlaySharedRequests = {
     params: { id: OverlayElementId; enabled: boolean };
     response: OverlayControlState;
   };
+  setElementDisplay: {
+    params: { id: OverlayElementId; display: string };
+    response: OverlayControlState;
+  };
+  setHomeDisplay: { params: { display: string }; response: OverlayControlState };
   setOverlayVisible: { params: { visible: boolean }; response: OverlayControlState };
   setShortcut: { params: { action: KeybindAction; shortcut: string }; response: OverlayControlState };
   setRequiredStatuses: {

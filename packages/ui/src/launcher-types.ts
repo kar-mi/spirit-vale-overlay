@@ -87,6 +87,8 @@ export type LauncherSettingsRpc = {
     openNpcapDownload: { params: Record<string, never>; response: void };
     setOverlayLocked: { params: { locked: boolean }; response: SharedSettingsState };
     setOverlayElementEnabled: { params: { id: OverlayElementId; enabled: boolean }; response: SharedSettingsState };
+    setOverlayElementDisplay: { params: { id: OverlayElementId; display: string }; response: SharedSettingsState };
+    setOverlayHomeDisplay: { params: { display: string }; response: SharedSettingsState };
     setOverlayVisible: { params: { visible: boolean }; response: SharedSettingsState };
     setShortcut: { params: { action: KeybindAction; shortcut: string }; response: SharedSettingsState };
     setOverlayRequiredStatuses: {

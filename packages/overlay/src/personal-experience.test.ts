@@ -31,8 +31,8 @@ describe("overlay personal experience", () => {
       characterXp: { current: 0, maximum: 0, capped: true },
       jobXp: { current: 0, maximum: 0, capped: true },
     });
-    expect(resourceFill(progress.characterXp!)).toBe(100);
-    expect(resourceFill(progress.jobXp!)).toBe(100);
+    expect(resourceFill(progress.characterXp!)).toBe(1);
+    expect(resourceFill(progress.jobXp!)).toBe(1);
   });
 
   test("waits for unavailable or invalid progress and clamps overfilled bars", () => {
@@ -43,7 +43,7 @@ describe("overlay personal experience", () => {
       jobLevel: 4,
       jobExperience: 0,
     }), requirements)).toEqual({});
-    expect(resourceFill({ current: 250, maximum: 196 })).toBe(100);
+    expect(resourceFill({ current: 250, maximum: 196 })).toBe(1);
   });
 });
 

@@ -1,4 +1,4 @@
-import { batch, signal } from "@preact/signals";
+import { batch, signal, type Signal } from "@preact/signals";
 import { render, type ComponentChildren } from "preact";
 import { useCallback, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
@@ -9,7 +9,9 @@ import type { ChartRange, ChartRenderResult } from "@spiritvale/ui-core/interact
 
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import {
+  OVERLAY_ELEMENT_IDS,
   OVERLAY_ELEMENT_LABELS,
+  type KeybindAction,
   type OverlayElementId,
   type OverlayElementSettings,
   type OverlayCharacterState,
@@ -19,6 +21,7 @@ import {
   type OverlayResource,
   type OverlayRpc,
   type OverlayStatusState,
+  type StatType,
 } from "../app-types.ts";
 import { resourceFill } from "../personal-resources.ts";
 import { ewmaSeries } from "@kar-mi/spirit-vale-tools-metrics";
@@ -66,15 +69,54 @@ interface ElementRect { x: number; y: number; width: number; height: number }
 type PointerGesture =
   | { kind: "drag"; pointerId: number; originX: number; originY: number; start: ElementRect }
   | { kind: "resize"; pointerId: number; originX: number; originY: number; start: ElementRect; edge: ResizeEdge };
-const controlState = signal<OverlayControlState | undefined>(undefined);
+/** The parts of the control state that affect the whole document rather than one tile. */
+interface OverlayChrome {
+  locked: boolean;
+  meterStatType: StatType;
+  shortcuts: Record<KeybindAction, string>;
+}
+
+// Control state is fanned out into one signal per tile plus one for the shared chrome, each
+// updated only when its own slice actually changed. The control channel republishes whenever the
+// capture status text moves — several times a second while reading a log — and without this split
+// every one of those would re-render all fourteen tiles for data none of them read.
+const chromeState = signal<OverlayChrome | undefined>(undefined);
+const elementStates = Object.fromEntries(
+  OVERLAY_ELEMENT_IDS.map((id) => [id, signal<OverlayElementSettings | undefined>(undefined)]),
+) as Record<OverlayElementId, Signal<OverlayElementSettings | undefined>>;
 const characterState = signal<OverlayCharacterState | undefined>(undefined);
 const statusState = signal<OverlayStatusState | undefined>(undefined);
 const meterState = signal<OverlayMeterState | undefined>(undefined);
 const gridEnabled = signal(false);
+let lastChromeJson: string | undefined;
+const lastElementJson = new Map<OverlayElementId, string | undefined>();
+
+function applyControl(next: OverlayControlState): void {
+  batch(() => {
+    const chrome: OverlayChrome = {
+      locked: next.locked,
+      meterStatType: next.meterStatType,
+      shortcuts: next.shortcuts,
+    };
+    const chromeJson = JSON.stringify(chrome);
+    if (chromeJson !== lastChromeJson) {
+      lastChromeJson = chromeJson;
+      chromeState.value = chrome;
+    }
+    for (const id of OVERLAY_ELEMENT_IDS) {
+      // Absent means the tile lives on another monitor's surface, not that it is hidden.
+      const element = next.elements[id];
+      const json = element === undefined ? undefined : JSON.stringify(element);
+      if (json === lastElementJson.get(id)) continue;
+      lastElementJson.set(id, json);
+      elementStates[id].value = element;
+    }
+  });
+}
 
 const rpc = Electroview.defineRPC<OverlayRpc>({
   handlers: { requests: {}, messages: {
-    controlChanged: (next) => { controlState.value = repairRendererPayload(next); },
+    controlChanged: (next) => { applyControl(repairRendererPayload(next)); },
     characterChanged: (next) => { characterState.value = repairRendererPayload(next); },
     statusesChanged: (next) => { statusState.value = repairRendererPayload(next); },
     meterChanged: (next) => { meterState.value = repairRendererPayload(next); },
@@ -84,7 +126,7 @@ const electroview = new Electroview({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => {
   const repaired = repairRendererPayload(next);
   batch(() => {
-    controlState.value = repaired.control;
+    applyControl(repaired.control);
     characterState.value = repaired.character;
     statusState.value = repaired.statuses;
     meterState.value = repaired.meter;
@@ -92,7 +134,7 @@ void electroview.rpc?.request.getState({}).then((next) => {
 });
 
 function App() {
-  const next = controlState.value;
+  const next = chromeState.value;
   if (!next) return <main class="overlay-root" />;
   return (
     <main class={next.locked ? "overlay-root" : "overlay-root editing"}>
@@ -113,61 +155,49 @@ function App() {
           </div>
         </div>
       )}
-      <OverlayElement id="dpsChart" settings={next.elements.dpsChart} locked={next.locked}>
+      <OverlayElement id="dpsChart" locked={next.locked}>
         <DpsChartElement />
       </OverlayElement>
-      <OverlayElement id="personalDps" settings={next.elements.personalDps} locked={next.locked}>
+      <OverlayElement id="personalDps" locked={next.locked}>
         <PersonalDpsElement />
       </OverlayElement>
-      <OverlayElement id="health" settings={next.elements.health} locked={next.locked}>
+      <OverlayElement id="health" locked={next.locked}>
         <CharacterResourceElement kind="health" />
       </OverlayElement>
-      <OverlayElement id="mana" settings={next.elements.mana} locked={next.locked}>
+      <OverlayElement id="mana" locked={next.locked}>
         <CharacterResourceElement kind="mana" />
       </OverlayElement>
-      <OverlayElement id="characterXp" settings={next.elements.characterXp} locked={next.locked}>
+      <OverlayElement id="characterXp" locked={next.locked}>
         <CharacterResourceElement kind="character-xp" />
       </OverlayElement>
-      <OverlayElement id="jobXp" settings={next.elements.jobXp} locked={next.locked}>
+      <OverlayElement id="jobXp" locked={next.locked}>
         <CharacterResourceElement kind="job-xp" />
       </OverlayElement>
-      <OverlayElement id="weight" settings={next.elements.weight} locked={next.locked}>
+      <OverlayElement id="weight" locked={next.locked}>
         <WeightElement />
       </OverlayElement>
-      <OverlayElement id="xpTracker" settings={next.elements.xpTracker} locked={next.locked}>
+      <OverlayElement id="xpTracker" locked={next.locked}>
         <XpTrackerElement locked={next.locked} />
       </OverlayElement>
-      <OverlayElement id="goldTracker" settings={next.elements.goldTracker} locked={next.locked}>
+      <OverlayElement id="goldTracker" locked={next.locked}>
         <GoldTrackerElement locked={next.locked} />
       </OverlayElement>
-      <OverlayElement id="xpChart" settings={next.elements.xpChart} locked={next.locked}>
+      <OverlayElement id="xpChart" locked={next.locked}>
         <XpChartElement />
       </OverlayElement>
-      <OverlayElement id="partyRanking" settings={next.elements.partyRanking} locked={next.locked}>
+      <OverlayElement id="partyRanking" locked={next.locked}>
         <PartyRankingElement />
       </OverlayElement>
-      <StatusOverlayElement
-        id="buffs"
-        settings={next.elements.buffs}
-        locked={next.locked}
-        category="buffs"
-        flashExpiring
-      />
+      <StatusOverlayElement id="buffs" locked={next.locked} category="buffs" flashExpiring />
       {/* Debuffs deliberately do not flash: one running out is good news. */}
-      <StatusOverlayElement id="debuffs" settings={next.elements.debuffs} locked={next.locked} category="debuffs" />
-      <StatusOverlayElement
-        id="toggles"
-        settings={next.elements.toggles}
-        locked={next.locked}
-        category="toggles"
-      />
+      <StatusOverlayElement id="debuffs" locked={next.locked} category="debuffs" />
+      <StatusOverlayElement id="toggles" locked={next.locked} category="toggles" />
     </main>
   );
 }
 
 interface OverlayElementProps {
   id: OverlayElementId;
-  settings: OverlayElementSettings;
   locked: boolean;
   /** Outlines the tile in red, e.g. a status the user armed a missing-buff warning for is down. */
   warn?: boolean;
@@ -176,7 +206,6 @@ interface OverlayElementProps {
 
 function StatusOverlayElement({
   id,
-  settings,
   locked,
   category,
   flashExpiring,
@@ -189,16 +218,19 @@ function StatusOverlayElement({
     ? (next?.missingStatuses[category].length ?? 0) > 0
     : false;
   return (
-    <OverlayElement id={id} settings={settings} locked={locked} warn={warn}>
+    <OverlayElement id={id} locked={locked} warn={warn}>
       <StatusGridElement statuses={next?.[category]} flashExpiring={flashExpiring} />
     </OverlayElement>
   );
 }
 
-function OverlayElement({ id, settings, locked, warn, children }: OverlayElementProps) {
+function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
   const [gesture, setGesture] = useState<PointerGesture>();
   const [preview, setPreview] = useState<ElementRect>();
-  if (locked && !settings.enabled) return null;
+  // Read per tile rather than from a shared control object, so a change to one tile does not
+  // re-render the other thirteen. Undefined means this tile lives on another monitor's surface.
+  const settings = elementStates[id].value;
+  if (!settings || (locked && !settings.enabled)) return null;
   const rect = preview ?? settings;
   const className = [
     "overlay-element",
@@ -233,7 +265,7 @@ function OverlayElement({ id, settings, locked, warn, children }: OverlayElement
     }
     void request.then(
       (next) => {
-        controlState.value = next;
+        applyControl(next);
         setPreview(undefined);
       },
       () => {
@@ -295,7 +327,7 @@ function OverlayElement({ id, settings, locked, warn, children }: OverlayElement
                 id,
                 opacity: event.currentTarget.valueAsNumber,
               });
-              void request?.then((next) => { controlState.value = next; });
+              void request?.then((next) => applyControl(next));
             }}
           />
         </label>
@@ -369,13 +401,13 @@ function snapToGrid(value: number): number {
   return Math.round(value / GRID_SIZE) * GRID_SIZE;
 }
 
-function meterMetricLabel(next: OverlayControlState): string {
+function meterMetricLabel(next: OverlayChrome): string {
   return next.meterStatType === "tanked" ? "TPS" : next.meterStatType === "heal" ? "HPS" : "DPS";
 }
 
 function DpsChartElement() {
   const meter = meterState.value;
-  const control = controlState.value!;
+  const control = chromeState.value!;
   const metricLabel = meterMetricLabel(control);
   const points = meter?.chart ?? [];
   const duration = meter?.chartDurationMs ?? 0;
@@ -553,7 +585,7 @@ function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: Ove
   return (
     <div
       class={`resource-value resource-${kind}${resource ? "" : " resource-waiting"}`}
-      style={`--resource-fill:${resource ? resourceFill(resource) : 0}%`}
+      style={`--resource-fill:${resource ? resourceFill(resource) : 0}`}
       aria-label={description}
     >
       <strong class="resource-label">{label}</strong>
@@ -579,7 +611,7 @@ function CharacterResourceElement({ kind }: { kind: ResourceKind }) {
 
 function PartyRankingElement() {
   const meter = meterState.value;
-  const control = controlState.value!;
+  const control = chromeState.value!;
   const metricLabel = meterMetricLabel(control);
   const actors = meter?.party ?? [];
   const maxDps = Math.max(1, ...actors.map((actor) => actor.dps));
@@ -694,11 +726,11 @@ function classIcon(archetype: number | undefined): string {
 }
 
 function setLocked(locked: boolean): Promise<void> {
-  return electroview.rpc?.request.setLocked({ locked }).then((next) => { controlState.value = next; }) ?? Promise.resolve();
+  return electroview.rpc?.request.setLocked({ locked }).then((next) => applyControl(next)) ?? Promise.resolve();
 }
 
 function setElementEnabled(id: OverlayElementId, enabled: boolean): Promise<void> {
-  return electroview.rpc?.request.setElementEnabled({ id, enabled }).then((next) => { controlState.value = next; }) ?? Promise.resolve();
+  return electroview.rpc?.request.setElementEnabled({ id, enabled }).then((next) => applyControl(next)) ?? Promise.resolve();
 }
 
 

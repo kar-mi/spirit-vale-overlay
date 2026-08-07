@@ -137,7 +137,8 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
   xp: xpTracker,
   settingsPath: storagePaths.overlaySettingsPath,
-  placements,
+  // No `placements` here: each overlay surface is pinned to a whole display, so there is no
+  // user-moved frame to remember.
   lockOnCreate: true,
   onReset: () => capture.resetSession(),
   onOpenLiveDeathLog: openLiveDeathLog,
@@ -285,6 +286,14 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       },
       setOverlayElementEnabled: async ({ id, enabled }) => {
         await overlayWindow.withWindow((overlay) => overlay.setElementEnabled(id, enabled));
+        return sharedSettingsState();
+      },
+      setOverlayElementDisplay: async ({ id, display }) => {
+        await overlayWindow.withWindow((overlay) => overlay.setElementDisplay(id, display));
+        return sharedSettingsState();
+      },
+      setOverlayHomeDisplay: async ({ display }) => {
+        await overlayWindow.withWindow((overlay) => overlay.setHomeDisplay(display));
         return sharedSettingsState();
       },
       setOverlayVisible: async ({ visible }) => {

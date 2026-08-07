@@ -24,7 +24,7 @@ describe("overlay personal resources", () => {
   });
 
   test("clamps the visual fill without changing resource values", () => {
-    expect(resourceFill({ current: 150, maximum: 100 })).toBe(100);
+    expect(resourceFill({ current: 150, maximum: 100 })).toBe(1);
     expect(resourceFill({ current: 0, maximum: 100 })).toBe(0);
   });
 });

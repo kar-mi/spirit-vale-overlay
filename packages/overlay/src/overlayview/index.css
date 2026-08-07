@@ -83,6 +83,10 @@
   min-height: 100px;
   overflow: visible;
   border-radius: 12px;
+  /* Hard-bounds each tile's layout and style invalidation so one tile updating cannot pull work
+     into the other thirteen. Paint containment goes on .overlay-surface instead: it would clip the
+     edit-mode handles, badge and opacity slider, which deliberately sit outside the tile. */
+  contain: layout style;
 }
 .overlay-surface {
   position: relative;
@@ -91,6 +95,9 @@
   overflow: hidden;
   border-radius: inherit;
   background: rgb(10 12 18 / var(--element-background-alpha, .76));
+  /* The surface already clips its children, so paint containment costs nothing visually; the
+     element's own box-shadow (the missing-status glow) is not clipped by its own containment. */
+  contain: layout style paint;
 }
 
 .overlay-root.editing .overlay-surface {
@@ -356,13 +363,17 @@
   font-size: clamp(10px, 20cqh, 16px);
   font-variant-numeric: tabular-nums;
 }
+/* Scales a full-width fill rather than animating `width`: HP and MP move constantly in combat, and
+   a width transition runs layout and paint on every frame of every change. `transform` is
+   compositor-only. `--resource-fill` is a unitless 0-1 ratio for the same reason. */
 .resource-value::before {
   position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--resource-fill);
+  inset: 0 0 0 0;
+  transform: scaleX(var(--resource-fill));
+  transform-origin: left center;
   background: var(--resource-color);
   content: "";
-  transition: width 120ms linear;
+  transition: transform 120ms linear;
 }
 .resource-value > * { position: relative; z-index: 1; }
 .resource-health { --resource-color: rgba(194, 51, 61, .72); }
@@ -414,6 +425,7 @@
   font-size: 11px;
 }
 .status-cell {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -467,20 +479,38 @@
 }
 
 /* A long buff is about to run out. Pulses the frame and its countdown so the cell reads as urgent
-   without moving, since the tile is often parked at the edge of vision. */
+   without moving, since the tile is often parked at the edge of vision.
+
+   The glow lives on an overlaid pseudo-element carrying the final border and shadow, and only its
+   opacity animates. Animating border-color/box-shadow directly would repaint the cell on every
+   frame for as long as any buff is expiring — i.e. mid-fight — and force DWM to recomposite that
+   region over the game each time. Opacity runs on the compositor with no repaint at all. */
 @keyframes status-expiring-pulse {
-  from { border-color: rgba(255,255,255,.22); box-shadow: none; }
-  to { border-color: rgba(255, 96, 96, .95); box-shadow: 0 0 8px rgba(228, 72, 72, .75); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-.status-cell.expiring .status-icon-frame {
+/* Hung off the cell rather than the frame, because the frame clips its own children to hide the
+   icon overflow and would swallow the glow. */
+.status-cell.expiring::after {
+  position: absolute;
+  z-index: 3;
+  inset: 0 0 auto 0;
+  height: 36px;
+  border: 1px solid rgba(255, 96, 96, .95);
+  border-radius: 6px;
+  box-shadow: 0 0 8px rgba(228, 72, 72, .75);
+  content: "";
+  pointer-events: none;
+  /* Promoted only while it is actually animating, never blanket-applied to every tile. */
+  will-change: opacity;
   animation: status-expiring-pulse .6s ease-in-out infinite alternate;
 }
 .status-cell.expiring .status-remaining { color: rgb(255, 138, 138); }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-cell.expiring .status-icon-frame {
+  .status-cell.expiring::after {
     animation: none;
-    border-color: rgba(255, 96, 96, .95);
-    box-shadow: 0 0 8px rgba(228, 72, 72, .75);
+    opacity: 1;
+    will-change: auto;
   }
 }

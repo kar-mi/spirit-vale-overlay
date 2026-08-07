@@ -15,10 +15,11 @@ export function personalResources(records: CharacterRecordValues | undefined): P
   };
 }
 
+/** Fill as a unitless 0-1 ratio, so the bar can be drawn with `scaleX` instead of an animated width. */
 export function resourceFill(resource: OverlayResource | OverlayExperienceProgress): number {
-  if ("capped" in resource && resource.capped) return 100;
+  if ("capped" in resource && resource.capped) return 1;
   if (resource.maximum <= 0) return 0;
-  return Math.max(0, Math.min(100, resource.current / resource.maximum * 100));
+  return Math.max(0, Math.min(1, resource.current / resource.maximum));
 }
 
 function resource(
