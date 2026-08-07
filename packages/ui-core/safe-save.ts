@@ -6,6 +6,13 @@ export interface SafeSaveQueueOptions<T> {
   label: string;
   delayMs?: number;
   onError?: (message: string) => void;
+  /**
+   * Whether a staged value is snapshotted before the debounce. Callers that mutate the object they
+   * schedule (window placements build up one shared record) need this; callers that hand over a
+   * freshly built, never-touched-again value can set it false and skip a deep copy per call — which
+   * matters when scheduling happens in bursts over a large structure. Defaults to true.
+   */
+  clone?: boolean;
 }
 
 /** Serializes debounced persistence and contains write failures so UI processes stay alive. */
@@ -42,13 +49,18 @@ export class SafeSaveQueue<T> {
     const submitted = this.submitPending();
     await this.tail;
     if (!submitted && this.failed && this.hasLatest) {
-      this.enqueue(structuredClone(this.latest as T));
+      this.enqueue(this.snapshot(this.latest as T));
       await this.tail;
     }
   }
 
+  /** A value safe to hold across the debounce, given whether the caller mutates what it schedules. */
+  private snapshot(value: T): T {
+    return this.options.clone === false ? value : structuredClone(value);
+  }
+
   private stage(value: T): void {
-    const snapshot = structuredClone(value);
+    const snapshot = this.snapshot(value);
     this.latest = snapshot;
     this.hasLatest = true;
     this.pending = snapshot;

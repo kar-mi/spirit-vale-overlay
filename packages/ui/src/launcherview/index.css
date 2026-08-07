@@ -80,3 +80,20 @@ html, body {
 
 .tool-button strong { color: var(--on-surface); font-size: 15px; }
 .tool-button span { color: var(--on-surface-variant); font-size: 12px; line-height: 1.4; }
+
+/* Pinned to the shell rather than placed in the content grid, so it stays in the window's bottom
+   corner regardless of how many banners the content above happens to be showing. */
+.log-storage {
+  position: absolute;
+  right: 18px;
+  bottom: 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.log-storage strong { color: var(--on-surface); font-variant-numeric: tabular-nums; font-weight: 600; }
+.log-storage-time { opacity: 0.75; font-variant-numeric: tabular-nums; }

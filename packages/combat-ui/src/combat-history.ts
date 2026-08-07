@@ -12,6 +12,12 @@ import type { EnemyBreakdownEncounter, EnemySkillStats } from "./enemy-breakdown
 /** The desktop process's shared SQLite read model, when it is available. */
 export interface CombatReadModelSource {
   model(): ReadModel | undefined;
+  /**
+   * Registers this window's interest so the service keeps the index warm, and returns a release
+   * function to call when the window closes. Optional so the replay-backed test doubles and the
+   * fallback path need not implement it.
+   */
+  acquire?(): () => void;
   indexSession(
     sessionId: string,
     stream: "combat" | "rewards",

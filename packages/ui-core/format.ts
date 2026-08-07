@@ -13,3 +13,31 @@ export function formatDps(value: number): string {
 export function normalizeSearchText(value: string): string {
   return value.trim().toLocaleLowerCase().replace(/[\s_-]+/g, "");
 }
+
+const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
+
+/** Byte count as a short human-readable size, e.g. `954 MB`. */
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "—";
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < BYTE_UNITS.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  // Bytes are always whole, and past three digits a decimal is noise rather than precision.
+  const decimals = unit === 0 || value >= 100 ? 0 : 1;
+  return `${value.toFixed(decimals)} ${BYTE_UNITS[unit]}`;
+}
+
+/**
+ * A timestamp as a reader checks it: the time alone when it is from today, otherwise a date too.
+ * Used for figures taken once rather than kept live, where "how old is this" is the question.
+ */
+export function formatMeasuredAt(iso: string, now = new Date()): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "unknown";
+  const time = at.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  if (at.toDateString() === now.toDateString()) return time;
+  return `${at.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${time}`;
+}
