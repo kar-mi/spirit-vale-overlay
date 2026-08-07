@@ -308,6 +308,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
         await overlayWindow.withWindow((overlay) => overlay.setShortcut(action, shortcut));
         return sharedSettingsState();
       },
+      setShortcutCapture: async ({ active }) => {
+        await overlayWindow.withWindow((overlay) => overlay.setShortcutCapture(active));
+        return sharedSettingsState();
+      },
       setOverlayRequiredStatuses: async ({ category, statusIds }) => {
         await overlayWindow.withWindow((overlay) => overlay.setRequiredStatuses(category, statusIds));
         return sharedSettingsState();
@@ -508,6 +512,9 @@ function openSettings(): void {
     if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
   }));
   lifecycle.add(onceWindowEvent(nextWindow, "close", () => {
+    // Do not leave global shortcuts disabled if the settings window closes while
+    // its keybinding picker is armed.
+    void overlayWindow.withWindow((overlay) => overlay.setShortcutCapture(false));
     lifecycle.dispose();
     if (settingsWindow === nextWindow) {
       settingsWindow = undefined;

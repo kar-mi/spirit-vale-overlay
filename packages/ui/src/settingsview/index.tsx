@@ -165,7 +165,7 @@ function App() {
           <h2>Click to select</h2>
           {KEYBIND_ACTIONS.map((action) => <div class="keybind-row" key={action}>
             <span>{KEYBIND_LABELS[action]}</span>
-            <button class="btn" type="button" onClick={() => { recordingAction.value = action; }} onKeyDown={(event) => void captureShortcut(action, event)}>{recordingAction.value === action ? "Press a shortcut…" : overlay.shortcuts[action]}</button>
+            <button class="btn" type="button" onClick={() => void beginShortcutCapture(action)} onKeyDown={(event) => void captureShortcut(action, event)}>{recordingAction.value === action ? "Press a shortcut…" : overlay.shortcuts[action]}</button>
             {(overlay.shortcutErrors[action] || recordingAction.value === action) &&
               <p class="keybind-message" aria-live="polite">{overlay.shortcutErrors[action] ?? "Press a key or Escape to cancel."}</p>}
           </div>)}
@@ -175,12 +175,19 @@ function App() {
   </main>;
 }
 
+function beginShortcutCapture(action: KeybindAction): Promise<void> {
+  return electroview.rpc?.request.setShortcutCapture({ active: true }).then((next) => {
+    state.value = repairRendererPayload(next);
+    recordingAction.value = action;
+  }) ?? Promise.resolve();
+}
+
 function captureShortcut(action: KeybindAction, event: KeyboardEvent): Promise<void> {
   if (recordingAction.value !== action) return Promise.resolve();
   event.preventDefault();
   if (event.key === "Escape" && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) {
     recordingAction.value = undefined;
-    return Promise.resolve();
+    return electroview.rpc?.request.setShortcutCapture({ active: false }).then((next) => { state.value = repairRendererPayload(next); }) ?? Promise.resolve();
   }
   const shortcut = shortcutFromKeyboardEvent(event);
   if (!shortcut) return Promise.resolve();
