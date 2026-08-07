@@ -60,6 +60,23 @@ describe("XP tracker coordinator", () => {
     coordinator.shutdown();
   });
 
+  test("keeps the gold timeline out of the snapshot, while XP keeps its own", async () => {
+    // Gold has no chart. Publishing its timeline would serialize an hour of one-second buckets on
+    // every overlay publish, and retain that again in the character-payload dedupe string, for data
+    // nothing reads. Invisible in the UI either way, so it is pinned here.
+    const root = await tempRoot();
+    const t0 = Date.now() + 60_000;
+    await writeRewardsSession(root, "s-gold-timeline", [kill(1, 100, "500", t0)]);
+
+    const coordinator = createXpTrackerCoordinator({ logDirectory: root });
+    await waitFor(() => coordinator.getCoinsSnapshot().total === 500);
+
+    expect(coordinator.getCoinsSnapshot()).not.toHaveProperty("timeline");
+    expect(coordinator.getSnapshot().timeline.length).toBeGreaterThan(0);
+
+    coordinator.shutdown();
+  });
+
   test("ignores kills with no coins and malformed records", async () => {
     const root = await tempRoot();
     const sessionId = "s-gold-malformed";

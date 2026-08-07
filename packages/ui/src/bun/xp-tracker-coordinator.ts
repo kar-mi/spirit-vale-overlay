@@ -1,5 +1,6 @@
 import { RateTracker } from "@kar-mi/spirit-vale-tools-metrics";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
+import type { RateTotals } from "@spiritvale/overlay";
 import { JsonlTailReader, LiveLogSessionFollower, parseLogRecord } from "@kar-mi/spirit-vale-tools-logging";
 
 const POLL_MS = 1_000;
@@ -13,7 +14,8 @@ const POLL_MS = 1_000;
  */
 export interface XpTrackerCoordinator {
   getSnapshot(): RateSnapshot;
-  getCoinsSnapshot(): RateSnapshot;
+  /** Totals only: nothing charts gold, and its timeline is an hour of buckets nobody reads. */
+  getCoinsSnapshot(): RateTotals;
   reset(): void;
   resetCoins(): void;
   subscribe(listener: () => void): () => void;
@@ -72,7 +74,10 @@ export function createXpTrackerCoordinator(options: { logDirectory: string }): X
 
   return {
     getSnapshot: () => tracker.snapshot(Date.now()),
-    getCoinsSnapshot: () => coinsTracker.snapshot(Date.now()),
+    getCoinsSnapshot: () => {
+      const { timeline: _timeline, ...totals } = coinsTracker.snapshot(Date.now());
+      return totals;
+    },
     reset: () => {
       tracker.reset(Date.now());
       notify();

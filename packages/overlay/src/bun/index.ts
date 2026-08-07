@@ -17,6 +17,7 @@ import { BrowserView, BrowserWindow, GlobalShortcut, Screen } from "electrobun/b
 
 import type {
   KeybindAction,
+  RateTotals,
   OverlayCharacterState,
   OverlayControlState,
   OverlayRpc,
@@ -59,7 +60,7 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
 /** The overlay's XP and gold tiles read from (and can reset) a tracker owned centrally, shared with the Rewards window, so both stay in sync. */
 export interface XpTrackerSource {
   getSnapshot(): RateSnapshot;
-  getCoinsSnapshot(): RateSnapshot;
+  getCoinsSnapshot(): RateTotals;
   reset(): void;
   resetCoins(): void;
   subscribe(listener: () => void): () => void;

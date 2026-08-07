@@ -64,10 +64,19 @@ export interface OverlayCharacterState {
   characterXp?: OverlayExperienceProgress;
   jobXp?: OverlayExperienceProgress;
   weight?: CharacterWeight;
-  /** Character XP and gold dropped share one shape: both are the same value-agnostic rate tracker. */
+  /** Character XP and gold dropped come from the same value-agnostic rate tracker. */
   xp: RateSnapshot;
-  gold: RateSnapshot;
+  gold: RateTotals;
 }
+
+/**
+ * A tracker snapshot without its bucket timeline.
+ *
+ * Gold has no chart, so publishing its timeline would serialize an hour of one-second buckets
+ * (~127KB) on every `publishCharacter`, and retain that again in the `lastCharacterJson` dedupe
+ * string, for data nothing reads. XP keeps its timeline because the XP chart draws from it.
+ */
+export type RateTotals = Omit<RateSnapshot, "timeline">;
 
 export interface OverlayStatusState {
   buffs?: FishNetActiveStatus[];
