@@ -301,8 +301,12 @@ export class CaptureCoordinator {
   /**
    * Rotates the shared capture session: combat, rewards, and market all start writing to a fresh
    * log session together, while actor/mob identities, reward baselines, and connection state carry
-   * over so attribution keeps working immediately after the boundary. Concurrent calls coalesce
-   * into the single in-flight rotation; a failed rotation leaves the previous session untouched.
+   * over so attribution keeps working immediately after the boundary. Callers that overlap the
+   * in-flight rotation coalesce into it; a failed rotation leaves the previous session untouched.
+   *
+   * The handoff buffer is drained only once the rotation has fully settled and this guard is
+   * released, so a map change that arrived mid-rotation rotates again on replay rather than being
+   * swallowed by the rotation it happened to overlap.
    */
   async resetSession(): Promise<void> {
     if (this.resettingSession) return this.resettingSession;
@@ -314,6 +318,8 @@ export class CaptureCoordinator {
     this.lifecycleChain = run.catch(() => {});
     const tracked = run.finally(() => {
       this.resettingSession = undefined;
+      this.handoff = false;
+      this.drainBufferedPackets();
     });
     this.resettingSession = tracked;
     return tracked;
@@ -404,14 +410,13 @@ export class CaptureCoordinator {
         console.error("[spiritvale-logging]", errorMessage(error));
       }
     } finally {
-      this.handoff = false;
+      // `handoff` stays set until resetSession releases its guard, alongside the buffer drain.
       const handoffFailure = this.handoffFailure;
       this.handoffFailure = undefined;
       if (handoffFailure) {
         this.clearPacketBuffer();
         throw handoffFailure;
       }
-      this.drainBufferedPackets();
     }
   }
 

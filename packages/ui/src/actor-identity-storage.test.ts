@@ -4,18 +4,25 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
+  emptyActorIdentityCache,
   loadActorIdentityCache,
   saveActorIdentityCache,
   updateActorIdentityCache,
   type ActorIdentityCache,
+  type ActorIdentityCacheEntry,
 } from "./actor-identity-storage.ts";
+
+/** Entries in map order, which is least-recently-seen first. */
+function listed(cache: ActorIdentityCache): ActorIdentityCacheEntry[] {
+  return [...cache.entries.values()];
+}
 
 describe("actor identity cache storage", () => {
   test("loads an empty cache when the file is missing", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-actor-identity-missing-"));
     try {
       const restored = await loadActorIdentityCache(path.join(directory, "actor-identities.json"));
-      expect(restored).toEqual({ entries: [] });
+      expect(listed(restored)).toEqual([]);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -27,7 +34,7 @@ describe("actor identity cache storage", () => {
     try {
       await Bun.write(file, "not json");
       const restored = await loadActorIdentityCache(file);
-      expect(restored).toEqual({ entries: [] });
+      expect(listed(restored)).toEqual([]);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -37,7 +44,7 @@ describe("actor identity cache storage", () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-actor-identity-roundtrip-"));
     const file = path.join(directory, "actor-identities.json");
     try {
-      let cache: ActorIdentityCache = { entries: [] };
+      let cache = emptyActorIdentityCache();
       cache = updateActorIdentityCache(cache, {
         uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 1_000,
       });
@@ -46,8 +53,10 @@ describe("actor identity cache storage", () => {
       });
       await saveActorIdentityCache(cache, file);
 
+      // Least-recently-seen first, and the round trip has to preserve that ordering because the
+      // age prune and the size cap both rely on it.
       const restored = await loadActorIdentityCache(file);
-      expect(restored.entries.sort((left, right) => left.uid.localeCompare(right.uid))).toEqual([
+      expect(listed(restored)).toEqual([
         { uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 1_000 },
         { uid: "uid-2", displayName: "Fictional Scout", lastSeenAtMs: 2_000 },
       ]);
@@ -60,37 +69,53 @@ describe("actor identity cache storage", () => {
   });
 
   test("upserts by uid and refreshes lastSeenAtMs", () => {
-    let cache: ActorIdentityCache = { entries: [] };
+    let cache = emptyActorIdentityCache();
     cache = updateActorIdentityCache(cache, {
       uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 1_000,
     });
     cache = updateActorIdentityCache(cache, {
       uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 5_000,
     });
-    expect(cache.entries).toEqual([{ uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 5_000 }]);
+    expect(listed(cache)).toEqual([{ uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 5_000 }]);
+  });
+
+  test("moves a re-seen identity to the most-recent end", () => {
+    let cache = emptyActorIdentityCache();
+    cache = updateActorIdentityCache(cache, { uid: "uid-1", displayName: "Ranger", lastSeenAtMs: 1_000 });
+    cache = updateActorIdentityCache(cache, { uid: "uid-2", displayName: "Scout", lastSeenAtMs: 2_000 });
+    cache = updateActorIdentityCache(cache, { uid: "uid-1", displayName: "Ranger", lastSeenAtMs: 3_000 });
+    expect(listed(cache).map(({ uid }) => uid)).toEqual(["uid-2", "uid-1"]);
+  });
+
+  test("updates in place so a burst of identities stays cheap", () => {
+    const cache = updateActorIdentityCache(emptyActorIdentityCache(), {
+      uid: "uid-1", displayName: "Ranger", lastSeenAtMs: 1_000,
+    });
+    const next = updateActorIdentityCache(cache, { uid: "uid-2", displayName: "Scout", lastSeenAtMs: 2_000 });
+    // Same object: the save queue is configured not to snapshot, and copying up to 15,000 entries
+    // per learned identity is exactly the zoning stutter this avoids.
+    expect(next).toBe(cache);
+    expect(listed(cache).map(({ uid }) => uid)).toEqual(["uid-1", "uid-2"]);
   });
 
   test("prunes entries older than 30 days relative to the newest update", () => {
-    let cache: ActorIdentityCache = { entries: [] };
+    let cache = emptyActorIdentityCache();
     const now = 1_000 * 24 * 60 * 60 * 1_000;
     cache = updateActorIdentityCache(cache, { uid: "stale", displayName: "Old Timer", lastSeenAtMs: 0 });
     cache = updateActorIdentityCache(cache, { uid: "fresh", displayName: "Fictional Ranger", lastSeenAtMs: now });
-    expect(cache.entries.map(({ uid }) => uid)).toEqual(["fresh"]);
+    expect(listed(cache).map(({ uid }) => uid)).toEqual(["fresh"]);
   });
 
   test("caps the cache size, evicting the least-recently-seen entries first", () => {
-    // Seed 15,000 entries directly (avoiding 15,000 O(n log n) updateActorIdentityCache calls)
-    // and exercise the eviction path with a single insert that pushes the cache over the cap.
-    const seeded = Array.from({ length: 15_000 }, (_, index) => ({
-      uid: `uid-${index}`,
-      displayName: `Player ${index}`,
-      lastSeenAtMs: index,
-    }));
+    const seeded = new Map(Array.from({ length: 15_000 }, (_, index) => [
+      `uid-${index}`,
+      { uid: `uid-${index}`, displayName: `Player ${index}`, lastSeenAtMs: index },
+    ] as const));
     const cache = updateActorIdentityCache({ entries: seeded }, {
       uid: "uid-15000", displayName: "Player 15000", lastSeenAtMs: 15_000,
     });
-    expect(cache.entries.length).toBe(15_000);
-    expect(cache.entries.some(({ uid }) => uid === "uid-0")).toBe(false);
-    expect(cache.entries.some(({ uid }) => uid === "uid-15000")).toBe(true);
+    expect(cache.entries.size).toBe(15_000);
+    expect(cache.entries.has("uid-0")).toBe(false);
+    expect(cache.entries.has("uid-15000")).toBe(true);
   });
 });

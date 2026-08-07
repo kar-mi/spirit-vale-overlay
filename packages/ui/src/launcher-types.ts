@@ -17,11 +17,19 @@ export interface CaptureAdapterOption {
   label: string;
 }
 
+/** Log directory usage as measured once at launch. Undefined until the walk finishes, or if it failed. */
+export interface LogStorageState {
+  bytes: number;
+  files: number;
+  measuredAt: string;
+}
+
 export interface LauncherState {
   appVersion: string;
   captureStatus: CaptureStatus;
   statusDetail: string;
   storageWarning?: string;
+  logStorage?: LogStorageState;
   npcapAvailability: NpcapAvailability;
   npcapDetail: string;
   npcapVersion?: string;

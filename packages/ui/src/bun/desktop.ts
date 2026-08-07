@@ -24,6 +24,7 @@ import {
 import { CaptureCoordinator } from "./capture-coordinator.ts";
 import { createXpTrackerCoordinator } from "./xp-tracker-coordinator.ts";
 import { createReadModelService } from "./read-model-service.ts";
+import { measureLogStorage } from "./log-storage.ts";
 import { createCharacterWindow } from "./character-window.ts";
 import { createDeathLogWindow, createDpsWindow } from "@spiritvale/combat-ui";
 import { createOverlayWindow } from "@spiritvale/overlay";
@@ -102,12 +103,18 @@ const launcherSettingsPersistence = new SafeSaveQueue<typeof settings>({
 let characterCache: CharacterSnapshotCache = { characters: [] };
 const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
   label: "character snapshot",
+  // `updateCharacterCache` returns a fresh cache that nothing mutates afterwards, so the queue does
+  // not need its own copy.
+  clone: false,
   save: (value) => saveCharacterCache(value, storagePaths.characterStatePath),
   onWarning: (warning) => { characterStorageWarning = warning; updateStorageWarning(); },
 });
 let actorIdentityCache: ActorIdentityCache = await loadActorIdentityCache(storagePaths.actorIdentitiesPath);
 const actorIdentityPersistence = new SafeSaveQueue<ActorIdentityCache>({
   label: "actor identities",
+  // Likewise fresh per update, and this one is scheduled in bursts over a map of up to 15,000
+  // entries, so copying it per call is exactly the cost worth avoiding.
+  clone: false,
   save: (value) => saveActorIdentityCache(value, storagePaths.actorIdentitiesPath),
   onWarning: (warning) => { actorIdentityStorageWarning = warning; updateStorageWarning(); },
 });
@@ -164,7 +171,7 @@ const capture = new CaptureCoordinator({
   },
   onError: (report) => errorLog.write(report),
   resetOnMapChange: () => settings.resetMeterOnMapChange,
-  knownIdentities: actorIdentityCache.entries,
+  knownIdentities: [...actorIdentityCache.entries.values()],
   onIdentityLearned: (identity) => {
     actorIdentityCache = updateActorIdentityCache(actorIdentityCache, { ...identity, lastSeenAtMs: Date.now() });
     actorIdentityPersistence.schedule(actorIdentityCache);
@@ -350,9 +357,24 @@ process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
 void initializeCapture();
 void checkForUpdate();
+void measureLogUsage();
 void overlayWindow.open().catch((error) => {
   console.error(`[overlay] startup failed: ${error instanceof Error ? error.message : String(error)}`);
 });
+
+/**
+ * Totals the log directory once at launch, for the launcher's storage line.
+ *
+ * Measured once rather than polled: nothing prunes these logs so the figure only grows, and the
+ * launcher shows when it was taken. Off the startup path because it walks the tree, though on a
+ * ~950MB directory that is milliseconds.
+ */
+async function measureLogUsage(): Promise<void> {
+  const usage = await measureLogStorage(logDirectory);
+  if (!usage) return;
+  launcherState = { ...launcherState, logStorage: usage };
+  publish();
+}
 
 async function checkForUpdate(): Promise<void> {
   try {

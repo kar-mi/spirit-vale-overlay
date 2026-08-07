@@ -4,6 +4,7 @@ import { useRef } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { initWindowChrome, type WindowChrome } from "@spiritvale/ui-core/window-chrome";
 import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
+import { formatBytes, formatMeasuredAt } from "@spiritvale/ui-core/format";
 import type { LauncherRpc, LauncherState, ToolWindow } from "../launcher-types.ts";
 
 const DEFAULT_WIDTH = 960;
@@ -94,7 +95,23 @@ function App() {
           ))}
         </div>
       </section>
+
+      {next?.logStorage && <LogStorage usage={next.logStorage} />}
     </main>
+  );
+}
+
+/**
+ * Disk used by the log directory. Taken once at launch, so it is stamped with when it was measured
+ * rather than presented as a live figure.
+ */
+function LogStorage({ usage }: { usage: NonNullable<LauncherState["logStorage"]> }) {
+  return (
+    <footer class="log-storage" title={`${usage.files.toLocaleString()} files in the logs folder`}>
+      <span class="log-storage-label">Logs</span>
+      <strong>{formatBytes(usage.bytes)}</strong>
+      <span class="log-storage-time">{`measured ${formatMeasuredAt(usage.measuredAt)}`}</span>
+    </footer>
   );
 }
 

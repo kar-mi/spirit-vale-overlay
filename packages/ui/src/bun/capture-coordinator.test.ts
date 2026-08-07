@@ -8,7 +8,7 @@ import type { CharacterSnapshot } from "@kar-mi/spirit-vale-tools-character";
 import { DpsSessionLogFollower } from "@kar-mi/spirit-vale-tools-combat";
 import type { CapturedFishNetPacket, CapturedLiteNetLibPacket, CaptureConfig } from "@kar-mi/spirit-vale-tools-capture";
 import type { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
-import { readCurrentLogStream } from "@kar-mi/spirit-vale-tools-logging";
+import { isLogStreamHeader, readCurrentLogStream } from "@kar-mi/spirit-vale-tools-logging";
 import { MarketSessionLogFollower } from "@kar-mi/spirit-vale-tools-market";
 import { RewardSessionLogFollower } from "@kar-mi/spirit-vale-tools-rewards";
 
@@ -1005,7 +1005,7 @@ describe("central capture coordinator", () => {
 
   /**
    * The handoff buffer only runs while a session rotation is in flight, which on a fast machine is
-   * over before the next packet arrives — so these drive packets across the whole rotation rather
+   * over before the next packet arrives ï¿½ so these drive packets across the whole rotation rather
    * than trying to hit the window with one shot. A regression here previously reached CI as a
    * TypeError, because nothing local ever executed the path.
    */
@@ -1197,8 +1197,11 @@ async function settleRotation(): Promise<void> {
   for (let attempt = 0; attempt < 10; attempt += 1) await Bun.sleep(10);
 }
 
+/** Every stream file opens with a self-describing header line, which is not a record. */
 function records(content: string): Array<{ type: string }> {
-  return content.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line) as { type: string });
+  return content.trim().split(/\r?\n/).filter(Boolean)
+    .map((line) => JSON.parse(line) as unknown)
+    .filter((entry) => !isLogStreamHeader(entry)) as Array<{ type: string }>;
 }
 
 function experiencePacket(tick: number, experience: number, coins: bigint): TestPacket {

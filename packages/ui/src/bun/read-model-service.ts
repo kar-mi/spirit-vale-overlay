@@ -5,7 +5,14 @@ import type { ReadModel } from "@kar-mi/spirit-vale-tools-sqlite";
 import { createCombatDomain, indexCombatStream } from "@kar-mi/spirit-vale-tools-combat";
 import { createRewardsDomain, indexRewardStream } from "@kar-mi/spirit-vale-tools-rewards";
 
-const INDEX_INTERVAL_MS = 1_000;
+/**
+ * How often the background pass runs while a consumer is registered.
+ *
+ * Nothing needs sub-second freshness: the live meter never reads this database (it aggregates the
+ * JSON Lines tail in memory), and every window re-indexes on demand before it queries. This tick
+ * only exists so an on-demand pass is a short catch-up rather than a walk of the whole log.
+ */
+const INDEX_INTERVAL_MS = 5_000;
 
 export interface IndexSessionResult {
   /** False when the read model is unavailable, the log is missing, or the pass failed. */
@@ -20,6 +27,12 @@ export interface IndexSessionResult {
 export interface ReadModelService {
   /** Undefined while the read model is unavailable; callers fall back to reading JSON Lines. */
   model(): ReadModel | undefined;
+  /**
+   * Registers interest in a warm index, which is what enables the periodic pass. Returns a release
+   * function; calling it more than once is a no-op. A window that queries the read model should
+   * hold a registration for as long as it is open.
+   */
+  acquire(): () => void;
   /**
    * Indexes one session's stream on demand, for a window opening a log the live tick does not
    * follow. Serialised against the periodic pass and every other caller.
@@ -40,7 +53,9 @@ export interface ReadModelService {
  * failure here is therefore non-fatal: opening or indexing can fail, and each consumer falls back
  * to the in-memory follower it used before.
  */
-export async function createReadModelService(options: { logDirectory: string }): Promise<ReadModelService> {
+export async function createReadModelService(
+  options: { logDirectory: string; indexIntervalMs?: number },
+): Promise<ReadModelService> {
   let model: ReadModel | undefined;
   try {
     model = await openReadModel({
@@ -68,13 +83,21 @@ export async function createReadModelService(options: { logDirectory: string }):
     return next;
   }
 
+  /**
+   * Number of windows currently relying on the read model. The periodic pass is pure overhead with
+   * none open — the live meter does not read this database, so nothing would observe the result —
+   * and it is not cheap: each pass rewrites the open encounter's rows in full, which grows with
+   * encounter duration. Gating on this is what keeps a capture-only session off the database.
+   */
+  let consumers = 0;
+
   const timer = model
-    ? setInterval(() => void indexActiveSession(), INDEX_INTERVAL_MS)
+    ? setInterval(() => void indexActiveSession(), options.indexIntervalMs ?? INDEX_INTERVAL_MS)
     : undefined;
   timer?.unref?.();
 
   async function indexActiveSession(): Promise<void> {
-    if (closed || !model) return;
+    if (closed || !model || consumers === 0) return;
     for (const stream of ["combat", "rewards"] as const) {
       const current = await currentSessionId(stream);
       if (current === undefined) continue;
@@ -109,6 +132,15 @@ export async function createReadModelService(options: { logDirectory: string }):
 
   return {
     model: () => model,
+    acquire() {
+      consumers += 1;
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        consumers = Math.max(0, consumers - 1);
+      };
+    },
     async indexSession(sessionId, stream, indexOptions) {
       // Finalizing is decided here rather than by the caller: only this service knows whether the
       // requested session is the one still being captured, and closing that session's open

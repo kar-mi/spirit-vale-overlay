@@ -20,6 +20,11 @@ const FRAME = { x: 220, y: 180, width: 895, height: 789 };
 const MAX_DEATHS = 500;
 const MINIMUM_WIDTH = 680;
 const MINIMUM_HEIGHT = 500;
+/**
+ * Floor on the gap between live refreshes. The live caller polls its log every 250 ms, but each
+ * refresh re-indexes the session into SQLite, and a death is not a sub-second event.
+ */
+const LIVE_REFRESH_MS = 1_000;
 
 export interface DeathLogWindowOptions {
   logDirectory?: string;
@@ -45,6 +50,7 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
   let loadedPath: string | undefined;
   let live = false;
   let loadSequence = 0;
+  let lastLiveRefreshAtMs = 0;
   const placementKey = options.placementKey ?? "combat-death-log";
   const defaultFrame = options.defaultFrame ?? FRAME;
 
@@ -85,6 +91,7 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
   return {
     async open(filePath, nextLive = false) {
       live = nextLive;
+      lastLiveRefreshAtMs = Date.now();
       await load(filePath, true);
       ensureWindow();
       window?.show();
@@ -92,6 +99,12 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
     },
     async refresh(filePath) {
       if (!window || !live) return;
+      // The live caller polls its log four times a second, but each refresh here re-indexes the
+      // session, and deaths are not a four-times-a-second event. Coalescing to LIVE_REFRESH_MS
+      // keeps the view live without making the window the busiest writer in the process.
+      const now = Date.now();
+      if (now - lastLiveRefreshAtMs < LIVE_REFRESH_MS) return;
+      lastLiveRefreshAtMs = now;
       await load(filePath, false);
     },
     close() { window?.close(); },
@@ -151,6 +164,10 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
     });
     const lifecycle = new DisposableStore();
     window = nextWindow;
+    // Held for as long as the window is open: with no consumer registered the read model skips its
+    // periodic pass, so each refresh here would have to catch up the whole log on its own.
+    const releaseReadModel = options.readModel?.acquire?.();
+    if (releaseReadModel) lifecycle.add(releaseReadModel);
     applyRoundedCorners(nextWindow.ptr);
     setWindowIcon(nextWindow.ptr, appIconPath);
     lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
