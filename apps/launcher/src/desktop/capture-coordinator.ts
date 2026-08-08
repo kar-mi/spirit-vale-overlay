@@ -108,8 +108,8 @@ export class CaptureCoordinator {
   private activeStatusTimer?: ReturnType<typeof setTimeout>;
   private lastPublishedStatusRevision = -1;
   private lastPublishedStatusActorId: number | undefined;
-  /** One persisted sample per one-second display-feed status activation. */
-  private readonly loggedOneSecondStatuses = new Set<string>();
+  /** One persisted sample per short display-feed status activation. */
+  private readonly loggedShortDisplayStatuses = new Set<string>();
   private readonly rewards = new FishNetMobRewardTracker();
   private readonly rewardAttributor = new RewardEventAttributor();
   private readonly locallyDamagedRewardTargets = new Set<number>();
@@ -298,7 +298,7 @@ export class CaptureCoordinator {
     this.actors.reset();
     this.combat.reset();
     this.statusTracker.reset();
-    this.loggedOneSecondStatuses.clear();
+    this.loggedShortDisplayStatuses.clear();
     this.publishActiveStatuses(true);
     this.rewards.reset();
     this.rewardAttributor.reset();
@@ -416,7 +416,7 @@ export class CaptureCoordinator {
       // actor/mob identities and the reward baseline are preserved above.
       this.combat.reset();
       this.market.reset();
-      this.loggedOneSecondStatuses.clear();
+      this.loggedShortDisplayStatuses.clear();
       this.lastLoggedZoneId = undefined;
 
       this.session = nextSession;
@@ -841,15 +841,21 @@ export class CaptureCoordinator {
   }
 
   private shouldLogCombatEvent(event: FishNetCombatEvent): boolean {
-    if (event.kind !== "status" || event.remainingSeconds !== 1 || event.action !== "applied") {
+    const isShortDisplayRefresh = event.kind === "status"
+      && event.rpc === "ApplyEffectDisplays_O"
+      && event.action === "applied"
+      && event.remainingSeconds !== undefined
+      && event.remainingSeconds >= 0
+      && event.remainingSeconds <= 5;
+    if (!isShortDisplayRefresh) {
       if (event.kind === "status" && event.action === "removed") {
-        this.loggedOneSecondStatuses.delete(`${event.actorId}\u0000${event.statusId}`);
+        this.loggedShortDisplayStatuses.delete(`${event.actorId}\u0000${event.statusId}`);
       }
       return true;
     }
     const key = `${event.actorId}\u0000${event.statusId}`;
-    if (this.loggedOneSecondStatuses.has(key)) return false;
-    this.loggedOneSecondStatuses.add(key);
+    if (this.loggedShortDisplayStatuses.has(key)) return false;
+    this.loggedShortDisplayStatuses.add(key);
     return true;
   }
 
