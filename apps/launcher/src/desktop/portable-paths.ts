@@ -1,7 +1,6 @@
 import path from "node:path";
 
 export interface DesktopStoragePaths {
-  readonly portable: boolean;
   readonly root?: string;
   readonly logDirectory: string;
   readonly launcherSettingsPath: string;
@@ -15,8 +14,6 @@ export interface DesktopStoragePaths {
 
 export interface DesktopStoragePathOptions {
   readonly root: string;
-  readonly workspaceDev: boolean;
-  readonly portable?: boolean;
   readonly logDirectoryOverride?: string;
 }
 
@@ -25,11 +22,10 @@ export function resolveDesktopStoragePaths(options: DesktopStoragePathOptions): 
   const dataDirectory = path.join(root, "data");
   const settingsDirectory = path.join(dataDirectory, "settings");
   return {
-    portable: options.portable ?? false,
     root,
     logDirectory: options.logDirectoryOverride?.trim()
       ? path.resolve(options.logDirectoryOverride.trim())
-      : path.join(root, options.workspaceDev ? "logs" : path.join("data", "logs")),
+      : path.join(dataDirectory, "logs"),
     launcherSettingsPath: path.join(settingsDirectory, "launcher.json"),
     dpsSettingsPath: path.join(settingsDirectory, "dps.json"),
     overlaySettingsPath: path.join(settingsDirectory, "overlay.json"),
