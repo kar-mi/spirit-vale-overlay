@@ -36,11 +36,15 @@ test("every configured static asset source exists", () => {
   }
 });
 
-test("Electrobun delegates Windows icon embedding to the project hooks", async () => {
+test("Electrobun only brands its unsigned Windows launcher", async () => {
   expect("icon" in config.build.win).toBe(false);
   expect(config.build.copy["assets/icon/eggplant_icon_320px.png"]).toBe("views/assets/app-icon.png");
   expect(config.scripts?.postBuild).toBe("../../tooling/release/embed-electrobun-windows-icon.ts");
-  expect(config.scripts?.postPackage).toBe("../../tooling/release/embed-electrobun-windows-installer-icon.ts");
+  expect("postPackage" in config.scripts).toBe(false);
+
+  const hook = await readFile(path.resolve(import.meta.dir, "../../../../tooling/release/embed-electrobun-windows-icon.ts"), "utf8");
+  expect(hook).toContain('path.join(appDirectory, "bin", "launcher.exe")');
+  expect(hook).not.toContain('path.join(appDirectory, "bin", "bun.exe")');
 
   const iconPath = path.resolve(import.meta.dir, "../../assets/icon/eggplant_icon.ico");
   expect(existsSync(iconPath)).toBe(true);

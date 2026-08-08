@@ -136,6 +136,5 @@ export default {
   },
   scripts: {
     postBuild: "../../tooling/release/embed-electrobun-windows-icon.ts",
-    postPackage: "../../tooling/release/embed-electrobun-windows-installer-icon.ts",
   },
 } satisfies ElectrobunConfig;
