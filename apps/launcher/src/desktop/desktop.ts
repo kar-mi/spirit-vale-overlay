@@ -6,21 +6,21 @@ import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/
 import { createMarketWindow } from "@svoverlay/market";
 import { createBuildExportWindow } from "@svoverlay/build-export";
 import { createRewardsWindow } from "@svoverlay/rewards";
-import type { LauncherRpc, LauncherSettingsRpc, LauncherState, ToolWindow } from "../launcher-types.ts";
-import { loadLauncherSettings, saveLauncherSettings } from "../launcher-settings.ts";
+import type { LauncherRpc, LauncherSettingsRpc, LauncherState, ToolWindow } from "../launcher/types.ts";
+import { loadLauncherSettings, saveLauncherSettings } from "../launcher/settings.ts";
 import {
   activeCharacterSnapshot,
   loadCharacterCache,
   saveCharacterCache,
   updateCharacterCache,
   type CharacterSnapshotCache,
-} from "../character-storage.ts";
+} from "../character/storage.ts";
 import {
   loadActorIdentityCache,
   saveActorIdentityCache,
   updateActorIdentityCache,
   type ActorIdentityCache,
-} from "../actor-identity-storage.ts";
+} from "./actor-identity-storage.ts";
 import { CaptureCoordinator } from "./capture-coordinator.ts";
 import { createXpTrackerCoordinator } from "./xp-tracker-coordinator.ts";
 import { createReadModelService } from "./read-model-service.ts";
@@ -38,7 +38,7 @@ import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
 import { registerUiScaleWindow, scaledSize, setUiScale } from "@svoverlay/desktop-platform/ui-scale-window";
 import { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { launcherMinimizeAction, trayAction } from "./launcher-tray-actions.ts";
-import { findAvailableUpdate } from "../update-check.ts";
+import { findAvailableUpdate } from "../launcher/update-check.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { HumanReadableErrorLog } from "./human-readable-error-log.ts";
 

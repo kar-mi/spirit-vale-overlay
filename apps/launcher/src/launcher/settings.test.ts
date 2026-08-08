@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { loadLauncherSettings, saveLauncherSettings } from "./launcher-settings.ts";
+import { loadLauncherSettings, saveLauncherSettings } from "./settings.ts";
 
 let temporaryRoot: string | undefined;
 

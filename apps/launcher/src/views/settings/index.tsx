@@ -15,7 +15,7 @@ import {
   type RequiredStatusCategory,
 } from "@svoverlay/overlay/app-types";
 import { REQUIRED_STATUS_CATEGORIES, requiredStatusOptions } from "@svoverlay/overlay/required-statuses";
-import type { LauncherSettingsRpc, SharedSettingsState } from "../launcher-types.ts";
+import type { LauncherSettingsRpc, SharedSettingsState } from "../../launcher/types.ts";
 
 type Tab = "general" | "network" | "overlay" | "combat" | "status" | "keybinds";
 const state = signal<SharedSettingsState | undefined>(undefined);

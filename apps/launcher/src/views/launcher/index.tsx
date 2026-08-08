@@ -5,7 +5,7 @@ import { Electroview } from "electrobun/view";
 import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-chrome";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { formatBytes, formatMeasuredAt } from "@svoverlay/ui-kit/format";
-import type { LauncherRpc, LauncherState, ToolWindow } from "../launcher-types.ts";
+import type { LauncherRpc, LauncherState, ToolWindow } from "../../launcher/types.ts";
 
 const DEFAULT_WIDTH = 960;
 const DEFAULT_HEIGHT = 430;

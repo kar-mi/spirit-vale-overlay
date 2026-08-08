@@ -15,7 +15,7 @@ import type {
   CharacterViewState,
   GearStatTotal,
 } from "@kar-mi/spirit-vale-tools-character";
-import type { CharacterRpc } from "../character-types.ts";
+import type { CharacterRpc } from "../../character/rpc.ts";
 import { formatItemEffects } from "./item-effects.ts";
 
 const ATTRIBUTE_NAMES = ["STR", "VIT", "AGI", "DEX", "INT", "LUK"] as const;

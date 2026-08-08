@@ -2,7 +2,7 @@ import { BrowserView, BrowserWindow } from "electrobun/bun";
 import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
-import type { CharacterRpc } from "../character-types.ts";
+import type { CharacterRpc } from "../character/rpc.ts";
 import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";

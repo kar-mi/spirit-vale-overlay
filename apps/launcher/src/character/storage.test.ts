@@ -10,7 +10,7 @@ import {
   loadCharacterCache,
   saveCharacterCache,
   updateCharacterCache,
-} from "./character-storage.ts";
+} from "./storage.ts";
 
 describe("character cache storage", () => {
   test("retains multiple characters and restores the last active one", async () => {

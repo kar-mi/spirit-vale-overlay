@@ -22,7 +22,7 @@ import type {
 import { FishNetMarketTracker, marketEventLogData } from "@kar-mi/spirit-vale-tools-market";
 import { FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
 
-import type { CaptureStatus, LauncherState } from "../launcher-types.ts";
+import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
 import { RewardEventAttributor } from "./reward-event-attributor.ts";
 
