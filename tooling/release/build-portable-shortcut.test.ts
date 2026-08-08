@@ -6,8 +6,7 @@ const shortcutScript = await readFile(path.join(import.meta.dir, "build-portable
 
 test("portable shortcut records a target relative to the shortcut", () => {
   expect(shortcutScript).toContain("IShellLinkW");
-  expect(shortcutScript).toContain("SetRelativePath");
-  expect(shortcutScript).toContain("MakeRelativeUri");
+  expect(shortcutScript).toContain("link.SetRelativePath(outputPath, 0)");
   expect(shortcutScript).toContain("((IPersistFile)link).Save(outputPath, true)");
 });
 

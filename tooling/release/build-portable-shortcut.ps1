@@ -50,11 +50,13 @@ internal interface IShellLinkW
 
 public static class PortableShortcut
 {
-    public static void Create(string outputPath, string targetPath, string relativePath)
+    public static void Create(string outputPath, string targetPath)
     {
         var link = (IShellLinkW)new ShellLink();
         link.SetPath(targetPath);
-        link.SetRelativePath(relativePath, 0);
+        // SetRelativePath expects the full path of the .lnk, which it uses as
+        // the base when deriving and storing the target's relative path.
+        link.SetRelativePath(outputPath, 0);
         link.SetDescription("Launch Spirit Vale Overlay");
         ((IPersistFile)link).Save(outputPath, true);
     }
@@ -62,11 +64,7 @@ public static class PortableShortcut
 '@
 
 Add-Type -TypeDefinition $source -Language CSharp
-$outputDirectory = (Split-Path -Parent $resolvedOutput).TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
-$outputDirectoryUri = New-Object System.Uri($outputDirectory)
-$targetUri = New-Object System.Uri($resolvedTarget)
-$relativeTarget = [System.Uri]::UnescapeDataString($outputDirectoryUri.MakeRelativeUri($targetUri).ToString()).Replace('/', '\')
-[PortableShortcut]::Create($resolvedOutput, $resolvedTarget, $relativeTarget)
+[PortableShortcut]::Create($resolvedOutput, $resolvedTarget)
 
 if (-not (Test-Path -LiteralPath $resolvedOutput -PathType Leaf)) {
   throw "Could not create portable shortcut: $resolvedOutput"
