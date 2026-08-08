@@ -27,11 +27,11 @@ if (Bun.env["ELECTROBUN_OS"] === "win") {
   const version = packageJson.version;
   if (!version) throw new Error("package.json must define a version before embedding Windows metadata.");
 
-  // bun.exe is the process that owns the application windows, so Task Manager groups the window
-  // titles beneath its file description: it has to read as the app itself, not as a runtime.
+  // launcher.exe is unsigned upstream, so branding it does not invalidate a publisher signature.
+  // Never rewrite bun.exe: Bun's upstream Authenticode signature is part of the portable release's
+  // trust chain and any PE resource edit invalidates it.
   const executables = [
     { path: path.join(appDirectory, "bin", "launcher.exe"), fileDescription: `${productName} Launcher` },
-    { path: path.join(appDirectory, "bin", "bun.exe"), fileDescription: productName },
   ];
 
   for (const requiredPath of [iconPath, ...executables.map((executable) => executable.path)]) {

@@ -22,7 +22,8 @@ const checkRoot = path.join(projectRoot, "dist", "portable-check");
 const extractedRoot = path.join(checkRoot, folderName);
 
 const requiredPaths = [
-  `${productName}.exe`,
+  `${productName}.lnk`,
+  ".spirit-vale-portable",
   "README.txt",
   "bin/launcher.exe",
   "bin/bun.exe",
@@ -33,6 +34,7 @@ const requiredPaths = [
 ] as const;
 
 const forbiddenPaths = [
+  `${productName}.exe`,
   "Spirit Vale.exe",
   `${productName}-Setup.exe`,
   `${productName}-Setup.metadata.json`,
@@ -41,7 +43,7 @@ const forbiddenPaths = [
 ] as const;
 
 /** Executables that must carry the version metadata antivirus heuristics look for. */
-const metadataPaths = [`${productName}.exe`, "bin/launcher.exe", "bin/bun.exe"] as const;
+const metadataPaths = ["bin/launcher.exe"] as const;
 
 function run(command: string, args: string[]): void {
   const result = Bun.spawnSync([command, ...args], {
@@ -68,6 +70,33 @@ function readVersionInfo(executablePath: string): Record<string, string | null> 
   ], { stdout: "pipe", stderr: "inherit" });
   if (result.exitCode !== 0) throw new Error(`Could not read version metadata for ${executablePath}`);
   return JSON.parse(new TextDecoder().decode(result.stdout)) as Record<string, string | null>;
+}
+
+function readAuthenticodeSignature(executablePath: string): { Status: string; SignerSubject: string | null } {
+  const result = Bun.spawnSync([
+    "pwsh",
+    "-NoProfile",
+    "-Command",
+    `$signature = Get-AuthenticodeSignature -LiteralPath '${executablePath.replaceAll("'", "''")}'; `
+    + "[pscustomobject]@{ Status = $signature.Status.ToString(); SignerSubject = $signature.SignerCertificate.Subject } | ConvertTo-Json -Compress",
+  ], { stdout: "pipe", stderr: "inherit" });
+  if (result.exitCode !== 0) throw new Error(`Could not verify Authenticode signature for ${executablePath}`);
+  return JSON.parse(new TextDecoder().decode(result.stdout)) as { Status: string; SignerSubject: string | null };
+}
+
+function resolveShortcutTarget(shortcutPath: string): string {
+  const directory = path.dirname(shortcutPath).replaceAll("'", "''");
+  const name = path.basename(shortcutPath).replaceAll("'", "''");
+  const result = Bun.spawnSync([
+    "pwsh",
+    "-NoProfile",
+    "-Command",
+    `$shell = New-Object -ComObject Shell.Application; $folder = $shell.NameSpace('${directory}'); `
+    + `$item = $folder.ParseName('${name}'); if ($null -eq $item) { throw 'Shortcut was not found.' }; `
+    + "$link = $item.GetLink; $link.Resolve(1); $link.Path",
+  ], { stdout: "pipe", stderr: "inherit" });
+  if (result.exitCode !== 0) throw new Error(`Could not resolve portable shortcut: ${shortcutPath}`);
+  return new TextDecoder().decode(result.stdout).trim();
 }
 
 async function sha256(file: string): Promise<string> {
@@ -117,10 +146,26 @@ for (const relativePath of metadataPaths) {
   }
 }
 
+const bunExecutable = path.join(extractedRoot, "bin", "bun.exe");
+const bunSignature = readAuthenticodeSignature(bunExecutable);
+if (bunSignature.Status !== "Valid") {
+  throw new Error(`Portable Bun runtime has Authenticode status ${bunSignature.Status}, expected Valid.`);
+}
+if (!bunSignature.SignerSubject?.includes("Codeblog CORP")) {
+  throw new Error(`Portable Bun runtime has unexpected signer: ${bunSignature.SignerSubject ?? "none"}.`);
+}
+
+const shortcutPath = path.join(extractedRoot, `${productName}.lnk`);
+const shortcutTarget = resolveShortcutTarget(shortcutPath);
+const expectedShortcutTarget = path.join(extractedRoot, "bin", "launcher.exe");
+if (path.resolve(shortcutTarget).toLowerCase() !== path.resolve(expectedShortcutTarget).toLowerCase()) {
+  throw new Error(`Portable shortcut resolves to ${shortcutTarget}, expected ${expectedShortcutTarget}.`);
+}
+
 const readme = await readFile(path.join(extractedRoot, "README.txt"), "utf8");
 for (const expected of [
   `Version ${version}`,
-  `run "${productName}.exe"`,
+  `run "${productName}.lnk"`,
   "data\\settings\\",
   "data\\logs\\",
   "data\\runtime\\",

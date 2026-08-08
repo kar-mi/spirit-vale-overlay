@@ -51,7 +51,7 @@ Administrators only** unchecked.
 
 1. Download the latest `Spirit-Vale-Overlay-portable-win-x64-v*.zip` from [GitHub Releases](https://github.com/kar-mi/spirit-vale-overlay/releases/latest).
 2. Extract the complete ZIP.
-3. Run the top-level `Spirit Vale Overlay.exe`.
+3. Run the top-level `Spirit Vale Overlay.lnk` shortcut.
 
 The portable app keeps its settings, logs, and writable runtime data inside the extracted folder.
 

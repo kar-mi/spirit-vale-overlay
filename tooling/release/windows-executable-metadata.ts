@@ -30,9 +30,10 @@ export function toWindowsVersion(version: string): string {
  * Writes a complete version-resource block into a Windows executable.
  *
  * An unsigned EXE whose Explorer property sheet is blank is one of the strongest heuristic signals
- * antivirus engines score on, and every executable shipped in the portable ZIP starts out that way:
- * `csc` emits a `VS_VERSION_INFO` block whose string table is present but empty, so the values have
- * to be written into the language Windows actually resolves. Any other string table is dropped —
+ * antivirus engines score on. This helper is intentionally limited to unsigned project launchers;
+ * signed third-party executables such as bun.exe must never pass through it. Some compilers emit a
+ * `VS_VERSION_INFO` block whose string table is present but empty, so the values have to be written
+ * into the language Windows actually resolves. Any other string table is dropped —
  * Windows reads the first translation it is offered, so a leftover empty one wins and shows blanks.
  * Executables with no block at all get a freshly created one.
  */

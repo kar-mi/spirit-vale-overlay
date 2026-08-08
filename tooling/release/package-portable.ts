@@ -3,7 +3,7 @@ import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/pro
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-import { productName, setWindowsExecutableMetadata } from "./windows-executable-metadata.ts";
+import { productName } from "./windows-executable-metadata.ts";
 
 interface PackageJson {
   version?: string;
@@ -100,28 +100,26 @@ async function main(): Promise<void> {
     throw new Error("The Electrobun build is missing its Windows runtime executables or application icon.");
   }
 
-  const portableLauncher = path.join(portableRoot, `${productName}.exe`);
+  const portableShortcut = path.join(portableRoot, `${productName}.lnk`);
   run("powershell", [
     "-NoProfile",
     "-ExecutionPolicy",
     "Bypass",
     "-File",
-    path.join(projectRoot, "tooling", "release", "build-portable-launcher.ps1"),
+    path.join(projectRoot, "tooling", "release", "build-portable-shortcut.ps1"),
     "-OutputPath",
-    portableLauncher,
-    "-IconPath",
-    applicationIcon,
+    portableShortcut,
+    "-TargetPath",
+    nativeLauncher,
   ]);
-  // csc emits no version resource at all, which leaves the one executable users actually double-click
-  // as the least identifiable file in the ZIP.
-  await setWindowsExecutableMetadata(portableLauncher, { fileDescription: productName, version });
+  await writeFile(path.join(portableRoot, ".spirit-vale-portable"), "portable\r\n", "utf8");
 
   await writeFile(path.join(portableRoot, "README.txt"), [
     `${productName} Portable`,
     `Version ${version}`,
     "",
-    `Extract the complete folder, then run "${productName}.exe".`,
-    `Keep ${productName}.exe beside the bin and Resources folders.`,
+    `Extract the complete folder, then run "${productName}.lnk".`,
+    `Keep ${productName}.lnk beside the bin and Resources folders.`,
     "",
     "Npcap is required and is not included. Install it separately with WinPcap API-compatible mode enabled.",
     "",
@@ -130,7 +128,7 @@ async function main(): Promise<void> {
     "- Capture and replay logs: data\\logs\\",
     "- Runtime, browser, and temporary data: data\\runtime\\",
     "",
-    `The portable launcher keeps application data out of Windows AppData. Always start the app with ${productName}.exe.`,
+    `The portable build keeps application data out of Windows AppData. Start the app with ${productName}.lnk.`,
     "",
   ].join("\r\n"), "utf8");
 
@@ -146,6 +144,9 @@ async function main(): Promise<void> {
 
   const checksum = await sha256(zipPath);
   await writeFile(checksumPath, `${checksum}  ${path.basename(zipPath)}\n`, "utf8");
+  // The shortcut is created against staging. Remove that absolute target before verification so
+  // resolving the extracted link proves its relative-path fallback really is portable.
+  await removeManaged(stagingRoot);
   run("bun", ["run", "verify:portable", zipPath]);
 
   console.log(`Portable ZIP created: ${zipPath}`);
