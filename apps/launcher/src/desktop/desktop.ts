@@ -136,6 +136,7 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
   logDirectory,
   getCharacterState: () => capture.characterState(),
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
+  subscribeActiveStatuses: (listener) => capture.subscribeActiveStatuses(listener),
   xp: xpTracker,
   settingsPath: storagePaths.overlaySettingsPath,
   // No `placements` here: each overlay surface is pinned to a whole display, so there is no

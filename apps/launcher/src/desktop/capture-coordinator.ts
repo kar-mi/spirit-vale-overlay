@@ -1,5 +1,5 @@
-import { FishNetActorDirectory, FishNetCombatTracker } from "@kar-mi/spirit-vale-tools-combat";
-import type { FishNetCombatEvent, FishNetKnownIdentity } from "@kar-mi/spirit-vale-tools-combat";
+import { FishNetActorDirectory, FishNetCombatTracker, FishNetStatusTracker } from "@kar-mi/spirit-vale-tools-combat";
+import type { FishNetActiveStatus, FishNetCombatEvent, FishNetKnownIdentity } from "@kar-mi/spirit-vale-tools-combat";
 import { FishNetInspectRoster, resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterSnapshot, CharacterViewState, InspectedCharacter } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
@@ -98,6 +98,18 @@ export class CaptureCoordinator {
     // replayed — which is why enemies that died without acting indexed as "Enemy <id>".
     monsterCatalog: mobDefinitionsById(),
   });
+  /**
+   * Live status state is deliberately independent of combat.jsonl. The display feed refreshes
+   * some permanent effects every second, and retaining that chatter on disk serves neither the
+   * overlay nor replay diagnostics.
+   */
+  private readonly statusTracker = new FishNetStatusTracker();
+  private readonly activeStatusListeners = new Set<(statuses: readonly FishNetActiveStatus[]) => void>();
+  private activeStatusTimer?: ReturnType<typeof setTimeout>;
+  private lastPublishedStatusRevision = -1;
+  private lastPublishedStatusActorId: number | undefined;
+  /** One persisted sample per one-second display-feed status activation. */
+  private readonly loggedOneSecondStatuses = new Set<string>();
   private readonly rewards = new FishNetMobRewardTracker();
   private readonly rewardAttributor = new RewardEventAttributor();
   private readonly locallyDamagedRewardTargets = new Set<number>();
@@ -185,6 +197,16 @@ export class CaptureCoordinator {
     return this.character.subscribe(listener);
   }
 
+  /**
+   * Subscribes the overlay to the local player's authoritative live status snapshot. The callback
+   * is invoked immediately so opening/reopening the overlay does not wait for another refresh.
+   */
+  subscribeActiveStatuses(listener: (statuses: readonly FishNetActiveStatus[]) => void): () => void {
+    this.activeStatusListeners.add(listener);
+    listener(this.activeStatuses());
+    return () => this.activeStatusListeners.delete(listener);
+  }
+
   inspectedCharacters(): InspectedCharacter[] { return this.inspected.list(); }
 
   subscribeInspectedCharacters(listener: (roster: InspectedCharacter[]) => void): () => void {
@@ -265,6 +287,8 @@ export class CaptureCoordinator {
 
   private async performStop(): Promise<void> {
     this.clearWriteMonitor();
+    if (this.activeStatusTimer !== undefined) clearTimeout(this.activeStatusTimer);
+    this.activeStatusTimer = undefined;
     try {
       await this.capture.stop();
     } catch (error) {
@@ -273,6 +297,9 @@ export class CaptureCoordinator {
     this.writeStoppedLifecycle();
     this.actors.reset();
     this.combat.reset();
+    this.statusTracker.reset();
+    this.loggedOneSecondStatuses.clear();
+    this.publishActiveStatuses(true);
     this.rewards.reset();
     this.rewardAttributor.reset();
     this.locallyDamagedRewardTargets.clear();
@@ -389,6 +416,7 @@ export class CaptureCoordinator {
       // actor/mob identities and the reward baseline are preserved above.
       this.combat.reset();
       this.market.reset();
+      this.loggedOneSecondStatuses.clear();
       this.lastLoggedZoneId = undefined;
 
       this.session = nextSession;
@@ -400,6 +428,7 @@ export class CaptureCoordinator {
       for (const identity of this.actors.snapshot()) {
         this.combatLog.log("combat.actorIdentity", jsonObject({ kind: "actorIdentity", operation: "upsert", tick: 0, ...identity }));
       }
+      this.publishActiveStatuses(true);
 
       this.combatLog.log("combat.lifecycle", { state: "started" });
       this.rewardsLog.log("rewards.lifecycle", { state: "started" });
@@ -588,6 +617,10 @@ export class CaptureCoordinator {
           identities.push(...this.actors.observePlayerActor(event.targetId, event.tick));
         }
       }
+      const observedAtMs = Date.now();
+      for (const identity of identities) this.statusTracker.consumeIdentity(identity);
+      for (const event of events) this.statusTracker.consume(event, observedAtMs);
+      this.scheduleActiveStatusExpiry();
       for (const event of events) {
         if (event.kind !== "summon" || !event.recovered) continue;
         // Recovery only fires when the capture could not name the packet at all, which means this
@@ -600,7 +633,8 @@ export class CaptureCoordinator {
       handled ||= identities.length > 0 || events.length > 0;
       for (const event of identities) this.combatLog?.log("combat.actorIdentity", jsonObject(event));
       for (const event of events) if (event.actorId !== undefined) this.logMobIdentity(event.actorId, event.tick);
-      for (const event of events) this.combatLog?.log("combat.event", jsonObject(event));
+      for (const event of events) if (this.shouldLogCombatEvent(event)) this.combatLog?.log("combat.event", jsonObject(event));
+      this.publishActiveStatuses();
       // Spawn diagnostics contain raw protocol payloads and are intentionally not written to combat logs.
     } catch (error) {
       handled = true;
@@ -771,6 +805,51 @@ export class CaptureCoordinator {
       sourceId: `${ZONE_EVENT_SOURCE_PREFIX}${mapId}`,
       sourceLabel: `Zone ${mapId}`,
     });
+    return true;
+  }
+
+  private activeStatuses(nowMs = Date.now()): FishNetActiveStatus[] {
+    this.statusTracker.advance(nowMs);
+    const actorId = this.character.physicalObjectId();
+    return actorId === undefined ? [] : this.statusTracker.getActiveStatuses(actorId, nowMs);
+  }
+
+  /** Publishes only when the status reducer or local-player actor changed. */
+  private publishActiveStatuses(force = false): void {
+    const nowMs = Date.now();
+    const statuses = this.activeStatuses(nowMs);
+    const actorId = this.character.physicalObjectId();
+    if (!force
+      && this.lastPublishedStatusRevision === this.statusTracker.revision
+      && this.lastPublishedStatusActorId === actorId) return;
+    this.lastPublishedStatusRevision = this.statusTracker.revision;
+    this.lastPublishedStatusActorId = actorId;
+    for (const listener of this.activeStatusListeners) listener(statuses);
+    this.scheduleActiveStatusExpiry();
+  }
+
+  private scheduleActiveStatusExpiry(): void {
+    if (this.activeStatusTimer !== undefined) clearTimeout(this.activeStatusTimer);
+    this.activeStatusTimer = undefined;
+    const expiresAtMs = this.statusTracker.nextExpiryAtMs();
+    if (expiresAtMs === undefined) return;
+    this.activeStatusTimer = setTimeout(() => {
+      this.activeStatusTimer = undefined;
+      this.publishActiveStatuses();
+    }, Math.max(0, expiresAtMs - Date.now()));
+    this.activeStatusTimer.unref?.();
+  }
+
+  private shouldLogCombatEvent(event: FishNetCombatEvent): boolean {
+    if (event.kind !== "status" || event.remainingSeconds !== 1 || event.action !== "applied") {
+      if (event.kind === "status" && event.action === "removed") {
+        this.loggedOneSecondStatuses.delete(`${event.actorId}\u0000${event.statusId}`);
+      }
+      return true;
+    }
+    const key = `${event.actorId}\u0000${event.statusId}`;
+    if (this.loggedOneSecondStatuses.has(key)) return false;
+    this.loggedOneSecondStatuses.add(key);
     return true;
   }
 
