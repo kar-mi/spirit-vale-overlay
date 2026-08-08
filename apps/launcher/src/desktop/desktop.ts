@@ -29,7 +29,6 @@ import { createCharacterWindow } from "./character-window.ts";
 import { createDeathLogWindow, createDpsWindow } from "@svoverlay/combat";
 import { createOverlayWindow } from "@svoverlay/overlay";
 import { KEYBIND_ACTIONS, type KeybindAction } from "@svoverlay/overlay/app-types";
-import { isWorkspaceDevelopmentRoot } from "@svoverlay/desktop-platform/local-storage";
 import { resolveLocalRoot } from "./paths.ts";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { WindowSlot } from "./window-slot.ts";
@@ -48,8 +47,6 @@ const localRoot = resolveLocalRoot();
 const appVersion = (await Electrobun.Updater.getLocalInfo()).version;
 const storagePaths = resolveDesktopStoragePaths({
   root: localRoot,
-  workspaceDev: isWorkspaceDevelopmentRoot(localRoot),
-  portable: Boolean(process.env.SPIRIT_VALE_PORTABLE_ROOT?.trim()),
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,
 });
 const logDirectory = storagePaths.logDirectory;
