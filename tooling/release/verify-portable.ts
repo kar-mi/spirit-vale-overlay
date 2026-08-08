@@ -40,6 +40,13 @@ const forbiddenPaths = [
   `${productName}-Setup.metadata.json`,
   `${productName}-Setup.tar.zst`,
   "SpiritValeOverlay-Setup.zip",
+  // The portable build uses loose resources and manual ZIP downloads, so these
+  // Electrobun ASAR and differential-updater helpers must not be distributed.
+  "bin/bspatch.exe",
+  "bin/libasar.dll",
+  "bin/libasar-arm64.dll",
+  "bin/zig-zstd.exe",
+  "Info.plist",
 ] as const;
 
 /** Executables that must carry the version metadata antivirus heuristics look for. */
@@ -123,7 +130,7 @@ for (const relativePath of requiredPaths) {
 }
 for (const relativePath of forbiddenPaths) {
   if (existsSync(path.join(extractedRoot, relativePath))) {
-    throw new Error(`Portable ZIP contains installer-only path: ${folderName}/${relativePath}`);
+    throw new Error(`Portable ZIP contains forbidden path: ${folderName}/${relativePath}`);
   }
 }
 
