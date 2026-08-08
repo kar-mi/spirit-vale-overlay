@@ -4,6 +4,8 @@ export interface SessionPickerItem {
   id: string;
   createdAt: string;
   summary: string;
+  /** Distinct map IDs visited by this combat session, oldest first. */
+  zoneIds?: number[];
   active: boolean;
   disabled: boolean;
 }

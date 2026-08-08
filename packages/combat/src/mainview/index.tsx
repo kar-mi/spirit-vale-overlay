@@ -15,6 +15,7 @@ import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppTab, MeterEncounterSnapshot, StatType } from "../app-types.ts";
 import { PastSessionPanel } from "./past-session-panel.tsx";
 import { PastAnalysisPanel } from "./past-analysis-panel.tsx";
+import { formatZone } from "../zone-label.ts";
 import {
   DPS_WINDOW_DEFAULT_HEIGHT,
   DPS_WINDOW_DEFAULT_WIDTH,
@@ -138,6 +139,7 @@ function App() {
       <section class="command-bar">
         <StatTypeSelect value={next.statType} onChange={setStatType} />
         <div class="command-bar-actions">
+          {next.zoneId !== undefined && <span class="zone-pill" title={`Current zone: ${formatZone(next.zoneId)}`}>{formatZone(next.zoneId)}</span>}
           <button class="btn" type="button" disabled={!next.liveDeathLogAvailable} onClick={() => void electroview.rpc?.request.openActiveDeathLog({})}>Death log</button>
           <button class="btn" type="button" disabled={next.resetting} onClick={() => void electroview.rpc?.request.resetSession({})}>Reset</button>
         </div>

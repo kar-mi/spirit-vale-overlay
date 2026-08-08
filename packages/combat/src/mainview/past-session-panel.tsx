@@ -1,4 +1,5 @@
 import type { SessionPickerItem, SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
+import { formatZone, formatZoneSummary } from "../zone-label.ts";
 
 interface PastSessionPanelProps {
   state: SessionPickerState;
@@ -49,6 +50,8 @@ export function PastSessionPanel({
 }
 
 function SessionRow({ session, onOpen }: { session: SessionPickerItem; onOpen(): void }) {
+  const zoneIds = session.zoneIds ?? [];
+  const zone = formatZoneSummary(zoneIds);
   return (
     <button
       type="button"
@@ -60,6 +63,7 @@ function SessionRow({ session, onOpen }: { session: SessionPickerItem; onOpen():
         <span class="session-time">
           {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(session.createdAt))}
         </span>
+        {zone && <span class="zone-pill" title={`Zones visited: ${zoneIds.map(formatZone).join(", ")}`}>{zone}</span>}
         {session.active && <span class="pill active-badge">Active</span>}
       </span>
       <span class="session-summary">{session.summary}</span>

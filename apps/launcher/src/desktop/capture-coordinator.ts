@@ -44,6 +44,8 @@ const STATUS_RPC_NAMES = new Set([
   "ApplySkillDisplay_O",
   "RemoveSkillDisplay_O",
 ]);
+const MAP_RPC_NAMES = new Set(["TraverseActive", "TraverseObservers", "SyncInstanceState"]);
+const ZONE_EVENT_SOURCE_PREFIX = "__spiritvaleZone:";
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
@@ -145,6 +147,8 @@ export class CaptureCoordinator {
   private handoffFailure?: Error;
   private writeMonitor?: ReturnType<typeof setInterval>;
   private readonly loggedMobIdentities = new Map<number, string>();
+  /** Last zone written to this session; traversal packets repeat for every spawned observer. */
+  private lastLoggedZoneId: number | undefined;
   /** Serializes stop() and resetSession() so their bodies never interleave. */
   private lifecycleChain: Promise<void> = Promise.resolve();
 
@@ -274,6 +278,7 @@ export class CaptureCoordinator {
     this.locallyDamagedRewardTargets.clear();
     this.mobs.reset();
     this.loggedMobIdentities.clear();
+    this.lastLoggedZoneId = undefined;
     this.clearPacketBuffer();
     this.market.reset();
     this.targetState = "waiting";
@@ -384,6 +389,7 @@ export class CaptureCoordinator {
       // actor/mob identities and the reward baseline are preserved above.
       this.combat.reset();
       this.market.reset();
+      this.lastLoggedZoneId = undefined;
 
       this.session = nextSession;
       this.combatLog = nextSession.logger("combat");
@@ -552,7 +558,8 @@ export class CaptureCoordinator {
         message: `split reassembly dropped (${packet.splitDropReason}) at tick ${packet.tick}`,
       });
     }
-    let handled = characterHandled;
+    const loggedZone = this.logZone(packet);
+    let handled = characterHandled || loggedZone;
     let combatEvents: FishNetCombatEvent[] = [];
     try {
       this.mobs.consume(packet);
@@ -744,6 +751,27 @@ export class CaptureCoordinator {
       sourceLabel: mob.displayName,
       level: mob.level,
     }));
+  }
+
+  /**
+   * Map traversal and instance-state RPCs carry the numeric map ID but produce no combat event.
+   * Store it as an inert activation so the existing combat log follower transports it without
+   * changing the upstream log protocol or creating a damage encounter.
+   */
+  private logZone(packet: CapturedFishNetPacket): boolean {
+    if (packet.rpcName === undefined || !MAP_RPC_NAMES.has(packet.rpcName)) return false;
+    const mapId = packet.decodedFields?.find((field) => field.name === "mapId")?.value;
+    if (typeof mapId !== "number" || !Number.isSafeInteger(mapId) || mapId < 0) return false;
+    if (this.lastLoggedZoneId === mapId) return true;
+    this.lastLoggedZoneId = mapId;
+    this.combatLog?.log("combat.event", {
+      kind: "activation",
+      tick: packet.tick,
+      actorId: 0,
+      sourceId: `${ZONE_EVENT_SOURCE_PREFIX}${mapId}`,
+      sourceLabel: `Zone ${mapId}`,
+    });
+    return true;
   }
 
   /**

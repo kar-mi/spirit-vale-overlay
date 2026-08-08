@@ -6,16 +6,18 @@ interface CachedSessionSummary {
   mtimeMs: number;
   recordCount: number;
   summary: string;
+  zoneIds: number[];
 }
 
 interface SummaryCacheFile {
-  schemaVersion: 1;
+  schemaVersion: 2;
   entries: Record<string, CachedSessionSummary>;
 }
 
 export interface SessionSummaryResult {
   recordCount: number;
   summary: string;
+  zoneIds?: number[];
 }
 
 export interface SessionSummaryCache {
@@ -32,11 +34,11 @@ export async function loadSessionSummaryCache(cachePath: string): Promise<Sessio
       const key = path.resolve(filePath);
       const cached = entries[key];
       if (!cached || cached.size !== stat.size || cached.mtimeMs !== stat.mtimeMs) return undefined;
-      return { recordCount: cached.recordCount, summary: cached.summary };
+      return { recordCount: cached.recordCount, summary: cached.summary, zoneIds: cached.zoneIds };
     },
     set(filePath, stat, result) {
       const key = path.resolve(filePath);
-      entries[key] = { size: stat.size, mtimeMs: stat.mtimeMs, recordCount: result.recordCount, summary: result.summary };
+      entries[key] = { size: stat.size, mtimeMs: stat.mtimeMs, recordCount: result.recordCount, summary: result.summary, zoneIds: result.zoneIds ?? [] };
     },
     prune(keepPaths) {
       for (const key of Object.keys(entries)) {
@@ -44,7 +46,7 @@ export async function loadSessionSummaryCache(cachePath: string): Promise<Sessio
       }
     },
     async save() {
-      const file: SummaryCacheFile = { schemaVersion: 1, entries };
+      const file: SummaryCacheFile = { schemaVersion: 2, entries };
       await mkdir(path.dirname(cachePath), { recursive: true });
       const temporary = `${cachePath}.${crypto.randomUUID()}.tmp`;
       await writeFile(temporary, JSON.stringify(file), "utf8");
@@ -64,7 +66,7 @@ async function readCacheFile(cachePath: string): Promise<Record<string, CachedSe
 }
 
 function isSummaryCacheFile(value: unknown): value is SummaryCacheFile {
-  if (!isRecord(value) || value["schemaVersion"] !== 1 || !isRecord(value["entries"])) return false;
+  if (!isRecord(value) || value["schemaVersion"] !== 2 || !isRecord(value["entries"])) return false;
   return Object.values(value["entries"]).every(isCachedSessionSummary);
 }
 
@@ -73,7 +75,9 @@ function isCachedSessionSummary(value: unknown): value is CachedSessionSummary {
     && typeof value["size"] === "number"
     && typeof value["mtimeMs"] === "number"
     && typeof value["recordCount"] === "number"
-    && typeof value["summary"] === "string";
+    && typeof value["summary"] === "string"
+    && Array.isArray(value["zoneIds"])
+    && value["zoneIds"].every((zoneId) => typeof zoneId === "number" && Number.isSafeInteger(zoneId));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

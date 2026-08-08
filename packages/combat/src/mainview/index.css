@@ -54,6 +54,7 @@ body {
 }
 
 .command-bar-actions { display: flex; gap: 6px; }
+.zone-pill { max-width: 220px; overflow: hidden; padding: 4px 8px; border-radius: var(--shape-sm); background: var(--tertiary-container); color: var(--on-tertiary-container); font-size: 11px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
 
 .command-bar .btn { padding: 4px 8px; font-size: 11px; }
 
@@ -130,6 +131,7 @@ body {
 .session-row:hover { background: var(--surface-container); }
 .session-row:disabled { cursor: default; opacity: .58; }
 .session-heading { display: flex; align-items: center; gap: 8px; }
+.session-heading .zone-pill { max-width: min(340px, 48vw); }
 .session-time { font-size: 13px; font-weight: 500; }
 .active-badge { background: var(--primary-container); color: var(--on-primary-container); }
 .session-summary { color: var(--on-surface-variant); font-size: 12px; font-variant-numeric: tabular-nums; }
