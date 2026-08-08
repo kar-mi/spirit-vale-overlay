@@ -30,6 +30,7 @@ test("builds live detail for a player with no DPS row", () => {
     partyDps: 10,
     partyCurrentDps: 10,
     actors: [actor()],
+    unidentifiedActorIds: [],
     personalName: "",
     personalMatch: "unconfigured",
   };

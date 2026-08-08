@@ -3,10 +3,9 @@ import path from "node:path";
 import {
   DpsLogFollower,
   DpsSessionLogFollower,
-  FishNetStatusTracker,
   LiveCombatService,
 } from "@kar-mi/spirit-vale-tools-combat";
-import type { DpsLogBatch } from "@kar-mi/spirit-vale-tools-combat";
+import type { DpsLogBatch, FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { loadBundledMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
@@ -110,6 +109,7 @@ export interface OverlayControllerOptions {
   logDirectory: string;
   getCharacterState: () => CharacterViewState;
   subscribeCharacter: (listener: (state: CharacterViewState) => void) => () => void;
+  subscribeActiveStatuses: (listener: (statuses: readonly FishNetActiveStatus[]) => void) => () => void;
   xp: XpTrackerSource;
   settingsPath?: string;
   lockOnCreate?: boolean;
@@ -156,7 +156,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
   // One service aggregates DPS, TPS and HPS from the same events, retaining bounded per-encounter
   // buckets and the latest finished encounter rather than the session's hits.
   let meter = createLiveMeter();
-  let statusTracker = new FishNetStatusTracker();
+  let activeStatusSnapshot: readonly FishNetActiveStatus[] = [];
+  let activeStatusRevision = 0;
   const liveLogOverride = process.env.SPIRIT_VALE_COMBAT_LOG;
   const liveLog = createLiveLogSource();
   let status: OverlayStatus = "waiting";
@@ -231,6 +232,12 @@ export async function createOverlayController(options: OverlayControllerOptions)
     // Resetting the linger above retires whatever deadline it was holding.
     scheduleTick();
   });
+  const unsubscribeActiveStatuses = options.subscribeActiveStatuses((next) => {
+    activeStatusSnapshot = next;
+    activeStatusRevision += 1;
+    publishStatuses(Date.now());
+    scheduleTick();
+  });
   const unsubscribeXp = options.xp.subscribe(() => publishCharacter());
 
   if (options.lockOnCreate) persistence.schedule(settings);
@@ -302,6 +309,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       lockStyleTimer = undefined;
       clearInterval(displayTimer);
       unsubscribeCharacter();
+      unsubscribeActiveStatuses();
       unsubscribeXp();
       shortcutListener?.close();
       await persistence.flush(settings);
@@ -376,14 +384,14 @@ export async function createOverlayController(options: OverlayControllerOptions)
   }
 
   function overlayStatusState(nowMs: number): ProjectedStatusState {
-    const personalName = detectedPersonalName(characterState);
     // Statuses with no data-mine icon (a small upstream gap, e.g. SlowImmunity/BlindImmunity) are
     // omitted entirely rather than shown as a text-initials placeholder.
     // The server drops and re-adds a nearby player's group boons within a fraction of a second, so
     // the toggles they land in are held briefly across that gap. Doing it here rather than per tile
     // means the missing-status warnings below see the held set too and stop flashing in sympathy.
     const activeStatuses = statusLinger.apply(
-      statusTracker.getActiveStatusesForName(personalName, nowMs)
+      activeStatusSnapshot
+        .filter((activeStatus) => activeStatus.expiresAtMs === undefined || activeStatus.expiresAtMs > nowMs)
         .filter((activeStatus) => activeStatus.spriteId !== undefined),
       nowMs,
     );
@@ -647,7 +655,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     // or stringifying the projection; the linger keeps its say while it is holding a chip, because
     // its deadline moves on no revision at all.
     if (!force
-      && statusTracker.revision === lastStatusRevision
+      && activeStatusRevision === lastStatusRevision
       && statusLinger.nextDeadlineMs() === undefined) return;
     // Holding the revision back is what makes this a deferral rather than a drop: the next pass
     // still sees a revision it has not drawn, and the scheduled wake is what brings it back.
@@ -655,7 +663,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       statusPublishDeferred = true;
       return;
     }
-    lastStatusRevision = statusTracker.revision;
+    lastStatusRevision = activeStatusRevision;
     const projected = overlayStatusState(nowMs);
     const json = JSON.stringify(projected);
     if (!force && json === lastStatusesJson) {
@@ -761,21 +769,14 @@ export async function createOverlayController(options: OverlayControllerOptions)
       const timelineMs = logClock.observe(observedAtMs);
       if (event.kind === "actorIdentity") {
         meter.consumeIdentity(event, timelineMs);
-        // A zone transition or relog clears the tracker outright, so there is nothing left for the
-        // linger to be holding open. Note this is deliberately not done for `batch.reset`, where
-        // the tracker's view of the world survives on purpose.
-        if (event.operation === "reset") statusLinger.reset();
-        statusTracker.consumeIdentity(event);
       } else {
         meter.consumeCombat(event, timelineMs);
-        statusTracker.consume(event, timelineMs);
       }
     }
     if (batch.events.length > 0) publishCadence.observeEvents();
     const nowMs = relativeNowMs();
     if (nowMs !== undefined) {
       meter.advance(nowMs);
-      statusTracker.advance(nowMs);
     }
     const fileName = path.basename(batch.path ?? liveLogOverride ?? "combat.jsonl");
     if (batch.missing) {
@@ -806,7 +807,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     const nowMs = relativeNowMs();
     if (nowMs !== undefined) {
       meter.advance(nowMs);
-      statusTracker.advance(nowMs);
     }
     publishStatuses(nowMs ?? 0);
     if (publishCadence.hasActiveMeter()) publishMeter();
@@ -832,7 +832,10 @@ export async function createOverlayController(options: OverlayControllerOptions)
       delayMs = delayMs === undefined ? candidate : Math.min(delayMs, candidate);
     };
     if (nowMs !== undefined) {
-      const expiresAtMs = statusTracker.nextExpiryAtMs();
+      const expiresAtMs = activeStatusSnapshot.reduce<number | undefined>((earliest, activeStatus) => {
+        const candidate = activeStatus.expiresAtMs;
+        return candidate === undefined || (earliest !== undefined && earliest <= candidate) ? earliest : candidate;
+      }, undefined);
       if (expiresAtMs !== undefined) consider(expiresAtMs - nowMs);
       const deadlineMs = statusLinger.nextDeadlineMs();
       if (deadlineMs !== undefined) consider(deadlineMs - nowMs);

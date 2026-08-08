@@ -61,6 +61,7 @@ function snapshot(id: string, durationMs: number, actors: FishNetDpsActorRow[]):
     partyDps: 0,
     partyCurrentDps: 0,
     actors,
+    unidentifiedActorIds: [],
     personalName: "Player 1",
     personalMatch: "missing",
   };
