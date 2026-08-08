@@ -21,7 +21,7 @@
     "./disposable-store": "./disposable-store.ts"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-logging": "0.6.0",
+    "@kar-mi/spirit-vale-tools-logging": "0.6.1",
     "@svoverlay/ui-kit": "workspace:*",
     "electrobun": "1.18.1"
   }
