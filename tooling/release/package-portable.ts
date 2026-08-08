@@ -29,6 +29,17 @@ const zipPath = path.join(releasesDirectory, `${artifactName}.zip`);
 const temporaryZipPath = path.join(releasesDirectory, `${artifactName}.tmp.zip`);
 const checksumPath = `${zipPath}.sha256`;
 
+// Electrobun bundles these helpers unconditionally. The portable release uses loose
+// resources (not ASAR) and is distributed through manual ZIP downloads, so neither
+// ASAR access nor the differential auto-updater is part of this distribution.
+const unusedElectrobunHelpers = [
+  "bin/bspatch.exe",
+  "bin/libasar.dll",
+  "bin/libasar-arm64.dll",
+  "bin/zig-zstd.exe",
+  "Info.plist",
+] as const;
+
 function run(command: string, args: string[]): void {
   console.log(`> ${[command, ...args].join(" ")}`);
   const result = Bun.spawnSync([command, ...args], {
@@ -92,6 +103,10 @@ async function main(): Promise<void> {
   run("bun", ["run", "--filter", "@svoverlay/launcher", "build", "--", "--env=stable"]);
   run("tar", ["-xf", findStablePayload(), "-C", portableRoot]);
   await flattenExtractedBundle();
+
+  for (const relativePath of unusedElectrobunHelpers) {
+    await removeManaged(path.join(portableRoot, relativePath));
+  }
 
   const nativeLauncher = path.join(portableRoot, "bin", "launcher.exe");
   const bunRuntime = path.join(portableRoot, "bin", "bun.exe");
