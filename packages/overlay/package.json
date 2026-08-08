@@ -1,5 +1,5 @@
 {
-  "name": "@spiritvale/overlay",
+  "name": "@svoverlay/overlay",
   "private": true,
   "type": "module",
   "exports": {
@@ -14,8 +14,10 @@
     "@kar-mi/spirit-vale-tools-rewards": "1.1.0",
     "@kar-mi/spirit-vale-tools-statuses": "0.2.2",
     "@preact/signals": "^2.9.4",
-    "@spiritvale/combat-ui": "workspace:*",
-    "@spiritvale/ui-core": "workspace:*",
+    "@svoverlay/combat": "workspace:*",
+    "@svoverlay/desktop-platform": "workspace:*",
+    "@svoverlay/contracts": "workspace:*",
+    "@svoverlay/ui-kit": "workspace:*",
     "electrobun": "1.18.1",
     "preact": "^10.29.7"
   },

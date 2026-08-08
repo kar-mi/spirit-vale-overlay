@@ -1,7 +1,7 @@
 /**
  * The pinned spiritvalers.com catalog snapshot, plus the lookups the translator needs.
  *
- * Regenerate with `bun run --filter @spiritvale/build-export refresh-snapshot`; see
+ * Regenerate with `bun run --filter @svoverlay/build-export refresh-snapshot`; see
  * `scripts/refresh-snapshot.ts` for what the file does and does not contain, and why.
  */
 

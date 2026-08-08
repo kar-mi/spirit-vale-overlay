@@ -1,0 +1,17 @@
+{
+  "name": "@svoverlay/market",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.9.4",
+    "@kar-mi/spirit-vale-tools-market": "1.1.0",
+    "@svoverlay/desktop-platform": "workspace:*",
+    "@svoverlay/contracts": "workspace:*",
+    "@svoverlay/ui-kit": "workspace:*",
+    "electrobun": "1.18.1",
+    "preact": "^10.29.7"
+  }
+}

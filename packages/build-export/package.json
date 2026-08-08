@@ -1,5 +1,5 @@
 {
-  "name": "@spiritvale/build-export",
+  "name": "@svoverlay/build-export",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,7 +11,9 @@
   "dependencies": {
     "@preact/signals": "^2.9.4",
     "@kar-mi/spirit-vale-tools-character": "0.4.0",
-    "@spiritvale/ui-core": "workspace:*",
+    "@svoverlay/desktop-platform": "workspace:*",
+    "@svoverlay/contracts": "workspace:*",
+    "@svoverlay/ui-kit": "workspace:*",
     "electrobun": "1.18.1",
     "preact": "^10.29.7"
   }

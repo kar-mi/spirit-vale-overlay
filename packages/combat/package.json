@@ -1,0 +1,22 @@
+{
+  "name": "@svoverlay/combat",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./app-types": "./src/app-types.ts",
+    "./personal-character": "./src/personal-character.ts"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.9.4",
+    "@kar-mi/spirit-vale-tools-character": "0.4.0",
+    "@kar-mi/spirit-vale-tools-combat": "2.2.0",
+    "@kar-mi/spirit-vale-tools-logging": "0.6.0",
+    "@kar-mi/spirit-vale-tools-sqlite": "0.1.3",
+    "@svoverlay/desktop-platform": "workspace:*",
+    "@svoverlay/contracts": "workspace:*",
+    "@svoverlay/ui-kit": "workspace:*",
+    "electrobun": "1.18.1",
+    "preact": "^10.29.7"
+  }
+}

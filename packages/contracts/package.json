@@ -1,0 +1,14 @@
+{
+  "name": "@svoverlay/contracts",
+  "private": true,
+  "type": "module",
+  "description": "Framework-neutral contracts shared between Spirit Vale Overlay features.",
+  "exports": {
+    "./meter": "./meter.ts",
+    "./window-rpc": "./window-rpc.ts"
+  },
+  "dependencies": {
+    "@kar-mi/spirit-vale-tools-combat": "2.2.0",
+    "@svoverlay/ui-kit": "workspace:*"
+  }
+}

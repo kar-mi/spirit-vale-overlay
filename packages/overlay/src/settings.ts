@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { resolveLocalStorageRoot } from "@spiritvale/ui-core/local-storage";
-import { loadJsonSettings } from "@spiritvale/ui-core/json-settings";
+import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
+import { loadJsonSettings } from "@svoverlay/desktop-platform/json-settings";
 
 import {
   KEYBIND_ACTIONS,

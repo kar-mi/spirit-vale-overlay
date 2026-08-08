@@ -1,0 +1,25 @@
+{
+  "name": "@svoverlay/ui-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Renderer-safe Preact UI components, theme, and presentation helpers.",
+  "exports": {
+    "./theme.css": "./theme.css",
+    "./window-chrome": "./window-chrome.ts",
+    "./title-bar": "./title-bar.tsx",
+    "./settings-button": "./settings-button.tsx",
+    "./status-dot": "./status-dot.tsx",
+    "./enemy-filter": "./enemy-filter.tsx",
+    "./checkbox-multi-select": "./checkbox-multi-select.tsx",
+    "./custom-select": "./custom-select.tsx",
+    "./stat-type-select": "./stat-type-select.tsx",
+    "./interactive-chart": "./interactive-chart.tsx",
+    "./format": "./format.ts",
+    "./renderer-text": "./renderer-text.ts",
+    "./use-dismissable": "./use-dismissable.ts"
+  },
+  "dependencies": {
+    "preact": "^10.29.7"
+  }
+}

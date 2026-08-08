@@ -1,5 +1,5 @@
-import { hideWindowFromTaskbar, setWindowClickThrough } from "@spiritvale/ui-core/win32";
-import { DisposableStore, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
+import { hideWindowFromTaskbar, setWindowClickThrough } from "@svoverlay/desktop-platform/win32";
+import { DisposableStore, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { BrowserView, BrowserWindow } from "electrobun/bun";
 
 import type { OverlayRpc } from "../app-types.ts";

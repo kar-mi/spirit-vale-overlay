@@ -2,10 +2,10 @@ import { batch, signal, type Signal } from "@preact/signals";
 import { render, type ComponentChildren } from "preact";
 import { useCallback, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
-import { formatDps, formatDuration } from "@spiritvale/ui-core/format";
-import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
-import { InteractiveChart } from "@spiritvale/ui-core/interactive-chart";
-import type { ChartRange, ChartRenderResult } from "@spiritvale/ui-core/interactive-chart";
+import { formatDps, formatDuration } from "@svoverlay/ui-kit/format";
+import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
+import { InteractiveChart } from "@svoverlay/ui-kit/interactive-chart";
+import type { ChartRange, ChartRenderResult } from "@svoverlay/ui-kit/interactive-chart";
 
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import {

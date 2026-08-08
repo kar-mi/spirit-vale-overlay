@@ -2,8 +2,8 @@
  * Regenerates `src/catalog/snapshot.json` — the pinned catalog snapshot the build exporter
  * translates against. Run it after a game patch that adds skills, classes or equipment:
  *
- *   bun run --filter @spiritvale/build-export refresh-snapshot
- *   bun run --filter @spiritvale/build-export refresh-snapshot -- --site-dir ../spiritvale-deploy
+ *   bun run --filter @svoverlay/build-export refresh-snapshot
+ *   bun run --filter @svoverlay/build-export refresh-snapshot -- --site-dir ../spiritvale-deploy
  *
  * WHY A SNAPSHOT AND NOT A RUNTIME FETCH
  * The overlay is otherwise fully offline with bundled catalogs, so a network dependency at export

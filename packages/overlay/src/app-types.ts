@@ -2,7 +2,7 @@ import type { RPCSchema } from "electrobun";
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterWeight } from "@kar-mi/spirit-vale-tools-character";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
-import type { StatType } from "@spiritvale/ui-core/stat-type-select";
+import type { StatType } from "@svoverlay/ui-kit/stat-type-select";
 import type { RequiredStatusCategory } from "./required-statuses.ts";
 
 export type { StatType, RequiredStatusCategory };

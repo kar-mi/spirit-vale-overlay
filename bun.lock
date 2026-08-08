@@ -10,71 +10,8 @@
         "typescript": "7.0.2",
       },
     },
-    "packages/build-export": {
-      "name": "@spiritvale/build-export",
-      "dependencies": {
-        "@kar-mi/spirit-vale-tools-character": "0.4.0",
-        "@preact/signals": "^2.9.4",
-        "@spiritvale/ui-core": "workspace:*",
-        "electrobun": "1.18.1",
-        "preact": "^10.29.7",
-      },
-    },
-    "packages/combat-ui": {
-      "name": "@spiritvale/combat-ui",
-      "dependencies": {
-        "@kar-mi/spirit-vale-tools-character": "0.4.0",
-        "@kar-mi/spirit-vale-tools-combat": "2.2.0",
-        "@kar-mi/spirit-vale-tools-logging": "0.6.0",
-        "@kar-mi/spirit-vale-tools-sqlite": "0.1.3",
-        "@preact/signals": "^2.9.4",
-        "@spiritvale/ui-core": "workspace:*",
-        "electrobun": "1.18.1",
-        "preact": "^10.29.7",
-      },
-    },
-    "packages/market-ui": {
-      "name": "@spiritvale/market-ui",
-      "dependencies": {
-        "@kar-mi/spirit-vale-tools-market": "1.1.0",
-        "@preact/signals": "^2.9.4",
-        "@spiritvale/ui-core": "workspace:*",
-        "electrobun": "1.18.1",
-        "preact": "^10.29.7",
-      },
-    },
-    "packages/overlay": {
-      "name": "@spiritvale/overlay",
-      "dependencies": {
-        "@kar-mi/spirit-vale-tools-character": "0.4.0",
-        "@kar-mi/spirit-vale-tools-combat": "2.2.0",
-        "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
-        "@kar-mi/spirit-vale-tools-rewards": "1.1.0",
-        "@kar-mi/spirit-vale-tools-statuses": "0.2.2",
-        "@preact/signals": "^2.9.4",
-        "@spiritvale/combat-ui": "workspace:*",
-        "@spiritvale/ui-core": "workspace:*",
-        "electrobun": "1.18.1",
-        "preact": "^10.29.7",
-      },
-      "devDependencies": {
-        "@kar-mi/spirit-vale-tools-skills": "0.2.0",
-      },
-    },
-    "packages/rewards-ui": {
-      "name": "@spiritvale/rewards-ui",
-      "dependencies": {
-        "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
-        "@kar-mi/spirit-vale-tools-rewards": "1.1.0",
-        "@kar-mi/spirit-vale-tools-sqlite": "0.1.3",
-        "@preact/signals": "^2.9.4",
-        "@spiritvale/ui-core": "workspace:*",
-        "electrobun": "1.18.1",
-        "preact": "^10.29.7",
-      },
-    },
-    "packages/ui": {
-      "name": "@spiritvale/ui",
+    "apps/launcher": {
+      "name": "@svoverlay/launcher",
       "dependencies": {
         "@kar-mi/spirit-vale-tools-capture": "1.3.0",
         "@kar-mi/spirit-vale-tools-character": "0.4.0",
@@ -87,24 +24,111 @@
         "@kar-mi/spirit-vale-tools-skills": "0.2.0",
         "@kar-mi/spirit-vale-tools-sqlite": "0.1.3",
         "@preact/signals": "^2.9.4",
-        "@spiritvale/build-export": "workspace:*",
-        "@spiritvale/combat-ui": "workspace:*",
-        "@spiritvale/market-ui": "workspace:*",
-        "@spiritvale/overlay": "workspace:*",
-        "@spiritvale/rewards-ui": "workspace:*",
-        "@spiritvale/ui-core": "workspace:*",
+        "@svoverlay/build-export": "workspace:*",
+        "@svoverlay/combat": "workspace:*",
+        "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/market": "workspace:*",
+        "@svoverlay/overlay": "workspace:*",
+        "@svoverlay/rewards": "workspace:*",
+        "@svoverlay/ui-kit": "workspace:*",
         "preact": "^10.29.7",
       },
       "devDependencies": {
         "electrobun": "1.18.1",
       },
     },
-    "packages/ui-core": {
-      "name": "@spiritvale/ui-core",
-      "version": "0.1.0",
+    "packages/build-export": {
+      "name": "@svoverlay/build-export",
+      "dependencies": {
+        "@kar-mi/spirit-vale-tools-character": "0.4.0",
+        "@preact/signals": "^2.9.4",
+        "@svoverlay/contracts": "workspace:*",
+        "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/ui-kit": "workspace:*",
+        "electrobun": "1.18.1",
+        "preact": "^10.29.7",
+      },
+    },
+    "packages/combat": {
+      "name": "@svoverlay/combat",
+      "dependencies": {
+        "@kar-mi/spirit-vale-tools-character": "0.4.0",
+        "@kar-mi/spirit-vale-tools-combat": "2.2.0",
+        "@kar-mi/spirit-vale-tools-logging": "0.6.0",
+        "@kar-mi/spirit-vale-tools-sqlite": "0.1.3",
+        "@preact/signals": "^2.9.4",
+        "@svoverlay/contracts": "workspace:*",
+        "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/ui-kit": "workspace:*",
+        "electrobun": "1.18.1",
+        "preact": "^10.29.7",
+      },
+    },
+    "packages/contracts": {
+      "name": "@svoverlay/contracts",
+      "dependencies": {
+        "@kar-mi/spirit-vale-tools-combat": "2.2.0",
+        "@svoverlay/ui-kit": "workspace:*",
+      },
+    },
+    "packages/desktop-platform": {
+      "name": "@svoverlay/desktop-platform",
       "dependencies": {
         "@kar-mi/spirit-vale-tools-logging": "0.6.0",
+        "@svoverlay/ui-kit": "workspace:*",
         "electrobun": "1.18.1",
+      },
+    },
+    "packages/market": {
+      "name": "@svoverlay/market",
+      "dependencies": {
+        "@kar-mi/spirit-vale-tools-market": "1.1.0",
+        "@preact/signals": "^2.9.4",
+        "@svoverlay/contracts": "workspace:*",
+        "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/ui-kit": "workspace:*",
+        "electrobun": "1.18.1",
+        "preact": "^10.29.7",
+      },
+    },
+    "packages/overlay": {
+      "name": "@svoverlay/overlay",
+      "dependencies": {
+        "@kar-mi/spirit-vale-tools-character": "0.4.0",
+        "@kar-mi/spirit-vale-tools-combat": "2.2.0",
+        "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
+        "@kar-mi/spirit-vale-tools-rewards": "1.1.0",
+        "@kar-mi/spirit-vale-tools-statuses": "0.2.2",
+        "@preact/signals": "^2.9.4",
+        "@svoverlay/combat": "workspace:*",
+        "@svoverlay/contracts": "workspace:*",
+        "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/ui-kit": "workspace:*",
+        "electrobun": "1.18.1",
+        "preact": "^10.29.7",
+      },
+      "devDependencies": {
+        "@kar-mi/spirit-vale-tools-skills": "0.2.0",
+      },
+    },
+    "packages/rewards": {
+      "name": "@svoverlay/rewards",
+      "dependencies": {
+        "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
+        "@kar-mi/spirit-vale-tools-rewards": "1.1.0",
+        "@kar-mi/spirit-vale-tools-sqlite": "0.1.3",
+        "@preact/signals": "^2.9.4",
+        "@svoverlay/contracts": "workspace:*",
+        "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/ui-kit": "workspace:*",
+        "electrobun": "1.18.1",
+        "preact": "^10.29.7",
+      },
+    },
+    "packages/ui-kit": {
+      "name": "@svoverlay/ui-kit",
+      "version": "0.1.0",
+      "dependencies": {
         "preact": "^10.29.7",
       },
     },
@@ -140,19 +164,23 @@
 
     "@preact/signals-core": ["@preact/signals-core@1.14.4", "", {}, "sha512-HNB6HYeYKhQbJ1aKl+YRjrS4+QWHLKX6qKoUsfS/m0vqzsVaEBiZiaKbG/e+NKk2ch5ALQr/ihWaMHxiCuuWHA=="],
 
-    "@spiritvale/build-export": ["@spiritvale/build-export@workspace:packages/build-export"],
+    "@svoverlay/build-export": ["@svoverlay/build-export@workspace:packages/build-export"],
 
-    "@spiritvale/combat-ui": ["@spiritvale/combat-ui@workspace:packages/combat-ui"],
+    "@svoverlay/combat": ["@svoverlay/combat@workspace:packages/combat"],
 
-    "@spiritvale/market-ui": ["@spiritvale/market-ui@workspace:packages/market-ui"],
+    "@svoverlay/contracts": ["@svoverlay/contracts@workspace:packages/contracts"],
 
-    "@spiritvale/overlay": ["@spiritvale/overlay@workspace:packages/overlay"],
+    "@svoverlay/desktop-platform": ["@svoverlay/desktop-platform@workspace:packages/desktop-platform"],
 
-    "@spiritvale/rewards-ui": ["@spiritvale/rewards-ui@workspace:packages/rewards-ui"],
+    "@svoverlay/launcher": ["@svoverlay/launcher@workspace:apps/launcher"],
 
-    "@spiritvale/ui": ["@spiritvale/ui@workspace:packages/ui"],
+    "@svoverlay/market": ["@svoverlay/market@workspace:packages/market"],
 
-    "@spiritvale/ui-core": ["@spiritvale/ui-core@workspace:packages/ui-core"],
+    "@svoverlay/overlay": ["@svoverlay/overlay@workspace:packages/overlay"],
+
+    "@svoverlay/rewards": ["@svoverlay/rewards@workspace:packages/rewards"],
+
+    "@svoverlay/ui-kit": ["@svoverlay/ui-kit@workspace:packages/ui-kit"],
 
     "@tootallnate/quickjs-emscripten": ["@tootallnate/quickjs-emscripten@0.23.0", "", {}, "sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA=="],
 

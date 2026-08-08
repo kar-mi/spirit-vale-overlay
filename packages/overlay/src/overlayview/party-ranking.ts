@@ -1,5 +1,5 @@
 import type { FishNetDpsActorRow } from "@kar-mi/spirit-vale-tools-combat";
-import type { MeterActorRow } from "@spiritvale/combat-ui/app-types";
+import type { MeterActorRow } from "@svoverlay/contracts/meter";
 
 const MAX_PARTY_ROWS = 12;
 export const PARTY_ACTOR_IDLE_TIMEOUT_MS = 60_000;

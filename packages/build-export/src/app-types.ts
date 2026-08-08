@@ -1,5 +1,5 @@
 import type { RPCSchema } from "electrobun";
-import type { WindowChromeRequests } from "@spiritvale/ui-core/window-rpc";
+import type { WindowChromeRequests } from "@svoverlay/contracts/window-rpc";
 
 export type BuildExportStatus = "waiting" | "ready";
 

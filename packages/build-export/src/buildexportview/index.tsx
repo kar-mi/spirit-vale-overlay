@@ -1,9 +1,9 @@
 import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
-import { TitleBar } from "@spiritvale/ui-core/title-bar";
-import { SettingsButton } from "@spiritvale/ui-core/settings-button";
-import { repairRendererPayload } from "@spiritvale/ui-core/renderer-text";
+import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
+import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 
 import type { BuildExportState } from "../app-types.ts";
 import type { BuildExportRpc } from "../app-types.ts";

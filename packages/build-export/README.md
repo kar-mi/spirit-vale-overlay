@@ -1,4 +1,4 @@
-# @spiritvale/build-export
+# @svoverlay/build-export
 
 Opens the captured character in the [spiritvalers.com](https://spiritvalers.com) build planner:
 exact item ids, refines, socketed cards, gem refines and substat rolls, in one click.
@@ -36,8 +36,8 @@ exporter works offline like the rest of the app. Refresh it after a game patch t
 classes or equipment:
 
 ```
-bun run --filter @spiritvale/build-export refresh-snapshot
-bun run --filter @spiritvale/build-export refresh-snapshot -- --site-dir ../spiritvale-deploy
+bun run --filter @svoverlay/build-export refresh-snapshot
+bun run --filter @svoverlay/build-export refresh-snapshot -- --site-dir ../spiritvale-deploy
 ```
 
 It carries only what the game export cannot yield: skill route slugs (68 of 258 are editorial, e.g.
