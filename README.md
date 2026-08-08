@@ -9,7 +9,8 @@ Spirit Vale Overlay is a passive Windows companion app for live combat, characte
 
 > **Overlay hotkeys:** `F5` resets/refreshes the overlay, `F6` opens the live death log, `F9` shows or hides
 > the overlay, `F7` cycles the party meter, and `F11` unlocks the overlay for editing (drag and resize
-> elements, then press `F11` again to lock. These can re-bound).
+> elements, then press `F11` again to lock. These can re-bound). Hotkeys pass through to the foreground
+> program, so its normal action for the same key still runs.
 
 ## Features
 

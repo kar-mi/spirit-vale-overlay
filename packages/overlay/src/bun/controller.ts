@@ -12,7 +12,8 @@ import { loadBundledMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { publishSafely } from "@svoverlay/desktop-platform/window-publish";
-import { GlobalShortcut, Screen } from "electrobun/bun";
+import { createPassThroughShortcutListener, type PassThroughShortcutListener } from "@svoverlay/desktop-platform/pass-through-shortcuts";
+import { Screen } from "electrobun/bun";
 
 import type {
   KeybindAction,
@@ -144,8 +145,8 @@ type ProjectedStatusState = Omit<OverlayStatusState, "asOfMs">;
 
 /**
  * Everything the overlay does that is not a window: the log pipeline, the settings file, the
- * global shortcuts. Exactly one of these exists however many monitors have tiles on them, so the
- * log follower is read once and each shortcut is registered once.
+ * pass-through global shortcuts. Exactly one of these exists however many monitors have tiles on
+ * them, so the log follower is read once and one keyboard listener serves every shortcut.
  */
 export async function createOverlayController(options: OverlayControllerOptions) {
   let displays = readDisplays();
@@ -167,7 +168,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
   const surfaces = new Map<string, OverlaySurfaceSink>();
   /** Control state is projected per display, so the dedupe string has to be per surface too. */
   const lastControlJson = new Map<string, string>();
-  const shortcutRegistered = new Map<KeybindAction, boolean>();
   const shortcutErrors = new Map<KeybindAction, string>();
   let shortcutsSuspended = false;
   const logClock = new OverlayLogClock();
@@ -204,12 +204,12 @@ export async function createOverlayController(options: OverlayControllerOptions)
     },
   });
 
-  // Register this before user-configurable shortcuts so Escape is always reserved
-  // as the way to leave edit mode, even if an old settings file assigned
-  // it to another action.
-  let escapeLockRegistered = registerEscapeLockShortcut();
-  for (const action of KEYBIND_ACTIONS) {
-    shortcutRegistered.set(action, registerShortcut(action, settings.shortcuts[action]));
+  let shortcutListener: PassThroughShortcutListener<KeybindAction | "lockOnEscape"> | undefined;
+  try {
+    shortcutListener = createPassThroughShortcutListener(shortcutBindings(), handleShortcut);
+  } catch (error) {
+    console.warn("[overlay] could not start pass-through shortcuts:", error);
+    for (const action of KEYBIND_ACTIONS) shortcutErrors.set(action, "Could not start pass-through shortcuts.");
   }
 
   // Cheap enough at 0.2 Hz to be noise, and it is the only thing that stops a window being
@@ -303,10 +303,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       clearInterval(displayTimer);
       unsubscribeCharacter();
       unsubscribeXp();
-      for (const action of KEYBIND_ACTIONS) {
-        if (shortcutRegistered.get(action)) GlobalShortcut.unregister(settings.shortcuts[action]);
-      }
-      if (escapeLockRegistered) GlobalShortcut.unregister(ESCAPE_LOCK_SHORTCUT);
+      shortcutListener?.close();
       await persistence.flush(settings);
     },
   };
@@ -545,40 +542,20 @@ export async function createOverlayController(options: OverlayControllerOptions)
       publishControl();
       return controlState();
     }
-    if (normalized === settings.shortcuts[action] && shortcutRegistered.get(action)) return controlState();
-
-    const previousShortcut = settings.shortcuts[action];
-    if (shortcutRegistered.get(action)) GlobalShortcut.unregister(previousShortcut);
-    let registered = registerShortcut(action, normalized);
-    if (registered) {
-      settings = { ...settings, shortcuts: { ...settings.shortcuts, [action]: normalized } };
-      shortcutErrors.delete(action);
-      persist();
-    } else {
-      registered = registerShortcut(action, previousShortcut);
-      shortcutErrors.set(action, `${normalized} is unavailable; the previous shortcut was restored.`);
-    }
-    shortcutRegistered.set(action, registered);
+    if (normalized === settings.shortcuts[action]) return controlState();
+    settings = { ...settings, shortcuts: { ...settings.shortcuts, [action]: normalized } };
+    shortcutErrors.delete(action);
+    updateShortcutBindings();
+    persist();
     publishControl();
     return controlState();
   }
 
-  /** Suspend every global shortcut while the settings view is listening for a key. */
+  /** Suspend every pass-through shortcut while the settings view is listening for a key. */
   function setShortcutCapture(active: boolean): void {
     if (active === shortcutsSuspended) return;
     shortcutsSuspended = active;
-    if (active) {
-      for (const action of KEYBIND_ACTIONS) {
-        if (shortcutRegistered.get(action)) GlobalShortcut.unregister(settings.shortcuts[action]);
-      }
-      if (escapeLockRegistered) GlobalShortcut.unregister(ESCAPE_LOCK_SHORTCUT);
-      return;
-    }
-
-    escapeLockRegistered = registerEscapeLockShortcut();
-    for (const action of KEYBIND_ACTIONS) {
-      shortcutRegistered.set(action, registerShortcut(action, settings.shortcuts[action]));
-    }
+    updateShortcutBindings();
   }
 
   function updateOverlayVisible(visible: boolean): void {
@@ -596,31 +573,33 @@ export async function createOverlayController(options: OverlayControllerOptions)
     publishMeter(true);
   }
 
-  function registerShortcut(action: KeybindAction, shortcut: string): boolean {
-    const registered = GlobalShortcut.register(shortcut, () => {
-      if (shuttingDown) return;
-      if (action === "toggleLock") updateLocked(!settings.locked);
-      else if (action === "toggleOverlayVisible") updateOverlayVisible(!overlayVisible);
-      else if (action === "cycleMeterStatType") cycleMeterStatType();
-      else if (action === "openLiveDeathLog") {
-        void options.onOpenLiveDeathLog?.();
-      }
-      else if (action === "resetSession" && options.onReset) {
-        void options.onReset().catch(() => {
-          shortcutErrors.set(action, "Could not reset the capture session.");
-          publishControl();
-        });
-      }
-    });
-    if (registered) shortcutErrors.delete(action);
-    else shortcutErrors.set(action, `${shortcut} is unavailable; it may already be in use.`);
-    return registered;
+  function shortcutBindings(): Array<{ action: KeybindAction | "lockOnEscape"; shortcut: string }> {
+    if (shortcutsSuspended) return [];
+    return [
+      { action: "lockOnEscape", shortcut: ESCAPE_LOCK_SHORTCUT },
+      ...KEYBIND_ACTIONS.map((action) => ({ action, shortcut: settings.shortcuts[action] })),
+    ];
   }
 
-  function registerEscapeLockShortcut(): boolean {
-    return GlobalShortcut.register(ESCAPE_LOCK_SHORTCUT, () => {
-      if (!shuttingDown && !shortcutsSuspended && !settings.locked) updateLocked(true);
-    });
+  function updateShortcutBindings(): void {
+    shortcutListener?.setBindings(shortcutBindings());
+  }
+
+  function handleShortcut(action: KeybindAction | "lockOnEscape"): void {
+    if (shuttingDown || shortcutsSuspended) return;
+    if (action === "lockOnEscape") {
+      if (!settings.locked) updateLocked(true);
+    } else if (action === "toggleLock") updateLocked(!settings.locked);
+    else if (action === "toggleOverlayVisible") updateOverlayVisible(!overlayVisible);
+    else if (action === "cycleMeterStatType") cycleMeterStatType();
+    else if (action === "openLiveDeathLog") {
+      void options.onOpenLiveDeathLog?.();
+    } else if (action === "resetSession" && options.onReset) {
+      void options.onReset().catch(() => {
+        shortcutErrors.set(action, "Could not reset the capture session.");
+        publishControl();
+      });
+    }
   }
 
   /**
