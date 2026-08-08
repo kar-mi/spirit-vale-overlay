@@ -38,5 +38,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: spiritvale-win-x64
-          path: packages/ui/dist/electrobun
+          path: apps/launcher/dist/electrobun
           if-no-files-found: error

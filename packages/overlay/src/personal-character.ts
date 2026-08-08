@@ -1,4 +1,4 @@
 export {
   detectedPersonalName,
   syncPersonalCharacter,
-} from "@spiritvale/combat-ui/personal-character";
+} from "@svoverlay/combat/personal-character";

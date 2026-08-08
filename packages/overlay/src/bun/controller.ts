@@ -10,8 +10,8 @@ import type { DpsLogBatch } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { loadBundledMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
-import { SafeSaveQueue } from "@spiritvale/ui-core/safe-save";
-import { publishSafely } from "@spiritvale/ui-core/window-publish";
+import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
+import { publishSafely } from "@svoverlay/desktop-platform/window-publish";
 import { GlobalShortcut, Screen } from "electrobun/bun";
 
 import type {

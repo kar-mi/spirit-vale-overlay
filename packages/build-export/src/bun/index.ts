@@ -1,9 +1,9 @@
 import { BrowserView, BrowserWindow, Utils } from "electrobun/bun";
-import { applyRoundedCorners, setWindowIcon } from "@spiritvale/ui-core/win32";
-import { appIconPath } from "@spiritvale/ui-core/window-publish";
-import { registerUiScaleWindow, scaledSize } from "@spiritvale/ui-core/ui-scale-window";
-import type { WindowPlacementStore } from "@spiritvale/ui-core/window-placement";
-import { DisposableStore, onWindowEvent, onceWindowEvent } from "@spiritvale/ui-core/window-lifecycle";
+import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
+import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
+import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
+import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
+import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import type { CharacterSnapshot } from "@kar-mi/spirit-vale-tools-character";
 
 import type { BuildExportRpc, BuildExportSource, BuildExportState, BuildExportUnresolvedGroup } from "../app-types.ts";

@@ -1,0 +1,27 @@
+{
+  "name": "@svoverlay/desktop-platform",
+  "private": true,
+  "type": "module",
+  "description": "Shared Bun, Electrobun, Windows-window, and local-persistence infrastructure.",
+  "exports": {
+    "./win32": "./win32.ts",
+    "./window-publish": "./window-publish.ts",
+    "./window-lifecycle": "./window-lifecycle.ts",
+    "./window-placement": "./window-placement.ts",
+    "./ui-scale": "./ui-scale.ts",
+    "./ui-scale-window": "./ui-scale-window.ts",
+    "./local-storage": "./local-storage.ts",
+    "./safe-save": "./safe-save.ts",
+    "./json-settings": "./json-settings.ts",
+    "./managed-session": "./managed-session.ts",
+    "./session-picker": "./session-picker.ts",
+    "./session-picker-types": "./session-picker-types.ts",
+    "./session-summary-cache": "./session-summary-cache.ts",
+    "./disposable-store": "./disposable-store.ts"
+  },
+  "dependencies": {
+    "@kar-mi/spirit-vale-tools-logging": "0.6.0",
+    "@svoverlay/ui-kit": "workspace:*",
+    "electrobun": "1.18.1"
+  }
+}

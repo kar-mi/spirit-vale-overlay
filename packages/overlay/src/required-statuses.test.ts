@@ -12,7 +12,7 @@ import {
   requiredStatusOptions,
 } from "./required-statuses.ts";
 
-const STATUS_ICON_DIRECTORY = path.join(import.meta.dir, "..", "..", "..", "static", "status-icons");
+const STATUS_ICON_DIRECTORY = path.join(import.meta.dir, "..", "..", "..", "apps", "launcher", "assets", "status-icons");
 
 function activeStatus(statusId: string): FishNetActiveStatus {
   return { statusId, displayName: statusId, isDebuff: false, level: 1, appliedAtMs: 0 };

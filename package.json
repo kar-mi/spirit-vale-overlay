@@ -4,17 +4,19 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "apps/*",
+    "packages/*",
+    "tooling/*"
   ],
   "scripts": {
-    "build": "bun run --filter @spiritvale/ui build",
-    "build:stable": "bun run --filter @spiritvale/ui build -- --env=stable",
+    "build": "bun run --filter @svoverlay/launcher build",
+    "build:stable": "bun run --filter @svoverlay/launcher build -- --env=stable",
     "check": "bun run typecheck && bun test",
-    "dev": "bun run --filter @spiritvale/ui dev",
-    "package:portable": "bun run scripts/package-portable.ts",
+    "dev": "bun run --filter @svoverlay/launcher dev",
+    "package:portable": "bun run tooling/release/package-portable.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "verify:portable": "bun run scripts/verify-portable.ts"
+    "verify:portable": "bun run tooling/release/verify-portable.ts"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
