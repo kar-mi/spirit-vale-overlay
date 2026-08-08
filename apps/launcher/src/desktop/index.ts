@@ -1,1 +1,1 @@
-import "../bun/desktop.ts";
+import "./desktop.ts";
