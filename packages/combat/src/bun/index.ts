@@ -27,6 +27,7 @@ import { activeDeathLogSource } from "../combat-navigation.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { detectedPersonalName } from "../personal-character.ts";
 import type { CombatReadModelSource } from "../combat-history.ts";
+import { readCombatZoneIds, zoneIdFromLogData } from "../zone-log.ts";
 
 const MINIMUM_WIDTH = DPS_WINDOW_MINIMUM_WIDTH;
 const MINIMUM_HEIGHT = DPS_WINDOW_MINIMUM_HEIGHT;
@@ -94,6 +95,7 @@ let resetting = false;
 let lastEventObservedAtMs: number | undefined;
 let lastEventWallMs: number | undefined;
 let currentLiveLogPath: string | undefined;
+let currentLiveZoneId: number | undefined;
 let screen: CombatLogScreen = "live";
 let past: DpsAppState["past"] = { view: "selector", picker: pastPickerLoadingState() };
 let pastPaths = new Map<string, string>();
@@ -181,6 +183,7 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
             liveMeter = createLiveMeter();
             lastEventObservedAtMs = undefined;
             lastEventWallMs = undefined;
+            currentLiveZoneId = undefined;
           } catch {
             // Keep the existing meter/UI data unchanged when rotation fails.
           } finally {
@@ -274,6 +277,7 @@ function appState(): DpsAppState {
     ...(tankedSnapshot ? { tankedSnapshot } : {}),
     ...(healSnapshot ? { healSnapshot } : {}),
     resetting,
+    ...(currentLiveZoneId === undefined ? {} : { zoneId: currentLiveZoneId }),
     liveDeathLogAvailable: currentLiveLogPath !== undefined,
     past,
   };
@@ -355,9 +359,14 @@ function applyLiveLogBatch(batch: DpsLogBatch): void {
     liveMeter = createLiveMeter();
     lastEventObservedAtMs = undefined;
     lastEventWallMs = undefined;
+    currentLiveZoneId = undefined;
   }
   let batchLastObservedAtMs: number | undefined;
   for (const { event, observedAtMs } of batch.events) {
+    if (event.kind === "activation") {
+      const zoneId = zoneIdFromLogData(event as unknown as Record<string, unknown>);
+      if (zoneId !== undefined) currentLiveZoneId = zoneId;
+    }
     if (event.kind === "actorIdentity") liveMeter.consumeIdentity(event, observedAtMs);
     else liveMeter.consumeCombat(event, observedAtMs);
     batchLastObservedAtMs = Math.max(batchLastObservedAtMs ?? observedAtMs, observedAtMs);
@@ -499,7 +508,10 @@ async function refreshPastSessions(): Promise<void> {
         try {
           const info = await stat(session.path);
           const cached = cache.get(session.path, info);
-          const result = cached ?? await inspectCombatReplaySummary(session.path);
+          const result = cached ?? {
+            ...await inspectCombatReplaySummary(session.path),
+            zoneIds: await readCombatZoneIds(session.path),
+          };
           if (!cached) cache.set(session.path, info, result);
           if (result.recordCount === 0) return undefined;
           nextPaths.set(session.id, session.path);
@@ -507,6 +519,7 @@ async function refreshPastSessions(): Promise<void> {
             id: session.id,
             createdAt: session.createdAt,
             summary: result.summary,
+            zoneIds: result.zoneIds,
             active: session.active,
             disabled: false,
           };

@@ -46,6 +46,8 @@ export interface DpsAppState {
   tankedSnapshot?: MeterEncounterSnapshot;
   healSnapshot?: MeterEncounterSnapshot;
   resetting: boolean;
+  /** Most recently captured map ID for the active combat session. */
+  zoneId?: number;
   liveDeathLogAvailable: boolean;
   past:
     | { view: "selector"; picker: SessionPickerState }

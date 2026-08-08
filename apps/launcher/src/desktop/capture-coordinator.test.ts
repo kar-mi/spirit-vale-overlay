@@ -495,6 +495,32 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("records distinct map IDs as inert combat activations", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-zones-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+      });
+      await coordinator.start();
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet(mapPacket(2, 17, "test-connection"));
+      capture.packet(mapPacket(3, 17, "test-connection"));
+      capture.packet(mapPacket(4, 29, "test-connection"));
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      const zones = records(await readFile(pointer!.path, "utf8"))
+        .filter((record) => record.type === "combat.event")
+        .map((record) => (record as { data?: { sourceId?: string } }).data?.sourceId)
+        .filter((sourceId): sourceId is string => sourceId?.startsWith("__spiritvaleZone:") ?? false);
+      expect(zones).toEqual(["__spiritvaleZone:17", "__spiritvaleZone:29"]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("keeps new-connection actor identities when a stale connection trails a map change", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reconnect-"));
     const capture = new FakeCapture();
@@ -1429,6 +1455,19 @@ function monsterIdentityPacket(tick: number, objectId: number): TestPacket {
     ],
     raw: Buffer.alloc(0),
     payload: Buffer.alloc(0),
+  };
+}
+
+function mapPacket(tick: number, mapId: number, connectionId: string): TestPacket {
+  return {
+    tick,
+    packetId: 900,
+    packetName: "rpcLink",
+    rpcName: "TraverseActive",
+    decodedFields: [{ name: "mapId", codec: "packedInt32", value: mapId }],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
   };
 }
 
