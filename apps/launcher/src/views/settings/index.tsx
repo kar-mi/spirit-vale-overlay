@@ -160,7 +160,7 @@ function App() {
       </section>
 
       <section class="settings-panel" hidden={tab !== "keybinds"}>
-        <header class="settings-heading"><h1>Keybinds</h1><p>Global shortcuts remain active while Spirit Vale is running.</p></header>
+        <header class="settings-heading"><h1>Keybinds</h1><p>Global pass-through shortcuts remain active while Spirit Vale Overlay is running; the foreground app receives the same key press.</p></header>
         <section class="keybind-list" aria-label="Keybind assignments">
           <h2>Click to select</h2>
           {KEYBIND_ACTIONS.map((action) => <div class="keybind-row" key={action}>
