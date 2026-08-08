@@ -531,7 +531,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function setShortcut(action: KeybindAction, shortcut: string): OverlayControlState {
     // The captured key has already been delivered to the settings view. Restore
-    // the global registrations before applying it as a new binding.
+    // pass-through listening before applying it as a new binding.
     setShortcutCapture(false);
     const normalized = normalizeSingleShortcut(action, shortcut);
     const collidingAction = KEYBIND_ACTIONS.find((other) => other !== action && settings.shortcuts[other] === normalized);

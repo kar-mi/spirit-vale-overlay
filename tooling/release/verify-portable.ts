@@ -26,6 +26,7 @@ const requiredPaths = [
   "README.txt",
   "bin/launcher.exe",
   "bin/bun.exe",
+  "bin/sv-overlay-hotkeys.exe",
   "Resources/main.js",
   "Resources/build.json",
   "Resources/version.json",

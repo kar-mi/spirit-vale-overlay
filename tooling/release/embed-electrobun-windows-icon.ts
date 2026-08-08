@@ -49,6 +49,18 @@ if (Bun.env["ELECTROBUN_OS"] === "win") {
       version,
     });
   }
+  const shortcutHelperPath = path.join(appDirectory, "bin", "sv-overlay-hotkeys.exe");
+  const helperBuild = Bun.spawnSync([
+    "powershell",
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    path.resolve(import.meta.dir, "build-pass-through-shortcuts.ps1"),
+    "-OutputPath",
+    shortcutHelperPath,
+  ], { stdout: "inherit", stderr: "inherit" });
+  if (helperBuild.exitCode !== 0) throw new Error(`Could not build the pass-through shortcut helper (${helperBuild.exitCode}).`);
   await copyFile(iconPath, buildIconPath);
-  console.log(`Embedded the application icon and version metadata into ${executables.length} Windows executables.`);
+  console.log(`Embedded the application icon and version metadata into ${executables.length} Windows executables and built the pass-through shortcut helper.`);
 }
