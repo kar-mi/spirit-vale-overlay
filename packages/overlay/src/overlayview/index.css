@@ -283,6 +283,39 @@
 }
 .inspector-row output { font-variant-numeric: tabular-nums; }
 .inspector-row input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: #bca7ff; cursor: pointer; }
+.inspector-row select {
+  padding: 3px 6px;
+  border: 1px solid rgba(204, 187, 255, .4);
+  border-radius: 6px;
+  background: rgba(10, 12, 18, .9);
+  color: rgba(255,255,255,.85);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.inspector-color-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.inspector-color-control input[type="color"] {
+  width: 26px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid rgba(204, 187, 255, .4);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.inspector-reset {
+  padding: 2px 7px;
+  border: 1px solid rgba(204, 187, 255, .4);
+  border-radius: 999px;
+  background: rgba(78, 52, 132, 0.5);
+  color: rgba(255,255,255,.85);
+  font-size: 10px;
+  cursor: pointer;
+}
 
 .inspector-toggle {
   grid-template-columns: auto minmax(0, 1fr);

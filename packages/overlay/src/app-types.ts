@@ -24,6 +24,10 @@ export type KeybindAction = (typeof KEYBIND_ACTIONS)[number];
 /** Party/map meter cycles damage -> heal -> tanked -> damage on each press of its keybind. */
 export const METER_STAT_TYPE_CYCLE: readonly StatType[] = ["damage", "heal", "tanked"];
 
+/** Which edge a status grid (buffs/debuffs/toggles) grows from. Meaningless for non-grid elements. */
+export const STATUS_GROWTH_DIRECTIONS = ["right", "left", "down", "up"] as const;
+export type StatusGrowthDirection = (typeof STATUS_GROWTH_DIRECTIONS)[number];
+
 export interface OverlayElementSettings {
   enabled: boolean;
   opacity: number;
@@ -34,6 +38,10 @@ export interface OverlayElementSettings {
   height: number;
   /** Bounds-derived key of the monitor this tile lives on; see ./display-layout.ts. */
   display: string;
+  /** Status grids only (buffs/debuffs/toggles); undefined means "right" (the original left-to-right layout). */
+  growthDirection?: StatusGrowthDirection;
+  /** Resource bars only (health/mana/characterXp/jobXp); a 6-digit hex color overriding the fill's default. */
+  fillColor?: string;
 }
 
 /** A connected monitor, as offered in the Settings window's display pickers. */
@@ -234,6 +242,15 @@ export type OverlayRpc = {
       };
       setElementOpacity: {
         params: { id: OverlayElementId; opacity: number };
+        response: OverlayControlState;
+      };
+      setElementGrowthDirection: {
+        params: { id: OverlayElementId; direction: StatusGrowthDirection };
+        response: OverlayControlState;
+      };
+      /** `color: undefined` clears the override, reverting to the resource's default fill color. */
+      setElementColor: {
+        params: { id: OverlayElementId; color?: string };
         response: OverlayControlState;
       };
     };

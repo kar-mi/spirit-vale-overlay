@@ -70,6 +70,14 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
           controller.setElementOpacity(id, opacity);
           return controller.controlState(key);
         },
+        setElementGrowthDirection: ({ id, direction }) => {
+          controller.setElementGrowthDirection(id, direction);
+          return controller.controlState(key);
+        },
+        setElementColor: ({ id, color }) => {
+          controller.setElementColor(id, color);
+          return controller.controlState(key);
+        },
         setOverlayVisible: ({ visible }) => {
           controller.setOverlayVisible(visible);
           return controller.controlState(key);

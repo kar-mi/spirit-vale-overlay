@@ -11,6 +11,7 @@ import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import {
   OVERLAY_ELEMENT_IDS,
   OVERLAY_ELEMENT_LABELS,
+  STATUS_GROWTH_DIRECTIONS,
   type KeybindAction,
   type OverlayElementId,
   type OverlayElementSettings,
@@ -24,6 +25,7 @@ import {
   type OverlayRpc,
   type OverlayStatusState,
   type StatType,
+  type StatusGrowthDirection,
 } from "../app-types.ts";
 import { displayForRect } from "../display-layout.ts";
 import { resourceFill } from "../personal-resources.ts";
@@ -44,6 +46,35 @@ const GRID_SIZE = 10;
 const RESIZE_EDGES = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
 /** Pointer movement below this counts as a click (select) rather than a drag. */
 const CLICK_MOVE_THRESHOLD_PX = 4;
+/** Default translucency for a custom resource fill color, matching the built-in `--resource-color` values. */
+const RESOURCE_FILL_ALPHA = 0.74;
+const GROWTH_DIRECTION_FLEX: Record<StatusGrowthDirection, string> = {
+  right: "row",
+  left: "row-reverse",
+  down: "column",
+  up: "column-reverse",
+};
+const GROWTH_DIRECTION_LABELS: Record<StatusGrowthDirection, string> = {
+  right: "→ Right (default)",
+  left: "← Left",
+  down: "↓ Down",
+  up: "↑ Up",
+};
+/** Hex equivalents of each resource's default `--resource-color`, for the color picker's fallback value. */
+const RESOURCE_DEFAULT_COLOR: Partial<Record<OverlayElementId, string>> = {
+  health: "#c2333d",
+  mana: "#2d69cd",
+  characterXp: "#e0b22a",
+  jobXp: "#2d69cd",
+};
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 const CLASS_ICON_BY_ARCHETYPE: Readonly<Record<number, string>> = {
   0: "warrior",
   1: "mage",
@@ -335,12 +366,16 @@ function StatusOverlayElement({
   const warn = category === "buffs" || category === "toggles"
     ? (next?.missingStatuses[category].length ?? 0) > 0
     : false;
+  // Read directly rather than via a prop: the tile's own signal already carries this, and every
+  // other cross-cutting per-tile setting in this file is read the same way (see fillColor below).
+  const direction = elementStates[id].value?.growthDirection;
   return (
     <OverlayElement id={id} locked={locked} warn={warn}>
       <StatusGridElement
         statuses={next?.[category]}
         asOfMs={next?.asOfMs}
         flashExpiring={flashExpiring}
+        direction={direction}
       />
     </OverlayElement>
   );
@@ -543,6 +578,36 @@ function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | 
           }}
         />
       </label>
+      {(selectedId === "buffs" || selectedId === "debuffs" || selectedId === "toggles") && (
+        <label class="inspector-row">
+          <span>Grows</span>
+          <select
+            value={settings.growthDirection ?? "right"}
+            onChange={(event) => void setElementGrowthDirection(selectedId, event.currentTarget.value as StatusGrowthDirection)}
+          >
+            {STATUS_GROWTH_DIRECTIONS.map((direction) => (
+              <option key={direction} value={direction}>{GROWTH_DIRECTION_LABELS[direction]}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      {(selectedId === "health" || selectedId === "mana" || selectedId === "characterXp" || selectedId === "jobXp") && (
+        <label class="inspector-row">
+          <span>Bar color</span>
+          <span class="inspector-color-control">
+            <input
+              type="color"
+              value={settings.fillColor ?? RESOURCE_DEFAULT_COLOR[selectedId]}
+              onInput={(event) => void setElementColor(selectedId, event.currentTarget.value)}
+            />
+            {settings.fillColor && (
+              <button type="button" class="inspector-reset" onClick={() => void setElementColor(selectedId, undefined)}>
+                Reset
+              </button>
+            )}
+          </span>
+        </label>
+      )}
       <label class="inspector-row inspector-toggle">
         <input
           type="checkbox"
@@ -821,7 +886,9 @@ function XpChartElement() {
 
 type ResourceKind = "health" | "mana" | "character-xp" | "job-xp";
 
-function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: OverlayResource | undefined }) {
+function ResourceElement(
+  { kind, resource, fillColor }: { kind: ResourceKind; resource: OverlayResource | undefined; fillColor?: string },
+) {
   const label = kind === "health" ? "HP"
     : kind === "mana" ? "MP"
     : kind === "character-xp" ? "XP"
@@ -832,7 +899,9 @@ function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: Ove
   return (
     <div
       class={`resource-value resource-${kind}${resource ? "" : " resource-waiting"}`}
-      style={`--resource-fill:${resource ? resourceFill(resource) : 0}`}
+      style={`--resource-fill:${resource ? resourceFill(resource) : 0};${
+        fillColor ? `--resource-color:${hexToRgba(fillColor, RESOURCE_FILL_ALPHA)};` : ""
+      }`}
       aria-label={description}
     >
       <strong class="resource-label">{label}</strong>
@@ -847,13 +916,22 @@ function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: Ove
   );
 }
 
+const RESOURCE_ELEMENT_ID: Record<ResourceKind, OverlayElementId> = {
+  health: "health",
+  mana: "mana",
+  "character-xp": "characterXp",
+  "job-xp": "jobXp",
+};
+
 function CharacterResourceElement({ kind }: { kind: ResourceKind }) {
   const next = characterState.value;
   const resource = kind === "health" ? next?.health
     : kind === "mana" ? next?.mana
     : kind === "character-xp" ? next?.characterXp
     : next?.jobXp;
-  return <ResourceElement kind={kind} resource={resource} />;
+  // Read directly rather than via a prop, same reasoning as StatusOverlayElement's growthDirection.
+  const fillColor = elementStates[RESOURCE_ELEMENT_ID[kind]].value?.fillColor;
+  return <ResourceElement kind={kind} resource={resource} fillColor={fillColor} />;
 }
 
 function PartyRankingElement() {
@@ -891,10 +969,11 @@ function PartyRankingElement() {
 }
 
 function StatusGridElement(
-  { statuses, asOfMs, flashExpiring }: {
+  { statuses, asOfMs, flashExpiring, direction }: {
     statuses: FishNetActiveStatus[] | undefined;
     asOfMs: number | undefined;
     flashExpiring?: boolean;
+    direction?: StatusGrowthDirection;
   },
 ) {
   const list = statuses ?? [];
@@ -906,7 +985,7 @@ function StatusGridElement(
     );
   }
   return (
-    <div class="status-grid">
+    <div class="status-grid" style={{ flexDirection: GROWTH_DIRECTION_FLEX[direction ?? "right"] }}>
       {list.map((status) => (
         <StatusCell
           key={status.statusId}
@@ -1001,6 +1080,14 @@ function setElementEnabled(id: OverlayElementId, enabled: boolean): Promise<void
 
 function setAutoHideWhenUnfocused(enabled: boolean): Promise<void> {
   return electroview.rpc?.request.setAutoHideWhenUnfocused({ enabled }).then((next) => applyControl(next)) ?? Promise.resolve();
+}
+
+function setElementGrowthDirection(id: OverlayElementId, direction: StatusGrowthDirection): Promise<void> {
+  return electroview.rpc?.request.setElementGrowthDirection({ id, direction }).then((next) => applyControl(next)) ?? Promise.resolve();
+}
+
+function setElementColor(id: OverlayElementId, color: string | undefined): Promise<void> {
+  return electroview.rpc?.request.setElementColor({ id, color }).then((next) => applyControl(next)) ?? Promise.resolve();
 }
 
 

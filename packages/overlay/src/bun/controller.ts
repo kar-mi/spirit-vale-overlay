@@ -27,6 +27,7 @@ import type {
   OverlayStatusState,
   OverlayViewState,
   RequiredStatusCategory,
+  StatusGrowthDirection,
 } from "../app-types.ts";
 import { KEYBIND_ACTIONS, METER_STAT_TYPE_CYCLE } from "../app-types.ts";
 import { missingRequiredStatuses } from "../required-statuses.ts";
@@ -291,6 +292,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
     setElementBounds,
     setElementPlacement,
     setElementOpacity,
+    setElementGrowthDirection,
+    setElementColor,
     relayDragPreview,
     setOverlayVisible: setOverlayVisibleManually,
     setAutoHideWhenUnfocused: updateAutoHideWhenUnfocused,
@@ -538,6 +541,14 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function setElementOpacity(id: OverlayElementId, opacity: number): OverlayControlState {
     return updateElement(id, { opacity });
+  }
+
+  function setElementGrowthDirection(id: OverlayElementId, direction: StatusGrowthDirection): OverlayControlState {
+    return updateElement(id, { growthDirection: direction });
+  }
+
+  function setElementColor(id: OverlayElementId, color: string | undefined): OverlayControlState {
+    return updateElement(id, { fillColor: color });
   }
 
   function setRequiredStatuses(category: RequiredStatusCategory, statusIds: string[]): OverlayControlState {

@@ -6,11 +6,13 @@ import { loadJsonSettings } from "@svoverlay/desktop-platform/json-settings";
 import {
   KEYBIND_ACTIONS,
   OVERLAY_ELEMENT_IDS,
+  STATUS_GROWTH_DIRECTIONS,
   type KeybindAction,
   type OverlayDisplayOption,
   type OverlayElementId,
   type OverlayElementSettings,
   type StatType,
+  type StatusGrowthDirection,
 } from "./app-types.ts";
 import {
   REQUIRED_STATUS_CATEGORIES,
@@ -133,6 +135,8 @@ export function normalizeOverlaySettings(
       width,
       height,
       display,
+      growthDirection: normalizeGrowthDirection(value.growthDirection),
+      fillColor: normalizeFillColor(value.fillColor),
     }];
   })) as unknown as Record<OverlayElementId, OverlayElementSettings>;
   const shortcuts = normalizeShortcuts(source);
@@ -216,6 +220,18 @@ function normalizeOpacity(value: unknown): number {
 function clampNumber(value: unknown, fallback: number, minimum: number, maximum: number): number {
   const number = typeof value === "number" && Number.isFinite(value) ? value : fallback;
   return Math.round(Math.max(minimum, Math.min(maximum, number)));
+}
+
+const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+
+function normalizeFillColor(value: unknown): string | undefined {
+  return typeof value === "string" && HEX_COLOR_PATTERN.test(value) ? value.toLowerCase() : undefined;
+}
+
+function normalizeGrowthDirection(value: unknown): StatusGrowthDirection | undefined {
+  return typeof value === "string" && (STATUS_GROWTH_DIRECTIONS as readonly string[]).includes(value)
+    ? value as StatusGrowthDirection
+    : undefined;
 }
 
 async function resolveSettingsPath(settingsPath: string | undefined): Promise<string> {
