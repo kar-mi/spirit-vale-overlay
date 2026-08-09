@@ -30,6 +30,7 @@ import type {
   StatusGrowthDirection,
 } from "../app-types.ts";
 import { KEYBIND_ACTIONS, METER_STAT_TYPE_CYCLE } from "../app-types.ts";
+import { anchorOffset, repositionElement } from "../anchors.ts";
 import { missingRequiredStatuses } from "../required-statuses.ts";
 import { detectedPersonalName } from "../personal-character.ts";
 import { personalExperience } from "../personal-experience.ts";
@@ -294,6 +295,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     setElementOpacity,
     setElementGrowthDirection,
     setElementColor,
+    setElementAnchor,
     relayDragPreview,
     setOverlayVisible: setOverlayVisibleManually,
     setAutoHideWhenUnfocused: updateAutoHideWhenUnfocused,
@@ -512,15 +514,30 @@ export async function createOverlayController(options: OverlayControllerOptions)
     return controlState();
   }
 
+  /**
+   * Position (and, for a resize, size) changes go through `repositionElement` rather than plain
+   * `updateElement`: a drag or resize must cascade to anything anchored to `id`, and if `id` itself
+   * is anchored, dragging it directly re-pins its stored offset instead of leaving it stale (which
+   * would otherwise snap it straight back on the next `settleAnchors` pass in `normalizeOverlaySettings`).
+   */
+  function reposition(id: OverlayElementId, rect: { x: number; y: number; width: number; height: number }): OverlayControlState {
+    const cascaded = repositionElement(settings.elements, id, rect);
+    settings = normalizeOverlaySettings({ ...settings, elements: cascaded }, displays);
+    persist();
+    publishControl();
+    return controlState();
+  }
+
   function setElementPosition(id: OverlayElementId, x: number, y: number): OverlayControlState {
-    return updateElement(id, { x, y });
+    const element = settings.elements[id];
+    return reposition(id, { x, y, width: element.width, height: element.height });
   }
 
   function setElementBounds(
     id: OverlayElementId,
     rect: { x: number; y: number; width: number; height: number },
   ): OverlayControlState {
-    return updateElement(id, rect);
+    return reposition(id, rect);
   }
 
   /**
@@ -549,6 +566,23 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function setElementColor(id: OverlayElementId, color: string | undefined): OverlayControlState {
     return updateElement(id, { fillColor: color });
+  }
+
+  /**
+   * Anchoring pins the element at its current position relative to the parent; it doesn't jump
+   * there. Clearing (`parentId` undefined) just leaves it wherever it last was. Only meaningful
+   * between two elements on the same display — see `OverlayElementAnchor`'s doc comment.
+   */
+  function setElementAnchor(
+    id: OverlayElementId,
+    parentId: OverlayElementId | undefined,
+    matchWidth: boolean,
+    matchHeight: boolean,
+  ): OverlayControlState {
+    const anchor = parentId
+      ? { parentId, ...anchorOffset(settings.elements, id, parentId), matchWidth, matchHeight }
+      : undefined;
+    return updateElement(id, { anchor });
   }
 
   function setRequiredStatuses(category: RequiredStatusCategory, statusIds: string[]): OverlayControlState {

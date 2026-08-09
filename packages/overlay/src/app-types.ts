@@ -28,6 +28,21 @@ export const METER_STAT_TYPE_CYCLE: readonly StatType[] = ["damage", "heal", "ta
 export const STATUS_GROWTH_DIRECTIONS = ["right", "left", "down", "up"] as const;
 export type StatusGrowthDirection = (typeof STATUS_GROWTH_DIRECTIONS)[number];
 
+/**
+ * Anchors an element to another so moving (and optionally resizing) the parent carries this one
+ * along. Only meaningful between two elements on the same display: a surface only ever sees the
+ * settings for its own monitor's tiles, so a cross-monitor anchor can't live-cascade — it still
+ * persists and reconciles (via `settleAnchors`) whenever both surfaces next publish, but the
+ * dragged surface can't paint the other one moving in real time.
+ */
+export interface OverlayElementAnchor {
+  parentId: OverlayElementId;
+  offsetX: number;
+  offsetY: number;
+  matchWidth: boolean;
+  matchHeight: boolean;
+}
+
 export interface OverlayElementSettings {
   enabled: boolean;
   opacity: number;
@@ -42,6 +57,8 @@ export interface OverlayElementSettings {
   growthDirection?: StatusGrowthDirection;
   /** Resource bars only (health/mana/characterXp/jobXp); a 6-digit hex color overriding the fill's default. */
   fillColor?: string;
+  /** When set, x/y (and width/height if matched) are derived from the parent element rather than moved independently. */
+  anchor?: OverlayElementAnchor;
 }
 
 /** A connected monitor, as offered in the Settings window's display pickers. */
@@ -251,6 +268,11 @@ export type OverlayRpc = {
       /** `color: undefined` clears the override, reverting to the resource's default fill color. */
       setElementColor: {
         params: { id: OverlayElementId; color?: string };
+        response: OverlayControlState;
+      };
+      /** `parentId: undefined` clears the anchor, freeing the element to move independently again. */
+      setElementAnchor: {
+        params: { id: OverlayElementId; parentId?: OverlayElementId; matchWidth: boolean; matchHeight: boolean };
         response: OverlayControlState;
       };
     };

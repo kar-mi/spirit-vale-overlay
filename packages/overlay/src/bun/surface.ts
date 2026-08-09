@@ -78,6 +78,10 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
           controller.setElementColor(id, color);
           return controller.controlState(key);
         },
+        setElementAnchor: ({ id, parentId, matchWidth, matchHeight }) => {
+          controller.setElementAnchor(id, parentId, matchWidth, matchHeight);
+          return controller.controlState(key);
+        },
         setOverlayVisible: ({ visible }) => {
           controller.setOverlayVisible(visible);
           return controller.controlState(key);

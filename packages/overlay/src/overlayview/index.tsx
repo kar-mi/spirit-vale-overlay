@@ -29,6 +29,7 @@ import {
 } from "../app-types.ts";
 import { displayForRect } from "../display-layout.ts";
 import { snapPosition, type Rect } from "../snap.ts";
+import { descendantsOf, resolveAnchoredLayout, type ElementsById } from "../anchors.ts";
 import { resourceFill } from "../personal-resources.ts";
 import { ewmaSeries } from "@kar-mi/spirit-vale-tools-metrics";
 
@@ -151,6 +152,12 @@ const selectedElementId = signal<OverlayElementId | undefined>(undefined);
  * (not persisted) — it's an editing convenience, not part of the saved layout.
  */
 const panelPosition = signal<{ x: number; y: number } | undefined>(undefined);
+/**
+ * Live preview positions for whichever element is currently being dragged/resized's anchored
+ * descendants on this surface — the dragged element's own local `preview` state already covers
+ * itself. Keyed by id; empty outside a gesture.
+ */
+const anchorPreview = signal<Partial<Record<OverlayElementId, ElementRect>>>({});
 /** A tile being dragged on another monitor's surface, relayed here so it can be ghosted. */
 const dragPreview = signal<OverlayDragPreview | undefined>(undefined);
 let lastChromeJson: string | undefined;
@@ -397,7 +404,7 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
   // re-render the other thirteen. Undefined means this tile lives on another monitor's surface.
   const settings = elementStates[id].value;
   if (!settings || (locked && !settings.enabled)) return null;
-  const rect = preview ?? settings;
+  const rect = preview ?? anchorPreview.value[id] ?? settings;
   const selected = selectedElementId.value === id;
   const className = [
     "overlay-element",
@@ -414,6 +421,7 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
       ? dragRect(gesture.start, dx, dy, snapTargets(id))
       : resizeRect(gesture.start, gesture.edge, dx, dy, id);
     setPreview(next);
+    anchorPreview.value = cascadedDescendantRects(id, next);
     // Only a drag can leave this monitor; a resize is clamped to the window either way.
     if (gesture.kind === "drag") relayDrag(id, next);
   };
@@ -425,6 +433,7 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
       // Barely moved — treat as a click: select it for the inspector panel, don't write a position.
       setGesture(undefined);
       setPreview(undefined);
+      anchorPreview.value = {};
       endDragPreview();
       selectedElementId.value = id;
       return;
@@ -435,6 +444,7 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
     const wasResize = gesture.kind === "resize";
     setGesture(undefined);
     setPreview(finalRect);
+    anchorPreview.value = cascadedDescendantRects(id, finalRect);
     if (!wasResize) selectedElementId.value = id;
     const request = wasResize
       ? electroview.rpc?.request.setElementBounds({ id, ...finalRect })
@@ -442,6 +452,7 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
     if (!request) {
       if (!wasResize) endDragPreview();
       setPreview(undefined);
+      anchorPreview.value = {};
       return;
     }
     void request.then(
@@ -451,11 +462,15 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
         // ghost clears a frame or two before the real tile arrives and the drop visibly blinks.
         if (!wasResize) endDragPreview();
         setPreview(undefined);
+        // The server response already carries every cascaded descendant's real position (each
+        // arrives via its own `elementStates[childId]` update), so the local preview can drop now.
+        anchorPreview.value = {};
       },
       () => {
         // Restore the last authoritative position if the update could not be saved.
         if (!wasResize) endDragPreview();
         setPreview(undefined);
+        anchorPreview.value = {};
       },
     );
   };
@@ -488,6 +503,7 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
         endDragPreview();
         setGesture(undefined);
         setPreview(undefined);
+        anchorPreview.value = {};
       }}
     >
       <div class="overlay-surface" style={`--element-background-alpha:${settings.opacity * 0.76}`}>
@@ -534,6 +550,14 @@ function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | 
   const [headerDrag, setHeaderDrag] = useState<{ pointerId: number; originX: number; originY: number; start: { x: number; y: number } }>();
   const settings = selectedId ? elementStates[selectedId].value : undefined;
   if (!selectedId || !settings) return null;
+  const anchor = settings.anchor;
+  // Anchoring to a descendant of this element (or to itself) would create a cycle. Restricted to
+  // elements on this same surface: an off-surface anchor would still persist and settle correctly,
+  // but couldn't live-cascade here, which would read as broken rather than as the documented
+  // cross-monitor limitation it actually is.
+  const sameSurfaceElements = elementsOnThisSurface();
+  const unavailable = new Set<OverlayElementId>([selectedId, ...descendantsOf(sameSurfaceElements, selectedId)]);
+  const anchorOptions = OVERLAY_ELEMENT_IDS.filter((other) => !unavailable.has(other) && sameSurfaceElements[other] !== undefined);
   const position = panelPosition.value ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   return (
     <div
@@ -617,6 +641,41 @@ function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | 
           </span>
         </label>
       )}
+      <label class="inspector-row">
+        <span>Anchor to</span>
+        <select
+          value={anchor?.parentId ?? ""}
+          onChange={(event) => {
+            const parentId = (event.currentTarget.value || undefined) as OverlayElementId | undefined;
+            void setElementAnchor(selectedId, parentId, anchor?.matchWidth ?? false, anchor?.matchHeight ?? false);
+          }}
+        >
+          <option value="">None (moves independently)</option>
+          {anchorOptions.map((other) => (
+            <option key={other} value={other}>{OVERLAY_ELEMENT_LABELS[other]}</option>
+          ))}
+        </select>
+      </label>
+      {anchor && (
+        <div class="inspector-row inspector-match">
+          <label>
+            <input
+              type="checkbox"
+              checked={anchor.matchWidth}
+              onChange={(event) => void setElementAnchor(selectedId, anchor.parentId, event.currentTarget.checked, anchor.matchHeight)}
+            />
+            Match width
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={anchor.matchHeight}
+              onChange={(event) => void setElementAnchor(selectedId, anchor.parentId, anchor.matchWidth, event.currentTarget.checked)}
+            />
+            Match height
+          </label>
+        </div>
+      )}
       <label class="inspector-row inspector-toggle">
         <input
           type="checkbox"
@@ -636,11 +695,47 @@ function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | 
  * right for snapping: each surface's coordinates are relative to its own display, so a target on a
  * different monitor wouldn't be a meaningful snap line anyway.
  */
+/**
+ * Every element currently on this surface, keyed by id — an id that lives on another monitor's
+ * surface is simply absent. Read fresh (not during render), so this never subscribes the caller to
+ * another tile's signal — same reasoning as `snapTargets`. Cast to the full `ElementsById` shape
+ * `anchors.ts` expects: every lookup in there goes through optional chaining, so a hole here just
+ * means that branch cascades no further, which is exactly the right behavior for a cross-monitor
+ * anchor (see `OverlayElementAnchor`'s doc comment) — it still persists and settles server-side,
+ * it just can't animate live on a surface that never receives that element's data.
+ */
+function elementsOnThisSurface(): ElementsById {
+  const partial: Partial<Record<OverlayElementId, OverlayElementSettings>> = {};
+  for (const id of OVERLAY_ELEMENT_IDS) {
+    const value = elementStates[id].value;
+    if (value) partial[id] = value;
+  }
+  return partial as ElementsById;
+}
+
+/**
+ * Anchored descendants move with `id` during its drag (see `cascadedDescendantRects` below), so
+ * snapping to one of them would be chasing a target that's chasing the pointer right back — a
+ * feedback loop. Excluded along with `id` itself.
+ */
 function snapTargets(excludeId: OverlayElementId): readonly Rect[] {
+  const elements = elementsOnThisSurface();
+  const excluded = new Set<OverlayElementId>([excludeId, ...descendantsOf(elements, excludeId)]);
   return OVERLAY_ELEMENT_IDS
-    .filter((other) => other !== excludeId)
-    .map((other) => elementStates[other].value)
+    .filter((other) => !excluded.has(other))
+    .map((other) => elements[other])
     .filter((settings): settings is OverlayElementSettings => settings !== undefined);
+}
+
+/** Live cascade preview for `id`'s anchored descendants (direct and transitive) on this surface. */
+function cascadedDescendantRects(id: OverlayElementId, rect: ElementRect): Partial<Record<OverlayElementId, ElementRect>> {
+  const cascaded = resolveAnchoredLayout(elementsOnThisSurface(), id, rect);
+  const result: Partial<Record<OverlayElementId, ElementRect>> = {};
+  for (const childId of descendantsOf(cascaded, id)) {
+    const child = cascaded[childId];
+    if (child) result[childId] = { x: child.x, y: child.y, width: child.width, height: child.height };
+  }
+  return result;
 }
 
 /**
@@ -1118,6 +1213,16 @@ function setElementGrowthDirection(id: OverlayElementId, direction: StatusGrowth
 
 function setElementColor(id: OverlayElementId, color: string | undefined): Promise<void> {
   return electroview.rpc?.request.setElementColor({ id, color }).then((next) => applyControl(next)) ?? Promise.resolve();
+}
+
+function setElementAnchor(
+  id: OverlayElementId,
+  parentId: OverlayElementId | undefined,
+  matchWidth: boolean,
+  matchHeight: boolean,
+): Promise<void> {
+  return electroview.rpc?.request.setElementAnchor({ id, parentId, matchWidth, matchHeight })
+    .then((next) => applyControl(next)) ?? Promise.resolve();
 }
 
 

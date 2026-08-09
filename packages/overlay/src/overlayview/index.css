@@ -329,6 +329,15 @@
 }
 .inspector-toggle input[type="checkbox"] { accent-color: #bca7ff; cursor: pointer; }
 
+.inspector-match {
+  display: flex;
+  gap: 14px;
+  font-size: 10px;
+  color: rgba(255,255,255,.75);
+}
+.inspector-match label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.inspector-match input[type="checkbox"] { accent-color: #bca7ff; cursor: pointer; }
+
 .resize-handle {
   position: absolute;
   z-index: 3;

@@ -9,11 +9,13 @@ import {
   STATUS_GROWTH_DIRECTIONS,
   type KeybindAction,
   type OverlayDisplayOption,
+  type OverlayElementAnchor,
   type OverlayElementId,
   type OverlayElementSettings,
   type StatType,
   type StatusGrowthDirection,
 } from "./app-types.ts";
+import { hasAnchorCycle, settleAnchors, type ElementsById } from "./anchors.ts";
 import {
   REQUIRED_STATUS_CATEGORIES,
   normalizeRequiredStatusIds,
@@ -137,15 +139,17 @@ export function normalizeOverlaySettings(
       display,
       growthDirection: normalizeGrowthDirection(value.growthDirection),
       fillColor: normalizeFillColor(value.fillColor),
+      anchor: normalizeAnchor(id, value.anchor),
     }];
   })) as unknown as Record<OverlayElementId, OverlayElementSettings>;
+  const settled = settleAnchors(dropCyclicAnchors(elements));
   const shortcuts = normalizeShortcuts(source);
   return {
     schemaVersion: 5,
     homeDisplay,
     locked: typeof source.locked === "boolean" ? source.locked : false,
     shortcuts,
-    elements,
+    elements: settled,
     meterStatType: normalizeMeterStatType(source.meterStatType),
     requiredStatuses: normalizeRequiredStatuses(source.requiredStatuses),
     autoHideWhenUnfocused: typeof source.autoHideWhenUnfocused === "boolean" ? source.autoHideWhenUnfocused : false,
@@ -232,6 +236,33 @@ function normalizeGrowthDirection(value: unknown): StatusGrowthDirection | undef
   return typeof value === "string" && (STATUS_GROWTH_DIRECTIONS as readonly string[]).includes(value)
     ? value as StatusGrowthDirection
     : undefined;
+}
+
+function normalizeAnchor(id: OverlayElementId, value: unknown): OverlayElementAnchor | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  const parentId = typeof raw.parentId === "string" && (OVERLAY_ELEMENT_IDS as readonly string[]).includes(raw.parentId)
+    ? raw.parentId as OverlayElementId
+    : undefined;
+  if (!parentId || parentId === id) return undefined;
+  return {
+    parentId,
+    offsetX: typeof raw.offsetX === "number" && Number.isFinite(raw.offsetX) ? Math.round(raw.offsetX) : 0,
+    offsetY: typeof raw.offsetY === "number" && Number.isFinite(raw.offsetY) ? Math.round(raw.offsetY) : 0,
+    matchWidth: typeof raw.matchWidth === "boolean" ? raw.matchWidth : false,
+    matchHeight: typeof raw.matchHeight === "boolean" ? raw.matchHeight : false,
+  };
+}
+
+/** Untrusted (loaded-from-disk) anchors can encode a cycle; strip any anchor that would. */
+function dropCyclicAnchors(elements: ElementsById): ElementsById {
+  let result = elements;
+  for (const id of OVERLAY_ELEMENT_IDS) {
+    if (result[id]?.anchor && hasAnchorCycle(result, id)) {
+      result = { ...result, [id]: { ...result[id]!, anchor: undefined } };
+    }
+  }
+  return result;
 }
 
 async function resolveSettingsPath(settingsPath: string | undefined): Promise<string> {
