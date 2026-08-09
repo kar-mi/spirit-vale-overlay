@@ -28,6 +28,7 @@ import {
   type StatusGrowthDirection,
 } from "../app-types.ts";
 import { displayForRect } from "../display-layout.ts";
+import { snapPosition, type Rect } from "../snap.ts";
 import { resourceFill } from "../personal-resources.ts";
 import { ewmaSeries } from "@kar-mi/spirit-vale-tools-metrics";
 
@@ -141,6 +142,7 @@ const statusNow = signal(Date.now());
 let statusTicker: ReturnType<typeof setInterval> | undefined;
 const meterState = signal<OverlayMeterState | undefined>(undefined);
 const gridEnabled = signal(false);
+const snapEnabled = signal(false);
 /** The element whose options are shown in the central inspector panel; undefined when nothing is selected. */
 const selectedElementId = signal<OverlayElementId | undefined>(undefined);
 /**
@@ -263,6 +265,13 @@ function App() {
               onClick={() => { gridEnabled.value = !gridEnabled.value; }}
             >
               {gridEnabled.value ? "Grid: On" : "Grid: Off"}
+            </button>
+            <button
+              class={snapEnabled.value ? "lock-pill snap-pill active" : "lock-pill snap-pill"}
+              type="button"
+              onClick={() => { snapEnabled.value = !snapEnabled.value; }}
+            >
+              {snapEnabled.value ? "Snap: On" : "Snap: Off"}
             </button>
             <button
               class={next.autoHideWhenUnfocused ? "lock-pill autohide-pill active" : "lock-pill autohide-pill"}
@@ -402,7 +411,7 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
     const dx = event.clientX - gesture.originX;
     const dy = event.clientY - gesture.originY;
     const next = gesture.kind === "drag"
-      ? dragRect(gesture.start, dx, dy)
+      ? dragRect(gesture.start, dx, dy, snapTargets(id))
       : resizeRect(gesture.start, gesture.edge, dx, dy, id);
     setPreview(next);
     // Only a drag can leave this monitor; a resize is clamped to the window either way.
@@ -421,7 +430,7 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
       return;
     }
     const finalRect = gesture.kind === "drag"
-      ? dragRect(gesture.start, dx, dy)
+      ? dragRect(gesture.start, dx, dy, snapTargets(id))
       : resizeRect(gesture.start, gesture.edge, dx, dy, id);
     const wasResize = gesture.kind === "resize";
     setGesture(undefined);
@@ -621,23 +630,44 @@ function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | 
 }
 
 /**
+ * Every other element currently on this surface, as plain rects — read fresh (not during render,
+ * so this never subscribes the caller to their signals; only a plain one-off read at drag time).
+ * Elements on another monitor are simply absent from `elementStates` here, which is also exactly
+ * right for snapping: each surface's coordinates are relative to its own display, so a target on a
+ * different monitor wouldn't be a meaningful snap line anyway.
+ */
+function snapTargets(excludeId: OverlayElementId): readonly Rect[] {
+  return OVERLAY_ELEMENT_IDS
+    .filter((other) => other !== excludeId)
+    .map((other) => elementStates[other].value)
+    .filter((settings): settings is OverlayElementSettings => settings !== undefined);
+}
+
+/**
  * With more than one monitor a drag is deliberately not clamped to this window: pointer capture
  * keeps delivering moves once the cursor leaves the display, and letting the tile follow it off the
  * edge is what makes dropping it on the next screen possible. Where it actually lands is resolved
  * in `dropRequest`, and the bun side clamps it into whichever display that turns out to be.
  */
-function dragRect(start: ElementRect, dx: number, dy: number): ElementRect {
+function dragRect(start: ElementRect, dx: number, dy: number, targets: readonly Rect[]): ElementRect {
   const spansDisplays = (chromeState.value?.displayLayout.length ?? 1) > 1;
-  const x = spansDisplays
+  const rawX = spansDisplays
     ? Math.round(start.x + dx)
     : clamp(start.x + dx, 0, Math.max(0, window.innerWidth - start.width));
-  const y = spansDisplays
+  const rawY = spansDisplays
     ? Math.round(start.y + dy)
     : clamp(start.y + dy, 0, Math.max(0, window.innerHeight - start.height));
+  const snapped = snapEnabled.value
+    ? snapPosition({ x: rawX, y: rawY, width: start.width, height: start.height }, targets)
+    : undefined;
+  // An edge/center snap on an axis wins over grid-snap on that axis — otherwise grid rounding
+  // would nudge a just-snapped edge a few px off, defeating the point of snapping.
+  const x = snapped && snapped.x !== rawX ? snapped.x : rawX;
+  const y = snapped && snapped.y !== rawY ? snapped.y : rawY;
   return {
     ...start,
-    x: gridEnabled.value ? snapToGrid(x) : x,
-    y: gridEnabled.value ? snapToGrid(y) : y,
+    x: gridEnabled.value && (!snapped || snapped.x === rawX) ? snapToGrid(x) : x,
+    y: gridEnabled.value && (!snapped || snapped.y === rawY) ? snapToGrid(y) : y,
   };
 }
 

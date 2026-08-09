@@ -81,6 +81,11 @@
   background: rgba(30, 120, 80, 0.94);
 }
 
+.snap-pill.active {
+  border-color: rgba(120, 190, 255, 0.85);
+  background: rgba(22, 90, 150, 0.94);
+}
+
 /* A tile mid-drag on another monitor. Deliberately an outline rather than a copy of the tile: it
    reads as "this is where it will land" and costs one cheap paint per frame, while the real tile
    stays under the cursor on the surface that owns the gesture. */
