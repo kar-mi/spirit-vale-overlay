@@ -289,6 +289,10 @@
 .inspector-row output { font-variant-numeric: tabular-nums; }
 .inspector-row input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: #bca7ff; cursor: pointer; }
 .inspector-row select {
+  /* The closed control picks up the surrounding dark styling fine, but WebView2's native dropdown
+     popup renders with the OS light theme unless the select itself (not just an ancestor) declares
+     color-scheme — the :root-level one in theme.css doesn't reach into the popup. */
+  color-scheme: dark;
   padding: 3px 6px;
   border: 1px solid rgba(204, 187, 255, .4);
   border-radius: 6px;
@@ -297,6 +301,8 @@
   font-size: 11px;
   cursor: pointer;
 }
+/* Belt and suspenders: explicit option colors in case color-scheme alone isn't honored. */
+.inspector-row option { background: #16161e; color: rgba(255,255,255,.92); }
 
 .inspector-color-control {
   display: flex;
