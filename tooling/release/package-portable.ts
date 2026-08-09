@@ -115,7 +115,7 @@ async function main(): Promise<void> {
     throw new Error("The Electrobun build is missing its Windows runtime executables or application icon.");
   }
 
-  const portableShortcut = path.join(portableRoot, `${productName}.lnk`);
+  const portableLauncherName = `${productName}.lnk`;
   run("powershell", [
     "-NoProfile",
     "-ExecutionPolicy",
@@ -123,7 +123,7 @@ async function main(): Promise<void> {
     "-File",
     path.join(projectRoot, "tooling", "release", "build-portable-shortcut.ps1"),
     "-OutputPath",
-    portableShortcut,
+    path.join(portableRoot, portableLauncherName),
     "-TargetPath",
     nativeLauncher,
   ]);
@@ -133,8 +133,8 @@ async function main(): Promise<void> {
     `${productName} Portable`,
     `Version ${version}`,
     "",
-    `Extract the complete folder, then run "${productName}.lnk".`,
-    `Keep ${productName}.lnk beside the bin and Resources folders.`,
+    `Extract the complete folder, then run "${portableLauncherName}".`,
+    `Keep ${portableLauncherName} beside the bin and Resources folders.`,
     "",
     "Npcap is required and is not included. Install it separately with WinPcap API-compatible mode enabled.",
     "",
@@ -143,7 +143,7 @@ async function main(): Promise<void> {
     "- Capture and replay logs: data\\logs\\",
     "- Runtime, browser, and temporary data: data\\runtime\\",
     "",
-    `The portable build keeps application data out of Windows AppData. Start the app with ${productName}.lnk.`,
+    `The portable build keeps application data out of Windows AppData. Start the app with ${portableLauncherName}.`,
     "",
   ].join("\r\n"), "utf8");
 
@@ -159,8 +159,6 @@ async function main(): Promise<void> {
 
   const checksum = await sha256(zipPath);
   await writeFile(checksumPath, `${checksum}  ${path.basename(zipPath)}\n`, "utf8");
-  // The shortcut is created against staging. Remove that absolute target before verification so
-  // resolving the extracted link proves its relative-path fallback really is portable.
   await removeManaged(stagingRoot);
   run("bun", ["run", "verify:portable", zipPath]);
 
