@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -38,8 +38,9 @@ test.skipIf(process.platform !== "win32")("portable shortcut resolves after its 
       + "$link = $folder.ParseName('Spirit Vale Overlay.lnk').GetLink; $link.Resolve(1); $link.Path",
     ]);
     expect(resolve.exitCode).toBe(0);
+    const expectedTarget = await realpath(path.join(copied, "bin", "launcher.exe"));
     expect(new TextDecoder().decode(resolve.stdout).trim().toLowerCase())
-      .toBe(path.join(copied, "bin", "launcher.exe").toLowerCase());
+      .toBe(expectedTarget.toLowerCase());
   } finally {
     await rm(root, { recursive: true, force: true });
   }
