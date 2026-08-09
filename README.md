@@ -21,6 +21,8 @@ UI/QoL customization for the in-game overlay:
   fixed left-to-right layout.
 - **Per-element bar color** — a color picker for the HP/MP/Character XP/Job XP bars' fill color, with a
   one-click reset back to default.
+- **Redesigned resize handles** — thin corner brackets shown only on the currently-selected element, instead
+  of larger dots that obscured the corner they sat on and made lining elements up harder.
 - **Auto-hide when unfocused** — an optional toggle that hides the overlay when neither the game nor the app
   has focus (e.g. tabbing to File Explorer or a browser), so it stops sitting on top of unrelated windows. A
   manual show/hide always takes priority over the automatic behavior.
