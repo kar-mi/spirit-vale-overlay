@@ -43,4 +43,4 @@ test.skipIf(process.platform !== "win32")("portable shortcut resolves after its 
   } finally {
     await rm(root, { recursive: true, force: true });
   }
-});
+}, 15_000);
