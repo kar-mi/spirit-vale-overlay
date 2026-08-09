@@ -43,6 +43,8 @@ export interface OverlaySettings {
   meterStatType: StatType;
   /** Statuses the user expects to keep up; the matching tile is highlighted while any is missing. */
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
+  /** Hides the overlay when neither the game nor this app has OS focus (e.g. tabbing to File Explorer). */
+  autoHideWhenUnfocused: boolean;
 }
 
 const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
@@ -142,6 +144,7 @@ export function normalizeOverlaySettings(
     elements,
     meterStatType: normalizeMeterStatType(source.meterStatType),
     requiredStatuses: normalizeRequiredStatuses(source.requiredStatuses),
+    autoHideWhenUnfocused: typeof source.autoHideWhenUnfocused === "boolean" ? source.autoHideWhenUnfocused : false,
   };
 }
 

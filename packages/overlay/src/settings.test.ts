@@ -243,6 +243,26 @@ describe("overlay settings", () => {
       .toEqual({ buffs: [someBuffId], toggles: [] });
   });
 
+  test("defaults auto-hide-when-unfocused to off", () => {
+    expect(defaultOverlaySettings(displays).autoHideWhenUnfocused).toBe(false);
+  });
+
+  test("normalizes auto-hide-when-unfocused, rejecting non-boolean values", () => {
+    expect(normalizeOverlaySettings({ schemaVersion: 5, autoHideWhenUnfocused: true }, displays).autoHideWhenUnfocused)
+      .toBe(true);
+    expect(normalizeOverlaySettings({ schemaVersion: 5, autoHideWhenUnfocused: "yes" }, displays).autoHideWhenUnfocused)
+      .toBe(false);
+  });
+
+  test("round-trips auto-hide-when-unfocused", async () => {
+    const settingsPath = await createSettingsPath();
+    const settings = defaultOverlaySettings(displays);
+    settings.autoHideWhenUnfocused = true;
+    await saveOverlaySettings(settings, settingsPath);
+
+    expect((await loadOverlaySettings(settingsPath, displays)).autoHideWhenUnfocused).toBe(true);
+  });
+
   test("stamps every element with the home display when migrating from schema four", () => {
     const settings = normalizeOverlaySettings({
       schemaVersion: 4,

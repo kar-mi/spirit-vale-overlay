@@ -42,6 +42,8 @@ const FLASH_MINIMUM_DURATION_MS = 59_000;
 const STATUS_TICK_MS = 100;
 const GRID_SIZE = 10;
 const RESIZE_EDGES = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
+/** Pointer movement below this counts as a click (select) rather than a drag. */
+const CLICK_MOVE_THRESHOLD_PX = 4;
 const CLASS_ICON_BY_ARCHETYPE: Readonly<Record<number, string>> = {
   0: "warrior",
   1: "mage",
@@ -82,6 +84,7 @@ interface OverlayChrome {
   /** This window's own monitor, and every monitor, so a drag can be resolved across them. */
   surface?: OverlayDisplayPlacement;
   displayLayout: OverlayDisplayPlacement[];
+  autoHideWhenUnfocused: boolean;
 }
 
 // Control state is fanned out into one signal per tile plus one for the shared chrome, each
@@ -107,6 +110,14 @@ const statusNow = signal(Date.now());
 let statusTicker: ReturnType<typeof setInterval> | undefined;
 const meterState = signal<OverlayMeterState | undefined>(undefined);
 const gridEnabled = signal(false);
+/** The element whose options are shown in the central inspector panel; undefined when nothing is selected. */
+const selectedElementId = signal<OverlayElementId | undefined>(undefined);
+/**
+ * Where the user last dragged the inspector panel to, by its header-grab point, in window
+ * coordinates. Undefined means "use the default centered position." Lives for the session only
+ * (not persisted) — it's an editing convenience, not part of the saved layout.
+ */
+const panelPosition = signal<{ x: number; y: number } | undefined>(undefined);
 /** A tile being dragged on another monitor's surface, relayed here so it can be ghosted. */
 const dragPreview = signal<OverlayDragPreview | undefined>(undefined);
 let lastChromeJson: string | undefined;
@@ -140,6 +151,7 @@ function applyControl(next: OverlayControlState): void {
       shortcuts: next.shortcuts,
       surface: next.surface,
       displayLayout: next.displayLayout,
+      autoHideWhenUnfocused: next.autoHideWhenUnfocused,
     };
     const chromeJson = JSON.stringify(chrome);
     if (chromeJson !== lastChromeJson) {
@@ -202,7 +214,9 @@ function App() {
   if (!next) return <main class="overlay-root" />;
   return (
     <main class={next.locked ? "overlay-root" : "overlay-root editing"}>
-      {!next.locked && <div class="edit-scrim" />}
+      {!next.locked && (
+        <div class="edit-scrim" onPointerDown={() => { selectedElementId.value = undefined; }} />
+      )}
       {!next.locked && gridEnabled.value && <div class="grid-overlay" aria-hidden="true" />}
       {!next.locked && (
         <div class="edit-controls">
@@ -219,10 +233,18 @@ function App() {
             >
               {gridEnabled.value ? "Grid: On" : "Grid: Off"}
             </button>
+            <button
+              class={next.autoHideWhenUnfocused ? "lock-pill autohide-pill active" : "lock-pill autohide-pill"}
+              type="button"
+              onClick={() => void setAutoHideWhenUnfocused(!next.autoHideWhenUnfocused)}
+            >
+              {next.autoHideWhenUnfocused ? "Auto-hide: On" : "Auto-hide: Off"}
+            </button>
             <button class="lock-pill" type="button" onClick={() => void setLocked(true)}>Lock overlay</button>
           </div>
         </div>
       )}
+      {!next.locked && <ElementInspectorPanel selectedId={selectedElementId.value} />}
       <OverlayElement id="dpsChart" locked={next.locked}>
         <DpsChartElement />
       </OverlayElement>
@@ -332,10 +354,12 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
   const settings = elementStates[id].value;
   if (!settings || (locked && !settings.enabled)) return null;
   const rect = preview ?? settings;
+  const selected = selectedElementId.value === id;
   const className = [
     "overlay-element",
     !settings.enabled && "hidden-preview",
     warn && settings.enabled && "missing-statuses",
+    !locked && selected && "selected",
     gesture?.kind === "resize" ? "resizing" : gesture?.kind === "drag" ? "dragging" : undefined,
   ].filter(Boolean).join(" ");
   const move = (event: PointerEvent): void => {
@@ -353,12 +377,21 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
     if (!gesture || event.pointerId !== gesture.pointerId) return;
     const dx = event.clientX - gesture.originX;
     const dy = event.clientY - gesture.originY;
+    if (gesture.kind === "drag" && Math.hypot(dx, dy) < CLICK_MOVE_THRESHOLD_PX) {
+      // Barely moved — treat as a click: select it for the inspector panel, don't write a position.
+      setGesture(undefined);
+      setPreview(undefined);
+      endDragPreview();
+      selectedElementId.value = id;
+      return;
+    }
     const finalRect = gesture.kind === "drag"
       ? dragRect(gesture.start, dx, dy)
       : resizeRect(gesture.start, gesture.edge, dx, dy, id);
     const wasResize = gesture.kind === "resize";
     setGesture(undefined);
     setPreview(finalRect);
+    if (!wasResize) selectedElementId.value = id;
     const request = wasResize
       ? electroview.rpc?.request.setElementBounds({ id, ...finalRect })
       : dropRequest(id, finalRect);
@@ -418,30 +451,7 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
       </div>
       {!locked && !settings.enabled && <span class="hidden-indicator">Hidden</span>}
       {!locked && <span class="element-title-badge">{OVERLAY_ELEMENT_LABELS[id]}</span>}
-      {!locked && (
-        <label
-          class="element-opacity-control"
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <span>Tile opacity</span>
-          <output>{Math.round(settings.opacity * 100)}%</output>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={settings.opacity}
-            onInput={(event) => {
-              const request = electroview.rpc?.request.setElementOpacity({
-                id,
-                opacity: event.currentTarget.valueAsNumber,
-              });
-              void request?.then((next) => applyControl(next));
-            }}
-          />
-        </label>
-      )}
-      {!locked && RESIZE_EDGES.map((edge) => (
+      {!locked && selected && RESIZE_EDGES.map((edge) => (
         <span
           key={edge}
           class={`resize-handle resize-${edge}`}
@@ -464,6 +474,84 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
         />
       ))}
     </section>
+  );
+}
+
+/**
+ * Central panel for whichever element is selected — opacity and visibility in one place, rather
+ * than a floating control per element (which overlap badly once elements sit close together).
+ * Click an element (without dragging it) to select it.
+ *
+ * Reads only the selected tile's own signal (`elementStates[selectedId]`), never a whole-elements
+ * object: `applyControl` only populates a tile's signal when it lives on this surface's monitor, so
+ * there is nothing to cross-reference here anyway.
+ */
+function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | undefined }) {
+  const [headerDrag, setHeaderDrag] = useState<{ pointerId: number; originX: number; originY: number; start: { x: number; y: number } }>();
+  const settings = selectedId ? elementStates[selectedId].value : undefined;
+  if (!selectedId || !settings) return null;
+  const position = panelPosition.value ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  return (
+    <div
+      class="element-inspector-panel"
+      style={{ left: `${position.x}px`, top: `${position.y}px` }}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <div
+        class={headerDrag ? "inspector-header dragging" : "inspector-header"}
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          setHeaderDrag({ pointerId: event.pointerId, originX: event.clientX, originY: event.clientY, start: position });
+        }}
+        onPointerMove={(event) => {
+          if (!headerDrag || event.pointerId !== headerDrag.pointerId) return;
+          panelPosition.value = {
+            x: headerDrag.start.x + (event.clientX - headerDrag.originX),
+            y: headerDrag.start.y + (event.clientY - headerDrag.originY),
+          };
+        }}
+        onPointerUp={() => setHeaderDrag(undefined)}
+        onPointerCancel={() => setHeaderDrag(undefined)}
+      >
+        <span>{OVERLAY_ELEMENT_LABELS[selectedId]}</span>
+        <button
+          type="button"
+          class="inspector-close"
+          aria-label="Close"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => { selectedElementId.value = undefined; }}
+        >
+          ×
+        </button>
+      </div>
+      <label class="inspector-row">
+        <span>Tile opacity</span>
+        <output>{Math.round(settings.opacity * 100)}%</output>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={settings.opacity}
+          onInput={(event) => {
+            const request = electroview.rpc?.request.setElementOpacity({
+              id: selectedId,
+              opacity: event.currentTarget.valueAsNumber,
+            });
+            void request?.then((next) => applyControl(next));
+          }}
+        />
+      </label>
+      <label class="inspector-row inspector-toggle">
+        <input
+          type="checkbox"
+          checked={settings.enabled}
+          onChange={() => void setElementEnabled(selectedId, !settings.enabled)}
+        />
+        Visible
+      </label>
+    </div>
   );
 }
 
@@ -909,6 +997,10 @@ function setLocked(locked: boolean): Promise<void> {
 
 function setElementEnabled(id: OverlayElementId, enabled: boolean): Promise<void> {
   return electroview.rpc?.request.setElementEnabled({ id, enabled }).then((next) => applyControl(next)) ?? Promise.resolve();
+}
+
+function setAutoHideWhenUnfocused(enabled: boolean): Promise<void> {
+  return electroview.rpc?.request.setAutoHideWhenUnfocused({ enabled }).then((next) => applyControl(next)) ?? Promise.resolve();
 }
 
 

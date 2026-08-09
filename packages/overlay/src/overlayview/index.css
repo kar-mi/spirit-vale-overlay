@@ -76,6 +76,11 @@
   background: rgba(150, 108, 22, 0.94);
 }
 
+.autohide-pill.active {
+  border-color: rgba(120, 220, 170, 0.85);
+  background: rgba(30, 120, 80, 0.94);
+}
+
 /* A tile mid-drag on another monitor. Deliberately an outline rather than a copy of the tile: it
    reads as "this is where it will land" and costs one cheap paint per frame, while the real tile
    stays under the cursor on the surface that owns the gesture. */
@@ -221,28 +226,70 @@
   z-index: 10;
 }
 
-.element-opacity-control {
+.overlay-root.editing .overlay-element.selected {
+  border: 2px solid rgba(204, 187, 255, 0.95);
+  box-shadow: 0 0 0 3px rgba(78, 52, 132, 0.45);
+}
+
+.element-inspector-panel {
   position: absolute;
-  top: calc(100% + 9px);
-  left: 50%;
-  z-index: 4;
+  z-index: 30;
   display: grid;
-  width: clamp(160px, 100%, 220px);
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 5px 10px;
-  padding: 7px 9px;
+  width: clamp(200px, 100%, 260px);
+  gap: 8px;
+  padding: 10px 12px 12px;
   border: 1px solid rgba(204, 187, 255, .55);
-  border-radius: 8px;
+  border-radius: 10px;
   background: rgba(18, 18, 24, .96);
-  color: rgba(255,255,255,.82);
-  font-size: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  color: rgba(255,255,255,.85);
+  font-size: 11px;
   text-shadow: none;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   cursor: default;
 }
-.element-opacity-control output { font-variant-numeric: tabular-nums; }
-.element-opacity-control input { grid-column: 1 / -1; width: 100%; accent-color: #bca7ff; cursor: pointer; }
+
+.inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -2px -4px 2px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: .02em;
+  cursor: grab;
+}
+.inspector-header.dragging { cursor: grabbing; background: rgba(78, 52, 132, 0.35); }
+
+.inspector-close {
+  padding: 0 6px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255,255,255,.7);
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.inspector-close:hover { color: rgba(255,255,255,.95); }
+
+.inspector-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 10px;
+}
+.inspector-row output { font-variant-numeric: tabular-nums; }
+.inspector-row input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: #bca7ff; cursor: pointer; }
+
+.inspector-toggle {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  cursor: pointer;
+}
+.inspector-toggle input[type="checkbox"] { accent-color: #bca7ff; cursor: pointer; }
 
 .resize-handle {
   position: absolute;

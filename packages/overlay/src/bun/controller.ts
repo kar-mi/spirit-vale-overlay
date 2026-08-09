@@ -12,6 +12,7 @@ import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { publishSafely } from "@svoverlay/desktop-platform/window-publish";
 import { createPassThroughShortcutListener, type PassThroughShortcutListener } from "@svoverlay/desktop-platform/pass-through-shortcuts";
+import { getForegroundProcess } from "@svoverlay/desktop-platform/win32";
 import { Screen } from "electrobun/bun";
 
 import type {
@@ -85,6 +86,9 @@ const ESCAPE_LOCK_SHORTCUT = "Escape";
 const LOCK_STYLE_DEBOUNCE_MS = 50;
 /** How often the connected-monitor set is re-read. Electrobun exposes no display-changed event. */
 const DISPLAY_RECONCILE_MS = 5_000;
+/** How often the foreground process is checked for the auto-hide-when-unfocused feature. */
+const AUTO_HIDE_POLL_MS = 400;
+const GAME_PROCESS_NAME = "spiritvale.exe";
 /** Timeline buckets retained per encounter. Beyond this, adjacent buckets merge. */
 const TIMELINE_POINTS = 720;
 const EXPERIENCE_REQUIREMENTS = loadBundledMobRewardCatalog().experienceRequirements;
@@ -166,6 +170,10 @@ export async function createOverlayController(options: OverlayControllerOptions)
     : "Looking for a combat session…";
   let shuttingDown = false;
   let overlayVisible = true;
+  // Set whenever visibility is changed by the user directly (a shortcut, or the Settings window's
+  // Hide/Show button), cleared when they manually show it again. While engaged, the auto-hide poll
+  // below leaves visibility alone entirely — refocusing the game must not undo a manual hide.
+  let manualHideEngaged = false;
   const surfaces = new Map<string, OverlaySurfaceSink>();
   /** Control state is projected per display, so the dedupe string has to be per surface too. */
   const lastControlJson = new Map<string, string>();
@@ -217,6 +225,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
   // stranded on a monitor that has been unplugged.
   const displayTimer = setInterval(() => reconcileDisplays(), DISPLAY_RECONCILE_MS);
   displayTimer.unref?.();
+  const autoHideTimer = setInterval(() => checkAutoHide(), AUTO_HIDE_POLL_MS);
+  autoHideTimer.unref?.();
   const unsubscribeCharacter = options.subscribeCharacter((next) => {
     characterState = next;
     const personalName = detectedPersonalName(characterState);
@@ -282,7 +292,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
     setElementPlacement,
     setElementOpacity,
     relayDragPreview,
-    setOverlayVisible: updateOverlayVisible,
+    setOverlayVisible: setOverlayVisibleManually,
+    setAutoHideWhenUnfocused: updateAutoHideWhenUnfocused,
     setShortcut,
     setShortcutCapture,
     setRequiredStatuses,
@@ -308,6 +319,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       if (lockStyleTimer !== undefined) clearTimeout(lockStyleTimer);
       lockStyleTimer = undefined;
       clearInterval(displayTimer);
+      clearInterval(autoHideTimer);
       unsubscribeCharacter();
       unsubscribeActiveStatuses();
       unsubscribeXp();
@@ -353,6 +365,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       shortcutErrors: Object.fromEntries(shortcutErrors),
       overlayVisible,
       requiredStatuses: settings.requiredStatuses,
+      autoHideWhenUnfocused: settings.autoHideWhenUnfocused,
     };
   }
 
@@ -368,6 +381,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       shortcutErrors: control.shortcutErrors,
       overlayVisible: control.overlayVisible,
       requiredStatuses: control.requiredStatuses,
+      autoHideWhenUnfocused: control.autoHideWhenUnfocused,
     };
   }
 
@@ -572,6 +586,42 @@ export async function createOverlayController(options: OverlayControllerOptions)
     publishControl();
   }
 
+  /**
+   * Every user-facing visibility toggle (the show/hide shortcut, or the Settings window's Hide/Show
+   * button) goes through here rather than `updateOverlayVisible` directly, so `manualHideEngaged`
+   * tracks it correctly.
+   */
+  function setOverlayVisibleManually(visible: boolean): void {
+    manualHideEngaged = !visible;
+    updateOverlayVisible(visible);
+  }
+
+  function updateAutoHideWhenUnfocused(enabled: boolean): OverlayControlState {
+    settings = { ...settings, autoHideWhenUnfocused: enabled };
+    persist();
+    publishControl();
+    return controlState();
+  }
+
+  /**
+   * Polled on a timer. Only acts when auto-hide is on and the user hasn't manually hidden the
+   * overlay. The game and this app's own windows (Settings, the launcher, etc. — all one process)
+   * count as the same "should be visible" bucket, since switching between them isn't "tabbing
+   * away." Anything else hides every surface; switching back to either shows them again.
+   */
+  function checkAutoHide(): void {
+    if (shuttingDown || !settings.autoHideWhenUnfocused || manualHideEngaged) return;
+    const foreground = getForegroundProcess();
+    if (!foreground) return;
+    const isOwnApp = foreground.pid === process.pid;
+    const isGame = !isOwnApp && foreground.exeName.toLowerCase() === GAME_PROCESS_NAME;
+    if (isOwnApp || isGame) {
+      if (!overlayVisible) updateOverlayVisible(true);
+    } else if (overlayVisible) {
+      updateOverlayVisible(false);
+    }
+  }
+
   function cycleMeterStatType(): void {
     const currentIndex = METER_STAT_TYPE_CYCLE.indexOf(settings.meterStatType);
     const next = METER_STAT_TYPE_CYCLE[(currentIndex + 1) % METER_STAT_TYPE_CYCLE.length]!;
@@ -598,7 +648,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     if (action === "lockOnEscape") {
       if (!settings.locked) updateLocked(true);
     } else if (action === "toggleLock") updateLocked(!settings.locked);
-    else if (action === "toggleOverlayVisible") updateOverlayVisible(!overlayVisible);
+    else if (action === "toggleOverlayVisible") setOverlayVisibleManually(!overlayVisible);
     else if (action === "cycleMeterStatType") cycleMeterStatType();
     else if (action === "openLiveDeathLog") {
       void options.onOpenLiveDeathLog?.();

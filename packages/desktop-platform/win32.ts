@@ -184,6 +184,68 @@ export function setWindowClickThrough(windowPtr: unknown, enabled: boolean): boo
   }
 }
 
+function openForegroundProcessLibs() {
+  return {
+    user32: dlopen("user32", {
+      GetForegroundWindow: { args: [], returns: FFIType.ptr },
+      GetWindowThreadProcessId: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.u32 },
+    }),
+    kernel32: dlopen("kernel32", {
+      OpenProcess: { args: [FFIType.u32, FFIType.bool, FFIType.u32], returns: FFIType.ptr },
+      QueryFullProcessImageNameW: {
+        args: [FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.ptr],
+        returns: FFIType.bool,
+      },
+      CloseHandle: { args: [FFIType.ptr], returns: FFIType.bool },
+    }),
+  };
+}
+
+/** Lazily loaded and cached — this pair backs a poll loop, so re-resolving symbols every tick would be wasteful. */
+let foregroundProcessLibs: ReturnType<typeof openForegroundProcessLibs> | undefined;
+function loadForegroundProcessLibs() {
+  foregroundProcessLibs ??= openForegroundProcessLibs();
+  return foregroundProcessLibs;
+}
+
+/**
+ * The process ID and executable basename (e.g. "SpiritVale.exe") of whichever window currently
+ * has OS focus. Returns undefined if it can't be determined — e.g. the foreground process is
+ * elevated and denies even PROCESS_QUERY_LIMITED_INFORMATION access — so callers should treat
+ * "unknown" as "don't act," not as any particular process.
+ */
+export function getForegroundProcess(): { pid: number; exeName: string } | undefined {
+  if (process.platform !== "win32") return undefined;
+  try {
+    const { user32, kernel32 } = loadForegroundProcessLibs();
+    const foreground = user32.symbols.GetForegroundWindow();
+    if (!foreground) return undefined;
+    const pidBuffer = new Uint32Array(1);
+    user32.symbols.GetWindowThreadProcessId(foreground, ptr(pidBuffer));
+    const pid = pidBuffer[0]!;
+    if (!pid) return undefined;
+
+    const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    const handle = kernel32.symbols.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+    if (!handle) return { pid, exeName: "" };
+    try {
+      const nameBuffer = new Uint16Array(260);
+      const sizeBuffer = new Uint32Array([nameBuffer.length]);
+      const ok = kernel32.symbols.QueryFullProcessImageNameW(handle, 0, ptr(nameBuffer), ptr(sizeBuffer));
+      if (!ok) return { pid, exeName: "" };
+      const length = sizeBuffer[0]!;
+      const fullPath = String.fromCharCode(...nameBuffer.subarray(0, length));
+      const exeName = fullPath.split(/[\\/]/).pop() ?? "";
+      return { pid, exeName };
+    } finally {
+      kernel32.symbols.CloseHandle(handle);
+    }
+  } catch (error) {
+    console.warn("[desktop-platform] could not determine the foreground process:", error);
+    return undefined;
+  }
+}
+
 /**
  * Sets a window's taskbar/Alt+Tab/thumbnail-preview icon via WM_SETICON.
  * Electrobun's BrowserWindow has no icon option, so without this call every

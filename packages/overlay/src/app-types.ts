@@ -98,6 +98,8 @@ export interface OverlayControlState {
   shortcutErrors: Partial<Record<KeybindAction, string>>;
   overlayVisible: boolean;
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
+  /** Hides the overlay when neither the game nor this app has OS focus (e.g. tabbing to File Explorer). */
+  autoHideWhenUnfocused: boolean;
 }
 
 export interface OverlayCharacterState {
@@ -185,6 +187,7 @@ export interface OverlaySettingsState {
   shortcutErrors: Partial<Record<KeybindAction, string>>;
   overlayVisible: boolean;
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
+  autoHideWhenUnfocused: boolean;
 }
 
 type OverlaySharedRequests = {
@@ -200,6 +203,7 @@ type OverlaySharedRequests = {
   };
   setHomeDisplay: { params: { display: string }; response: OverlayControlState };
   setOverlayVisible: { params: { visible: boolean }; response: OverlayControlState };
+  setAutoHideWhenUnfocused: { params: { enabled: boolean }; response: OverlayControlState };
   setShortcut: { params: { action: KeybindAction; shortcut: string }; response: OverlayControlState };
   setRequiredStatuses: {
     params: { category: RequiredStatusCategory; statusIds: string[] };
