@@ -1,3 +1,34 @@
+# 2BITTER's Spirit Vale Overlay Fork
+
+This is a personal fork of [kar-mi/spirit-vale-overlay](https://github.com/kar-mi/spirit-vale-overlay) — full
+credit to **kar-mi** for building and maintaining the original Spirit Vale companion app. Everything below the
+divider is kar-mi's own README for the base project, unchanged; this section only covers what this fork adds
+on top of it.
+
+## What this fork adds
+
+UI/QoL customization for the in-game overlay:
+
+- **Anchor system** — link one element to another (e.g. pin the MP bar directly under the HP bar) so moving
+  the parent carries the child with it, while the child can still be moved independently when unlinked.
+  Scoped to elements on the same monitor.
+- **Snap-to-edge** — a toggleable "Snap" mode that aligns an element's edges/centers to nearby elements while
+  dragging, for precise placement without needing to anchor.
+- **Element inspector panel** — a single, draggable panel that shows an element's settings (opacity, anchor,
+  growth direction, color, visibility) when you click it, replacing the old per-element popups that
+  overlapped once elements sat close together.
+- **Status grid growth direction** — buffs/debuffs/toggles can grow right/left/down/up instead of only the
+  fixed left-to-right layout.
+- **Per-element bar color** — a color picker for the HP/MP/Character XP/Job XP bars' fill color, with a
+  one-click reset back to default.
+- **Auto-hide when unfocused** — an optional toggle that hides the overlay when neither the game nor the app
+  has focus (e.g. tabbing to File Explorer or a browser), so it stops sitting on top of unrelated windows. A
+  manual show/hide always takes priority over the automatic behavior.
+
+Branch: [`feature/auto-hide-and-inspector-panel`](https://github.com/2BITTER/spirit-vale-overlay/tree/feature/auto-hide-and-inspector-panel)
+
+---
+
 # Spirit Vale Overlay
 
 Spirit Vale Overlay is a passive Windows companion app for live combat, character, reward, and in-game overlay information. It uses your existing Npcap installation in non-promiscuous mode and never sends, modifies, drops, or injects game traffic. Disclaimer for packet capture dps tools, packet capture is based on proxmity, so dps for other players will go down when out of range.
