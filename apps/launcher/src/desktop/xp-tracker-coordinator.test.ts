@@ -155,8 +155,8 @@ function malformedKill(sequence: number, atMs: number): Record<string, unknown> 
 }
 
 async function writeRewardsSession(root: string, sessionId: string, records: Array<Record<string, unknown>>): Promise<void> {
-  const sessionDirectory = path.join(root, "sessions", sessionId);
-  await mkdir(sessionDirectory, { recursive: true });
+  const rewardsDirectory = path.join(root, "rewards");
+  await mkdir(rewardsDirectory, { recursive: true });
   await mkdir(path.join(root, "current"), { recursive: true });
   await writeFile(
     path.join(root, "current", "rewards.json"),
@@ -165,10 +165,10 @@ async function writeRewardsSession(root: string, sessionId: string, records: Arr
       stream: "rewards",
       sessionId,
       startedAt: new Date().toISOString(),
-      relativePath: path.join("sessions", sessionId, "rewards.jsonl"),
+      relativePath: path.join("rewards", `${sessionId}.jsonl`),
     }),
     "utf8",
   );
   const lines = records.map((record) => JSON.stringify(record)).join("\n");
-  await writeFile(path.join(sessionDirectory, "rewards.jsonl"), `${lines}\n`, "utf8");
+  await writeFile(path.join(rewardsDirectory, `${sessionId}.jsonl`), `${lines}\n`, "utf8");
 }

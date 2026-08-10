@@ -855,8 +855,8 @@ describe("central capture coordinator", () => {
 
       await Promise.all([coordinator.resetSession(), coordinator.resetSession(), coordinator.resetSession()]);
 
-      const sessionDirectories = await readdir(path.join(directory, "sessions"));
-      expect(sessionDirectories).toHaveLength(2);
+      const sessionFiles = await readdir(path.join(directory, "combat"));
+      expect(sessionFiles).toHaveLength(2);
       const secondSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
       expect(secondSessionId).not.toBe(firstSessionId);
 
@@ -919,7 +919,7 @@ describe("central capture coordinator", () => {
       capture.packet(authenticatedPacket(50, "conn-b"));
       await settleRotation();
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(firstSessionId);
-      expect(await readdir(path.join(directory, "sessions"))).toHaveLength(1);
+      expect(await readdir(path.join(directory, "combat"))).toHaveLength(1);
 
       // The getter is read per transition, so toggling the setting needs no restart.
       resetOnMapChange = true;

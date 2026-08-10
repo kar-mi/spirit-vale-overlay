@@ -11,9 +11,9 @@ const OTHER = "20260101T010000000Z-0000beef";
 
 async function workspace(): Promise<{ logDirectory: string; cleanup: () => Promise<void> }> {
   const logDirectory = await mkdtemp(path.join(tmpdir(), "spiritvale-readmodel-"));
+  await mkdir(path.join(logDirectory, "combat"), { recursive: true });
   for (const id of [SESSION, OTHER]) {
-    await mkdir(path.join(logDirectory, "sessions", id), { recursive: true });
-    await writeFile(path.join(logDirectory, "sessions", id, "combat.jsonl"), "");
+    await writeFile(path.join(logDirectory, "combat", `${id}.jsonl`), "");
   }
   return { logDirectory, cleanup: () => rm(logDirectory, { recursive: true, force: true }) };
 }
@@ -28,14 +28,14 @@ async function setCurrent(logDirectory: string, sessionId: string): Promise<void
       stream: "combat",
       sessionId,
       startedAt: new Date().toISOString(),
-      relativePath: path.join("sessions", sessionId, "combat.jsonl"),
+      relativePath: path.join("combat", `${sessionId}.jsonl`),
     }),
   );
 }
 
 /** Appends one valid combat record, giving the indexer something to make progress over. */
 async function appendRecord(logDirectory: string, sessionId: string): Promise<void> {
-  const file = path.join(logDirectory, "sessions", sessionId, "combat.jsonl");
+  const file = path.join(logDirectory, "combat", `${sessionId}.jsonl`);
   sequence += 1;
   await appendFile(file, `${JSON.stringify({
     schemaVersion: 1,

@@ -35,7 +35,7 @@ function log(encounters: number): string {
 
 async function fixture(encounters: number): Promise<{ source: CombatReadModelSource; cleanup: () => Promise<void> }> {
   const logDirectory = await mkdtemp(path.join(tmpdir(), "spiritvale-history-"));
-  const sourcePath = path.join(logDirectory, "sessions", SESSION, "combat.jsonl");
+  const sourcePath = path.join(logDirectory, "combat", `${SESSION}.jsonl`);
   await mkdir(path.dirname(sourcePath), { recursive: true });
   await writeFile(sourcePath, log(encounters));
 

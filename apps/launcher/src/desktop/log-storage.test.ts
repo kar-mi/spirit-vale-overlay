@@ -13,11 +13,11 @@ async function withDirectory(run: (root: string) => Promise<void>): Promise<void
 describe("log storage measurement", () => {
   test("totals every file in the tree", async () => {
     await withDirectory(async (root) => {
-      await mkdir(path.join(root, "sessions", "one"), { recursive: true });
-      await mkdir(path.join(root, "sessions", "two"), { recursive: true });
-      await writeFile(path.join(root, "sessions", "one", "combat.jsonl"), "x".repeat(1_000));
-      await writeFile(path.join(root, "sessions", "one", "rewards.jsonl"), "x".repeat(500));
-      await writeFile(path.join(root, "sessions", "two", "combat.jsonl"), "x".repeat(250));
+      await mkdir(path.join(root, "combat"), { recursive: true });
+      await mkdir(path.join(root, "rewards"), { recursive: true });
+      await writeFile(path.join(root, "combat", "one.jsonl"), "x".repeat(1_000));
+      await writeFile(path.join(root, "rewards", "one.jsonl"), "x".repeat(500));
+      await writeFile(path.join(root, "combat", "two.jsonl"), "x".repeat(250));
       await writeFile(path.join(root, "loose.json"), "x".repeat(10));
 
       const usage = await measureLogStorage(root);
@@ -31,10 +31,10 @@ describe("log storage measurement", () => {
     // updates and make the same tree measure differently each time.
     await withDirectory(async (root) => {
       for (let index = 0; index < 40; index += 1) {
-        const directory = path.join(root, "sessions", `session-${index}`);
-        await mkdir(directory, { recursive: true });
         for (const stream of ["combat", "rewards", "market"]) {
-          await writeFile(path.join(directory, `${stream}.jsonl`), "x".repeat(100 + index));
+          const directory = path.join(root, stream);
+          await mkdir(directory, { recursive: true });
+          await writeFile(path.join(directory, `session-${index}.jsonl`), "x".repeat(100 + index));
         }
       }
       const first = await measureLogStorage(root);
@@ -48,7 +48,7 @@ describe("log storage measurement", () => {
 
   test("descends past the two levels the log layout normally has", async () => {
     // The walk is breadth-first so its concurrency limit applies to a flat list per level. Nesting
-    // deeper than sessions/<id>/ is what proves the levels chain rather than stopping at the first.
+    // deeper than <stream>/<id>.jsonl is what proves the levels chain rather than stopping at the first.
     await withDirectory(async (root) => {
       let directory = root;
       for (let depth = 0; depth < 6; depth += 1) {
@@ -62,7 +62,7 @@ describe("log storage measurement", () => {
 
   test("counts an empty tree as zero rather than failing", async () => {
     await withDirectory(async (root) => {
-      await mkdir(path.join(root, "sessions"), { recursive: true });
+      await mkdir(path.join(root, "combat"), { recursive: true });
       expect(await measureLogStorage(root)).toMatchObject({ bytes: 0, files: 0 });
     });
   });
