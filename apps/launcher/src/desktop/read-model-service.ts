@@ -1,4 +1,4 @@
-import { readCurrentLogStream, sessionStreamPath } from "@kar-mi/spirit-vale-tools-logging";
+import { readCurrentLogStream, streamSessionPath } from "@kar-mi/spirit-vale-tools-logging";
 import type { LogStream } from "@kar-mi/spirit-vale-tools-logging";
 import { openReadModel } from "@kar-mi/spirit-vale-tools-sqlite";
 import type { ReadModel } from "@kar-mi/spirit-vale-tools-sqlite";
@@ -123,7 +123,7 @@ export async function createReadModelService(
 
   async function runIndex(sessionId: string, stream: "combat" | "rewards", finalize: boolean): Promise<boolean> {
     if (!model) return false;
-    const sourcePath = sessionStreamPath(sessionId, stream, options.logDirectory);
+    const sourcePath = streamSessionPath(stream, sessionId, options.logDirectory);
     try {
       const result = stream === "combat"
         ? await indexCombatStream(model, { sessionId, sourcePath, finalize })
