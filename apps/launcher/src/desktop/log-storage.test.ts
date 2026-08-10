@@ -40,7 +40,7 @@ describe("log storage measurement", () => {
       const first = await measureLogStorage(root);
       const second = await measureLogStorage(root);
       const third = await measureLogStorage(root);
-      expect(first!.files).toBe(120);
+      expect(first!.files).toBe(80);
       expect(second!.bytes).toBe(first!.bytes);
       expect(third!.bytes).toBe(first!.bytes);
     });

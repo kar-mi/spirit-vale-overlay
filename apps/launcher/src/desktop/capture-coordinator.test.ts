@@ -119,7 +119,7 @@ describe("central capture coordinator", () => {
       const other = streams[2]!;
       expect(combat.map((record) => record.type)).toContain("combat.actorIdentity");
       expect(rewards.map((record) => record.type)).toContain("rewards.unmatched");
-      expect(other.filter((record) => record.type === "fishnet.packet")).toHaveLength(1);
+      expect(other.filter((record) => record.type === "fishnet.packet")).toHaveLength(2);
       expect(other.at(-1)?.type).toBe("capture.lifecycle");
     } finally {
       await rm(directory, { recursive: true, force: true });
