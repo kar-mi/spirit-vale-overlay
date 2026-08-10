@@ -21,7 +21,6 @@ apps/
 packages/
   build-export/                 # planner/build export feature
   combat/                       # DPS, analysis, and death-log feature
-  market/                       # market feature
   overlay/                      # in-game overlay feature
   rewards/                      # rewards feature
   ui-kit/                       # renderer-safe Preact components and theme
@@ -81,7 +80,6 @@ source-directory name.
 | `sessionpickerview` | `apps/launcher/src/views/session-picker` |
 | `mainview`, `analysisdetailview`, `deathlogview` | `@svoverlay/combat` |
 | `overlayview` | `@svoverlay/overlay` |
-| `marketview`, `marketfiltersview` | `@svoverlay/market` |
 | `rewardsview`, `rewardscatalogview` | `@svoverlay/rewards` |
 | `buildexportview` | `@svoverlay/build-export` |
 

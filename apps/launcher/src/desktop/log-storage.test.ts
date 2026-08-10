@@ -31,7 +31,7 @@ describe("log storage measurement", () => {
     // updates and make the same tree measure differently each time.
     await withDirectory(async (root) => {
       for (let index = 0; index < 40; index += 1) {
-        for (const stream of ["combat", "rewards", "market"]) {
+        for (const stream of ["combat", "rewards"]) {
           const directory = path.join(root, stream);
           await mkdir(directory, { recursive: true });
           await writeFile(path.join(directory, `session-${index}.jsonl`), "x".repeat(100 + index));
