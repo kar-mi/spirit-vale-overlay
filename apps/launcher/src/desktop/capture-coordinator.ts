@@ -19,7 +19,6 @@ import type {
   LogStream,
   LogWriteFailure,
 } from "@kar-mi/spirit-vale-tools-logging";
-import { FishNetMarketTracker, marketEventLogData } from "@kar-mi/spirit-vale-tools-market";
 import { FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
 
 import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
@@ -116,7 +115,6 @@ export class CaptureCoordinator {
   private readonly unresolvedCounts = new Map<string, number>();
   private unresolvedReportedAtMs = 0;
   private readonly mobs = new FishNetMobDirectory();
-  private readonly market = new FishNetMarketTracker();
   private readonly character = new LocalCharacterRouter({
     onHandled: () => this.syncLocalActorIdentity(),
     onError: (packet, error) => this.logCharacterWarning(packet, error),
@@ -130,7 +128,6 @@ export class CaptureCoordinator {
   private session?: LogSession;
   private combatLog?: JsonLinesLogger;
   private rewardsLog?: JsonLinesLogger;
-  private marketLog?: JsonLinesLogger;
   private otherLog?: JsonLinesLogger;
   private status: CaptureStatus = "stopped";
   private statusDetail = "Capture stopped";
@@ -218,7 +215,7 @@ export class CaptureCoordinator {
     this.setStatus("starting", "Starting centralized capture…");
     try {
       if (!this.session) {
-        const streams: LogStream[] = ["combat", "rewards", "market"];
+        const streams: LogStream[] = ["combat", "rewards"];
         if (this.diagnosticLogging) streams.push("other");
         this.session = await createLogSession({
           producer: "desktop-capture",
@@ -229,7 +226,6 @@ export class CaptureCoordinator {
         });
         this.combatLog = this.session.logger("combat");
         this.rewardsLog = this.session.logger("rewards");
-        this.marketLog = this.session.logger("market");
         this.otherLog = this.diagnosticLogging ? this.session.logger("other") : undefined;
       }
       this.otherLog?.log("capture.lifecycle", { state: "starting" });
@@ -307,7 +303,6 @@ export class CaptureCoordinator {
     this.loggedMobIdentities.clear();
     this.lastLoggedZoneId = undefined;
     this.clearPacketBuffer();
-    this.market.reset();
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
     this.hasReceivedCaptureData = false;
@@ -320,7 +315,6 @@ export class CaptureCoordinator {
     this.session = undefined;
     this.combatLog = undefined;
     this.rewardsLog = undefined;
-    this.marketLog = undefined;
     this.otherLog = undefined;
     try {
       await session?.close();
@@ -331,8 +325,8 @@ export class CaptureCoordinator {
   }
 
   /**
-   * Rotates the shared capture session: combat, rewards, and market all start writing to a fresh
-   * log session together, while actor/mob identities, reward baselines, and connection state carry
+   * Rotates the shared capture session: combat and rewards both start writing to a fresh log
+   * session together, while actor/mob identities, reward baselines, and connection state carry
    * over so attribution keeps working immediately after the boundary. Callers that overlap the
    * in-flight rotation coalesce into it; a failed rotation leaves the previous session untouched.
    *
@@ -358,7 +352,7 @@ export class CaptureCoordinator {
   }
 
   private async performResetSession(): Promise<void> {
-    const streams: LogStream[] = ["combat", "rewards", "market"];
+    const streams: LogStream[] = ["combat", "rewards"];
     if (this.diagnosticLogging) streams.push("other");
 
     const nextSession = await createLogSession({
@@ -409,20 +403,17 @@ export class CaptureCoordinator {
       }
       this.combatLog?.log("combat.lifecycle", { state: "stopped" });
       this.rewardsLog?.log("rewards.lifecycle", { state: "stopped" });
-      this.marketLog?.log("market.lifecycle", { state: "stopped" });
       this.otherLog?.log("capture.lifecycle", { state: "stopped" });
 
-      // Combat activations and market aggregation do not carry meaning across a session boundary;
-      // actor/mob identities and the reward baseline are preserved above.
+      // Combat activations do not carry meaning across a session boundary; actor/mob identities
+      // and the reward baseline are preserved above.
       this.combat.reset();
-      this.market.reset();
       this.loggedShortDisplayStatuses.clear();
       this.lastLoggedZoneId = undefined;
 
       this.session = nextSession;
       this.combatLog = nextSession.logger("combat");
       this.rewardsLog = nextSession.logger("rewards");
-      this.marketLog = nextSession.logger("market");
       this.otherLog = this.diagnosticLogging ? nextSession.logger("other") : undefined;
 
       for (const identity of this.actors.snapshot()) {
@@ -432,7 +423,6 @@ export class CaptureCoordinator {
 
       this.combatLog.log("combat.lifecycle", { state: "started" });
       this.rewardsLog.log("rewards.lifecycle", { state: "started" });
-      this.marketLog.log("market.lifecycle", { state: "started" });
       this.otherLog?.log("capture.lifecycle", { state: "started" });
 
       // A completed rotation is an observable durability boundary: callers may immediately
@@ -487,7 +477,6 @@ export class CaptureCoordinator {
     this.lifecycleStopped = false;
     this.combatLog?.log("combat.lifecycle", { state: "started" });
     this.rewardsLog?.log("rewards.lifecycle", { state: "started" });
-    this.marketLog?.log("market.lifecycle", { state: "started" });
     this.otherLog?.log("capture.lifecycle", { state: "started" });
     this.setStatus("capturing", this.captureDetail());
   }
@@ -531,7 +520,6 @@ export class CaptureCoordinator {
   private captureWarning(message: string): void {
     this.combatLog?.log("combat.warning", { message });
     this.rewardsLog?.log("rewards.warning", { message });
-    this.marketLog?.log("market.warning", { message });
     this.otherLog?.log("capture.warning", { message });
   }
 
@@ -655,15 +643,6 @@ export class CaptureCoordinator {
     } catch (error) {
       handled = true;
       this.logDomainWarning("rewards", error);
-    }
-
-    try {
-      const events = this.market.consume(packet);
-      handled ||= events.length > 0;
-      for (const event of events) this.marketLog?.log("market.event", marketEventLogData(event));
-    } catch (error) {
-      handled = true;
-      this.logDomainWarning("market", error);
     }
 
     if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
@@ -1000,18 +979,16 @@ export class CaptureCoordinator {
     });
   }
 
-  private logDomainWarning(domain: "combat" | "rewards" | "market", error: unknown): void {
+  private logDomainWarning(domain: "combat" | "rewards", error: unknown): void {
     const message = `skipped ${domain} payload: ${errorMessage(error)}`;
     if (domain === "combat") this.combatLog?.log("combat.warning", { message });
-    else if (domain === "rewards") this.rewardsLog?.log("rewards.warning", { message });
-    else this.marketLog?.log("market.warning", { message });
+    else this.rewardsLog?.log("rewards.warning", { message });
     this.otherLog?.log("capture.warning", { domain, message });
   }
 
   private logCaptureError(message: string, title = "Capture failed"): void {
     this.combatLog?.log("combat.error", { message });
     this.rewardsLog?.log("rewards.error", { message });
-    this.marketLog?.log("market.error", { message });
     this.otherLog?.log("capture.error", { message });
     this.reportError(title, message);
   }
@@ -1068,7 +1045,7 @@ export class CaptureCoordinator {
   }
 
   private droppedRecords(): number {
-    return [this.combatLog, this.rewardsLog, this.marketLog, this.otherLog]
+    return [this.combatLog, this.rewardsLog, this.otherLog]
       .reduce((total, logger) => total + (logger?.stats().droppedRecords ?? 0), 0);
   }
 
@@ -1083,7 +1060,6 @@ export class CaptureCoordinator {
     }
     this.combatLog?.log("combat.lifecycle", { state: "stopped" });
     this.rewardsLog?.log("rewards.lifecycle", { state: "stopped" });
-    this.marketLog?.log("market.lifecycle", { state: "stopped" });
     this.otherLog?.log("capture.lifecycle", { state: "stopped" });
   }
 

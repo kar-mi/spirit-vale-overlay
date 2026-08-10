@@ -9,7 +9,6 @@ import { DpsSessionLogFollower } from "@kar-mi/spirit-vale-tools-combat";
 import type { CapturedFishNetPacket, CapturedLiteNetLibPacket, CaptureConfig } from "@kar-mi/spirit-vale-tools-capture";
 import type { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import { isLogStreamHeader, readCurrentLogStream } from "@kar-mi/spirit-vale-tools-logging";
-import { MarketSessionLogFollower } from "@kar-mi/spirit-vale-tools-market";
 import { RewardSessionLogFollower } from "@kar-mi/spirit-vale-tools-rewards";
 
 import { CaptureCoordinator } from "./capture-coordinator.ts";
@@ -103,12 +102,11 @@ describe("central capture coordinator", () => {
       capture.packet({ tick: 1, packetId: 0, packetName: "authenticated", raw: Buffer.alloc(0), payload: Buffer.alloc(0) });
       capture.packet(experiencePacket(2, 0, 0n));
       capture.packet(experiencePacket(3, 10, 2n));
-      capture.packet(marketListingPacket(4));
       capture.packet({ tick: 5, packetId: 2, packetName: "pingPong", raw: Buffer.alloc(0), payload: Buffer.alloc(0) });
       await coordinator.stop();
 
-      const pointers = await Promise.all(["combat", "rewards", "market", "other"].map((stream) => {
-        return readCurrentLogStream(stream as "combat" | "rewards" | "market" | "other", directory);
+      const pointers = await Promise.all(["combat", "rewards", "other"].map((stream) => {
+        return readCurrentLogStream(stream as "combat" | "rewards" | "other", directory);
       }));
       expect(new Set(pointers.map((pointer) => pointer?.sessionId)).size).toBe(1);
       expect(pointers.every((pointer) => pointer !== undefined)).toBe(true);
@@ -118,11 +116,9 @@ describe("central capture coordinator", () => {
       }));
       const combat = streams[0]!;
       const rewards = streams[1]!;
-      const market = streams[2]!;
-      const other = streams[3]!;
+      const other = streams[2]!;
       expect(combat.map((record) => record.type)).toContain("combat.actorIdentity");
       expect(rewards.map((record) => record.type)).toContain("rewards.unmatched");
-      expect(market.map((record) => record.type)).toContain("market.event");
       expect(other.filter((record) => record.type === "fishnet.packet")).toHaveLength(2);
       expect(other.at(-1)?.type).toBe("capture.lifecycle");
     } finally {
@@ -183,7 +179,7 @@ describe("central capture coordinator", () => {
     }
   });
 
-  test("captures all three domains before their log followers are opened", async () => {
+  test("captures both domains before their log followers are opened", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-late-open-"));
     const capture = new FakeCapture();
     try {
@@ -197,7 +193,6 @@ describe("central capture coordinator", () => {
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(experiencePacket(2, 0, 0n));
       capture.packet(experiencePacket(3, 10, 2n));
-      capture.packet(marketListingPacket(4));
       capture.packet({
         tick: 5,
         packetId: 5,
@@ -215,18 +210,13 @@ describe("central capture coordinator", () => {
       // behind for the rest of the run.
       const combatFollower = new DpsSessionLogFollower(directory);
       const rewardsFollower = new RewardSessionLogFollower(directory);
-      const marketFollower = new MarketSessionLogFollower(directory);
       const combat = await combatFollower.poll();
       const rewards = await rewardsFollower.poll();
-      const market = await marketFollower.poll();
       combatFollower.close();
       rewardsFollower.close();
-      marketFollower.close();
-      expect(new Set([combat.sessionId, rewards.sessionId, market.sessionId]).size).toBe(1);
+      expect(new Set([combat.sessionId, rewards.sessionId]).size).toBe(1);
       expect(combat.events.length).toBeGreaterThan(0);
       expect(rewards.snapshot.unmatched).toBeGreaterThan(0);
-      expect(market).toMatchObject({ missing: false, status: "stopped" });
-      expect(market.listings.map((listing) => listing.id)).toEqual(["listing-a"]);
       expect(await readCurrentLogStream("other", directory)).toBeUndefined();
 
       const combatPointer = await readCurrentLogStream("combat", directory);
@@ -748,7 +738,6 @@ describe("central capture coordinator", () => {
       }]);
       expect(await readCurrentLogStream("combat", directory)).toBeDefined();
       expect(await readCurrentLogStream("rewards", directory)).toBeDefined();
-      expect(await readCurrentLogStream("market", directory)).toBeDefined();
       expect(await readCurrentLogStream("other", directory)).toBeUndefined();
       await coordinator.stop();
     } finally {
@@ -784,7 +773,7 @@ describe("central capture coordinator", () => {
     }
   });
 
-  test("resetSession rotates combat/rewards/market into one new session, seeding identities and preserving the reward baseline", async () => {
+  test("resetSession rotates combat/rewards into one new session, seeding identities and preserving the reward baseline", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reset-"));
     const capture = new FakeCapture();
     try {
@@ -800,24 +789,20 @@ describe("central capture coordinator", () => {
 
       const firstCombat = await readCurrentLogStream("combat", directory);
       const firstRewards = await readCurrentLogStream("rewards", directory);
-      const firstMarket = await readCurrentLogStream("market", directory);
       expect(firstCombat?.sessionId).toBeDefined();
 
       await coordinator.resetSession();
 
       const secondCombat = await readCurrentLogStream("combat", directory);
       const secondRewards = await readCurrentLogStream("rewards", directory);
-      const secondMarket = await readCurrentLogStream("market", directory);
       expect(secondCombat?.sessionId).toBeDefined();
       expect(secondCombat?.sessionId).not.toBe(firstCombat?.sessionId);
-      expect(new Set([secondCombat?.sessionId, secondRewards?.sessionId, secondMarket?.sessionId]).size).toBe(1);
+      expect(new Set([secondCombat?.sessionId, secondRewards?.sessionId]).size).toBe(1);
 
       const oldCombatRecords = records(await readFile(firstCombat!.path, "utf8"));
       expect(oldCombatRecords.at(-1)).toMatchObject({ type: "combat.lifecycle", data: { state: "stopped" } });
       const oldRewardsRecords = records(await readFile(firstRewards!.path, "utf8"));
       expect(oldRewardsRecords.at(-1)).toMatchObject({ type: "rewards.lifecycle", data: { state: "stopped" } });
-      const oldMarketRecords = records(await readFile(firstMarket!.path, "utf8"));
-      expect(oldMarketRecords.at(-1)).toMatchObject({ type: "market.lifecycle", data: { state: "stopped" } });
 
       const newCombatRecords = records(await readFile(secondCombat!.path, "utf8"));
       expect(newCombatRecords[0]).toMatchObject({
@@ -827,8 +812,6 @@ describe("central capture coordinator", () => {
       expect(newCombatRecords.at(-1)).toMatchObject({ type: "combat.lifecycle", data: { state: "started" } });
       const newRewardsRecords = records(await readFile(secondRewards!.path, "utf8"));
       expect(newRewardsRecords[0]).toMatchObject({ type: "rewards.lifecycle", data: { state: "started" } });
-      const newMarketRecords = records(await readFile(secondMarket!.path, "utf8"));
-      expect(newMarketRecords[0]).toMatchObject({ type: "market.lifecycle", data: { state: "started" } });
 
       // The reward baseline carried across the boundary: the next XP update computes a gain
       // relative to it instead of silently reseeding with no event.
@@ -971,9 +954,9 @@ describe("central capture coordinator", () => {
       const firstSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
       expect(firstSessionId).toBeDefined();
 
-      // Streams activate in "combat", "rewards", "market" order; forcing the rewards pointer
-      // write to fail (by occupying its target path with a directory) exercises the case where
-      // "combat" has already switched over before the rotation as a whole fails.
+      // Streams activate in "combat", "rewards" order; forcing the rewards pointer write to fail
+      // (by occupying its target path with a directory) exercises the case where "combat" has
+      // already switched over before the rotation as a whole fails.
       const rewardsPointerPath = path.join(directory, "current", "rewards.json");
       await rm(rewardsPointerPath, { force: true });
       await mkdir(rewardsPointerPath);
@@ -981,9 +964,7 @@ describe("central capture coordinator", () => {
       await expect(coordinator.resetSession()).rejects.toThrow();
 
       const combatAfter = await readCurrentLogStream("combat", directory);
-      const marketAfter = await readCurrentLogStream("market", directory);
       expect(combatAfter?.sessionId).toBe(firstSessionId);
-      expect(marketAfter?.sessionId).toBe(firstSessionId);
 
       // The old session is still the live one: further packets keep landing in its combat log.
       capture.packet(authenticatedPacket(1, "test-connection"));
@@ -1242,31 +1223,6 @@ function records(content: string): Array<{ type: string }> {
 function experiencePacket(tick: number, experience: number, coins: bigint): TestPacket {
   const payload = Buffer.concat([packed(experience), packed(1), packed(0), packed(1), packed(coins)]);
   return { tick, packetId: 4, packetName: "targetRpc", rpcName: "ExpCoinsChanged_T", raw: payload, payload };
-}
-
-function marketListingPacket(tick: number): TestPacket {
-  const listingsJson = JSON.stringify([{
-    ListingId: "listing-a",
-    SellerAccountId: "seller-a",
-    SellerDisplayName: "Merchant Alpha",
-    ItemDisplayName: "Fictional Blade",
-    Item: { ItemId: "fictional-blade", Type: 1, Quantity: 3, PayloadJson: "{}" },
-    AvailableQuantity: 3,
-    SoldQuantity: 1,
-    UnitPrice: "2500",
-    ExpiresAt: "2100-01-01T00:00:00Z",
-  }]);
-  return {
-    tick,
-    packetId: 1,
-    packetName: "rpcLink",
-    rpcName: "RequestVendorItemList_T",
-    rpcResolution: "verified",
-    networkBehaviourType: "PlayerController",
-    decodedFields: [{ name: "listingsJson", codec: "stringUtf8Packed", value: listingsJson }],
-    raw: Buffer.from([1]),
-    payload: Buffer.from([1]),
-  };
 }
 
 function authenticatedPacket(tick: number, connectionId: string): TestPacket {

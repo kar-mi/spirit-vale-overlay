@@ -3,7 +3,6 @@ import { applyRoundedCorners, makeProcessDpiAware, setWindowIcon } from "@svover
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/spirit-vale-tools-capture/capture";
 
-import { createMarketWindow } from "@svoverlay/market";
 import { createBuildExportWindow } from "@svoverlay/build-export";
 import { createRewardsWindow } from "@svoverlay/rewards";
 import type { LauncherRpc, LauncherSettingsRpc, LauncherState, ToolWindow } from "../launcher/types.ts";
@@ -163,8 +162,6 @@ const rewardsWindow = new WindowSlot((onClosed) => createRewardsWindow({
   onReset: () => capture.resetSession(),
   onOpenSettings: openSettings,
 }));
-const marketWindow = new WindowSlot((onClosed) => createMarketWindow({ logDirectory, placements, onClosed, onOpenSettings: openSettings }));
-
 const capture = new CaptureCoordinator({
   logDirectory,
   deviceName: settings.captureAdapter === "auto" ? undefined : settings.captureAdapter,
@@ -469,7 +466,6 @@ async function openTool(tool: ToolWindow): Promise<void> {
   if (tool === "combat") await combatWindow.open();
   else if (tool === "overlay") await overlayWindow.open();
   else if (tool === "rewards") await rewardsWindow.open();
-  else if (tool === "market") await marketWindow.open();
   else if (tool === "build-export") await buildExportWindow.open();
   else await characterWindow.open();
 }
@@ -621,7 +617,7 @@ async function shutdown(): Promise<void> {
   launcherWindow.hide();
   settingsWindow?.close();
   try {
-    await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), marketWindow.close(), characterWindow.close(), buildExportWindow.close()]);
+    await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close()]);
     liveDeathLogWindow.close();
     unsubscribeCharacterPersistence();
     const character = capture.characterState().snapshot;
