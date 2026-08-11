@@ -76,6 +76,7 @@ let launcherState: LauncherState = {
   uiScale: settings.uiScale,
   minimizeToTray: settings.minimizeToTray,
   resetMeterOnMapChange: settings.resetMeterOnMapChange,
+  resetGoldOnMapChange: settings.resetGoldOnMapChange,
 };
 let shuttingDown = false;
 let characterStorageWarning: string | undefined;
@@ -171,6 +172,7 @@ const capture = new CaptureCoordinator({
   },
   onError: (report) => errorLog.write(report),
   resetOnMapChange: () => settings.resetMeterOnMapChange,
+  onGoldMapChange: () => { if (settings.resetGoldOnMapChange) xpTracker.resetCoins(); },
   knownIdentities: [...actorIdentityCache.entries.values()],
   onIdentityLearned: (identity) => {
     actorIdentityCache = updateActorIdentityCache(actorIdentityCache, { ...identity, lastSeenAtMs: Date.now() });
@@ -271,6 +273,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       },
       setResetMeterOnMapChange: async ({ resetMeterOnMapChange }) => {
         setResetMeterOnMapChange(resetMeterOnMapChange);
+        return sharedSettingsState();
+      },
+      setResetGoldOnMapChange: async ({ resetGoldOnMapChange }) => {
+        setResetGoldOnMapChange(resetGoldOnMapChange);
         return sharedSettingsState();
       },
       refreshCaptureDevices: async () => {
@@ -546,6 +552,14 @@ function setMinimizeToTray(minimizeToTray: boolean): LauncherState {
 function setResetMeterOnMapChange(resetMeterOnMapChange: boolean): LauncherState {
   settings.resetMeterOnMapChange = resetMeterOnMapChange;
   launcherState = { ...launcherState, resetMeterOnMapChange };
+  launcherSettingsPersistence.schedule(settings);
+  publish();
+  return launcherState;
+}
+
+function setResetGoldOnMapChange(resetGoldOnMapChange: boolean): LauncherState {
+  settings.resetGoldOnMapChange = resetGoldOnMapChange;
+  launcherState = { ...launcherState, resetGoldOnMapChange };
   launcherSettingsPersistence.schedule(settings);
   publish();
   return launcherState;

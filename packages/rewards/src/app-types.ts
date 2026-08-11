@@ -3,6 +3,9 @@ import type { RewardLogStatus } from "@kar-mi/spirit-vale-tools-rewards";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { MaximizableWindowChromeRequests } from "@svoverlay/contracts/window-rpc";
 
+/** Totals only: nothing charts gold, and its timeline is an hour of buckets nobody reads. */
+export type RateTotals = Omit<RateSnapshot, "timeline">;
+
 export type RewardsAppMode = "live" | "replay";
 export type RewardsAppView = "summary" | "recent" | "trends" | "xpTracker";
 export type RewardsAppStatus = RewardLogStatus;
@@ -70,6 +73,8 @@ export interface RewardsAppState {
   unidentified: number;
   /** The all-time XP tracker. Distinct from `totalExperience` above, which is this session's rewards. */
   xp: RateSnapshot;
+  /** The all-time gold tracker, alongside the all-time XP tracker above. */
+  gold: RateTotals;
 }
 
 export type RewardsAppRpc = {
@@ -83,6 +88,7 @@ export type RewardsAppRpc = {
       setPinned: { params: { pinned: boolean }; response: RewardsAppState };
       resetSession: { params: Record<string, never>; response: RewardsAppState };
       resetXpTracker: { params: Record<string, never>; response: RewardsAppState };
+      resetGoldTracker: { params: Record<string, never>; response: RewardsAppState };
     };
   }>;
   webview: RPCSchema<{ messages: { stateChanged: RewardsAppState } }>;

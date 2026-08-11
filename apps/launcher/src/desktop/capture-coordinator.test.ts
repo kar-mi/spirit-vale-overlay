@@ -915,6 +915,44 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("fires onGoldMapChange on every map change after login, independent of resetOnMapChange", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gold-map-change-"));
+    const capture = new FakeCapture();
+    let goldResets = 0;
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => false,
+        onGoldMapChange: () => { goldResets += 1; },
+      });
+      await coordinator.start();
+
+      // Logging in is an authentication too, and must not fire the gold reset.
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      await settleRotation();
+      expect(goldResets).toBe(0);
+
+      // A duplicate of that same authentication is rejected before it can reach the reset.
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      await settleRotation();
+      expect(goldResets).toBe(0);
+
+      // A real map change fires the gold reset even though resetOnMapChange (session rotation) is off.
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      await settleRotation();
+      expect(goldResets).toBe(1);
+
+      capture.packet(authenticatedPacket(80, "conn-b"));
+      await settleRotation();
+      expect(goldResets).toBe(2);
+
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("leaves the existing session active when replacement session creation fails", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reset-failure-"));
     const capture = new FakeCapture();

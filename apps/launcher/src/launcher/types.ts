@@ -40,6 +40,7 @@ export interface LauncherState {
   uiScale: UiScale;
   minimizeToTray: boolean;
   resetMeterOnMapChange: boolean;
+  resetGoldOnMapChange: boolean;
   /** Overlay keybinds, shown as a hint on the launcher. Absent until the overlay has started. */
   overlayShortcuts?: Record<KeybindAction, string>;
   update?: {
@@ -85,6 +86,7 @@ export type LauncherSettingsRpc = {
     setUiScale: { params: { uiScale: UiScale }; response: SharedSettingsState };
     setMinimizeToTray: { params: { minimizeToTray: boolean }; response: SharedSettingsState };
     setResetMeterOnMapChange: { params: { resetMeterOnMapChange: boolean }; response: SharedSettingsState };
+    setResetGoldOnMapChange: { params: { resetGoldOnMapChange: boolean }; response: SharedSettingsState };
     refreshCaptureDevices: { params: Record<string, never>; response: SharedSettingsState };
     openNpcapDownload: { params: Record<string, never>; response: void };
     setOverlayLocked: { params: { locked: boolean }; response: SharedSettingsState };

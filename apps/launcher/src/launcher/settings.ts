@@ -11,6 +11,8 @@ export interface LauncherSettings {
   minimizeToTray: boolean;
   /** Rotates the capture session whenever the game re-authenticates (a map or channel change). */
   resetMeterOnMapChange: boolean;
+  /** Resets the all-time gold tracker whenever the game re-authenticates (a map or channel change). */
+  resetGoldOnMapChange: boolean;
   skippedUpdateVersion?: string;
 }
 
@@ -19,6 +21,7 @@ const defaults: LauncherSettings = {
   uiScale: 1,
   minimizeToTray: false,
   resetMeterOnMapChange: false,
+  resetGoldOnMapChange: false,
 };
 export async function loadLauncherSettings(file = defaultSettingsFile()): Promise<LauncherSettings> {
   return loadJsonSettings(file, (value) => {
@@ -30,6 +33,7 @@ export async function loadLauncherSettings(file = defaultSettingsFile()): Promis
       uiScale: normalizeUiScale(candidate.uiScale),
       minimizeToTray: candidate.minimizeToTray === true,
       resetMeterOnMapChange: candidate.resetMeterOnMapChange === true,
+      resetGoldOnMapChange: candidate.resetGoldOnMapChange === true,
       skippedUpdateVersion: typeof candidate.skippedUpdateVersion === "string" && candidate.skippedUpdateVersion.trim()
         ? candidate.skippedUpdateVersion
         : undefined,
