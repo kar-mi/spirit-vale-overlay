@@ -113,7 +113,9 @@ function App() {
       <section class="settings-panel" hidden={tab !== "combat"}>
         <header class="settings-heading"><h1>Combat</h1><p>Control how combat tracking behaves.</p></header>
         <label class="settings-check"><input type="checkbox" checked={launcher.resetMeterOnMapChange} disabled={busy} onChange={(event) => update(electroview.rpc?.request.setResetMeterOnMapChange({ resetMeterOnMapChange: event.currentTarget.checked }))} /><span>Reset meter on map/channel change</span></label>
-        <p class="settings-hint">Starts a new session when you zone or switch channel, exactly as the Reset session keybind does — rewards and the gold tracker start over with it.</p>
+        <p class="settings-hint">Starts a new session when you zone or switch channel, exactly as the Reset session keybind does.</p>
+        <label class="settings-check"><input type="checkbox" checked={launcher.resetGoldOnMapChange} disabled={busy} onChange={(event) => update(electroview.rpc?.request.setResetGoldOnMapChange({ resetGoldOnMapChange: event.currentTarget.checked }))} /><span>Reset gold on map/channel change</span></label>
+        <p class="settings-hint">Resets the all-time gold tracker whenever you zone or switch channel.</p>
       </section>
 
       <section class="settings-panel" hidden={tab !== "status"}>

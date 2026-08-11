@@ -77,6 +77,11 @@ export interface CaptureCoordinatorOptions {
    * A live getter rather than a value so toggling the setting takes effect without a restart.
    */
   resetOnMapChange?: () => boolean;
+  /**
+   * Invoked on every map/channel change (never the initial login), independent of
+   * `resetOnMapChange` — the gold reset is a separate, unrelated setting.
+   */
+  onGoldMapChange?: () => void;
 }
 
 export class CaptureCoordinator {
@@ -650,18 +655,21 @@ export class CaptureCoordinator {
   }
 
   /**
-   * Rotates the session on a map or channel change, when the setting asks for it. The game sends no
-   * dedicated packet for either: both re-authenticate, which is also what makes the actor directory
-   * clear itself. Only admitted packets reach here, so a stale connection's trailing authentication
-   * and a duplicate of the same authentication cannot rotate anything.
+   * Rotates the session, and/or resets the all-time gold tracker, on a map or channel change, when
+   * the respective setting asks for it. The game sends no dedicated packet for either: both
+   * re-authenticate, which is also what makes the actor directory clear itself. Only admitted packets
+   * reach here, so a stale connection's trailing authentication and a duplicate of the same
+   * authentication cannot rotate or reset anything.
    *
    * The first authentication of a capture run is the login itself rather than a transition, and is
-   * skipped so opening the app never rotates a session that has recorded nothing.
+   * skipped so opening the app never rotates a session or resets gold before anything was recorded.
    */
   private resetOnMapChange(): void {
     const firstAuthentication = !this.sawAuthenticated;
     this.sawAuthenticated = true;
-    if (firstAuthentication || !this.options.resetOnMapChange?.()) return;
+    if (firstAuthentication) return;
+    this.options.onGoldMapChange?.();
+    if (!this.options.resetOnMapChange?.()) return;
     // Failures are already surfaced through onError by resetSession itself, and leave the current
     // session intact — there is nothing further to do with the rejection here.
     void this.resetSession().catch(() => {});

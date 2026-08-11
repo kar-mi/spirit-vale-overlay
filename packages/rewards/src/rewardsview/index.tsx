@@ -126,7 +126,7 @@ function App() {
             <button class={next.view === "summary" ? "active" : undefined} type="button" onClick={() => setView("summary")}>Summary</button>
             <button class={next.view === "recent" ? "active" : undefined} type="button" onClick={() => setView("recent")}>Recent kills</button>
             <button class={next.view === "trends" ? "active" : undefined} type="button" onClick={() => setView("trends")}>Trends</button>
-            <button class={next.view === "xpTracker" ? "active" : undefined} type="button" onClick={() => setView("xpTracker")}>XP Tracker</button>
+            <button class={next.view === "xpTracker" ? "active" : undefined} type="button" onClick={() => setView("xpTracker")}>Session Tracker</button>
           </div>
           <StatusDot tone={STATUS_TONE[next.status]} detail={next.statusDetail} />
           <div class="toolbar-actions">
@@ -235,14 +235,14 @@ function App() {
             <h1>Character XP tracker</h1>
             <p>Cumulative Character XP across sessions, until reset.</p>
           </div>
-          <XpTrackerSection xp={next.xp} />
+          <XpTrackerSection xp={next.xp} gold={next.gold} />
         </section>
       </main>
     </>
   );
 }
 
-function XpTrackerSection({ xp }: { xp: RewardsAppState["xp"] }) {
+function XpTrackerSection({ xp, gold }: { xp: RewardsAppState["xp"]; gold: RewardsAppState["gold"] }) {
   const samples = bucketsToTrendSamples(xp.timeline);
   const computeRender = useCallback((range: TrendRange, width: number): ChartRenderResult => {
     const rates = buildRateTrend(samples, "experience", range, width);
@@ -272,8 +272,21 @@ function XpTrackerSection({ xp }: { xp: RewardsAppState["xp"] }) {
           </tbody>
         </table>
       </div>
+      <div class="table-scroll totals">
+        <table class="data-table summary-table rewards-total-table" aria-label="All-time gold totals">
+          <thead><tr><th>Total gold</th><th>Gold / sec</th><th>Gold / hr</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>{format.format(gold.total)}</td>
+              <td>{format.format(gold.perSecond)}</td>
+              <td>{format.format(gold.perHour)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <div class="xp-tracker-actions">
         <button class="btn" type="button" onClick={() => void electroview.rpc?.request.resetXpTracker({})}>Reset all-time XP</button>
+        <button class="btn" type="button" onClick={() => void electroview.rpc?.request.resetGoldTracker({})}>Reset all-time gold</button>
       </div>
       <InteractiveChart
         extent={trendExtent(samples)}

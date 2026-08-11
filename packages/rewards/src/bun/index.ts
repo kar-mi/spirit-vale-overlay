@@ -18,6 +18,7 @@ import type {
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { ReadModel } from "@kar-mi/spirit-vale-tools-sqlite";
 import type {
+  RateTotals,
   RewardsAppMode,
   RewardsAppRpc,
   RewardsAppState,
@@ -59,6 +60,8 @@ export interface RewardsReadModelSource {
 export interface XpTrackerSource {
   getSnapshot(): RateSnapshot;
   reset(): void;
+  getCoinsSnapshot(): RateTotals;
+  resetCoins(): void;
   subscribe(listener: () => void): () => void;
 }
 
@@ -146,6 +149,10 @@ const rpc = BrowserView.defineRPC<RewardsAppRpc>({
       },
       resetXpTracker: () => {
         options.xp.reset();
+        return appState();
+      },
+      resetGoldTracker: () => {
+        options.xp.resetCoins();
         return appState();
       },
       setPinned: ({ pinned }) => {
@@ -285,6 +292,7 @@ function appState(): RewardsAppState {
     unmatchedDrops: snapshot.unmatchedDrops.map((drop) => ({ ...drop, itemName: itemName(drop.itemId) })),
     unidentified: snapshot.unmatchedByReason.unidentified,
     xp: options.xp.getSnapshot(),
+    gold: options.xp.getCoinsSnapshot(),
   };
 }
 
