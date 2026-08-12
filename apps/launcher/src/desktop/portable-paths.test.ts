@@ -16,6 +16,7 @@ test("environment-root storage remains beneath the extracted application root", 
     rewardsSettingsPath: path.join(root, "data", "settings", "rewards.json"),
     windowPlacementsPath: path.join(root, "data", "settings", "windows.json"),
     characterStatePath: path.join(root, "data", "character.json"),
+    inspectedCharactersPath: path.join(root, "data", "inspected-characters.sqlite"),
     actorIdentitiesPath: path.join(root, "data", "actor-identities.json"),
   });
 });
@@ -36,4 +37,5 @@ test("executable-adjacent storage uses packaged log layout and honors an overrid
   expect(paths.root).toBe(root);
   expect(paths.logDirectory).toBe(override);
   expect(paths.characterStatePath).toBe(path.join(root, "data", "character.json"));
+  expect(paths.inspectedCharactersPath).toBe(path.join(root, "data", "inspected-characters.sqlite"));
 });

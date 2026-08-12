@@ -16,6 +16,7 @@ import {
   updateCharacterCache,
   type CharacterSnapshotCache,
 } from "../character/storage.ts";
+import { InspectedCharacterStore } from "../character/inspected-character-store.ts";
 import {
   loadActorIdentityCache,
   saveActorIdentityCache,
@@ -84,6 +85,7 @@ let launcherState: LauncherState = {
 };
 let shuttingDown = false;
 let characterStorageWarning: string | undefined;
+let inspectedCharacterStorageWarning: string | undefined;
 let launcherSettingsStorageWarning: string | undefined;
 let actorIdentityStorageWarning: string | undefined;
 let liveCombatLogPath: string | undefined;
@@ -111,6 +113,12 @@ const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
   save: (value) => saveCharacterCache(value, storagePaths.characterStatePath),
   onWarning: (warning) => { characterStorageWarning = warning; updateStorageWarning(); },
 });
+const inspectedCharacterStore = new InspectedCharacterStore(storagePaths.inspectedCharactersPath);
+let inspectedCharacters = inspectedCharacterStore.list();
+const inspectedCharacterListeners = new Set<() => void>();
+const publishInspectedCharacters = () => {
+  for (const listener of inspectedCharacterListeners) listener();
+};
 let actorIdentityCache: ActorIdentityCache = await loadActorIdentityCache(storagePaths.actorIdentitiesPath);
 const actorIdentityPersistence = new SafeSaveQueue<ActorIdentityCache>({
   label: "actor identities",
@@ -190,6 +198,18 @@ const unsubscribeCharacterPersistence = capture.subscribeCharacter((state) => {
   characterCache = updateCharacterCache(characterCache, state.snapshot);
   characterPersistence.schedule(characterCache);
 });
+const unsubscribeInspectedCharacterPersistence = capture.subscribeInspectedCharacters((roster) => {
+  try {
+    for (const entry of roster) inspectedCharacterStore.upsert(entry);
+    inspectedCharacters = inspectedCharacterStore.list();
+    publishInspectedCharacters();
+    inspectedCharacterStorageWarning = undefined;
+    updateStorageWarning();
+  } catch (error) {
+    inspectedCharacterStorageWarning = `Could not save inspected characters: ${error instanceof Error ? error.message : String(error)}`;
+    updateStorageWarning();
+  }
+});
 const characterWindow = new WindowSlot((onClosed) => createCharacterWindow({
   getState: () => capture.characterState(),
   subscribe: (listener) => capture.subscribeCharacter(listener),
@@ -200,8 +220,21 @@ const characterWindow = new WindowSlot((onClosed) => createCharacterWindow({
 const buildExportWindow = new WindowSlot((onClosed) => createBuildExportWindow({
   getCharacter: () => capture.characterState().snapshot,
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
-  getInspected: () => capture.inspectedCharacters(),
-  subscribeInspected: (listener) => capture.subscribeInspectedCharacters(() => listener()),
+  getInspected: () => inspectedCharacters,
+  subscribeInspected: (listener) => {
+    inspectedCharacterListeners.add(listener);
+    return () => inspectedCharacterListeners.delete(listener);
+  },
+  deleteInspected: (name) => {
+    inspectedCharacterStore.delete(name);
+    inspectedCharacters = inspectedCharacterStore.list();
+    publishInspectedCharacters();
+  },
+  clearInspected: () => {
+    inspectedCharacterStore.clear();
+    inspectedCharacters = [];
+    publishInspectedCharacters();
+  },
   placements,
   onClosed,
   onOpenSettings: openSettings,
@@ -760,7 +793,7 @@ async function publishSettings(overlayState?: Awaited<ReturnType<typeof sharedSe
 function updateStorageWarning(): void {
   launcherState = {
     ...launcherState,
-    storageWarning: characterStorageWarning ?? launcherSettingsStorageWarning ?? placementStorageWarning ?? actorIdentityStorageWarning,
+    storageWarning: characterStorageWarning ?? inspectedCharacterStorageWarning ?? launcherSettingsStorageWarning ?? placementStorageWarning ?? actorIdentityStorageWarning,
   };
   publish();
 }
@@ -787,12 +820,14 @@ async function closeAllWindowsAndFlush(): Promise<void> {
   await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close()]);
   liveDeathLogWindow.close();
   unsubscribeCharacterPersistence();
+  unsubscribeInspectedCharacterPersistence();
   const character = capture.characterState().snapshot;
   if (character?.source === "live") characterCache = updateCharacterCache(characterCache, character);
   await characterPersistence.flush(characterCache);
   await actorIdentityPersistence.flush(actorIdentityCache);
   await launcherSettingsPersistence.flush();
   await placements.flush();
+  inspectedCharacterStore.close();
   xpTracker.shutdown();
   await readModel.close();
 }

@@ -45,6 +45,10 @@ export interface BuildExportState {
   character?: BuildExportCharacter;
   /** Your character first, then inspected players most-recent first. */
   sources: BuildExportSource[];
+  /** Current roster filter, matched against inspected IGN and class. */
+  searchQuery: string;
+  /** Number of persisted inspected players before the current filter. */
+  inspectedCount: number;
   selectedId: string;
   /** Everything the pinned catalog could not resolve, so the player is never quietly misled. */
   unresolved: BuildExportUnresolvedGroup[];
@@ -71,6 +75,9 @@ export type BuildExportRpc = {
       openSite: { params: Record<string, never>; response: void };
       /** Switches which captured character is being exported. */
       selectCharacter: { params: { id: string }; response: BuildExportState };
+      setSearch: { params: { query: string }; response: BuildExportState };
+      deleteInspectedCharacter: { params: { id: string }; response: BuildExportState };
+      clearInspectedCharacters: { params: Record<string, never>; response: BuildExportState };
     };
   }>;
   webview: RPCSchema<{ messages: { stateChanged: BuildExportState } }>;

@@ -129,7 +129,10 @@ export class CaptureCoordinator {
    * router owns the LOCAL player and merges every payload it accepts, so an inspected stranger
    * routed through it would overwrite your own character.
    */
-  private readonly inspected = new FishNetInspectRoster();
+  // SQLite is the durable roster and no longer has the old 24-player ceiling. Keep this intake
+  // collector unbounded too, so its roster publication never drops an inspect before desktop
+  // persistence receives it.
+  private readonly inspected = new FishNetInspectRoster(Number.POSITIVE_INFINITY);
   private session?: LogSession;
   private combatLog?: JsonLinesLogger;
   private rewardsLog?: JsonLinesLogger;

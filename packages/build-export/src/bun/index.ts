@@ -10,9 +10,10 @@ import type { BuildExportRpc, BuildExportSource, BuildExportState, BuildExportUn
 import { buildExportCatalog } from "../catalog.ts";
 import { buildPlannerLink, SITE_ORIGIN } from "../site-links.ts";
 import { snapshotToBuild } from "../snapshot-to-build.ts";
+import { normalizeSearchText } from "@svoverlay/ui-kit/format";
 
-const MINIMUM_WIDTH = 520;
-const MINIMUM_HEIGHT = 520;
+const MINIMUM_WIDTH = 760;
+const MINIMUM_HEIGHT = 560;
 
 export interface InspectedCharacterEntry {
   snapshot: CharacterSnapshot;
@@ -29,6 +30,8 @@ export interface BuildExportWindowOptions {
   /** Players seen via the inspect RPC, most recently inspected first. */
   getInspected?: () => InspectedCharacterEntry[];
   subscribeInspected?: (listener: () => void) => () => void;
+  deleteInspected?: (name: string) => void;
+  clearInspected?: () => void;
   /** Overridable so a local site checkout can be targeted during development. */
   origin?: string;
   placements?: WindowPlacementStore;
@@ -45,9 +48,10 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
   const lifecycle = new DisposableStore();
 
   let selectedId = "self";
+  let searchQuery = "";
 
   /** Your character first, then inspected players most-recent first. */
-  const sources = (): BuildExportSource[] => {
+  const allSources = (): BuildExportSource[] => {
     const list: BuildExportSource[] = [];
     const own = options.getCharacter();
     if (own) {
@@ -55,9 +59,9 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
     }
     for (const entry of options.getInspected?.() ?? []) {
       // Inspecting yourself would otherwise produce a duplicate of the entry above.
-      if (own && entry.snapshot.name === own.name) continue;
+      if (own && entry.snapshot.name.localeCompare(own.name, undefined, { sensitivity: "accent" }) === 0) continue;
       list.push({
-        id: `inspect:${entry.snapshot.name}`,
+        id: `inspect:${encodeURIComponent(entry.snapshot.name)}`,
         name: entry.snapshot.name,
         kind: "inspected",
         cls: entry.snapshot.archetypes.at(-1) ?? "",
@@ -68,9 +72,17 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
     return list;
   };
 
+  const sources = (): BuildExportSource[] => {
+    const query = normalizeSearchText(searchQuery);
+    if (!query) return allSources();
+    return allSources().filter((entry) => entry.kind === "self"
+      || normalizeSearchText(entry.name).includes(query)
+      || normalizeSearchText(entry.cls).includes(query));
+  };
+
   const snapshotFor = (id: string): CharacterSnapshot | undefined => {
     if (id === "self") return options.getCharacter();
-    const name = id.startsWith("inspect:") ? id.slice("inspect:".length) : undefined;
+    const name = id.startsWith("inspect:") ? decodeURIComponent(id.slice("inspect:".length)) : undefined;
     if (name === undefined) return undefined;
     return options.getInspected?.().find((entry) => entry.snapshot.name === name)?.snapshot;
   };
@@ -81,13 +93,16 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
   };
 
   const appState = (): BuildExportState => {
-    const available = sources();
+    const available = allSources();
+    const visible = sources();
     // A selected player can age out of the roster; fall back rather than showing an empty panel.
     if (!available.some((entry) => entry.id === selectedId)) selectedId = available[0]?.id ?? "self";
     const result = translate();
     const selected = available.find((entry) => entry.id === selectedId);
     const base = {
-      sources: available,
+      sources: visible,
+      searchQuery,
+      inspectedCount: options.getInspected?.().length ?? 0,
       selectedId,
       unresolved: [] as BuildExportUnresolvedGroup[],
       missing: 0,
@@ -156,6 +171,19 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
           selectedId = id;
           return appState();
         },
+        setSearch: ({ query }) => {
+          searchQuery = query.slice(0, 120);
+          return appState();
+        },
+        deleteInspectedCharacter: ({ id }) => {
+          const name = id.startsWith("inspect:") ? decodeURIComponent(id.slice("inspect:".length)) : undefined;
+          if (name) options.deleteInspected?.(name);
+          return appState();
+        },
+        clearInspectedCharacters: () => {
+          options.clearInspected?.();
+          return appState();
+        },
         exportToPlanner: () => {
           const result = translate();
           if (result) {
@@ -186,9 +214,9 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
     url: "views://buildexportview/index.html",
     frame: options.placements?.frame(
       "build-export",
-      { x: 160, y: 120, width: 620, height: 720 },
+      { x: 160, y: 120, width: 980, height: 720 },
       { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT },
-    ) ?? { x: 160, y: 120, width: 620, height: 720 },
+    ) ?? { x: 160, y: 120, width: 980, height: 720 },
     titleBarStyle: "hidden",
     transparent: false,
     rpc,

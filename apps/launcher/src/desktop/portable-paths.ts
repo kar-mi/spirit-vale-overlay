@@ -9,6 +9,7 @@ export interface DesktopStoragePaths {
   readonly rewardsSettingsPath: string;
   readonly windowPlacementsPath: string;
   readonly characterStatePath: string;
+  readonly inspectedCharactersPath: string;
   readonly actorIdentitiesPath: string;
 }
 
@@ -32,6 +33,7 @@ export function resolveDesktopStoragePaths(options: DesktopStoragePathOptions): 
     rewardsSettingsPath: path.join(settingsDirectory, "rewards.json"),
     windowPlacementsPath: path.join(settingsDirectory, "windows.json"),
     characterStatePath: path.join(dataDirectory, "character.json"),
+    inspectedCharactersPath: path.join(dataDirectory, "inspected-characters.sqlite"),
     actorIdentitiesPath: path.join(dataDirectory, "actor-identities.json"),
   };
 }

@@ -22,7 +22,7 @@ export async function loadCharacterCache(file = defaultFile): Promise<CharacterS
     const value = JSON.parse(await readFile(file, "utf8")) as unknown;
     if (isPersistedCache(value)) {
       const characters = value.characters.flatMap((candidate) => {
-        const snapshot = normalizeSnapshot(candidate);
+        const snapshot = normalizeCharacterSnapshot(candidate);
         return snapshot ? [snapshot] : [];
       });
       const activeName = characters.some(({ name }) => name === value.activeName)
@@ -48,7 +48,7 @@ export function updateCharacterCache(
   cache: CharacterSnapshotCache,
   snapshot: CharacterSnapshot,
 ): CharacterSnapshotCache {
-  const cached = sanitizeSnapshot(snapshot);
+  const cached = sanitizeCharacterSnapshot(snapshot);
   return {
     activeName: cached.name,
     characters: [...cache.characters.filter(({ name }) => name !== cached.name), cached],
@@ -56,7 +56,7 @@ export function updateCharacterCache(
 }
 
 export async function saveCharacterCache(cache: CharacterSnapshotCache, file = defaultFile): Promise<void> {
-  const characters = cache.characters.map(sanitizeSnapshot);
+  const characters = cache.characters.map(sanitizeCharacterSnapshot);
   const activeName = characters.some(({ name }) => name === cache.activeName)
     ? cache.activeName
     : characters.at(-1)?.name;
@@ -71,7 +71,7 @@ export async function saveCharacterCache(cache: CharacterSnapshotCache, file = d
   await rename(temporary, file);
 }
 
-function sanitizeSnapshot(snapshot: CharacterSnapshot): CharacterSnapshot {
+export function sanitizeCharacterSnapshot(snapshot: CharacterSnapshot): CharacterSnapshot {
   const safe: CharacterSnapshot = {
     schemaVersion: 1,
     buildFingerprint: snapshot.buildFingerprint,
@@ -103,10 +103,14 @@ function sanitizeSnapshot(snapshot: CharacterSnapshot): CharacterSnapshot {
   return safe;
 }
 
-function normalizeSnapshot(value: unknown): CharacterSnapshot | undefined {
+export function normalizeCharacterSnapshot(
+  value: unknown,
+  options: { requireCurrentBuildFingerprint?: boolean } = {},
+): CharacterSnapshot | undefined {
   if (!value || typeof value !== "object") return undefined;
   const candidate = value as Partial<CharacterSnapshot>;
-  if (candidate.schemaVersion !== 1 || candidate.buildFingerprint !== CURRENT_GAME_BUILD_FINGERPRINT) return undefined;
+  if (candidate.schemaVersion !== 1
+    || (options.requireCurrentBuildFingerprint !== false && candidate.buildFingerprint !== CURRENT_GAME_BUILD_FINGERPRINT)) return undefined;
   if (typeof candidate.name !== "string"
     || typeof candidate.level !== "number"
     || typeof candidate.experience !== "number"
@@ -121,7 +125,7 @@ function normalizeSnapshot(value: unknown): CharacterSnapshot | undefined {
     || !Array.isArray(candidate.skills)
     || typeof candidate.updatedAt !== "string"
     || (candidate.source !== "live" && candidate.source !== "cached")) return undefined;
-  return sanitizeSnapshot(candidate as CharacterSnapshot);
+  return sanitizeCharacterSnapshot(candidate as CharacterSnapshot);
 }
 
 function isPersistedCache(value: unknown): value is PersistedCharacterSnapshotCache {
