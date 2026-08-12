@@ -40,6 +40,7 @@ export function overlayMeterState(
         currentDps: personalDpsMode === "live" ? personal.currentDps : personal.dps,
         damage: personal.damage,
         ...(personal.critRate === undefined ? {} : { critRate: personal.critRate }),
+        durationMs: personal.durationMs ?? 0,
       },
     }),
   };

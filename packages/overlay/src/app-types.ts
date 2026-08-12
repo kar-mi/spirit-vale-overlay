@@ -167,6 +167,8 @@ export interface OverlayMeterState {
     currentDps: number;
     damage: number;
     critRate?: number;
+    /** Encounter duration this actor's rows are measured over, for the encounter-mode timer. */
+    durationMs: number;
   };
 }
 

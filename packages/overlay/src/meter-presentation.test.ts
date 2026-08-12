@@ -16,7 +16,7 @@ test("meter presentation sends only the selected chart, bounded rows, and damage
   expect(state.personalChart).toBe(true);
   expect(state.chart).toEqual([{ elapsedMs: 0, dps: 25 }]);
   expect(state.party).toEqual([{ actorId: 90, displayName: "Player 90", archetype: 2, dps: 25 }]);
-  expect(state.personal).toEqual({ archetype: 2, currentDps: 14, damage: 140, critRate: 0.5 });
+  expect(state.personal).toEqual({ archetype: 2, currentDps: 14, damage: 140, critRate: 0.5, durationMs: 100 });
   expect(JSON.stringify(state)).not.toContain("skills");
   expect(JSON.stringify(state).length).toBeLessThan(JSON.stringify(record).length / 2);
 });

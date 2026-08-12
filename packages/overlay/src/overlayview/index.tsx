@@ -615,7 +615,10 @@ function PersonalDpsElement() {
     <div class="element-content">
       <div class="personal-heading">
         <img class="personal-class-icon" src={classIcon(personal?.archetype)} alt="" aria-hidden="true" />
-        <h2 class="element-title">{personalDpsMode === "live" ? "Live DPS" : "Encounter DPS"}</h2>
+        <div>
+          <h2 class="element-title">{personalDpsMode === "live" ? "Live DPS" : "Encounter DPS"}</h2>
+          {personalDpsMode !== "live" && <span class="personal-duration">{formatDuration(personal?.durationMs ?? 0)}</span>}
+        </div>
       </div>
       {personal ? (
         <>
