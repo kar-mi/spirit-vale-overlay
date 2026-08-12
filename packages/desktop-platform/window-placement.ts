@@ -122,6 +122,16 @@ function screenWorkAreas(): readonly DisplayWorkArea[] {
   ];
 }
 
+/** Copies validated window placements from one settings file to another, dropping anything malformed. */
+export async function importWindowPlacements(oldFile: string, newFile: string): Promise<void> {
+  await saveWindowPlacements(newFile, await loadWindowPlacements(oldFile));
+}
+
+/** Resets stored window placements back to empty, so every window falls back to its default frame. */
+export async function resetWindowPlacements(file: string): Promise<void> {
+  await saveWindowPlacements(file, structuredClone(EMPTY_PLACEMENTS));
+}
+
 async function loadWindowPlacements(file: string): Promise<StoredPlacements> {
   try {
     const candidate = JSON.parse(await readFile(file, "utf8")) as unknown;

@@ -22,6 +22,10 @@ const defaults: RewardsAppSettings = {
 };
 const defaultSettingsPath = path.join(resolveLocalStorageRoot(), "data", "settings", "rewards.json");
 
+export function defaultRewardsSettings(): RewardsAppSettings {
+  return { ...defaults, frame: { ...defaults.frame }, catalogFrame: { ...defaults.catalogFrame } };
+}
+
 export async function loadRewardsSettings(settingsPath = defaultSettingsPath): Promise<RewardsAppSettings> {
   return loadJsonSettings(settingsPath, (candidate) => {
     const value = candidate as Partial<RewardsAppSettings>;

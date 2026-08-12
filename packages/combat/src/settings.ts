@@ -23,6 +23,10 @@ const DEFAULT_SETTINGS: DpsAppSettings = {
   frame: { x: 80, y: 80, width: DPS_WINDOW_DEFAULT_WIDTH, height: DPS_WINDOW_DEFAULT_HEIGHT },
 };
 
+export function defaultDpsAppSettings(): DpsAppSettings {
+  return { ...DEFAULT_SETTINGS, frame: { ...DEFAULT_SETTINGS.frame } };
+}
+
 export async function loadDpsAppSettings(settingsPath?: string): Promise<DpsAppSettings> {
   const resolvedSettingsPath = await resolveSettingsPath(settingsPath);
   return loadJsonSettings(resolvedSettingsPath, (value) => {

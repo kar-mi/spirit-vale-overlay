@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 
@@ -20,6 +21,10 @@ const rpc = Electroview.defineRPC<RewardsCatalogRpc>({
 const electroview = new Electroview({ rpc });
 
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+
+const CATALOG_DEFAULT_WIDTH = 520;
+const CATALOG_DEFAULT_HEIGHT = 420;
+void ensureInitialWindowSize(electroview.rpc?.request, { width: CATALOG_DEFAULT_WIDTH, height: CATALOG_DEFAULT_HEIGHT });
 
 function formatChance(value: number): string {
   return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(value)}%`;
@@ -58,7 +63,7 @@ function App() {
         appTag="Mob Catalog"
         minWidth={520}
         minHeight={420}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: 520, height: 420 }}
+        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: CATALOG_DEFAULT_WIDTH, height: CATALOG_DEFAULT_HEIGHT }}
         setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
         toggleMaximize={async () => (await electroview.rpc?.request.toggleMaximize({}))?.maximized ?? false}
         onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}

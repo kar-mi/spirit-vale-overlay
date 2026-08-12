@@ -3,6 +3,7 @@ import { render } from "preact";
 import { useRef } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-chrome";
+import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { formatBytes, formatMeasuredAt } from "@svoverlay/ui-kit/format";
 import type { LauncherRpc, LauncherState, ToolWindow } from "../../launcher/types.ts";
@@ -25,19 +26,8 @@ const rpc = Electroview.defineRPC<LauncherRpc>({
 });
 const electroview = new Electroview({ rpc });
 
-void ensureInitialWindowSize();
+void ensureInitialWindowSize(electroview.rpc?.request, { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
-
-async function ensureInitialWindowSize(): Promise<void> {
-  const requests = electroview.rpc?.request;
-  if (!requests) return;
-  const frame = await requests.getWindowFrame({});
-  const scale = window.devicePixelRatio || 1;
-  const width = Math.max(frame.width, Math.ceil(DEFAULT_WIDTH * scale));
-  const height = Math.max(frame.height, Math.ceil(DEFAULT_HEIGHT * scale));
-  if (width === frame.width && height === frame.height) return;
-  await requests.setWindowFrame({ ...frame, width, height });
-}
 
 function App() {
   const chromeRef = useRef<WindowChrome | undefined>(undefined);
@@ -93,6 +83,14 @@ function App() {
               <span>{description}</span>
             </button>
           ))}
+          <button
+            class="tool-button"
+            type="button"
+            onClick={() => void electroview.rpc?.request.manageSettings({})}
+          >
+            <strong>Manage Settings</strong>
+            <span>Import, locate, or reset your settings</span>
+          </button>
         </div>
       </section>
 

@@ -4,6 +4,7 @@ import { useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { StatusDot } from "@svoverlay/ui-kit/status-dot";
 import type { StatusTone } from "@svoverlay/ui-kit/status-dot";
@@ -47,6 +48,7 @@ const rpc = Electroview.defineRPC<DpsAppRpc>({
 const electroview = new Electroview({ rpc });
 
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+void ensureInitialWindowSize(electroview.rpc?.request, { width: DPS_WINDOW_DEFAULT_WIDTH, height: DPS_WINDOW_DEFAULT_HEIGHT });
 
 function setTab(tab: DpsAppTab): void {
   if (state.value) state.value = { ...state.value, tab };
