@@ -885,7 +885,7 @@ describe("central capture coordinator", () => {
     }
   });
 
-  test("seeds an automatic map-change session from identities known before authentication clears them", async () => {
+  test("replays a new-connection identity into an automatic map-change session", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-identities-"));
     const capture = new FakeCapture();
     try {
@@ -901,8 +901,9 @@ describe("central capture coordinator", () => {
       const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
       capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet(identityPacket(55, 41, "Aster Vale", "conn-b"));
       expect(await waitForSessionChange(directory, previousSessionId)).toBeDefined();
-      capture.packet({ ...damagePacket(60, 900, 40), connectionId: "conn-b" });
+      capture.packet({ ...damagePacket(60, 900, 41), connectionId: "conn-b" });
       await coordinator.stop();
 
       const pointer = await readCurrentLogStream("combat", directory);
@@ -910,15 +911,16 @@ describe("central capture coordinator", () => {
         type: string;
         data?: { actorId?: number; displayName?: string; tick?: number };
       }>;
-      const seededIdentity = combat.findIndex((record) => record.type === "combat.actorIdentity"
-        && record.data?.actorId === 40
+      const replayedIdentity = combat.findIndex((record) => record.type === "combat.actorIdentity"
+        && record.data?.actorId === 41
         && record.data.displayName === "Aster Vale"
-        && record.data.tick === 0);
+        && record.data.tick === 55);
       const damage = combat.findIndex((record) => record.type === "combat.event"
-        && record.data?.actorId === 40);
+        && record.data?.actorId === 41);
 
-      expect(seededIdentity).toBeGreaterThan(-1);
-      expect(damage).toBeGreaterThan(seededIdentity);
+      expect(replayedIdentity).toBeGreaterThan(-1);
+      expect(damage).toBeGreaterThan(replayedIdentity);
+      expect(combat.some((record) => record.type === "combat.actorIdentity" && record.data?.actorId === 40)).toBe(false);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

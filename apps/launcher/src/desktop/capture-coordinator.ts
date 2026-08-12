@@ -56,7 +56,7 @@ const CAPTURE_ACTIVE_DETAIL = "Capture Active";
 type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail">;
 
 interface SessionSeed {
-  identities: readonly FishNetActorIdentity[];
+  identities?: readonly FishNetActorIdentity[];
   zoneId?: number;
 }
 
@@ -359,6 +359,10 @@ export class CaptureCoordinator {
   private async rotateSession(seed?: SessionSeed): Promise<void> {
     if (this.resettingSession) return this.resettingSession;
     if (this.stopping) throw new Error("cannot reset the capture session while it is stopping");
+    // Establish the boundary before the asynchronous session creation begins. New-connection
+    // identity packets must be replayed into the replacement log, not written to the old one.
+    this.handoff = true;
+    this.handoffFailure = undefined;
     const run = this.lifecycleChain.catch(() => {}).then(() => this.performResetSession(seed)).catch((error) => {
       this.reportError("Capture session could not be reset", errorMessage(error));
       throw error;
@@ -388,8 +392,6 @@ export class CaptureCoordinator {
       onWriteError: (failure) => this.logWriteFailure(failure),
     });
 
-    this.handoff = true;
-    this.handoffFailure = undefined;
     try {
       // Switch every stream's pointer onto the replacement session first, while the previous
       // session is still fully intact, so a failure here can be rolled back cleanly without
@@ -601,13 +603,11 @@ export class CaptureCoordinator {
       });
     }
     const loggedZone = this.logZone(packet);
-    // Authentication clears the actor directory below. Capture the outgoing connection's resolved
-    // identities and latest zone first so an automatic rotation can seed the replacement log after
-    // the clear. Without this snapshot, the async reset observes an empty/partially repopulated
-    // directory, immediate damage is Unidentified, and the new session can lose its map label.
+    // The incoming connection receives different actor IDs, so only its last known zone is stable
+    // enough to seed across an authentication-driven rotation. The replacement log gets its actor
+    // identities by replaying the new connection's buffered packets after the handoff completes.
     const transitionSeed = packet.packetName === "authenticated"
       ? {
-          identities: this.actors.snapshot(),
           ...(this.lastLoggedZoneId === undefined ? {} : { zoneId: this.lastLoggedZoneId }),
         }
       : undefined;
