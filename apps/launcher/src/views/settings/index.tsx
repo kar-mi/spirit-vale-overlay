@@ -36,6 +36,7 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   toggleLock: "Lock/unlock overlay", resetSession: "Reset session",
   openLiveDeathLog: "Open live death log", toggleOverlayVisible: "Show/hide overlay",
   cycleMeterStatType: "Cycle party meter",
+  resetXpTracker: "Reset all-time XP", resetGoldTracker: "Reset all-time gold",
 };
 const REQUIRED_STATUS_LABELS: Record<RequiredStatusCategory, string> = { buffs: "Buffs", toggles: "Toggles" };
 const PERSONAL_DPS_MODE_OPTIONS = [

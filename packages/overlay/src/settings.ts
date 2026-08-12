@@ -54,6 +54,8 @@ const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
   openLiveDeathLog: "F6",
   toggleOverlayVisible: "F9",
   cycleMeterStatType: "F7",
+  resetXpTracker: "F8",
+  resetGoldTracker: "Shift+F8",
 };
 
 /** Positions assume a ~1920x1200 display; they are clamped into whatever the home display really is. */
@@ -188,6 +190,8 @@ export function normalizeShortcuts(source: Record<string, unknown>): Record<Keyb
     openLiveDeathLog: shortcutsSource.openLiveDeathLog,
     toggleOverlayVisible: shortcutsSource.toggleOverlayVisible,
     cycleMeterStatType: shortcutsSource.cycleMeterStatType,
+    resetXpTracker: shortcutsSource.resetXpTracker,
+    resetGoldTracker: shortcutsSource.resetGoldTracker,
   };
   const shortcuts = {} as Record<KeybindAction, string>;
   for (const action of KEYBIND_ACTIONS) {

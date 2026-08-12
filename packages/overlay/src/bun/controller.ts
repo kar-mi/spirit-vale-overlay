@@ -95,6 +95,8 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   toggleOverlayVisible: "show/hide",
   cycleMeterStatType: "cycle party meter",
   openLiveDeathLog: "open live death log",
+  resetXpTracker: "reset all-time XP",
+  resetGoldTracker: "reset all-time gold",
 };
 
 /** The overlay's XP and gold tiles read from (and can reset) a tracker owned centrally, shared with the Rewards window, so both stay in sync. */
@@ -619,6 +621,12 @@ export async function createOverlayController(options: OverlayControllerOptions)
         shortcutErrors.set(action, "Could not reset the capture session.");
         publishControl();
       });
+    } else if (action === "resetXpTracker") {
+      options.xp.reset();
+      publishCharacter();
+    } else if (action === "resetGoldTracker") {
+      options.xp.resetCoins();
+      publishCharacter();
     }
   }
 
