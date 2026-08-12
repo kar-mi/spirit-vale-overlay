@@ -33,6 +33,10 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   cycleMeterStatType: "Cycle party meter",
 };
 const REQUIRED_STATUS_LABELS: Record<RequiredStatusCategory, string> = { buffs: "Buffs", toggles: "Toggles" };
+const PERSONAL_DPS_MODE_OPTIONS = [
+  { value: "encounter", label: "Encounter average" },
+  { value: "live", label: "Live (recent rate)" },
+];
 /** Status sprites are copied into a single shared assets folder for every view. */
 const REQUIRED_STATUS_OPTIONS = Object.fromEntries(REQUIRED_STATUS_CATEGORIES.map((category) => [
   category,
@@ -116,6 +120,8 @@ function App() {
         <p class="settings-hint">Starts a new session when you zone or switch channel, exactly as the Reset session keybind does.</p>
         <label class="settings-check"><input type="checkbox" checked={launcher.resetGoldOnMapChange} disabled={busy} onChange={(event) => update(electroview.rpc?.request.setResetGoldOnMapChange({ resetGoldOnMapChange: event.currentTarget.checked }))} /><span>Reset gold on map/channel change</span></label>
         <p class="settings-hint">Resets the all-time gold tracker whenever you zone or switch channel.</p>
+        <label class="settings-field"><span>Personal DPS display</span><CustomSelect ariaLabel="Personal DPS display" disabled={busy} value={overlay.personalDpsMode} options={PERSONAL_DPS_MODE_OPTIONS} onChange={(value) => update(electroview.rpc?.request.setPersonalDpsMode({ mode: value as "live" | "encounter" }))} /></label>
+        <p class="settings-hint">Controls whether your personal DPS tile shows the whole-encounter average (matches the party meter) or a live, recent-rate estimate.</p>
       </section>
 
       <section class="settings-panel" hidden={tab !== "status"}>

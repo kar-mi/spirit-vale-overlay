@@ -306,10 +306,11 @@
 .chart-line { fill: none; stroke: #c9b7ff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
 .chart-label { fill: rgba(255,255,255,.68); font-size: 11px; }
 
-.personal-value { font-size: clamp(12px, 2vw, 24px); font-weight: 800; line-height: 1; }
+.personal-value { font-size: clamp(11px, 1.6vw, 19px); font-weight: 800; line-height: 1; }
 .personal-unit { margin-left: 6px; color: rgba(255,255,255,.65); font-size: 13px; }
 .personal-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .personal-heading .element-title { margin: 0; }
+.personal-duration { display: block; margin-top: 2px; color: rgba(255,255,255,.54); font-size: 11px; font-variant-numeric: tabular-nums; }
 .personal-class-icon,
 .ranking-class-icon {
   padding: 2px;

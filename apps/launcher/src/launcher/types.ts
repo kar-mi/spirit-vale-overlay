@@ -5,6 +5,7 @@ import type {
   KeybindAction,
   OverlayElementId,
   OverlaySettingsState,
+  PersonalDpsMode,
   RequiredStatusCategory,
 } from "@svoverlay/overlay/app-types";
 
@@ -100,6 +101,7 @@ export type LauncherSettingsRpc = {
       params: { category: RequiredStatusCategory; statusIds: string[] };
       response: SharedSettingsState;
     };
+    setPersonalDpsMode: { params: { mode: PersonalDpsMode }; response: SharedSettingsState };
     windowAction: { params: { action: "minimize" | "close" }; response: void };
     getWindowFrame: { params: Record<string, never>; response: WindowFrame };
     setWindowFrame: { params: WindowFrame; response: void };

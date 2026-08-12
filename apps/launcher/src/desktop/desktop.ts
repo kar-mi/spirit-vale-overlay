@@ -317,6 +317,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
         await overlayWindow.withWindow((overlay) => overlay.setRequiredStatuses(category, statusIds));
         return sharedSettingsState();
       },
+      setPersonalDpsMode: async ({ mode }) => {
+        await overlayWindow.withWindow((overlay) => overlay.setPersonalDpsMode(mode));
+        return sharedSettingsState();
+      },
       windowAction: ({ action }) => {
         if (action === "minimize") settingsWindow?.minimize();
         else settingsWindow?.close();

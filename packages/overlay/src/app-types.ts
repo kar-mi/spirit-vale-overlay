@@ -24,6 +24,9 @@ export type KeybindAction = (typeof KEYBIND_ACTIONS)[number];
 /** Party/map meter cycles damage -> heal -> tanked -> damage on each press of its keybind. */
 export const METER_STAT_TYPE_CYCLE: readonly StatType[] = ["damage", "heal", "tanked"];
 
+/** Whether the personal tile shows the whole-encounter average (matches the party meter) or a live, recent-rate estimate. */
+export type PersonalDpsMode = "live" | "encounter";
+
 export interface OverlayElementSettings {
   enabled: boolean;
   opacity: number;
@@ -94,6 +97,8 @@ export interface OverlayControlState {
   displayLayout: OverlayDisplayPlacement[];
   /** Which metric the party/map meter currently displays. */
   meterStatType: StatType;
+  /** Which DPS value the personal tile currently displays. */
+  personalDpsMode: PersonalDpsMode;
   shortcuts: Record<KeybindAction, string>;
   shortcutErrors: Partial<Record<KeybindAction, string>>;
   overlayVisible: boolean;
@@ -162,6 +167,8 @@ export interface OverlayMeterState {
     currentDps: number;
     damage: number;
     critRate?: number;
+    /** Encounter duration this actor's rows are measured over, for the encounter-mode timer. */
+    durationMs: number;
   };
 }
 
@@ -185,6 +192,7 @@ export interface OverlaySettingsState {
   shortcutErrors: Partial<Record<KeybindAction, string>>;
   overlayVisible: boolean;
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
+  personalDpsMode: PersonalDpsMode;
 }
 
 type OverlaySharedRequests = {
@@ -205,6 +213,7 @@ type OverlaySharedRequests = {
     params: { category: RequiredStatusCategory; statusIds: string[] };
     response: OverlayControlState;
   };
+  setPersonalDpsMode: { params: { mode: PersonalDpsMode }; response: OverlayControlState };
   resetXpTracker: { params: Record<string, never>; response: OverlayCharacterState };
   resetGoldTracker: { params: Record<string, never>; response: OverlayCharacterState };
 };

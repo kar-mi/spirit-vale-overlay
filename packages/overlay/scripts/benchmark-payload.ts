@@ -32,7 +32,7 @@ const legacy = {
   tankedSnapshot: record.tps.detail,
   healSnapshot: record.hps.detail,
 };
-const compact = overlayMeterState(record, "damage", nowMs);
+const compact = overlayMeterState(record, "damage", nowMs, "encounter");
 const iterations = 100;
 
 console.table({

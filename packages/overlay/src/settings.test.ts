@@ -303,6 +303,12 @@ describe("overlay settings", () => {
     expect(normalizeOverlaySettings({ schemaVersion: 4, meterStatType: "tanked" }, displays).meterStatType).toBe("tanked");
     expect(normalizeOverlaySettings({ schemaVersion: 4, meterStatType: "not-a-real-type" }, displays).meterStatType).toBe("damage");
   });
+
+  test("defaults the personal dps mode to encounter and normalizes invalid values", () => {
+    expect(normalizeOverlaySettings({}, displays).personalDpsMode).toBe("encounter");
+    expect(normalizeOverlaySettings({ schemaVersion: 5, personalDpsMode: "live" }, displays).personalDpsMode).toBe("live");
+    expect(normalizeOverlaySettings({ schemaVersion: 5, personalDpsMode: "not-a-real-mode" }, displays).personalDpsMode).toBe("encounter");
+  });
 });
 
 async function createSettingsPath(): Promise<string> {
