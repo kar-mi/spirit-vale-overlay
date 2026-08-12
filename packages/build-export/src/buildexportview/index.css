@@ -11,7 +11,7 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .roster-head strong { font-size: 13px; font-weight: 600; }
 .roster-head span { color: var(--on-surface-variant); font-size: 11px; }
 .roster-search { min-width: 260px; margin: 0 10px 10px; }
-.roster-list { min-height: 0; overflow-y: auto; padding: 2px 8px 8px; }
+.roster-list { min-height: 0; overflow-y: scroll; scrollbar-gutter: stable; padding: 2px 8px 8px; }
 .roster-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; margin-bottom: 3px; padding: 9px 8px; border: 1px solid transparent; border-radius: var(--shape-sm); background: transparent; color: var(--on-surface); text-align: left; font: inherit; cursor: pointer; }
 .roster-row:hover { background: var(--surface-container-high); }
 .roster-row.is-active { border-color: color-mix(in srgb, var(--primary) 45%, transparent); background: var(--secondary-container); color: var(--on-secondary-container); }
