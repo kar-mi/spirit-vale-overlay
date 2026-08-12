@@ -926,7 +926,7 @@ describe("central capture coordinator", () => {
     }
   });
 
-  test("seeds an automatic map-change session with the last known zone", async () => {
+  test("records the incoming zone, not the previous zone, in an automatic map-change session", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-zone-"));
     const capture = new FakeCapture();
     try {
@@ -942,6 +942,7 @@ describe("central capture coordinator", () => {
       const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
       capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet(mapPacket(55, 48, "conn-b"));
       expect(await waitForSessionChange(directory, previousSessionId)).toBeDefined();
       await coordinator.stop();
 
@@ -950,7 +951,7 @@ describe("central capture coordinator", () => {
         .filter((record) => record.type === "combat.event")
         .map((record) => (record as { data?: { sourceId?: string } }).data?.sourceId)
         .filter((sourceId): sourceId is string => sourceId?.startsWith("__spiritvaleZone:") ?? false);
-      expect(zones).toEqual(["__spiritvaleZone:29"]);
+      expect(zones).toEqual(["__spiritvaleZone:48"]);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

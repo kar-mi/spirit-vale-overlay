@@ -381,7 +381,10 @@ export class CaptureCoordinator {
     const streams: LogStream[] = ["combat", "rewards"];
     if (this.diagnosticLogging) streams.push("other");
     const seedIdentities = seed?.identities ?? this.actors.snapshot();
-    const seedZoneId = seed?.zoneId ?? this.lastLoggedZoneId;
+    // A manual reset stays on the current connection, so its current zone remains valid. An
+    // authentication-triggered rotation passes an explicit seed and must wait for that incoming
+    // connection's traversal packet instead.
+    const seedZoneId = seed === undefined ? this.lastLoggedZoneId : seed.zoneId;
 
     const nextSession = await createLogSession({
       producer: "desktop-capture",
@@ -603,14 +606,9 @@ export class CaptureCoordinator {
       });
     }
     const loggedZone = this.logZone(packet);
-    // The incoming connection receives different actor IDs, so only its last known zone is stable
-    // enough to seed across an authentication-driven rotation. The replacement log gets its actor
-    // identities by replaying the new connection's buffered packets after the handoff completes.
-    const transitionSeed = packet.packetName === "authenticated"
-      ? {
-          ...(this.lastLoggedZoneId === undefined ? {} : { zoneId: this.lastLoggedZoneId }),
-        }
-      : undefined;
+    // Actor IDs and zones belong to the incoming connection. The replacement log receives both
+    // from its buffered packets after the handoff completes, rather than inheriting stale state.
+    const transitionSeed = packet.packetName === "authenticated" ? {} : undefined;
     let handled = characterHandled || loggedZone;
     let combatEvents: FishNetCombatEvent[] = [];
     try {
