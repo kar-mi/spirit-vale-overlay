@@ -23,7 +23,7 @@ void electroview.rpc?.request.getState({}).then((next) => { state.value = repair
 
 const DEATH_LOG_DEFAULT_WIDTH = 900;
 const DEATH_LOG_DEFAULT_HEIGHT = 680;
-void ensureInitialWindowSize(electroview.rpc?.request, { width: DEATH_LOG_DEFAULT_WIDTH, height: DEATH_LOG_DEFAULT_HEIGHT });
+void ensureInitialWindowSize(electroview.rpc?.request, { width: 680, height: 500 });
 
 function App() {
   const next = state.value;

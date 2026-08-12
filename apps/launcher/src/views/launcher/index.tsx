@@ -26,7 +26,7 @@ const rpc = Electroview.defineRPC<LauncherRpc>({
 });
 const electroview = new Electroview({ rpc });
 
-void ensureInitialWindowSize(electroview.rpc?.request, { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+void ensureInitialWindowSize(electroview.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function App() {

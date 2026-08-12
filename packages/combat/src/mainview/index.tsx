@@ -48,7 +48,7 @@ const rpc = Electroview.defineRPC<DpsAppRpc>({
 const electroview = new Electroview({ rpc });
 
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
-void ensureInitialWindowSize(electroview.rpc?.request, { width: DPS_WINDOW_DEFAULT_WIDTH, height: DPS_WINDOW_DEFAULT_HEIGHT });
+void ensureInitialWindowSize(electroview.rpc?.request, { width: DPS_WINDOW_MINIMUM_WIDTH, height: DPS_WINDOW_MINIMUM_HEIGHT });
 
 function setTab(tab: DpsAppTab): void {
   if (state.value) state.value = { ...state.value, tab };

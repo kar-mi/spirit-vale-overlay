@@ -31,7 +31,7 @@ void electroview.rpc?.request.getState({}).then((next) => { state.value = repair
 
 const CHARACTER_DEFAULT_WIDTH = 920;
 const CHARACTER_DEFAULT_HEIGHT = 720;
-void ensureInitialWindowSize(electroview.rpc?.request, { width: CHARACTER_DEFAULT_WIDTH, height: CHARACTER_DEFAULT_HEIGHT });
+void ensureInitialWindowSize(electroview.rpc?.request, { width: 680, height: 520 });
 
 function App() {
   const [tab, setTab] = useState<Tab>("basic");

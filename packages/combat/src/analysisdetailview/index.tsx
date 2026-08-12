@@ -80,7 +80,7 @@ void electroview.rpc?.request.getState({}).then((next) => { state.value = repair
 
 const ANALYSIS_DETAIL_DEFAULT_WIDTH = 880;
 const ANALYSIS_DETAIL_DEFAULT_HEIGHT = 720;
-void ensureInitialWindowSize(electroview.rpc?.request, { width: ANALYSIS_DETAIL_DEFAULT_WIDTH, height: ANALYSIS_DETAIL_DEFAULT_HEIGHT });
+void ensureInitialWindowSize(electroview.rpc?.request, { width: 620, height: 500 });
 
 function App() {
   const [metric, setMetric] = useState<Metric>("dps");

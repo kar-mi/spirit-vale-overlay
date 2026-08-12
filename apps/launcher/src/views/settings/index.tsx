@@ -29,7 +29,7 @@ void electroview.rpc?.request.getState({}).then((next) => { state.value = repair
 
 const SETTINGS_DEFAULT_WIDTH = 798;
 const SETTINGS_DEFAULT_HEIGHT = 680;
-void ensureInitialWindowSize(electroview.rpc?.request, { width: SETTINGS_DEFAULT_WIDTH, height: SETTINGS_DEFAULT_HEIGHT });
+void ensureInitialWindowSize(electroview.rpc?.request, { width: 560, height: 420 });
 
 const UI_SCALE_OPTIONS = UI_SCALE_VALUES.map((value) => ({ value: String(value), label: `${Math.round(value * 100)}%` }));
 const KEYBIND_LABELS: Record<KeybindAction, string> = {

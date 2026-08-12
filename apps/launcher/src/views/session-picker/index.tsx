@@ -17,7 +17,7 @@ void electroview.rpc?.request.getState({}).then((next) => { const repaired = rep
 
 const SESSION_PICKER_DEFAULT_WIDTH = 640;
 const SESSION_PICKER_DEFAULT_HEIGHT = 560;
-void ensureInitialWindowSize(electroview.rpc?.request, { width: SESSION_PICKER_DEFAULT_WIDTH, height: SESSION_PICKER_DEFAULT_HEIGHT });
+void ensureInitialWindowSize(electroview.rpc?.request, { width: 480, height: 400 });
 
 function App() {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
