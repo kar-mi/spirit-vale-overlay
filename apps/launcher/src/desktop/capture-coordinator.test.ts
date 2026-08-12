@@ -600,6 +600,102 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("clears the tower floor when the next map authenticates on a new connection", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-switch-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => false,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "tower-a"));
+      capture.packet(mapPacket(2, 17, "tower-a"));
+      capture.packet(towerRunPacket(3, 1, "tower-a"));
+      await Bun.sleep(550);
+      // A channel or map change re-authenticates on a NEW connection, which the tower tracker
+      // cannot recognize as its own — the floor has to be cleared here or it outlives the run.
+      capture.packet(authenticatedPacket(4, "tower-b"));
+      capture.packet(mapPacket(5, 29, "tower-b"));
+      await Bun.sleep(50);
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      expect(loggedLocations(await readFile(pointer!.path, "utf8"))).toEqual([
+        "__spiritvaleZone:17",
+        "__spiritvaleTowerFloor:1",
+        "__spiritvaleZone:29",
+      ]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rotates on a manual reset while the replacement location is still unknown", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-manual-reset-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => false,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "tower-a"));
+      capture.packet(mapPacket(2, 17, "tower-a"));
+      capture.packet(towerRunPacket(3, 1, "tower-a"));
+      await Bun.sleep(550);
+      const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      // Leaving the tower on a connection whose map is not known yet arms the settle timer with no
+      // location to commit. The manual reset must still rotate rather than resolve as a no-op.
+      capture.packet(authenticatedPacket(4, "tower-b"));
+      capture.packet(towerClearPacket(5, "tower-b"));
+      await Bun.sleep(50);
+      await coordinator.resetSession();
+      expect((await readCurrentLogStream("combat", directory))?.sessionId).not.toBe(previousSessionId);
+
+      await coordinator.stop();
+      expect(await readdir(path.join(directory, "combat"))).toHaveLength(2);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("logs a pending floor on shutdown without resetting the gold tracker", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-shutdown-"));
+    const capture = new FakeCapture();
+    let goldResets = 0;
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => false,
+        onGoldMapChange: () => { goldResets += 1; },
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "tower-a"));
+      capture.packet(mapPacket(2, 17, "tower-a"));
+      capture.packet(towerRunPacket(3, 1, "tower-a"));
+      // Stopping inside the settle window flushes the floor into the log, but the player never saw
+      // a map change — resetting their all-time gold on the way out would be pure data loss.
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      expect(loggedLocations(await readFile(pointer!.path, "utf8"))).toEqual([
+        "__spiritvaleZone:17",
+        "__spiritvaleTowerFloor:1",
+      ]);
+      expect(goldResets).toBe(0);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("keeps new-connection actor identities when a stale connection trails a map change", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reconnect-"));
     const capture = new FakeCapture();
@@ -1410,6 +1506,16 @@ async function waitForSessionChange(directory: string, previousSessionId: string
 
 async function settleRotation(): Promise<void> {
   for (let attempt = 0; attempt < 10; attempt += 1) await Bun.sleep(10);
+}
+
+/** The zone/tower-floor markers a combat log recorded, in order. */
+function loggedLocations(content: string): string[] {
+  return (records(content) as Array<{ type: string; data?: { sourceId?: string } }>)
+    .filter((record) => record.type === "combat.event")
+    .map((record) => record.data?.sourceId)
+    .filter((sourceId): sourceId is string =>
+      sourceId !== undefined
+      && (sourceId.startsWith("__spiritvaleZone:") || sourceId.startsWith("__spiritvaleTowerFloor:")));
 }
 
 /** Every stream file opens with a self-describing header line, which is not a record. */
