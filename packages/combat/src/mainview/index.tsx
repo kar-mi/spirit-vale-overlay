@@ -141,7 +141,7 @@ function App() {
       <section class="command-bar">
         <StatTypeSelect value={next.statType} onChange={setStatType} />
         <div class="command-bar-actions">
-          {next.zoneId !== undefined && <span class="zone-pill" title={`Current zone: ${formatZone(next.zoneId)}`}>{formatZone(next.zoneId)}</span>}
+          {next.location !== undefined && <span class="zone-pill" title={`Current zone: ${formatZone(next.location)}`}>{formatZone(next.location)}</span>}
           <button class="btn" type="button" disabled={!next.liveDeathLogAvailable} onClick={() => void electroview.rpc?.request.openActiveDeathLog({})}>Death log</button>
           <button class="btn" type="button" disabled={next.resetting} onClick={() => void electroview.rpc?.request.resetSession({})}>Reset</button>
         </div>

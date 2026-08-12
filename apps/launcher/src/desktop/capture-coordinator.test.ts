@@ -511,6 +511,191 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("records tower floors as zones and returns to the latest physical map on exit", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-zones-"));
+    const capture = new FakeCapture();
+    let goldResets = 0;
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => false,
+        onGoldMapChange: () => { goldResets += 1; },
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "tower-connection"));
+      capture.packet(mapPacket(2, 17, "tower-connection"));
+      capture.packet(towerRunPacket(3, 1, "tower-connection"));
+      await Bun.sleep(550);
+      capture.packet(mapPacket(4, 29, "tower-connection"));
+      capture.packet(towerAdvancePacket(5, 2, false, "tower-connection"));
+      await Bun.sleep(550);
+      capture.packet(towerAdvancePacket(6, 2, true, "tower-connection"));
+      capture.packet(towerClearPacket(7, "tower-connection"));
+      await Bun.sleep(550);
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      const locations = records(await readFile(pointer!.path, "utf8"))
+        .filter((record) => record.type === "combat.event")
+        .map((record) => (record as { data?: { sourceId?: string; sourceLabel?: string } }).data)
+        .filter((data) => data?.sourceId?.startsWith("__spiritvaleZone:")
+          || data?.sourceId?.startsWith("__spiritvaleTowerFloor:"))
+        .map((data) => ({ sourceId: data?.sourceId, sourceLabel: data?.sourceLabel }));
+      expect(locations).toEqual([
+        { sourceId: "__spiritvaleZone:17", sourceLabel: "Zone 17" },
+        { sourceId: "__spiritvaleTowerFloor:1", sourceLabel: "Eternal Tower - Floor 1" },
+        { sourceId: "__spiritvaleTowerFloor:2", sourceLabel: "Eternal Tower - Floor 2" },
+        { sourceId: "__spiritvaleZone:29", sourceLabel: "Zone 29" },
+      ]);
+      expect(goldResets).toBe(3);
+      expect(await readdir(path.join(directory, "combat"))).toHaveLength(1);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("coalesces an exit-entry-floor burst into one session seeded with the final floor", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-reset-"));
+    const capture = new FakeCapture();
+    let goldResets = 0;
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => true,
+        onGoldMapChange: () => { goldResets += 1; },
+      });
+      await coordinator.start();
+      capture.packet(authenticatedPacket(1, "tower-connection"));
+      capture.packet(mapPacket(2, 17, "tower-connection"));
+      const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      capture.packet(towerClearPacket(3, "tower-connection"));
+      capture.packet(towerRunPacket(4, 1, "tower-connection"));
+      capture.packet(towerAdvancePacket(5, 2, false, "tower-connection"));
+      capture.packet({ ...damagePacket(6, 900, 41), connectionId: "tower-connection" });
+
+      const towerSessionId = await waitForSessionChange(directory, previousSessionId);
+      expect(towerSessionId).toBeDefined();
+      await Bun.sleep(100);
+      capture.packet(towerAdvancePacket(7, 2, true, "tower-connection"));
+      await Bun.sleep(550);
+      expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(towerSessionId);
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      const combat = records(await readFile(pointer!.path, "utf8")) as Array<{
+        type: string;
+        data?: { sourceId?: string; actorId?: number };
+      }>;
+      expect(combat.filter((record) => record.data?.sourceId?.startsWith("__spiritvale"))
+        .map((record) => record.data?.sourceId)).toEqual(["__spiritvaleTowerFloor:2"]);
+      expect(combat.some((record) => record.type === "combat.event" && record.data?.actorId === 41)).toBe(true);
+      expect(goldResets).toBe(1);
+      expect(await readdir(path.join(directory, "combat"))).toHaveLength(2);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("clears the tower floor when the next map authenticates on a new connection", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-switch-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => false,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "tower-a"));
+      capture.packet(mapPacket(2, 17, "tower-a"));
+      capture.packet(towerRunPacket(3, 1, "tower-a"));
+      await Bun.sleep(550);
+      // A channel or map change re-authenticates on a NEW connection, which the tower tracker
+      // cannot recognize as its own — the floor has to be cleared here or it outlives the run.
+      capture.packet(authenticatedPacket(4, "tower-b"));
+      capture.packet(mapPacket(5, 29, "tower-b"));
+      await Bun.sleep(50);
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      expect(loggedLocations(await readFile(pointer!.path, "utf8"))).toEqual([
+        "__spiritvaleZone:17",
+        "__spiritvaleTowerFloor:1",
+        "__spiritvaleZone:29",
+      ]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rotates on a manual reset while the replacement location is still unknown", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-manual-reset-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => false,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "tower-a"));
+      capture.packet(mapPacket(2, 17, "tower-a"));
+      capture.packet(towerRunPacket(3, 1, "tower-a"));
+      await Bun.sleep(550);
+      const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      // Leaving the tower on a connection whose map is not known yet arms the settle timer with no
+      // location to commit. The manual reset must still rotate rather than resolve as a no-op.
+      capture.packet(authenticatedPacket(4, "tower-b"));
+      capture.packet(towerClearPacket(5, "tower-b"));
+      await Bun.sleep(50);
+      await coordinator.resetSession();
+      expect((await readCurrentLogStream("combat", directory))?.sessionId).not.toBe(previousSessionId);
+
+      await coordinator.stop();
+      expect(await readdir(path.join(directory, "combat"))).toHaveLength(2);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("logs a pending floor on shutdown without resetting the gold tracker", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-shutdown-"));
+    const capture = new FakeCapture();
+    let goldResets = 0;
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => false,
+        onGoldMapChange: () => { goldResets += 1; },
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "tower-a"));
+      capture.packet(mapPacket(2, 17, "tower-a"));
+      capture.packet(towerRunPacket(3, 1, "tower-a"));
+      // Stopping inside the settle window flushes the floor into the log, but the player never saw
+      // a map change — resetting their all-time gold on the way out would be pure data loss.
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      expect(loggedLocations(await readFile(pointer!.path, "utf8"))).toEqual([
+        "__spiritvaleZone:17",
+        "__spiritvaleTowerFloor:1",
+      ]);
+      expect(goldResets).toBe(0);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("keeps new-connection actor identities when a stale connection trails a map change", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reconnect-"));
     const capture = new FakeCapture();
@@ -880,6 +1065,43 @@ describe("central capture coordinator", () => {
       expect(await waitForSessionChange(directory, mapChangeSessionId)).toBeDefined();
 
       await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("treats the first authentication as a map change when capture attached to an active session", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-attached-map-change-"));
+    const capture = new FakeCapture();
+    let goldResets = 0;
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => true,
+        onGoldMapChange: () => { goldResets += 1; },
+      });
+      await coordinator.start();
+
+      // Starting capture mid-session sees ordinary traffic but cannot recover the authentication
+      // that established this existing connection.
+      capture.packet(mapPacket(1_000, 29, "conn-a"));
+      const attachedSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      // The first authentication capture sees is therefore the first real map change, not login.
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet(mapPacket(55, 48, "conn-b"));
+      expect(await waitForSessionChange(directory, attachedSessionId)).toBeDefined();
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      const zones = records(await readFile(pointer!.path, "utf8"))
+        .filter((record) => record.type === "combat.event")
+        .map((record) => (record as { data?: { sourceId?: string } }).data?.sourceId)
+        .filter((sourceId): sourceId is string => sourceId?.startsWith("__spiritvaleZone:") ?? false);
+      expect(zones).toEqual(["__spiritvaleZone:48"]);
+      expect(goldResets).toBe(1);
+      expect(await readdir(path.join(directory, "combat"))).toHaveLength(2);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -1323,6 +1545,16 @@ async function settleRotation(): Promise<void> {
   for (let attempt = 0; attempt < 10; attempt += 1) await Bun.sleep(10);
 }
 
+/** The zone/tower-floor markers a combat log recorded, in order. */
+function loggedLocations(content: string): string[] {
+  return (records(content) as Array<{ type: string; data?: { sourceId?: string } }>)
+    .filter((record) => record.type === "combat.event")
+    .map((record) => record.data?.sourceId)
+    .filter((sourceId): sourceId is string =>
+      sourceId !== undefined
+      && (sourceId.startsWith("__spiritvaleZone:") || sourceId.startsWith("__spiritvaleTowerFloor:")));
+}
+
 /** Every stream file opens with a self-describing header line, which is not a record. */
 function records(content: string): Array<{ type: string }> {
   return content.trim().split(/\r?\n/).filter(Boolean)
@@ -1531,6 +1763,62 @@ function mapPacket(tick: number, mapId: number, connectionId: string): TestPacke
     packetName: "rpcLink",
     rpcName: "TraverseActive",
     decodedFields: [{ name: "mapId", codec: "packedInt32", value: mapId }],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function towerRunPacket(tick: number, floor: number, connectionId: string): TestPacket {
+  return {
+    tick,
+    packetId: 901,
+    packetName: "targetRpc",
+    rpcName: "ETUpdateRun",
+    networkBehaviourType: "PlayerController",
+    decodedFields: [
+      { name: "match", typeName: "EternalTowerRun", codec: "nullable", value: true },
+      { name: "match.InstanceId", codec: "packedInt32", value: 10 },
+      { name: "match.PartyId", codec: "packedInt32", value: 20 },
+      { name: "match.State", codec: "packedInt32", value: 2 },
+      { name: "match.Floor", codec: "packedInt32", value: floor },
+    ],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function towerAdvancePacket(
+  tick: number,
+  floor: number,
+  finished: boolean,
+  connectionId: string,
+): TestPacket {
+  return {
+    tick,
+    packetId: 902,
+    packetName: "targetRpc",
+    rpcName: "ETAdvanceFloor",
+    networkBehaviourType: "PlayerController",
+    decodedFields: [
+      { name: "floor", codec: "packedInt32", value: floor },
+      { name: "finished", codec: "boolean", value: finished },
+    ],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function towerClearPacket(tick: number, connectionId: string): TestPacket {
+  return {
+    tick,
+    packetId: 903,
+    packetName: "targetRpc",
+    rpcName: "ETUpdateRun",
+    networkBehaviourType: "PlayerController",
+    decodedFields: [{ name: "match", typeName: "EternalTowerRun", codec: "nullable", value: null }],
     raw: Buffer.alloc(0),
     payload: Buffer.alloc(0),
     connectionId,

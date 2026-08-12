@@ -15,6 +15,7 @@
     "./safe-save": "./safe-save.ts",
     "./json-settings": "./json-settings.ts",
     "./managed-session": "./managed-session.ts",
+    "./location": "./location.ts",
     "./session-picker": "./session-picker.ts",
     "./session-picker-types": "./session-picker-types.ts",
     "./session-summary-cache": "./session-summary-cache.ts",

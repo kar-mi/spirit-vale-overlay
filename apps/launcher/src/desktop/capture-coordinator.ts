@@ -8,6 +8,7 @@ import type {
 import { FishNetInspectRoster, resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterSnapshot, CharacterViewState, InspectedCharacter } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
+import { FishNetEternalTowerTracker } from "@kar-mi/spirit-vale-tools-capture";
 import type { CapturedFishNetPacket, CapturedLiteNetLibPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
 import {
   activateLogSession,
@@ -25,6 +26,8 @@ import type {
   LogWriteFailure,
 } from "@kar-mi/spirit-vale-tools-logging";
 import { FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
+import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
+import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
 import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
@@ -41,6 +44,8 @@ const DIAGNOSTIC_PRE_AUTH_MS = 5_000;
 const DIAGNOSTIC_POST_AUTH_MS = 10_000;
 const DIAGNOSTIC_PRE_AUTH_BYTE_LIMIT = 8 * 1024 * 1024;
 const DIAGNOSTIC_TRANSITION_BYTE_LIMIT = 32 * 1024 * 1024;
+const TOWER_LOCATION_SETTLE_MS = 500;
+const TOWER_LOCATION_MAX_SETTLE_MS = 2_000;
 const STATUS_RPC_NAMES = new Set([
   "ApplyEffect_T",
   "RemoveEffect_T",
@@ -49,7 +54,6 @@ const STATUS_RPC_NAMES = new Set([
   "RemoveSkillDisplay_O",
 ]);
 const MAP_RPC_NAMES = new Set(["TraverseActive", "TraverseObservers", "SyncInstanceState"]);
-const ZONE_EVENT_SOURCE_PREFIX = "__spiritvaleZone:";
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
@@ -57,7 +61,7 @@ type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDeta
 
 interface SessionSeed {
   identities?: readonly FishNetActorIdentity[];
-  zoneId?: number;
+  location?: SpiritValeLocation;
 }
 
 export interface CaptureErrorReport {
@@ -125,6 +129,7 @@ export class CaptureCoordinator {
   /** One persisted sample per short display-feed status activation. */
   private readonly loggedShortDisplayStatuses = new Set<string>();
   private readonly rewards = new FishNetMobRewardTracker();
+  private readonly tower = new FishNetEternalTowerTracker();
   private readonly rewardAttributor = new RewardEventAttributor();
   private readonly locallyDamagedRewardTargets = new Set<number>();
   private readonly unresolvedCounts = new Map<string, number>();
@@ -160,6 +165,8 @@ export class CaptureCoordinator {
   private activeConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
   private sawAuthenticated = false;
+  /** Distinguishes a cold login from attaching capture to an already connected game session. */
+  private sawAdmittedTrafficBeforeAuthentication = false;
   private diagnosticLiteNetBuffer: Array<{ capturedAtMs: number; bytes: number; data: JsonObject }> = [];
   private diagnosticLiteNetBufferBytes = 0;
   private diagnosticLiteNetDropped = 0;
@@ -174,8 +181,13 @@ export class CaptureCoordinator {
   private handoffFailure?: Error;
   private writeMonitor?: ReturnType<typeof setInterval>;
   private readonly loggedMobIdentities = new Map<number, string>();
-  /** Last zone written to this session; traversal packets repeat for every spawned observer. */
-  private lastLoggedZoneId: number | undefined;
+  /** Last effective location written to this session; traversal packets repeat per observer. */
+  private lastLoggedLocation: SpiritValeLocation | undefined;
+  /** Latest physical map remains the destination when the authoritative tower snapshot clears. */
+  private lastObservedMapId: number | undefined;
+  private towerLocationTimer?: ReturnType<typeof setTimeout>;
+  private towerLocationDeadlineMs?: number;
+  private pendingTowerLocationTick = 0;
   /** Serializes stop() and resetSession() so their bodies never interleave. */
   private lifecycleChain: Promise<void> = Promise.resolve();
 
@@ -290,9 +302,17 @@ export class CaptureCoordinator {
   async stop(): Promise<void> {
     if (this.stopping) return;
     this.stopping = true;
-    const run = this.lifecycleChain.catch(() => {}).then(() => this.performStop());
-    this.lifecycleChain = run.catch(() => {});
     try {
+      // A pending tower transition is flushed so its zone still reaches the log, but a failed flush
+      // must not abort the teardown below: leaving timers, monitors and the log session open would
+      // also leave `stopping` latched, which makes every later stop() a no-op.
+      try {
+        await this.commitTowerLocationTransition(false, false);
+      } catch (error) {
+        this.logCaptureError(errorMessage(error), "Tower location could not be committed before stopping");
+      }
+      const run = this.lifecycleChain.catch(() => {}).then(() => this.performStop());
+      this.lifecycleChain = run.catch(() => {});
       await run;
     } finally {
       this.stopping = false;
@@ -319,7 +339,11 @@ export class CaptureCoordinator {
     this.locallyDamagedRewardTargets.clear();
     this.mobs.reset();
     this.loggedMobIdentities.clear();
-    this.lastLoggedZoneId = undefined;
+    this.tower.reset();
+    this.lastLoggedLocation = undefined;
+    this.lastObservedMapId = undefined;
+    this.clearTowerLocationTimer();
+    this.towerLocationDeadlineMs = undefined;
     this.clearPacketBuffer();
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
@@ -328,6 +352,7 @@ export class CaptureCoordinator {
     this.activeConnectionId = undefined;
     this.lastAuthenticated = undefined;
     this.sawAuthenticated = false;
+    this.sawAdmittedTrafficBeforeAuthentication = false;
     this.clearDiagnosticTransition();
     const session = this.session;
     this.session = undefined;
@@ -353,6 +378,10 @@ export class CaptureCoordinator {
    * swallowed by the rotation it happened to overlap.
    */
   async resetSession(): Promise<void> {
+    // The commit rotates only when it resolved a location. When it could not — a tower run cleared
+    // before the replacement map is known — the manual reset still has to rotate, or the user's
+    // Reset silently does nothing.
+    if (this.towerLocationTimer !== undefined && await this.commitTowerLocationTransition(true)) return;
     return this.rotateSession();
   }
 
@@ -381,10 +410,10 @@ export class CaptureCoordinator {
     const streams: LogStream[] = ["combat", "rewards"];
     if (this.diagnosticLogging) streams.push("other");
     const seedIdentities = seed?.identities ?? this.actors.snapshot();
-    // A manual reset stays on the current connection, so its current zone remains valid. An
+    // A manual reset stays on the current connection, so its current location remains valid. An
     // authentication-triggered rotation passes an explicit seed and must wait for that incoming
     // connection's traversal packet instead.
-    const seedZoneId = seed === undefined ? this.lastLoggedZoneId : seed.zoneId;
+    const seedLocation = seed === undefined ? this.lastLoggedLocation : seed.location;
 
     const nextSession = await createLogSession({
       producer: "desktop-capture",
@@ -438,7 +467,7 @@ export class CaptureCoordinator {
       // and the reward baseline are preserved above.
       this.combat.reset();
       this.loggedShortDisplayStatuses.clear();
-      this.lastLoggedZoneId = undefined;
+      this.lastLoggedLocation = undefined;
 
       this.session = nextSession;
       this.combatLog = nextSession.logger("combat");
@@ -448,7 +477,7 @@ export class CaptureCoordinator {
       for (const identity of seedIdentities) {
         this.combatLog.log("combat.actorIdentity", jsonObject({ kind: "actorIdentity", operation: "upsert", tick: 0, ...identity }));
       }
-      if (seedZoneId !== undefined) this.logZoneId(seedZoneId, 0);
+      if (seedLocation !== undefined) this.logLocation(seedLocation, 0);
       this.publishActiveStatuses(true);
 
       this.combatLog.log("combat.lifecycle", { state: "started" });
@@ -574,6 +603,19 @@ export class CaptureCoordinator {
   }
 
   private routePacket(packet: CapturedFishNetPacket): void {
+    if (this.towerLocationTimer !== undefined) {
+      if (packet.connectionId === this.activeConnectionId && isTowerStatePacket(packet)) {
+        if (this.tower.consume(packet)) {
+          this.pendingTowerLocationTick = packet.tick;
+          this.scheduleTowerLocationCommit();
+        }
+        return;
+      }
+      if (packet.connectionId === this.activeConnectionId) this.observePhysicalMap(packet);
+      this.logPacketAdmission(packet, "buffered", "tower-location-settle", this.activeConnectionId);
+      this.bufferHandoffPacket(packet);
+      return;
+    }
     if (this.handoff) {
       this.logPacketAdmission(packet, "buffered", "capture-session-handoff", this.activeConnectionId);
       this.bufferHandoffPacket(packet);
@@ -597,8 +639,28 @@ export class CaptureCoordinator {
     const inspectHandled = this.inspected.consume(packet);
     let characterHandled = this.character.consumeBeforeAdmission(packet);
     if (!this.admitPacket(packet)) return;
+    if (!this.sawAuthenticated
+      && packet.packetName !== "authenticated"
+      && packet.packetName !== "disconnect") {
+      this.sawAdmittedTrafficBeforeAuthentication = true;
+    }
     const admittedCharacterHandled = this.character.consumeAdmitted(packet);
     characterHandled ||= admittedCharacterHandled || inspectHandled;
+    // The tracker only self-resets when the authentication arrives on the connection it was last
+    // updated from, which a channel or map change never does — it authenticates on a NEW connection.
+    // Without an explicit reset the stale floor outlives the run and every zone on the new connection
+    // would be logged as that floor.
+    const towerReset = packet.packetName === "authenticated" ? this.tower.reset() : false;
+    if (packet.packetName === "authenticated") this.lastObservedMapId = undefined;
+    const towerChanged = this.tower.consume(packet) || towerReset;
+    if (towerChanged && isTowerStatePacket(packet)) {
+      const location = this.effectiveLocation();
+      if (!sameSpiritValeLocation(location, this.lastLoggedLocation)) {
+        this.pendingTowerLocationTick = packet.tick;
+        this.scheduleTowerLocationCommit();
+        return;
+      }
+    }
     this.countUnresolvedPacket(packet);
     if (packet.splitDropReason !== undefined) {
       this.combatLog?.log("combat.warning", {
@@ -609,7 +671,7 @@ export class CaptureCoordinator {
     // Actor IDs and zones belong to the incoming connection. The replacement log receives both
     // from its buffered packets after the handoff completes, rather than inheriting stale state.
     const transitionSeed = packet.packetName === "authenticated" ? {} : undefined;
-    let handled = characterHandled || loggedZone;
+    let handled = characterHandled || loggedZone || towerChanged;
     let combatEvents: FishNetCombatEvent[] = [];
     try {
       this.mobs.consume(packet);
@@ -663,7 +725,9 @@ export class CaptureCoordinator {
     }
 
     try {
-      const tracked = this.shouldTrackRewardPacket(combatEvents) ? this.rewards.consume(packet) : [];
+      const tracked = this.shouldTrackRewardPacket(combatEvents)
+        ? this.rewards.consume(packet)
+        : [];
       const events = this.rewardAttributor.consume(tracked, packet.tick);
       if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
         events.push(...this.rewardAttributor.flush());
@@ -689,13 +753,15 @@ export class CaptureCoordinator {
    * reach here, so a stale connection's trailing authentication and a duplicate of the same
    * authentication cannot rotate or reset anything.
    *
-   * The first authentication of a capture run is the login itself rather than a transition, and is
-   * skipped so opening the app never rotates a session or resets gold before anything was recorded.
+   * A first authentication with no earlier admitted traffic is the login itself rather than a
+   * transition, and is skipped so opening the app never rotates an empty session. When capture
+   * attaches to a game already in progress, ordinary traffic arrives without that historical login;
+   * its first observed authentication is therefore a real map/channel change and must rotate.
    */
   private resetOnMapChange(seed: SessionSeed): void {
-    const firstAuthentication = !this.sawAuthenticated;
+    const initialLogin = !this.sawAuthenticated && !this.sawAdmittedTrafficBeforeAuthentication;
     this.sawAuthenticated = true;
-    if (firstAuthentication) return;
+    if (initialLogin) return;
     this.options.onGoldMapChange?.();
     if (!this.options.resetOnMapChange?.()) return;
     // Failures are already surfaced through onError by resetSession itself, and leave the current
@@ -808,23 +874,96 @@ export class CaptureCoordinator {
    * changing the upstream log protocol or creating a damage encounter.
    */
   private logZone(packet: CapturedFishNetPacket): boolean {
-    if (packet.rpcName === undefined || !MAP_RPC_NAMES.has(packet.rpcName)) return false;
-    const mapId = packet.decodedFields?.find((field) => field.name === "mapId")?.value;
-    if (typeof mapId !== "number" || !Number.isSafeInteger(mapId) || mapId < 0) return false;
-    if (this.lastLoggedZoneId === mapId) return true;
-    this.logZoneId(mapId, packet.tick);
+    const mapId = this.observePhysicalMap(packet);
+    if (mapId === undefined) return false;
+    const location = this.effectiveLocation();
+    if (location === undefined || sameSpiritValeLocation(this.lastLoggedLocation, location)) return true;
+    this.logLocation(location, packet.tick);
     return true;
   }
 
-  private logZoneId(mapId: number, tick: number): void {
-    this.lastLoggedZoneId = mapId;
+  private observePhysicalMap(packet: CapturedFishNetPacket): number | undefined {
+    if (packet.rpcName === undefined || !MAP_RPC_NAMES.has(packet.rpcName)) return undefined;
+    const mapId = packet.decodedFields?.find((field) => field.name === "mapId")?.value;
+    if (typeof mapId !== "number" || !Number.isSafeInteger(mapId) || mapId < 0) return undefined;
+    this.lastObservedMapId = mapId;
+    return mapId;
+  }
+
+  private effectiveLocation(): SpiritValeLocation | undefined {
+    const tower = this.tower.current();
+    if (tower.inTower && tower.floor !== undefined) return { kind: "eternalTower", floor: tower.floor };
+    return this.lastObservedMapId === undefined ? undefined : { kind: "map", mapId: this.lastObservedMapId };
+  }
+
+  private logLocation(location: SpiritValeLocation, tick: number): void {
+    this.lastLoggedLocation = location;
     this.combatLog?.log("combat.event", {
       kind: "activation",
       tick,
       actorId: 0,
-      sourceId: `${ZONE_EVENT_SOURCE_PREFIX}${mapId}`,
-      sourceLabel: `Zone ${mapId}`,
+      sourceId: location.kind === "map"
+        ? `${ZONE_EVENT_SOURCE_PREFIX}${location.mapId}`
+        : `${TOWER_FLOOR_EVENT_SOURCE_PREFIX}${location.floor}`,
+      sourceLabel: location.kind === "map"
+        ? `Zone ${location.mapId}`
+        : `Eternal Tower - Floor ${location.floor}`,
     });
+  }
+
+  /**
+   * Debounces the commit so an exit-entry-floor burst produces one transition, but never past the
+   * deadline set by the first pending change: every non-tower packet is buffered while the timer is
+   * armed, so a stream of tower updates closer together than the settle window would otherwise grow
+   * the handoff buffer until it trips its bound and stops the capture outright.
+   */
+  private scheduleTowerLocationCommit(): void {
+    this.towerLocationDeadlineMs ??= Date.now() + TOWER_LOCATION_MAX_SETTLE_MS;
+    const delay = Math.max(0, Math.min(TOWER_LOCATION_SETTLE_MS, this.towerLocationDeadlineMs - Date.now()));
+    this.clearTowerLocationTimer();
+    this.towerLocationTimer = setTimeout(() => {
+      void this.commitTowerLocationTransition().catch((error) => {
+        this.reportError("Tower location could not be committed", errorMessage(error));
+      });
+    }, delay);
+    this.towerLocationTimer.unref?.();
+  }
+
+  private clearTowerLocationTimer(): void {
+    if (this.towerLocationTimer !== undefined) clearTimeout(this.towerLocationTimer);
+    this.towerLocationTimer = undefined;
+  }
+
+  /**
+   * Closes the settle window, and reports whether it rotated the session.
+   *
+   * `allowSideEffects` is false only for the flush performed while stopping: the transition is still
+   * logged, but neither the session rotation nor the all-time gold reset may fire, because from the
+   * user's side nothing changed — the app is shutting down.
+   */
+  private async commitTowerLocationTransition(forceRotation = false, allowSideEffects = true): Promise<boolean> {
+    if (this.towerLocationTimer === undefined) return false;
+    this.clearTowerLocationTimer();
+    this.towerLocationDeadlineMs = undefined;
+    const location = this.effectiveLocation();
+    const changed = location !== undefined && !sameSpiritValeLocation(location, this.lastLoggedLocation);
+    if (changed && allowSideEffects) this.options.onGoldMapChange?.();
+    const shouldRotate = allowSideEffects
+      && location !== undefined
+      && (forceRotation || (changed && this.options.resetOnMapChange?.()));
+    if (shouldRotate) {
+      await this.rotateSession({ location });
+      return true;
+    }
+    const handoffFailure = this.handoffFailure;
+    this.handoffFailure = undefined;
+    if (handoffFailure) {
+      this.clearPacketBuffer();
+      throw handoffFailure;
+    }
+    if (changed && location !== undefined) this.logLocation(location, this.pendingTowerLocationTick);
+    this.drainBufferedPackets();
+    return false;
   }
 
   private activeStatuses(nowMs = Date.now()): FishNetActiveStatus[] {
@@ -1123,6 +1262,10 @@ export class CaptureCoordinator {
 
 function isStatusPacket(packet: CapturedFishNetPacket): boolean {
   return packet.rpcName !== undefined && STATUS_RPC_NAMES.has(packet.rpcName);
+}
+
+function isTowerStatePacket(packet: CapturedFishNetPacket): boolean {
+  return packet.rpcName === "ETUpdateRun" || packet.rpcName === "ETAdvanceFloor";
 }
 
 function fishNetPacketDiagnostic(packet: CapturedFishNetPacket): JsonObject {

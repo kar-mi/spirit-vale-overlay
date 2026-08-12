@@ -1,11 +1,12 @@
 import type { RPCSchema } from "electrobun";
+import type { SpiritValeLocation } from "./location.ts";
 
 export interface SessionPickerItem {
   id: string;
   createdAt: string;
   summary: string;
-  /** Distinct map IDs visited by this combat session, oldest first. */
-  zoneIds?: number[];
+  /** Distinct physical maps and tower floors visited by this combat session, oldest first. */
+  locations?: SpiritValeLocation[];
   active: boolean;
   disabled: boolean;
 }

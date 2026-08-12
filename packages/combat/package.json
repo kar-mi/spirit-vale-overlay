@@ -6,7 +6,8 @@
     ".": "./src/index.ts",
     "./app-types": "./src/app-types.ts",
     "./personal-character": "./src/personal-character.ts",
-    "./settings": "./src/settings.ts"
+    "./settings": "./src/settings.ts",
+    "./zone-log": "./src/zone-log.ts"
   },
   "dependencies": {
     "@preact/signals": "^2.9.4",

@@ -1,10 +1,12 @@
 import { isLogStreamHeader, parseLogRecord } from "@kar-mi/spirit-vale-tools-logging";
+import { type SpiritValeLocation, sameSpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
 export const ZONE_EVENT_SOURCE_PREFIX = "__spiritvaleZone:";
+export const TOWER_FLOOR_EVENT_SOURCE_PREFIX = "__spiritvaleTowerFloor:";
 
 /** Reads distinct zone visits in chronological order from a combat log. */
-export async function readCombatZoneIds(filePath: string): Promise<number[]> {
-  const zones: number[] = [];
+export async function readCombatLocations(filePath: string): Promise<SpiritValeLocation[]> {
+  const locations: SpiritValeLocation[] = [];
   const text = await Bun.file(filePath).text();
   for (const line of text.split(/\r?\n/)) {
     if (!line.trim()) continue;
@@ -13,19 +15,27 @@ export async function readCombatZoneIds(filePath: string): Promise<number[]> {
       if (isLogStreamHeader(candidate)) continue;
       const record = parseLogRecord(candidate);
       if (!record || record.type !== "combat.event") continue;
-      const zoneId = zoneIdFromLogData(record.data);
-      if (zoneId !== undefined && zones.at(-1) !== zoneId) zones.push(zoneId);
+      const location = locationFromLogData(record.data);
+      if (location !== undefined && !sameSpiritValeLocation(locations.at(-1), location)) locations.push(location);
     } catch {
       // Combat summaries already tolerate malformed lines. A bad zone marker must not hide a log.
     }
   }
-  return zones;
+  return locations;
 }
 
-export function zoneIdFromLogData(data: Record<string, unknown>): number | undefined {
+export function locationFromLogData(data: Record<string, unknown>): SpiritValeLocation | undefined {
   if (data["kind"] !== "activation" || typeof data["sourceId"] !== "string") return undefined;
-  const encoded = data["sourceId"].slice(ZONE_EVENT_SOURCE_PREFIX.length);
-  if (!data["sourceId"].startsWith(ZONE_EVENT_SOURCE_PREFIX) || !/^\d+$/.test(encoded)) return undefined;
-  const mapId = Number(encoded);
-  return Number.isSafeInteger(mapId) ? mapId : undefined;
+  const mapId = decodeIntegerSuffix(data["sourceId"], ZONE_EVENT_SOURCE_PREFIX);
+  if (mapId !== undefined) return { kind: "map", mapId };
+  const floor = decodeIntegerSuffix(data["sourceId"], TOWER_FLOOR_EVENT_SOURCE_PREFIX);
+  return floor === undefined ? undefined : { kind: "eternalTower", floor };
+}
+
+function decodeIntegerSuffix(sourceId: string, prefix: string): number | undefined {
+  if (!sourceId.startsWith(prefix)) return undefined;
+  const encoded = sourceId.slice(prefix.length);
+  if (!/^\d+$/.test(encoded)) return undefined;
+  const value = Number(encoded);
+  return Number.isSafeInteger(value) ? value : undefined;
 }

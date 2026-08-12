@@ -1,23 +1,24 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { isSpiritValeLocation, type SpiritValeLocation } from "./location.ts";
 
 interface CachedSessionSummary {
   size: number;
   mtimeMs: number;
   recordCount: number;
   summary: string;
-  zoneIds: number[];
+  locations: SpiritValeLocation[];
 }
 
 interface SummaryCacheFile {
-  schemaVersion: 2;
+  schemaVersion: 3;
   entries: Record<string, CachedSessionSummary>;
 }
 
 export interface SessionSummaryResult {
   recordCount: number;
   summary: string;
-  zoneIds?: number[];
+  locations?: SpiritValeLocation[];
 }
 
 export interface SessionSummaryCache {
@@ -34,11 +35,11 @@ export async function loadSessionSummaryCache(cachePath: string): Promise<Sessio
       const key = path.resolve(filePath);
       const cached = entries[key];
       if (!cached || cached.size !== stat.size || cached.mtimeMs !== stat.mtimeMs) return undefined;
-      return { recordCount: cached.recordCount, summary: cached.summary, zoneIds: cached.zoneIds };
+      return { recordCount: cached.recordCount, summary: cached.summary, locations: cached.locations };
     },
     set(filePath, stat, result) {
       const key = path.resolve(filePath);
-      entries[key] = { size: stat.size, mtimeMs: stat.mtimeMs, recordCount: result.recordCount, summary: result.summary, zoneIds: result.zoneIds ?? [] };
+      entries[key] = { size: stat.size, mtimeMs: stat.mtimeMs, recordCount: result.recordCount, summary: result.summary, locations: result.locations ?? [] };
     },
     prune(keepPaths) {
       for (const key of Object.keys(entries)) {
@@ -46,7 +47,7 @@ export async function loadSessionSummaryCache(cachePath: string): Promise<Sessio
       }
     },
     async save() {
-      const file: SummaryCacheFile = { schemaVersion: 2, entries };
+      const file: SummaryCacheFile = { schemaVersion: 3, entries };
       await mkdir(path.dirname(cachePath), { recursive: true });
       const temporary = `${cachePath}.${crypto.randomUUID()}.tmp`;
       await writeFile(temporary, JSON.stringify(file), "utf8");
@@ -66,7 +67,7 @@ async function readCacheFile(cachePath: string): Promise<Record<string, CachedSe
 }
 
 function isSummaryCacheFile(value: unknown): value is SummaryCacheFile {
-  if (!isRecord(value) || value["schemaVersion"] !== 2 || !isRecord(value["entries"])) return false;
+  if (!isRecord(value) || value["schemaVersion"] !== 3 || !isRecord(value["entries"])) return false;
   return Object.values(value["entries"]).every(isCachedSessionSummary);
 }
 
@@ -76,8 +77,8 @@ function isCachedSessionSummary(value: unknown): value is CachedSessionSummary {
     && typeof value["mtimeMs"] === "number"
     && typeof value["recordCount"] === "number"
     && typeof value["summary"] === "string"
-    && Array.isArray(value["zoneIds"])
-    && value["zoneIds"].every((zoneId) => typeof zoneId === "number" && Number.isSafeInteger(zoneId));
+    && Array.isArray(value["locations"])
+    && value["locations"].every(isSpiritValeLocation);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -12,6 +12,7 @@ import type { MeterActorRow } from "@svoverlay/contracts/meter";
 import type { DeathLogEntry } from "./death-log.ts";
 import type { SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
 import type { EnemyDamageRow, EnemyOption } from "./enemy-breakdown.ts";
+import type { SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
 export type { StatType } from "@svoverlay/ui-kit/stat-type-select";
 import type { StatType } from "@svoverlay/ui-kit/stat-type-select";
@@ -46,8 +47,8 @@ export interface DpsAppState {
   tankedSnapshot?: MeterEncounterSnapshot;
   healSnapshot?: MeterEncounterSnapshot;
   resetting: boolean;
-  /** Most recently captured map ID for the active combat session. */
-  zoneId?: number;
+  /** Most recently captured physical map or Eternal Tower floor. */
+  location?: SpiritValeLocation;
   liveDeathLogAvailable: boolean;
   past:
     | { view: "selector"; picker: SessionPickerState }
