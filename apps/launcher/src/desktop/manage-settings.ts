@@ -24,8 +24,13 @@ interface OldSettingsPaths {
   windowPlacementsPath: string;
 }
 
-function resolveOldSettingsPaths(dataDirectory: string): OldSettingsPaths {
-  const settingsDirectory = path.join(dataDirectory, "settings");
+/**
+ * A user can point the picker at either the app's `data` folder or its nested `data/settings`
+ * folder directly — auto-detect which one was selected by checking for a `settings` subfolder.
+ */
+function resolveOldSettingsPaths(selected: string): OldSettingsPaths {
+  const nestedSettingsDirectory = path.join(selected, "settings");
+  const settingsDirectory = existsSync(nestedSettingsDirectory) ? nestedSettingsDirectory : selected;
   return {
     settingsDirectory,
     launcherSettingsPath: path.join(settingsDirectory, "launcher.json"),
@@ -37,21 +42,35 @@ function resolveOldSettingsPaths(dataDirectory: string): OldSettingsPaths {
 }
 
 /**
- * Imports settings from another install's `data` folder into the current one. Reuses each settings
- * module's own load/save pair, which already drops fields the current schema no longer has and fills
- * in defaults for anything the old file was missing.
+ * Imports settings from another install into the current one. The user may point this at either
+ * the old install's `data` folder or its nested `data/settings` folder — {@link resolveOldSettingsPaths}
+ * auto-detects which. Reuses each settings module's own load/save pair, which already drops fields
+ * the current schema no longer has and fills in defaults for anything the old file was missing.
  */
 export async function importSettingsFrom(
-  selectedDataDirectory: string,
+  selectedDirectory: string,
   currentPaths: DesktopStoragePaths,
   displays: readonly OverlayDisplay[],
 ): Promise<ImportSettingsStatus> {
-  const resolvedSelected = path.resolve(selectedDataDirectory);
-  const currentDataDirectory = path.resolve(path.dirname(currentPaths.launcherSettingsPath), "..");
-  if (resolvedSelected.toLowerCase() === currentDataDirectory.toLowerCase()) return "same-folder";
+  const resolvedSelected = path.resolve(selectedDirectory);
+  const currentSettingsDirectory = path.resolve(path.dirname(currentPaths.launcherSettingsPath));
+  const currentDataDirectory = path.resolve(currentSettingsDirectory, "..");
+  if (
+    resolvedSelected.toLowerCase() === currentDataDirectory.toLowerCase()
+    || resolvedSelected.toLowerCase() === currentSettingsDirectory.toLowerCase()
+  ) {
+    return "same-folder";
+  }
 
   const oldPaths = resolveOldSettingsPaths(resolvedSelected);
-  if (!existsSync(oldPaths.settingsDirectory)) return "not-found";
+  const hasAnySettingsFile = [
+    oldPaths.launcherSettingsPath,
+    oldPaths.overlaySettingsPath,
+    oldPaths.dpsSettingsPath,
+    oldPaths.rewardsSettingsPath,
+    oldPaths.windowPlacementsPath,
+  ].some(existsSync);
+  if (!hasAnySettingsFile) return "not-found";
 
   if (existsSync(oldPaths.launcherSettingsPath)) {
     await saveLauncherSettings(await loadLauncherSettings(oldPaths.launcherSettingsPath), currentPaths.launcherSettingsPath);

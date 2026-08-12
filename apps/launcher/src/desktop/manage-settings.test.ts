@@ -35,6 +35,55 @@ describe("importSettingsFrom", () => {
     expect(result).toBe("same-folder");
   });
 
+  test("no-ops when the selected settings folder (not the data folder) is the current one", async () => {
+    const root = await createRoot();
+    const currentPaths = resolveDesktopStoragePaths({ root });
+
+    const result = await importSettingsFrom(path.join(root, "data", "settings"), currentPaths, displays);
+
+    expect(result).toBe("same-folder");
+  });
+
+  test("imports directly from a settings folder when no nested settings folder exists inside it", async () => {
+    const currentRoot = await createRoot();
+    const oldRoot = await createRoot();
+    const currentPaths = resolveDesktopStoragePaths({ root: currentRoot });
+    // oldRoot itself holds the JSON files directly, with no "settings" subfolder underneath it.
+    await mkdir(oldRoot, { recursive: true });
+    await writeFile(path.join(oldRoot, "launcher.json"), JSON.stringify({
+      ...defaultLauncherSettings(),
+      captureAdapter: "Old Adapter",
+    }), "utf8");
+
+    const result = await importSettingsFrom(oldRoot, currentPaths, displays);
+    expect(result).toBe("imported");
+
+    const imported = JSON.parse(await readFile(currentPaths.launcherSettingsPath, "utf8"));
+    expect(imported.captureAdapter).toBe("Old Adapter");
+  });
+
+  test("prefers a nested settings folder over the selected folder's own files when both exist", async () => {
+    const currentRoot = await createRoot();
+    const oldRoot = await createRoot();
+    const currentPaths = resolveDesktopStoragePaths({ root: currentRoot });
+    await writeFile(path.join(oldRoot, "launcher.json"), JSON.stringify({
+      ...defaultLauncherSettings(),
+      captureAdapter: "Wrong Level",
+    }), "utf8");
+    const nestedSettingsDir = path.join(oldRoot, "settings");
+    await mkdir(nestedSettingsDir, { recursive: true });
+    await writeFile(path.join(nestedSettingsDir, "launcher.json"), JSON.stringify({
+      ...defaultLauncherSettings(),
+      captureAdapter: "Nested Adapter",
+    }), "utf8");
+
+    const result = await importSettingsFrom(oldRoot, currentPaths, displays);
+    expect(result).toBe("imported");
+
+    const imported = JSON.parse(await readFile(currentPaths.launcherSettingsPath, "utf8"));
+    expect(imported.captureAdapter).toBe("Nested Adapter");
+  });
+
   test("reports not-found when the selected folder has no settings directory", async () => {
     const currentRoot = await createRoot();
     const oldRoot = await createRoot();
