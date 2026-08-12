@@ -1070,6 +1070,43 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("treats the first authentication as a map change when capture attached to an active session", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-attached-map-change-"));
+    const capture = new FakeCapture();
+    let goldResets = 0;
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => true,
+        onGoldMapChange: () => { goldResets += 1; },
+      });
+      await coordinator.start();
+
+      // Starting capture mid-session sees ordinary traffic but cannot recover the authentication
+      // that established this existing connection.
+      capture.packet(mapPacket(1_000, 29, "conn-a"));
+      const attachedSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      // The first authentication capture sees is therefore the first real map change, not login.
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet(mapPacket(55, 48, "conn-b"));
+      expect(await waitForSessionChange(directory, attachedSessionId)).toBeDefined();
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      const zones = records(await readFile(pointer!.path, "utf8"))
+        .filter((record) => record.type === "combat.event")
+        .map((record) => (record as { data?: { sourceId?: string } }).data?.sourceId)
+        .filter((sourceId): sourceId is string => sourceId?.startsWith("__spiritvaleZone:") ?? false);
+      expect(zones).toEqual(["__spiritvaleZone:48"]);
+      expect(goldResets).toBe(1);
+      expect(await readdir(path.join(directory, "combat"))).toHaveLength(2);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("replays a new-connection identity into an automatic map-change session", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-identities-"));
     const capture = new FakeCapture();

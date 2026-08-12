@@ -165,6 +165,8 @@ export class CaptureCoordinator {
   private activeConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
   private sawAuthenticated = false;
+  /** Distinguishes a cold login from attaching capture to an already connected game session. */
+  private sawAdmittedTrafficBeforeAuthentication = false;
   private diagnosticLiteNetBuffer: Array<{ capturedAtMs: number; bytes: number; data: JsonObject }> = [];
   private diagnosticLiteNetBufferBytes = 0;
   private diagnosticLiteNetDropped = 0;
@@ -350,6 +352,7 @@ export class CaptureCoordinator {
     this.activeConnectionId = undefined;
     this.lastAuthenticated = undefined;
     this.sawAuthenticated = false;
+    this.sawAdmittedTrafficBeforeAuthentication = false;
     this.clearDiagnosticTransition();
     const session = this.session;
     this.session = undefined;
@@ -636,6 +639,11 @@ export class CaptureCoordinator {
     const inspectHandled = this.inspected.consume(packet);
     let characterHandled = this.character.consumeBeforeAdmission(packet);
     if (!this.admitPacket(packet)) return;
+    if (!this.sawAuthenticated
+      && packet.packetName !== "authenticated"
+      && packet.packetName !== "disconnect") {
+      this.sawAdmittedTrafficBeforeAuthentication = true;
+    }
     const admittedCharacterHandled = this.character.consumeAdmitted(packet);
     characterHandled ||= admittedCharacterHandled || inspectHandled;
     // The tracker only self-resets when the authentication arrives on the connection it was last
@@ -745,13 +753,15 @@ export class CaptureCoordinator {
    * reach here, so a stale connection's trailing authentication and a duplicate of the same
    * authentication cannot rotate or reset anything.
    *
-   * The first authentication of a capture run is the login itself rather than a transition, and is
-   * skipped so opening the app never rotates a session or resets gold before anything was recorded.
+   * A first authentication with no earlier admitted traffic is the login itself rather than a
+   * transition, and is skipped so opening the app never rotates an empty session. When capture
+   * attaches to a game already in progress, ordinary traffic arrives without that historical login;
+   * its first observed authentication is therefore a real map/channel change and must rotate.
    */
   private resetOnMapChange(seed: SessionSeed): void {
-    const firstAuthentication = !this.sawAuthenticated;
+    const initialLogin = !this.sawAuthenticated && !this.sawAdmittedTrafficBeforeAuthentication;
     this.sawAuthenticated = true;
-    if (firstAuthentication) return;
+    if (initialLogin) return;
     this.options.onGoldMapChange?.();
     if (!this.options.resetOnMapChange?.()) return;
     // Failures are already surfaced through onError by resetSession itself, and leave the current
