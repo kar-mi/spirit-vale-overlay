@@ -8,6 +8,7 @@ import { CURRENT_GAME_BUILD_FINGERPRINT } from "@kar-mi/spirit-vale-tools-captur
 import {
   activeCharacterSnapshot,
   loadCharacterCache,
+  normalizeCharacterSnapshot,
   saveCharacterCache,
   updateCharacterCache,
 } from "./storage.ts";
@@ -44,6 +45,17 @@ describe("character cache storage", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  test("can restore an inspected snapshot from an older game build when explicitly allowed", () => {
+    const cached = snapshot("Fictional Ranger", ["Scout", "Ranger"]);
+    cached.buildFingerprint = "older-game-build";
+    expect(normalizeCharacterSnapshot(cached)).toBeUndefined();
+    expect(normalizeCharacterSnapshot(cached, { requireCurrentBuildFingerprint: false })).toMatchObject({
+      name: "Fictional Ranger",
+      buildFingerprint: "older-game-build",
+      source: "cached",
+    });
   });
 
   test("round-trips grimoires, the action bar and stored loadouts", async () => {
