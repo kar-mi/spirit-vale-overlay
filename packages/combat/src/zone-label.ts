@@ -1,9 +1,11 @@
 /**
  * Generated from the datamine's runtime Map.Id catalog.
  *
- * Keep numeric IDs in logs and state. This module turns them into presentation text so the UI
- * remains compatible with zones added by a later game build.
+ * Keep structured locations in logs and state. This module turns them into presentation text so
+ * the UI remains compatible with zones added by a later game build.
  */
+import type { SpiritValeLocation } from "@svoverlay/desktop-platform/location";
+
 const MAP_NAMES: Readonly<Record<number, string>> = {
   1: "Nevaris", 2: "Sunny Meadows 1", 3: "Sunny Meadows 2", 4: "Bunny Woods",
   5: "Nevaris Sewers", 6: "Treant Trail", 7: "Fairy Glen", 8: "Forest Field 1",
@@ -21,13 +23,15 @@ const MAP_NAMES: Readonly<Record<number, string>> = {
   53: "Dark Fortress Lv1", 54: "Dark Fortress Lv2",
 };
 
-export function formatZone(mapId: number): string {
-  return MAP_NAMES[mapId] ?? `Zone ${mapId}`;
+export function formatZone(location: SpiritValeLocation): string {
+  return location.kind === "eternalTower"
+    ? `Eternal Tower - Floor ${location.floor}`
+    : MAP_NAMES[location.mapId] ?? `Zone ${location.mapId}`;
 }
 
-export function formatZoneSummary(mapIds: readonly number[]): string | undefined {
-  const latest = mapIds.at(-1);
+export function formatZoneSummary(locations: readonly SpiritValeLocation[]): string | undefined {
+  const latest = locations.at(-1);
   if (latest === undefined) return undefined;
-  const additional = mapIds.length - 1;
+  const additional = locations.length - 1;
   return `${formatZone(latest)}${additional === 0 ? "" : ` +${additional}`}`;
 }

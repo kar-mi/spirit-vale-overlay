@@ -79,7 +79,11 @@ export class LocalCharacterRouter {
             ...(localObjectPacket ? { objectId: ACTIVE_CHARACTER_OBJECT_ID } : {}),
           }
         : packet;
-      const handled = this.tracker.consume(characterPacket);
+      // Capture 1.4 widens decoded-field codecs with `nullable`; the character package's current
+      // declarations still resolve an older compatible capture type until it is republished.
+      const handled = this.tracker.consume(
+        characterPacket as unknown as Parameters<FishNetCharacterTracker["consume"]>[0],
+      );
       if (packet.packetName === "serverRpc" && packet.objectId !== undefined) {
         this.physicalPlayerObjectId = packet.objectId;
       }

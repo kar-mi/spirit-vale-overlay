@@ -511,6 +511,95 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("records tower floors as zones and returns to the latest physical map on exit", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-zones-"));
+    const capture = new FakeCapture();
+    let goldResets = 0;
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => false,
+        onGoldMapChange: () => { goldResets += 1; },
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "tower-connection"));
+      capture.packet(mapPacket(2, 17, "tower-connection"));
+      capture.packet(towerRunPacket(3, 1, "tower-connection"));
+      await Bun.sleep(550);
+      capture.packet(mapPacket(4, 29, "tower-connection"));
+      capture.packet(towerAdvancePacket(5, 2, false, "tower-connection"));
+      await Bun.sleep(550);
+      capture.packet(towerAdvancePacket(6, 2, true, "tower-connection"));
+      capture.packet(towerClearPacket(7, "tower-connection"));
+      await Bun.sleep(550);
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      const locations = records(await readFile(pointer!.path, "utf8"))
+        .filter((record) => record.type === "combat.event")
+        .map((record) => (record as { data?: { sourceId?: string; sourceLabel?: string } }).data)
+        .filter((data) => data?.sourceId?.startsWith("__spiritvaleZone:")
+          || data?.sourceId?.startsWith("__spiritvaleTowerFloor:"))
+        .map((data) => ({ sourceId: data?.sourceId, sourceLabel: data?.sourceLabel }));
+      expect(locations).toEqual([
+        { sourceId: "__spiritvaleZone:17", sourceLabel: "Zone 17" },
+        { sourceId: "__spiritvaleTowerFloor:1", sourceLabel: "Eternal Tower - Floor 1" },
+        { sourceId: "__spiritvaleTowerFloor:2", sourceLabel: "Eternal Tower - Floor 2" },
+        { sourceId: "__spiritvaleZone:29", sourceLabel: "Zone 29" },
+      ]);
+      expect(goldResets).toBe(3);
+      expect(await readdir(path.join(directory, "combat"))).toHaveLength(1);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("coalesces an exit-entry-floor burst into one session seeded with the final floor", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-reset-"));
+    const capture = new FakeCapture();
+    let goldResets = 0;
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => true,
+        onGoldMapChange: () => { goldResets += 1; },
+      });
+      await coordinator.start();
+      capture.packet(authenticatedPacket(1, "tower-connection"));
+      capture.packet(mapPacket(2, 17, "tower-connection"));
+      const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      capture.packet(towerClearPacket(3, "tower-connection"));
+      capture.packet(towerRunPacket(4, 1, "tower-connection"));
+      capture.packet(towerAdvancePacket(5, 2, false, "tower-connection"));
+      capture.packet({ ...damagePacket(6, 900, 41), connectionId: "tower-connection" });
+
+      const towerSessionId = await waitForSessionChange(directory, previousSessionId);
+      expect(towerSessionId).toBeDefined();
+      await Bun.sleep(100);
+      capture.packet(towerAdvancePacket(7, 2, true, "tower-connection"));
+      await Bun.sleep(550);
+      expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(towerSessionId);
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      const combat = records(await readFile(pointer!.path, "utf8")) as Array<{
+        type: string;
+        data?: { sourceId?: string; actorId?: number };
+      }>;
+      expect(combat.filter((record) => record.data?.sourceId?.startsWith("__spiritvale"))
+        .map((record) => record.data?.sourceId)).toEqual(["__spiritvaleTowerFloor:2"]);
+      expect(combat.some((record) => record.type === "combat.event" && record.data?.actorId === 41)).toBe(true);
+      expect(goldResets).toBe(1);
+      expect(await readdir(path.join(directory, "combat"))).toHaveLength(2);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("keeps new-connection actor identities when a stale connection trails a map change", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reconnect-"));
     const capture = new FakeCapture();
@@ -1531,6 +1620,62 @@ function mapPacket(tick: number, mapId: number, connectionId: string): TestPacke
     packetName: "rpcLink",
     rpcName: "TraverseActive",
     decodedFields: [{ name: "mapId", codec: "packedInt32", value: mapId }],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function towerRunPacket(tick: number, floor: number, connectionId: string): TestPacket {
+  return {
+    tick,
+    packetId: 901,
+    packetName: "targetRpc",
+    rpcName: "ETUpdateRun",
+    networkBehaviourType: "PlayerController",
+    decodedFields: [
+      { name: "match", typeName: "EternalTowerRun", codec: "nullable", value: true },
+      { name: "match.InstanceId", codec: "packedInt32", value: 10 },
+      { name: "match.PartyId", codec: "packedInt32", value: 20 },
+      { name: "match.State", codec: "packedInt32", value: 2 },
+      { name: "match.Floor", codec: "packedInt32", value: floor },
+    ],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function towerAdvancePacket(
+  tick: number,
+  floor: number,
+  finished: boolean,
+  connectionId: string,
+): TestPacket {
+  return {
+    tick,
+    packetId: 902,
+    packetName: "targetRpc",
+    rpcName: "ETAdvanceFloor",
+    networkBehaviourType: "PlayerController",
+    decodedFields: [
+      { name: "floor", codec: "packedInt32", value: floor },
+      { name: "finished", codec: "boolean", value: finished },
+    ],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function towerClearPacket(tick: number, connectionId: string): TestPacket {
+  return {
+    tick,
+    packetId: 903,
+    packetName: "targetRpc",
+    rpcName: "ETUpdateRun",
+    networkBehaviourType: "PlayerController",
+    decodedFields: [{ name: "match", typeName: "EternalTowerRun", codec: "nullable", value: null }],
     raw: Buffer.alloc(0),
     payload: Buffer.alloc(0),
     connectionId,

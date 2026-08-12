@@ -8,6 +8,7 @@ import type {
 import { FishNetInspectRoster, resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterSnapshot, CharacterViewState, InspectedCharacter } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
+import { FishNetEternalTowerTracker } from "@kar-mi/spirit-vale-tools-capture";
 import type { CapturedFishNetPacket, CapturedLiteNetLibPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
 import {
   activateLogSession,
@@ -25,6 +26,8 @@ import type {
   LogWriteFailure,
 } from "@kar-mi/spirit-vale-tools-logging";
 import { FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
+import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
+import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
 import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
@@ -41,6 +44,7 @@ const DIAGNOSTIC_PRE_AUTH_MS = 5_000;
 const DIAGNOSTIC_POST_AUTH_MS = 10_000;
 const DIAGNOSTIC_PRE_AUTH_BYTE_LIMIT = 8 * 1024 * 1024;
 const DIAGNOSTIC_TRANSITION_BYTE_LIMIT = 32 * 1024 * 1024;
+const TOWER_LOCATION_SETTLE_MS = 500;
 const STATUS_RPC_NAMES = new Set([
   "ApplyEffect_T",
   "RemoveEffect_T",
@@ -49,7 +53,6 @@ const STATUS_RPC_NAMES = new Set([
   "RemoveSkillDisplay_O",
 ]);
 const MAP_RPC_NAMES = new Set(["TraverseActive", "TraverseObservers", "SyncInstanceState"]);
-const ZONE_EVENT_SOURCE_PREFIX = "__spiritvaleZone:";
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
@@ -57,7 +60,7 @@ type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDeta
 
 interface SessionSeed {
   identities?: readonly FishNetActorIdentity[];
-  zoneId?: number;
+  location?: SpiritValeLocation;
 }
 
 export interface CaptureErrorReport {
@@ -125,6 +128,7 @@ export class CaptureCoordinator {
   /** One persisted sample per short display-feed status activation. */
   private readonly loggedShortDisplayStatuses = new Set<string>();
   private readonly rewards = new FishNetMobRewardTracker();
+  private readonly tower = new FishNetEternalTowerTracker();
   private readonly rewardAttributor = new RewardEventAttributor();
   private readonly locallyDamagedRewardTargets = new Set<number>();
   private readonly unresolvedCounts = new Map<string, number>();
@@ -174,8 +178,12 @@ export class CaptureCoordinator {
   private handoffFailure?: Error;
   private writeMonitor?: ReturnType<typeof setInterval>;
   private readonly loggedMobIdentities = new Map<number, string>();
-  /** Last zone written to this session; traversal packets repeat for every spawned observer. */
-  private lastLoggedZoneId: number | undefined;
+  /** Last effective location written to this session; traversal packets repeat per observer. */
+  private lastLoggedLocation: SpiritValeLocation | undefined;
+  /** Latest physical map remains the destination when the authoritative tower snapshot clears. */
+  private lastObservedMapId: number | undefined;
+  private towerLocationTimer?: ReturnType<typeof setTimeout>;
+  private pendingTowerLocationTick = 0;
   /** Serializes stop() and resetSession() so their bodies never interleave. */
   private lifecycleChain: Promise<void> = Promise.resolve();
 
@@ -290,6 +298,7 @@ export class CaptureCoordinator {
   async stop(): Promise<void> {
     if (this.stopping) return;
     this.stopping = true;
+    await this.commitTowerLocationTransition(false, false);
     const run = this.lifecycleChain.catch(() => {}).then(() => this.performStop());
     this.lifecycleChain = run.catch(() => {});
     try {
@@ -319,7 +328,10 @@ export class CaptureCoordinator {
     this.locallyDamagedRewardTargets.clear();
     this.mobs.reset();
     this.loggedMobIdentities.clear();
-    this.lastLoggedZoneId = undefined;
+    this.tower.reset();
+    this.lastLoggedLocation = undefined;
+    this.lastObservedMapId = undefined;
+    this.clearTowerLocationTimer();
     this.clearPacketBuffer();
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
@@ -353,6 +365,10 @@ export class CaptureCoordinator {
    * swallowed by the rotation it happened to overlap.
    */
   async resetSession(): Promise<void> {
+    if (this.towerLocationTimer !== undefined) {
+      await this.commitTowerLocationTransition(true);
+      return;
+    }
     return this.rotateSession();
   }
 
@@ -381,10 +397,10 @@ export class CaptureCoordinator {
     const streams: LogStream[] = ["combat", "rewards"];
     if (this.diagnosticLogging) streams.push("other");
     const seedIdentities = seed?.identities ?? this.actors.snapshot();
-    // A manual reset stays on the current connection, so its current zone remains valid. An
+    // A manual reset stays on the current connection, so its current location remains valid. An
     // authentication-triggered rotation passes an explicit seed and must wait for that incoming
     // connection's traversal packet instead.
-    const seedZoneId = seed === undefined ? this.lastLoggedZoneId : seed.zoneId;
+    const seedLocation = seed === undefined ? this.lastLoggedLocation : seed.location;
 
     const nextSession = await createLogSession({
       producer: "desktop-capture",
@@ -438,7 +454,7 @@ export class CaptureCoordinator {
       // and the reward baseline are preserved above.
       this.combat.reset();
       this.loggedShortDisplayStatuses.clear();
-      this.lastLoggedZoneId = undefined;
+      this.lastLoggedLocation = undefined;
 
       this.session = nextSession;
       this.combatLog = nextSession.logger("combat");
@@ -448,7 +464,7 @@ export class CaptureCoordinator {
       for (const identity of seedIdentities) {
         this.combatLog.log("combat.actorIdentity", jsonObject({ kind: "actorIdentity", operation: "upsert", tick: 0, ...identity }));
       }
-      if (seedZoneId !== undefined) this.logZoneId(seedZoneId, 0);
+      if (seedLocation !== undefined) this.logLocation(seedLocation, 0);
       this.publishActiveStatuses(true);
 
       this.combatLog.log("combat.lifecycle", { state: "started" });
@@ -574,6 +590,19 @@ export class CaptureCoordinator {
   }
 
   private routePacket(packet: CapturedFishNetPacket): void {
+    if (this.towerLocationTimer !== undefined) {
+      if (packet.connectionId === this.activeConnectionId && isTowerStatePacket(packet)) {
+        if (this.tower.consume(packet)) {
+          this.pendingTowerLocationTick = packet.tick;
+          this.scheduleTowerLocationCommit();
+        }
+        return;
+      }
+      if (packet.connectionId === this.activeConnectionId) this.observePhysicalMap(packet);
+      this.logPacketAdmission(packet, "buffered", "tower-location-settle", this.activeConnectionId);
+      this.bufferHandoffPacket(packet);
+      return;
+    }
     if (this.handoff) {
       this.logPacketAdmission(packet, "buffered", "capture-session-handoff", this.activeConnectionId);
       this.bufferHandoffPacket(packet);
@@ -594,11 +623,21 @@ export class CaptureCoordinator {
     // Inspect replies are a separate stream: the same CharacterData for a DIFFERENT player. Routed
     // before admission for the same reason character callbacks are — the reply can arrive on a
     // connection the active-connection gate would reject, and it belongs to no unit object.
-    const inspectHandled = this.inspected.consume(packet);
+    const inspectHandled = this.inspected.consume(compatibleTrackerPacket(packet));
     let characterHandled = this.character.consumeBeforeAdmission(packet);
     if (!this.admitPacket(packet)) return;
     const admittedCharacterHandled = this.character.consumeAdmitted(packet);
     characterHandled ||= admittedCharacterHandled || inspectHandled;
+    if (packet.packetName === "authenticated") this.lastObservedMapId = undefined;
+    const towerChanged = this.tower.consume(packet);
+    if (towerChanged && isTowerStatePacket(packet)) {
+      const location = this.effectiveLocation();
+      if (!sameSpiritValeLocation(location, this.lastLoggedLocation)) {
+        this.pendingTowerLocationTick = packet.tick;
+        this.scheduleTowerLocationCommit();
+        return;
+      }
+    }
     this.countUnresolvedPacket(packet);
     if (packet.splitDropReason !== undefined) {
       this.combatLog?.log("combat.warning", {
@@ -609,15 +648,15 @@ export class CaptureCoordinator {
     // Actor IDs and zones belong to the incoming connection. The replacement log receives both
     // from its buffered packets after the handoff completes, rather than inheriting stale state.
     const transitionSeed = packet.packetName === "authenticated" ? {} : undefined;
-    let handled = characterHandled || loggedZone;
+    let handled = characterHandled || loggedZone || towerChanged;
     let combatEvents: FishNetCombatEvent[] = [];
     try {
-      this.mobs.consume(packet);
+      this.mobs.consume(compatibleTrackerPacket(packet));
       if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
         this.loggedMobIdentities.clear();
       }
-      const identities = this.actors.consume(packet);
-      const events = this.combat.consume(packet);
+      const identities = this.actors.consume(compatibleTrackerPacket(packet));
+      const events = this.combat.consume(compatibleTrackerPacket(packet));
       combatEvents = events;
       if (isStatusPacket(packet)) {
         this.otherLog?.log("capture.statusPacket", jsonObject({
@@ -663,7 +702,9 @@ export class CaptureCoordinator {
     }
 
     try {
-      const tracked = this.shouldTrackRewardPacket(combatEvents) ? this.rewards.consume(packet) : [];
+      const tracked = this.shouldTrackRewardPacket(combatEvents)
+        ? this.rewards.consume(compatibleTrackerPacket(packet))
+        : [];
       const events = this.rewardAttributor.consume(tracked, packet.tick);
       if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
         events.push(...this.rewardAttributor.flush());
@@ -808,23 +849,79 @@ export class CaptureCoordinator {
    * changing the upstream log protocol or creating a damage encounter.
    */
   private logZone(packet: CapturedFishNetPacket): boolean {
-    if (packet.rpcName === undefined || !MAP_RPC_NAMES.has(packet.rpcName)) return false;
-    const mapId = packet.decodedFields?.find((field) => field.name === "mapId")?.value;
-    if (typeof mapId !== "number" || !Number.isSafeInteger(mapId) || mapId < 0) return false;
-    if (this.lastLoggedZoneId === mapId) return true;
-    this.logZoneId(mapId, packet.tick);
+    const mapId = this.observePhysicalMap(packet);
+    if (mapId === undefined) return false;
+    const location = this.effectiveLocation();
+    if (location === undefined || sameSpiritValeLocation(this.lastLoggedLocation, location)) return true;
+    this.logLocation(location, packet.tick);
     return true;
   }
 
-  private logZoneId(mapId: number, tick: number): void {
-    this.lastLoggedZoneId = mapId;
+  private observePhysicalMap(packet: CapturedFishNetPacket): number | undefined {
+    if (packet.rpcName === undefined || !MAP_RPC_NAMES.has(packet.rpcName)) return undefined;
+    const mapId = packet.decodedFields?.find((field) => field.name === "mapId")?.value;
+    if (typeof mapId !== "number" || !Number.isSafeInteger(mapId) || mapId < 0) return undefined;
+    this.lastObservedMapId = mapId;
+    return mapId;
+  }
+
+  private effectiveLocation(): SpiritValeLocation | undefined {
+    const tower = this.tower.current();
+    if (tower.inTower && tower.floor !== undefined) return { kind: "eternalTower", floor: tower.floor };
+    return this.lastObservedMapId === undefined ? undefined : { kind: "map", mapId: this.lastObservedMapId };
+  }
+
+  private logLocation(location: SpiritValeLocation, tick: number): void {
+    this.lastLoggedLocation = location;
     this.combatLog?.log("combat.event", {
       kind: "activation",
       tick,
       actorId: 0,
-      sourceId: `${ZONE_EVENT_SOURCE_PREFIX}${mapId}`,
-      sourceLabel: `Zone ${mapId}`,
+      sourceId: location.kind === "map"
+        ? `${ZONE_EVENT_SOURCE_PREFIX}${location.mapId}`
+        : `${TOWER_FLOOR_EVENT_SOURCE_PREFIX}${location.floor}`,
+      sourceLabel: location.kind === "map"
+        ? `Zone ${location.mapId}`
+        : `Eternal Tower - Floor ${location.floor}`,
     });
+  }
+
+  private scheduleTowerLocationCommit(): void {
+    this.clearTowerLocationTimer();
+    this.towerLocationTimer = setTimeout(() => {
+      void this.commitTowerLocationTransition().catch((error) => {
+        this.reportError("Tower location could not be committed", errorMessage(error));
+      });
+    }, TOWER_LOCATION_SETTLE_MS);
+    this.towerLocationTimer.unref?.();
+  }
+
+  private clearTowerLocationTimer(): void {
+    if (this.towerLocationTimer !== undefined) clearTimeout(this.towerLocationTimer);
+    this.towerLocationTimer = undefined;
+  }
+
+  private async commitTowerLocationTransition(forceRotation = false, allowRotation = true): Promise<void> {
+    if (this.towerLocationTimer === undefined) return;
+    this.clearTowerLocationTimer();
+    const location = this.effectiveLocation();
+    const changed = location !== undefined && !sameSpiritValeLocation(location, this.lastLoggedLocation);
+    if (changed) this.options.onGoldMapChange?.();
+    const shouldRotate = allowRotation
+      && location !== undefined
+      && (forceRotation || (changed && this.options.resetOnMapChange?.()));
+    if (shouldRotate) {
+      await this.rotateSession({ location });
+      return;
+    }
+    const handoffFailure = this.handoffFailure;
+    this.handoffFailure = undefined;
+    if (handoffFailure) {
+      this.clearPacketBuffer();
+      throw handoffFailure;
+    }
+    if (changed && location !== undefined) this.logLocation(location, this.pendingTowerLocationTick);
+    this.drainBufferedPackets();
   }
 
   private activeStatuses(nowMs = Date.now()): FishNetActiveStatus[] {
@@ -1123,6 +1220,19 @@ export class CaptureCoordinator {
 
 function isStatusPacket(packet: CapturedFishNetPacket): boolean {
   return packet.rpcName !== undefined && STATUS_RPC_NAMES.has(packet.rpcName);
+}
+
+function isTowerStatePacket(packet: CapturedFishNetPacket): boolean {
+  return packet.rpcName === "ETUpdateRun" || packet.rpcName === "ETAdvanceFloor";
+}
+
+/**
+ * Published domain packages currently resolve their capture peer to older declaration copies.
+ * Capture 1.4 only widens decoded-field codecs with `nullable`, so the runtime packet remains
+ * compatible; keep the declaration bridge at the package boundary until those packages republish.
+ */
+function compatibleTrackerPacket<Packet>(packet: CapturedFishNetPacket): Packet {
+  return packet as unknown as Packet;
 }
 
 function fishNetPacketDiagnostic(packet: CapturedFishNetPacket): JsonObject {
