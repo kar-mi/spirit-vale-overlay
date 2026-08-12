@@ -8,7 +8,7 @@ import { createBuildExportWindow } from "@svoverlay/build-export";
 import { createRewardsWindow } from "@svoverlay/rewards";
 import type { LauncherRpc, LauncherSettingsRpc, LauncherState, ManageSettingsRpc, ToolWindow } from "../launcher/types.ts";
 import { loadLauncherSettings, saveLauncherSettings } from "../launcher/settings.ts";
-import { importSettingsFrom, resetAllSettings } from "./manage-settings.ts";
+import { applyImport, planImport, resetAllSettings } from "./manage-settings.ts";
 import {
   activeCharacterSnapshot,
   loadCharacterCache,
@@ -492,8 +492,8 @@ async function importSettingsAndClose(): Promise<void> {
     startingFolder: localRoot,
   });
   if (!selected) return;
-  const result = await importSettingsFrom(selected, storagePaths, readDisplays());
-  if (result === "same-folder") {
+  const plan = planImport(selected, storagePaths);
+  if (plan.status === "same-folder") {
     await Utils.showMessageBox({
       type: "info",
       title: "Manage Settings",
@@ -501,7 +501,7 @@ async function importSettingsAndClose(): Promise<void> {
     });
     return;
   }
-  if (result === "not-found") {
+  if (plan.status === "not-found") {
     await Utils.showMessageBox({
       type: "warning",
       title: "Manage Settings",
@@ -509,12 +509,20 @@ async function importSettingsAndClose(): Promise<void> {
     });
     return;
   }
-  await Utils.showMessageBox({
-    type: "info",
-    title: "Manage Settings",
-    message: "Settings imported. Spirit Vale Overlay will now close — please reopen it to use the imported settings.",
-  });
-  await shutdown();
+  try {
+    // Close every window before writing anything: the overlay controller (and any other open
+    // window's controller) only reloads settings at startup, so leaving it open here would let its
+    // stale in-memory copy get flushed back over the files we're about to import.
+    await closeAllWindowsAndFlush();
+    await applyImport(plan.oldPaths, storagePaths, readDisplays());
+    await Utils.showMessageBox({
+      type: "info",
+      title: "Manage Settings",
+      message: "Settings imported. Spirit Vale Overlay will now close — please reopen it to use the imported settings.",
+    });
+  } finally {
+    await quitImmediately();
+  }
 }
 
 function openSettingsDataFolder(): void {
@@ -531,13 +539,19 @@ async function resetSettingsAndClose(): Promise<void> {
     cancelId: 1,
   });
   if (confirmation.response !== 0) return;
-  await resetAllSettings(storagePaths, readDisplays());
-  await Utils.showMessageBox({
-    type: "info",
-    title: "Manage Settings",
-    message: "Settings reset. Spirit Vale Overlay will now close — please reopen it.",
-  });
-  await shutdown();
+  try {
+    // Same reasoning as importSettingsAndClose: close windows first so no controller's stale
+    // in-memory settings get flushed back over the defaults we're about to write.
+    await closeAllWindowsAndFlush();
+    await resetAllSettings(storagePaths, readDisplays());
+    await Utils.showMessageBox({
+      type: "info",
+      title: "Manage Settings",
+      message: "Settings reset. Spirit Vale Overlay will now close — please reopen it.",
+    });
+  } finally {
+    await quitImmediately();
+  }
 }
 
 const manageSettingsRpc = BrowserView.defineRPC<ManageSettingsRpc>({
@@ -751,7 +765,14 @@ function updateStorageWarning(): void {
   publish();
 }
 
-async function shutdown(): Promise<void> {
+/**
+ * Closes every window and flushes each controller's own settled state to disk. Extracted from
+ * {@link shutdown} so the manage-settings import/reset flows can run this *before* writing files
+ * of their own: the overlay controller (and any other window's controller) only reloads its
+ * settings at startup, so if it's still open when we write a fresh settings file directly, closing
+ * it afterward re-persists its stale in-memory copy and clobbers what we just wrote.
+ */
+async function closeAllWindowsAndFlush(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   placements.remember("launcher", launcherWindow.getFrame());
@@ -763,19 +784,27 @@ async function shutdown(): Promise<void> {
   launcherWindow.hide();
   settingsWindow?.close();
   manageSettingsWindow?.close();
+  await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close()]);
+  liveDeathLogWindow.close();
+  unsubscribeCharacterPersistence();
+  const character = capture.characterState().snapshot;
+  if (character?.source === "live") characterCache = updateCharacterCache(characterCache, character);
+  await characterPersistence.flush(characterCache);
+  await actorIdentityPersistence.flush(actorIdentityCache);
+  await launcherSettingsPersistence.flush();
+  await placements.flush();
+  xpTracker.shutdown();
+  await readModel.close();
+}
+
+async function quitImmediately(): Promise<void> {
+  try { await capture.stop(); } finally { Utils.quit(); }
+}
+
+async function shutdown(): Promise<void> {
   try {
-    await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close()]);
-    liveDeathLogWindow.close();
-    unsubscribeCharacterPersistence();
-    const character = capture.characterState().snapshot;
-    if (character?.source === "live") characterCache = updateCharacterCache(characterCache, character);
-    await characterPersistence.flush(characterCache);
-    await actorIdentityPersistence.flush(actorIdentityCache);
-    await launcherSettingsPersistence.flush();
-    await placements.flush();
-    xpTracker.shutdown();
-    await readModel.close();
+    await closeAllWindowsAndFlush();
   } finally {
-    try { await capture.stop(); } finally { Utils.quit(); }
+    await quitImmediately();
   }
 }

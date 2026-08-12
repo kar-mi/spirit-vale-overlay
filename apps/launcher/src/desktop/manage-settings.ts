@@ -15,7 +15,12 @@ import type { DesktopStoragePaths } from "./portable-paths.ts";
 
 export type ImportSettingsStatus = "same-folder" | "not-found" | "imported";
 
-interface OldSettingsPaths {
+export type ImportPlan =
+  | { status: "same-folder" }
+  | { status: "not-found" }
+  | { status: "ready"; oldPaths: OldSettingsPaths };
+
+export interface OldSettingsPaths {
   settingsDirectory: string;
   launcherSettingsPath: string;
   overlaySettingsPath: string;
@@ -42,16 +47,14 @@ function resolveOldSettingsPaths(selected: string): OldSettingsPaths {
 }
 
 /**
- * Imports settings from another install into the current one. The user may point this at either
- * the old install's `data` folder or its nested `data/settings` folder — {@link resolveOldSettingsPaths}
- * auto-detects which. Reuses each settings module's own load/save pair, which already drops fields
- * the current schema no longer has and fills in defaults for anything the old file was missing.
+ * Read-only: resolves what an import from `selectedDirectory` would do, without touching disk.
+ * Callers that hold long-lived windows with their own in-memory settings (the overlay controller
+ * in particular reloads only at startup and re-persists its stale copy when its window closes)
+ * must close those windows before calling {@link applyImport}, or the import gets silently
+ * overwritten again right after it lands. Splitting resolve from apply lets a caller do that
+ * teardown only once it knows there's actually something to import.
  */
-export async function importSettingsFrom(
-  selectedDirectory: string,
-  currentPaths: DesktopStoragePaths,
-  displays: readonly OverlayDisplay[],
-): Promise<ImportSettingsStatus> {
+export function planImport(selectedDirectory: string, currentPaths: DesktopStoragePaths): ImportPlan {
   const resolvedSelected = path.resolve(selectedDirectory);
   const currentSettingsDirectory = path.resolve(path.dirname(currentPaths.launcherSettingsPath));
   const currentDataDirectory = path.resolve(currentSettingsDirectory, "..");
@@ -59,7 +62,7 @@ export async function importSettingsFrom(
     resolvedSelected.toLowerCase() === currentDataDirectory.toLowerCase()
     || resolvedSelected.toLowerCase() === currentSettingsDirectory.toLowerCase()
   ) {
-    return "same-folder";
+    return { status: "same-folder" };
   }
 
   const oldPaths = resolveOldSettingsPaths(resolvedSelected);
@@ -70,8 +73,21 @@ export async function importSettingsFrom(
     oldPaths.rewardsSettingsPath,
     oldPaths.windowPlacementsPath,
   ].some(existsSync);
-  if (!hasAnySettingsFile) return "not-found";
+  if (!hasAnySettingsFile) return { status: "not-found" };
 
+  return { status: "ready", oldPaths };
+}
+
+/**
+ * Performs the writes for a `"ready"` {@link ImportPlan}. Reuses each settings module's own
+ * load/save pair, which already drops fields the current schema no longer has and fills in
+ * defaults for anything the old file was missing.
+ */
+export async function applyImport(
+  oldPaths: OldSettingsPaths,
+  currentPaths: DesktopStoragePaths,
+  displays: readonly OverlayDisplay[],
+): Promise<void> {
   if (existsSync(oldPaths.launcherSettingsPath)) {
     await saveLauncherSettings(await loadLauncherSettings(oldPaths.launcherSettingsPath), currentPaths.launcherSettingsPath);
   }
@@ -90,6 +106,17 @@ export async function importSettingsFrom(
   if (existsSync(oldPaths.windowPlacementsPath)) {
     await importWindowPlacements(oldPaths.windowPlacementsPath, currentPaths.windowPlacementsPath);
   }
+}
+
+/** Convenience wrapper combining {@link planImport} and {@link applyImport} in one call. */
+export async function importSettingsFrom(
+  selectedDirectory: string,
+  currentPaths: DesktopStoragePaths,
+  displays: readonly OverlayDisplay[],
+): Promise<ImportSettingsStatus> {
+  const plan = planImport(selectedDirectory, currentPaths);
+  if (plan.status !== "ready") return plan.status;
+  await applyImport(plan.oldPaths, currentPaths, displays);
   return "imported";
 }
 
