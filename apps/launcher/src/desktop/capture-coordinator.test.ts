@@ -885,6 +885,78 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("replays a new-connection identity into an automatic map-change session", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-identities-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => true,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      capture.packet(identityPacket(1_010, 40, "Aster Vale", "conn-a"));
+      const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet(identityPacket(55, 41, "Aster Vale", "conn-b"));
+      expect(await waitForSessionChange(directory, previousSessionId)).toBeDefined();
+      capture.packet({ ...damagePacket(60, 900, 41), connectionId: "conn-b" });
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      const combat = records(await readFile(pointer!.path, "utf8")) as Array<{
+        type: string;
+        data?: { actorId?: number; displayName?: string; tick?: number };
+      }>;
+      const replayedIdentity = combat.findIndex((record) => record.type === "combat.actorIdentity"
+        && record.data?.actorId === 41
+        && record.data.displayName === "Aster Vale"
+        && record.data.tick === 55);
+      const damage = combat.findIndex((record) => record.type === "combat.event"
+        && record.data?.actorId === 41);
+
+      expect(replayedIdentity).toBeGreaterThan(-1);
+      expect(damage).toBeGreaterThan(replayedIdentity);
+      expect(combat.some((record) => record.type === "combat.actorIdentity" && record.data?.actorId === 40)).toBe(false);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("records the incoming zone, not the previous zone, in an automatic map-change session", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-zone-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => true,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      capture.packet(mapPacket(1_010, 29, "conn-a"));
+      const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet(mapPacket(55, 48, "conn-b"));
+      expect(await waitForSessionChange(directory, previousSessionId)).toBeDefined();
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      const zones = records(await readFile(pointer!.path, "utf8"))
+        .filter((record) => record.type === "combat.event")
+        .map((record) => (record as { data?: { sourceId?: string } }).data?.sourceId)
+        .filter((sourceId): sourceId is string => sourceId?.startsWith("__spiritvaleZone:") ?? false);
+      expect(zones).toEqual(["__spiritvaleZone:48"]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("keeps one session across map changes while the setting is off, and honours it being turned on", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-off-"));
     const capture = new FakeCapture();

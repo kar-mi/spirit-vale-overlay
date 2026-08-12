@@ -1,5 +1,10 @@
 import { FishNetActorDirectory, FishNetCombatTracker, FishNetStatusTracker } from "@kar-mi/spirit-vale-tools-combat";
-import type { FishNetActiveStatus, FishNetCombatEvent, FishNetKnownIdentity } from "@kar-mi/spirit-vale-tools-combat";
+import type {
+  FishNetActiveStatus,
+  FishNetActorIdentity,
+  FishNetCombatEvent,
+  FishNetKnownIdentity,
+} from "@kar-mi/spirit-vale-tools-combat";
 import { FishNetInspectRoster, resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterSnapshot, CharacterViewState, InspectedCharacter } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
@@ -49,6 +54,11 @@ const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
 type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail">;
+
+interface SessionSeed {
+  identities?: readonly FishNetActorIdentity[];
+  zoneId?: number;
+}
 
 export interface CaptureErrorReport {
   title: string;
@@ -343,9 +353,17 @@ export class CaptureCoordinator {
    * swallowed by the rotation it happened to overlap.
    */
   async resetSession(): Promise<void> {
+    return this.rotateSession();
+  }
+
+  private async rotateSession(seed?: SessionSeed): Promise<void> {
     if (this.resettingSession) return this.resettingSession;
     if (this.stopping) throw new Error("cannot reset the capture session while it is stopping");
-    const run = this.lifecycleChain.catch(() => {}).then(() => this.performResetSession()).catch((error) => {
+    // Establish the boundary before the asynchronous session creation begins. New-connection
+    // identity packets must be replayed into the replacement log, not written to the old one.
+    this.handoff = true;
+    this.handoffFailure = undefined;
+    const run = this.lifecycleChain.catch(() => {}).then(() => this.performResetSession(seed)).catch((error) => {
       this.reportError("Capture session could not be reset", errorMessage(error));
       throw error;
     });
@@ -359,9 +377,14 @@ export class CaptureCoordinator {
     return tracked;
   }
 
-  private async performResetSession(): Promise<void> {
+  private async performResetSession(seed?: SessionSeed): Promise<void> {
     const streams: LogStream[] = ["combat", "rewards"];
     if (this.diagnosticLogging) streams.push("other");
+    const seedIdentities = seed?.identities ?? this.actors.snapshot();
+    // A manual reset stays on the current connection, so its current zone remains valid. An
+    // authentication-triggered rotation passes an explicit seed and must wait for that incoming
+    // connection's traversal packet instead.
+    const seedZoneId = seed === undefined ? this.lastLoggedZoneId : seed.zoneId;
 
     const nextSession = await createLogSession({
       producer: "desktop-capture",
@@ -372,8 +395,6 @@ export class CaptureCoordinator {
       onWriteError: (failure) => this.logWriteFailure(failure),
     });
 
-    this.handoff = true;
-    this.handoffFailure = undefined;
     try {
       // Switch every stream's pointer onto the replacement session first, while the previous
       // session is still fully intact, so a failure here can be rolled back cleanly without
@@ -424,9 +445,10 @@ export class CaptureCoordinator {
       this.rewardsLog = nextSession.logger("rewards");
       this.otherLog = this.diagnosticLogging ? nextSession.logger("other") : undefined;
 
-      for (const identity of this.actors.snapshot()) {
+      for (const identity of seedIdentities) {
         this.combatLog.log("combat.actorIdentity", jsonObject({ kind: "actorIdentity", operation: "upsert", tick: 0, ...identity }));
       }
+      if (seedZoneId !== undefined) this.logZoneId(seedZoneId, 0);
       this.publishActiveStatuses(true);
 
       this.combatLog.log("combat.lifecycle", { state: "started" });
@@ -584,6 +606,9 @@ export class CaptureCoordinator {
       });
     }
     const loggedZone = this.logZone(packet);
+    // Actor IDs and zones belong to the incoming connection. The replacement log receives both
+    // from its buffered packets after the handoff completes, rather than inheriting stale state.
+    const transitionSeed = packet.packetName === "authenticated" ? {} : undefined;
     let handled = characterHandled || loggedZone;
     let combatEvents: FishNetCombatEvent[] = [];
     try {
@@ -654,7 +679,7 @@ export class CaptureCoordinator {
     }
 
     if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
-    if (packet.packetName === "authenticated") this.resetOnMapChange();
+    if (transitionSeed) this.resetOnMapChange(transitionSeed);
   }
 
   /**
@@ -667,7 +692,7 @@ export class CaptureCoordinator {
    * The first authentication of a capture run is the login itself rather than a transition, and is
    * skipped so opening the app never rotates a session or resets gold before anything was recorded.
    */
-  private resetOnMapChange(): void {
+  private resetOnMapChange(seed: SessionSeed): void {
     const firstAuthentication = !this.sawAuthenticated;
     this.sawAuthenticated = true;
     if (firstAuthentication) return;
@@ -675,7 +700,7 @@ export class CaptureCoordinator {
     if (!this.options.resetOnMapChange?.()) return;
     // Failures are already surfaced through onError by resetSession itself, and leave the current
     // session intact — there is nothing further to do with the rejection here.
-    void this.resetSession().catch(() => {});
+    void this.rotateSession(seed).catch(() => {});
   }
 
   /**
@@ -787,15 +812,19 @@ export class CaptureCoordinator {
     const mapId = packet.decodedFields?.find((field) => field.name === "mapId")?.value;
     if (typeof mapId !== "number" || !Number.isSafeInteger(mapId) || mapId < 0) return false;
     if (this.lastLoggedZoneId === mapId) return true;
+    this.logZoneId(mapId, packet.tick);
+    return true;
+  }
+
+  private logZoneId(mapId: number, tick: number): void {
     this.lastLoggedZoneId = mapId;
     this.combatLog?.log("combat.event", {
       kind: "activation",
-      tick: packet.tick,
+      tick,
       actorId: 0,
       sourceId: `${ZONE_EVENT_SOURCE_PREFIX}${mapId}`,
       sourceLabel: `Zone ${mapId}`,
     });
-    return true;
   }
 
   private activeStatuses(nowMs = Date.now()): FishNetActiveStatus[] {
