@@ -156,6 +156,33 @@
   box-shadow: inset 0 0 0 4px rgba(228, 72, 72, 0.95), 0 0 16px rgba(228, 72, 72, 0.45);
 }
 
+/* The character is nearing maximum carry weight. Same inset ring as the missing-status warning
+   above, in caution yellow. */
+.overlay-element.weight-caution .overlay-surface {
+  box-shadow: inset 0 0 0 4px rgba(255, 213, 74, 0.9), 0 0 14px rgba(255, 213, 74, 0.4);
+}
+
+/* Past the danger share the ring turns red and flashes. The steady ring below keeps the tile
+   marked between pulses; the flash itself is an overlay animating only opacity, for the same
+   compositor reasons as the expiring-buff pulse (see .status-cell.expiring). Hung off the element
+   rather than the surface, whose overflow and paint containment would clip the glow. */
+.overlay-element.weight-danger .overlay-surface {
+  box-shadow: inset 0 0 0 4px rgba(228, 72, 72, 0.55);
+}
+.overlay-element.weight-danger::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  border: 4px solid rgba(255, 96, 96, 0.95);
+  border-radius: inherit;
+  box-shadow: 0 0 16px rgba(228, 72, 72, 0.75);
+  content: "";
+  pointer-events: none;
+  /* Promoted only while it is actually animating, never blanket-applied to every tile. */
+  will-change: opacity;
+  animation: warning-pulse .6s ease-in-out infinite alternate;
+}
+
 .overlay-root.editing .overlay-element {
   border: 1px dashed rgba(204, 187, 255, 0.95);
   cursor: grab;
@@ -509,8 +536,10 @@
    The glow lives on an overlaid pseudo-element carrying the final border and shadow, and only its
    opacity animates. Animating border-color/box-shadow directly would repaint the cell on every
    frame for as long as any buff is expiring — i.e. mid-fight — and force DWM to recomposite that
-   region over the game each time. Opacity runs on the compositor with no repaint at all. */
-@keyframes status-expiring-pulse {
+   region over the game each time. Opacity runs on the compositor with no repaint at all.
+
+   The keyframes are shared with the weight tile's danger flash, which pulses for the same reason. */
+@keyframes warning-pulse {
   from { opacity: 0; }
   to { opacity: 1; }
 }
@@ -528,12 +557,13 @@
   pointer-events: none;
   /* Promoted only while it is actually animating, never blanket-applied to every tile. */
   will-change: opacity;
-  animation: status-expiring-pulse .6s ease-in-out infinite alternate;
+  animation: warning-pulse .6s ease-in-out infinite alternate;
 }
 .status-cell.expiring .status-remaining { color: rgb(255, 138, 138); }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-cell.expiring::after {
+  .status-cell.expiring::after,
+  .overlay-element.weight-danger::after {
     animation: none;
     opacity: 1;
     will-change: auto;

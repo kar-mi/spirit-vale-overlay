@@ -1,4 +1,4 @@
-import { batch, signal, type Signal } from "@preact/signals";
+import { batch, computed, signal, type Signal } from "@preact/signals";
 import { render, type ComponentChildren } from "preact";
 import { useCallback, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
@@ -28,6 +28,7 @@ import {
 } from "../app-types.ts";
 import { displayForRect } from "../display-layout.ts";
 import { resourceFill } from "../personal-resources.ts";
+import { weightWarnLevel, type WeightWarnLevel } from "../weight-warning.ts";
 import { ewmaSeries } from "@kar-mi/spirit-vale-tools-metrics";
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
@@ -95,6 +96,11 @@ const elementStates = Object.fromEntries(
   OVERLAY_ELEMENT_IDS.map((id) => [id, signal<OverlayElementSettings | undefined>(undefined)]),
 ) as Record<OverlayElementId, Signal<OverlayElementSettings | undefined>>;
 const characterState = signal<OverlayCharacterState | undefined>(undefined);
+/**
+ * Warn level for the weight tile, derived apart from the raw state so the tile's chrome re-renders
+ * only when a threshold is actually crossed, not on every character publish.
+ */
+const weightWarn = computed(() => weightWarnLevel(characterState.value?.weight));
 const statusState = signal<OverlayStatusState | undefined>(undefined);
 /**
  * Wall clock the status countdowns are drawn against.
@@ -244,9 +250,7 @@ function App() {
       <OverlayElement id="jobXp" locked={next.locked}>
         <CharacterResourceElement kind="job-xp" />
       </OverlayElement>
-      <OverlayElement id="weight" locked={next.locked}>
-        <WeightElement />
-      </OverlayElement>
+      <WeightOverlayElement locked={next.locked} />
       <OverlayElement id="xpTracker" locked={next.locked}>
         <XpTrackerElement locked={next.locked} />
       </OverlayElement>
@@ -300,6 +304,8 @@ interface OverlayElementProps {
   locked: boolean;
   /** Outlines the tile in red, e.g. a status the user armed a missing-buff warning for is down. */
   warn?: boolean;
+  /** Rings the weight tile as it nears maximum carry weight: steady caution, then flashing danger. */
+  weightWarn?: WeightWarnLevel;
   children: ComponentChildren;
 }
 
@@ -308,7 +314,7 @@ function StatusOverlayElement({
   locked,
   category,
   flashExpiring,
-}: Omit<OverlayElementProps, "children" | "warn"> & {
+}: Omit<OverlayElementProps, "children" | "warn" | "weightWarn"> & {
   category: "buffs" | "debuffs" | "toggles";
   flashExpiring?: boolean;
 }) {
@@ -327,7 +333,7 @@ function StatusOverlayElement({
   );
 }
 
-function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
+function OverlayElement({ id, locked, warn, weightWarn, children }: OverlayElementProps) {
   const [gesture, setGesture] = useState<PointerGesture>();
   const [preview, setPreview] = useState<ElementRect>();
   // Read per tile rather than from a shared control object, so a change to one tile does not
@@ -339,6 +345,7 @@ function OverlayElement({ id, locked, warn, children }: OverlayElementProps) {
     "overlay-element",
     !settings.enabled && "hidden-preview",
     warn && settings.enabled && "missing-statuses",
+    weightWarn && settings.enabled && `weight-${weightWarn}`,
     gesture?.kind === "resize" ? "resizing" : gesture?.kind === "drag" ? "dragging" : undefined,
   ].filter(Boolean).join(" ");
   const move = (event: PointerEvent): void => {
@@ -630,6 +637,15 @@ function PersonalDpsElement() {
         </>
       ) : <WaitingForDps />}
     </div>
+  );
+}
+
+/** The weight tile plus the ring around it that escalates as the character approaches maximum weight. */
+function WeightOverlayElement({ locked }: { locked: boolean }) {
+  return (
+    <OverlayElement id="weight" locked={locked} weightWarn={weightWarn.value}>
+      <WeightElement />
+    </OverlayElement>
   );
 }
 
