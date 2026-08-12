@@ -40,10 +40,10 @@ const unusedElectrobunHelpers = [
   "Info.plist",
 ] as const;
 
-function run(command: string, args: string[], options?: { cwd?: string }): void {
+function run(command: string, args: string[]): void {
   console.log(`> ${[command, ...args].join(" ")}`);
   const result = Bun.spawnSync([command, ...args], {
-    cwd: options?.cwd ?? projectRoot,
+    cwd: projectRoot,
     stdout: "inherit",
     stderr: "inherit",
   });
@@ -101,8 +101,7 @@ async function main(): Promise<void> {
   await mkdir(releasesDirectory, { recursive: true });
 
   run("bun", ["run", "--filter", "@svoverlay/launcher", "build", "--", "--env=stable"]);
-  const stablePayload = findStablePayload();
-  run("tar", ["-xf", path.basename(stablePayload), "-C", portableRoot], { cwd: path.dirname(stablePayload) });
+  run("tar", ["-xf", findStablePayload(), "-C", portableRoot]);
   await flattenExtractedBundle();
 
   for (const relativePath of unusedElectrobunHelpers) {
