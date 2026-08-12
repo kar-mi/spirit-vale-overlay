@@ -2,6 +2,7 @@ import type {
   KeybindAction,
   OverlayElementId,
   OverlaySettingsState,
+  PersonalDpsMode,
   RequiredStatusCategory,
 } from "../app-types.ts";
 import { displayKey, type OverlayDisplay } from "../display-layout.ts";
@@ -57,6 +58,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     setShortcutCapture: (active: boolean) => controller.setShortcutCapture(active),
     setRequiredStatuses: (category: RequiredStatusCategory, statusIds: string[]) =>
       controller.setRequiredStatuses(category, statusIds),
+    setPersonalDpsMode: (mode: PersonalDpsMode) => controller.setPersonalDpsMode(mode),
   };
 
   /**

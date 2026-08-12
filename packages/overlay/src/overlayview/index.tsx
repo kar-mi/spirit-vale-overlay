@@ -23,6 +23,7 @@ import {
   type OverlayResource,
   type OverlayRpc,
   type OverlayStatusState,
+  type PersonalDpsMode,
   type StatType,
 } from "../app-types.ts";
 import { displayForRect } from "../display-layout.ts";
@@ -78,6 +79,7 @@ type PointerGesture =
 interface OverlayChrome {
   locked: boolean;
   meterStatType: StatType;
+  personalDpsMode: PersonalDpsMode;
   shortcuts: Record<KeybindAction, string>;
   /** This window's own monitor, and every monitor, so a drag can be resolved across them. */
   surface?: OverlayDisplayPlacement;
@@ -137,6 +139,7 @@ function applyControl(next: OverlayControlState): void {
     const chrome: OverlayChrome = {
       locked: next.locked,
       meterStatType: next.meterStatType,
+      personalDpsMode: next.personalDpsMode,
       shortcuts: next.shortcuts,
       surface: next.surface,
       displayLayout: next.displayLayout,
@@ -607,11 +610,12 @@ function DamageChart(
 
 function PersonalDpsElement() {
   const personal = meterState.value?.personal;
+  const personalDpsMode = chromeState.value?.personalDpsMode;
   return (
     <div class="element-content">
       <div class="personal-heading">
         <img class="personal-class-icon" src={classIcon(personal?.archetype)} alt="" aria-hidden="true" />
-        <h2 class="element-title">Live DPS</h2>
+        <h2 class="element-title">{personalDpsMode === "live" ? "Live DPS" : "Encounter DPS"}</h2>
       </div>
       {personal ? (
         <>

@@ -10,6 +10,7 @@ import {
   type OverlayDisplayOption,
   type OverlayElementId,
   type OverlayElementSettings,
+  type PersonalDpsMode,
   type StatType,
 } from "./app-types.ts";
 import {
@@ -27,7 +28,7 @@ import {
 } from "./display-layout.ts";
 
 export { KEYBIND_ACTIONS, OVERLAY_ELEMENT_IDS };
-export type { KeybindAction, OverlayElementId, OverlayElementSettings };
+export type { KeybindAction, OverlayElementId, OverlayElementSettings, PersonalDpsMode };
 export type { DisplayBounds, OverlayDisplay };
 
 export interface OverlaySettings {
@@ -41,6 +42,8 @@ export interface OverlaySettings {
   shortcuts: Record<KeybindAction, string>;
   elements: Record<OverlayElementId, OverlayElementSettings>;
   meterStatType: StatType;
+  /** Whether the personal tile shows the whole-encounter average or the live recent-rate estimate. */
+  personalDpsMode: PersonalDpsMode;
   /** Statuses the user expects to keep up; the matching tile is highlighted while any is missing. */
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
 }
@@ -141,6 +144,7 @@ export function normalizeOverlaySettings(
     shortcuts,
     elements,
     meterStatType: normalizeMeterStatType(source.meterStatType),
+    personalDpsMode: normalizePersonalDpsMode(source.personalDpsMode),
     requiredStatuses: normalizeRequiredStatuses(source.requiredStatuses),
   };
 }
@@ -164,6 +168,10 @@ function normalizeRequiredStatuses(value: unknown): Record<RequiredStatusCategor
 
 function normalizeMeterStatType(value: unknown): StatType {
   return value === "tanked" || value === "heal" ? value : "damage";
+}
+
+function normalizePersonalDpsMode(value: unknown): PersonalDpsMode {
+  return value === "live" ? value : "encounter";
 }
 
 export function normalizeSingleShortcut(action: KeybindAction, value: unknown): string {

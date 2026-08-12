@@ -23,6 +23,7 @@ import type {
   OverlayElementId,
   OverlaySettingsState,
   OverlayStatus,
+  PersonalDpsMode,
   OverlayStatusState,
   OverlayViewState,
   RequiredStatusCategory,
@@ -286,6 +287,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     setShortcut,
     setShortcutCapture,
     setRequiredStatuses,
+    setPersonalDpsMode,
     resetXpTracker: () => {
       options.xp.reset();
       publishCharacter();
@@ -349,6 +351,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       surface: layout.find((candidate) => candidate.display === display),
       displayLayout: layout,
       meterStatType: settings.meterStatType,
+      personalDpsMode: settings.personalDpsMode,
       shortcuts: settings.shortcuts,
       shortcutErrors: Object.fromEntries(shortcutErrors),
       overlayVisible,
@@ -368,6 +371,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       shortcutErrors: control.shortcutErrors,
       overlayVisible: control.overlayVisible,
       requiredStatuses: control.requiredStatuses,
+      personalDpsMode: control.personalDpsMode,
     };
   }
 
@@ -429,7 +433,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       control: controlState(display),
       character: overlayCharacterState(),
       statuses: stampedStatusState(overlayStatusState(nowMs)),
-      meter: overlayMeterState(record, settings.meterStatType, nowMs),
+      meter: overlayMeterState(record, settings.meterStatType, nowMs, settings.personalDpsMode),
     };
   }
 
@@ -534,6 +538,14 @@ export async function createOverlayController(options: OverlayControllerOptions)
     persist();
     publishControl();
     publishStatuses(relativeNowMs() ?? 0, true);
+    return controlState();
+  }
+
+  function setPersonalDpsMode(mode: PersonalDpsMode): OverlayControlState {
+    settings = normalizeOverlaySettings({ ...settings, personalDpsMode: mode }, displays);
+    persist();
+    publishControl();
+    publishMeter(true);
     return controlState();
   }
 
@@ -687,7 +699,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     publishCadence.recordMeterState(liveState.current !== undefined);
     if (liveState.current === undefined) publishCadence.reset();
     hasMeterRecord = record !== undefined;
-    const next = record ? overlayMeterState(record, settings.meterStatType, nowMs) : emptyMeterState();
+    const next = record ? overlayMeterState(record, settings.meterStatType, nowMs, settings.personalDpsMode) : emptyMeterState();
     const json = JSON.stringify(next);
     if (!force && json === lastMeterJson) return;
     lastMeterJson = json;

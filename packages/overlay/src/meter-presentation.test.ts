@@ -11,7 +11,7 @@ test("meter presentation sends only the selected chart, bounded rows, and damage
   const tanked = snapshot("tanked", 300, [actor(91, 35)]);
   const record = combatRecord(damage, tanked, healing);
 
-  const state = overlayMeterState(record, "heal", 1_000);
+  const state = overlayMeterState(record, "heal", 1_000, "encounter");
 
   expect(state.personalChart).toBe(true);
   expect(state.chart).toEqual([{ elapsedMs: 0, dps: 25 }]);
@@ -27,7 +27,7 @@ test("meter presentation aggregates a map chart and limits rankings to twelve ac
     ...Array.from({ length: 13 }, (_, index) => actor(index + 1, index + 1)),
     { ...actor(99, 999), lastDamageAtMs: -60_001 },
   ]);
-  const state = overlayMeterState(combatRecord(damage, damage, selected), "heal", 0);
+  const state = overlayMeterState(combatRecord(damage, damage, selected), "heal", 0, "encounter");
 
   expect(state.personalChart).toBe(false);
   expect(state.chart).toEqual([{ elapsedMs: 0, dps: 1_090 }]);
@@ -36,7 +36,19 @@ test("meter presentation aggregates a map chart and limits rankings to twelve ac
 });
 
 test("empty meter presentation has stable empty fields", () => {
-  expect(overlayMeterState(undefined, "damage", 0)).toEqual(emptyMeterState());
+  expect(overlayMeterState(undefined, "damage", 0, "encounter")).toEqual(emptyMeterState());
+});
+
+test("personal dps mode selects the encounter average or the live rate", () => {
+  const damage = snapshot("damage", 100, [{ ...actor(1, 14), currentDps: 22 }]);
+  damage.personal = damage.actors[0];
+  const record = combatRecord(damage, damage, damage);
+
+  const encounter = overlayMeterState(record, "damage", 0, "encounter");
+  expect(encounter.personal?.currentDps).toBe(14);
+
+  const live = overlayMeterState(record, "damage", 0, "live");
+  expect(live.personal?.currentDps).toBe(22);
 });
 
 function combatRecord(

@@ -3,7 +3,7 @@ import type {
   FishNetDpsEncounterSnapshot,
 } from "@kar-mi/spirit-vale-tools-combat";
 
-import type { OverlayMeterPoint, OverlayMeterState, StatType } from "./app-types.ts";
+import type { OverlayMeterPoint, OverlayMeterState, PersonalDpsMode, StatType } from "./app-types.ts";
 import { visiblePartyActors } from "./overlayview/party-ranking.ts";
 
 /** Builds the bounded meter data the overlay actually renders. */
@@ -11,6 +11,7 @@ export function overlayMeterState(
   record: CombatEncounterRecord | undefined,
   statType: StatType,
   nowMs: number,
+  personalDpsMode: PersonalDpsMode,
 ): OverlayMeterState {
   if (!record) return emptyMeterState();
 
@@ -36,7 +37,7 @@ export function overlayMeterState(
     ...(personal === undefined ? {} : {
       personal: {
         ...(personal.archetype === undefined ? {} : { archetype: personal.archetype }),
-        currentDps: personal.currentDps,
+        currentDps: personalDpsMode === "live" ? personal.currentDps : personal.dps,
         damage: personal.damage,
         ...(personal.critRate === undefined ? {} : { critRate: personal.critRate }),
       },
