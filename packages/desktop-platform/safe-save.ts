@@ -1,4 +1,4 @@
-export const STORAGE_WARNING = "Changes could not be saved. Check that the app data folder is writable; the app will retry on the next change.";
+export const STORAGE_WARNING = "Changes could not be saved. Check that the app's local data folder is writable; the app will retry on the next change.";
 
 export interface SafeSaveQueueOptions<T> {
   save(value: T): Promise<void>;
