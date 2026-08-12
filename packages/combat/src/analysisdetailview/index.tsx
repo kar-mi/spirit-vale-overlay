@@ -3,6 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { formatDuration } from "@svoverlay/ui-kit/format";
 import { EnemyFilterControl } from "@svoverlay/ui-kit/enemy-filter";
@@ -77,6 +78,10 @@ const electroview = new Electroview({ rpc });
 
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
+const ANALYSIS_DETAIL_DEFAULT_WIDTH = 880;
+const ANALYSIS_DETAIL_DEFAULT_HEIGHT = 720;
+void ensureInitialWindowSize(electroview.rpc?.request, { width: 620, height: 500 });
+
 function App() {
   const [metric, setMetric] = useState<Metric>("dps");
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
@@ -129,7 +134,7 @@ function App() {
         appTag="Player detail"
         minWidth={620}
         minHeight={500}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: 880, height: 720 }}
+        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: ANALYSIS_DETAIL_DEFAULT_WIDTH, height: ANALYSIS_DETAIL_DEFAULT_HEIGHT }}
         setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
         onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
       onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}

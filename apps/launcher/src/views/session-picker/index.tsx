@@ -3,6 +3,7 @@ import { render } from "preact";
 import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import type { SessionPickerItem, SessionPickerRpc, SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
@@ -13,6 +14,10 @@ const rpc = Electroview.defineRPC<SessionPickerRpc>({
 });
 const electroview = new Electroview({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => { const repaired = repairRendererPayload(next); state.value = repaired; document.title = repaired.title; });
+
+const SESSION_PICKER_DEFAULT_WIDTH = 640;
+const SESSION_PICKER_DEFAULT_HEIGHT = 560;
+void ensureInitialWindowSize(electroview.rpc?.request, { width: 480, height: 400 });
 
 function App() {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
@@ -36,7 +41,7 @@ function App() {
         appTag={next.title}
         minWidth={480}
         minHeight={400}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: 640, height: 560 }}
+        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: SESSION_PICKER_DEFAULT_WIDTH, height: SESSION_PICKER_DEFAULT_HEIGHT }}
         setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
         onMinimize={() => electroview.rpc?.send.windowAction({ action: "minimize" })}
         onClose={() => electroview.rpc?.send.windowAction({ action: "close" })}

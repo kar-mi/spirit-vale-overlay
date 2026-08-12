@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./settings": "./src/settings.ts"
   },
   "dependencies": {
     "@kar-mi/spirit-vale-tools-metrics": "0.2.0",

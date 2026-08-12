@@ -3,6 +3,7 @@ import { useCallback, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { StatusDot } from "@svoverlay/ui-kit/status-dot";
 import type { StatusTone } from "@svoverlay/ui-kit/status-dot";
@@ -41,6 +42,10 @@ const rpc = Electroview.defineRPC<RewardsAppRpc>({
 const electroview = new Electroview({ rpc });
 
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+
+const REWARDS_DEFAULT_WIDTH = 620;
+const REWARDS_DEFAULT_HEIGHT = 520;
+void ensureInitialWindowSize(electroview.rpc?.request, { width: REWARDS_DEFAULT_WIDTH, height: REWARDS_DEFAULT_HEIGHT });
 
 function setView(view: RewardsAppView): void {
   void electroview.rpc?.request.setView({ view });
@@ -100,7 +105,7 @@ function App() {
         appTag="Rewards"
         minWidth={620}
         minHeight={520}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: 620, height: 520 }}
+        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: REWARDS_DEFAULT_WIDTH, height: REWARDS_DEFAULT_HEIGHT }}
         setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
         toggleMaximize={async () => (await electroview.rpc?.request.toggleMaximize({}))?.maximized ?? false}
         onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}

@@ -48,6 +48,7 @@ export default {
     views: {
       launcherview: { entrypoint: "src/views/launcher/index.tsx" },
       settingsview: { entrypoint: "src/views/settings/index.tsx" },
+      managesettingsview: { entrypoint: "src/views/manage-settings/index.tsx" },
       mainview: { entrypoint: "../../packages/combat/src/mainview/index.tsx" },
       overlayview: { entrypoint: "../../packages/overlay/src/overlayview/index.tsx" },
       characterview: { entrypoint: "src/views/character/index.tsx" },
@@ -86,6 +87,9 @@ export default {
       "src/views/settings/index.html": "views/settingsview/index.html",
       "src/views/settings/index.css": "views/settingsview/index.css",
       [themeCssSource(1)]: "views/settingsview/theme.css",
+      "src/views/manage-settings/index.html": "views/managesettingsview/index.html",
+      "src/views/manage-settings/index.css": "views/managesettingsview/index.css",
+      [themeCssSource(15)]: "views/managesettingsview/theme.css",
       "../../packages/combat/src/mainview/index.html": "views/mainview/index.html",
       "../../packages/combat/src/mainview/index.css": "views/mainview/index.css",
       [themeCssSource(2)]: "views/mainview/theme.css",

@@ -3,6 +3,7 @@ import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { formatDuration, normalizeSearchText } from "@svoverlay/ui-kit/format";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
@@ -20,6 +21,10 @@ const rpc = Electroview.defineRPC<CombatDeathLogRpc>({
 const electroview = new Electroview({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
+const DEATH_LOG_DEFAULT_WIDTH = 900;
+const DEATH_LOG_DEFAULT_HEIGHT = 680;
+void ensureInitialWindowSize(electroview.rpc?.request, { width: 680, height: 500 });
+
 function App() {
   const next = state.value;
   const [tab, setTab] = useState<DeathLogTab>("summary");
@@ -35,7 +40,7 @@ function App() {
       appTag="Death log"
       minWidth={680}
       minHeight={500}
-      getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: 900, height: 680 }}
+      getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEATH_LOG_DEFAULT_WIDTH, height: DEATH_LOG_DEFAULT_HEIGHT }}
       setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
       onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
       onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}

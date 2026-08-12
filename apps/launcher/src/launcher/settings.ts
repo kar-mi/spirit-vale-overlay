@@ -23,6 +23,10 @@ const defaults: LauncherSettings = {
   resetMeterOnMapChange: false,
   resetGoldOnMapChange: false,
 };
+
+export function defaultLauncherSettings(): LauncherSettings {
+  return { ...defaults };
+}
 export async function loadLauncherSettings(file = defaultSettingsFile()): Promise<LauncherSettings> {
   return loadJsonSettings(file, (value) => {
     const candidate = value as Partial<LauncherSettings>;

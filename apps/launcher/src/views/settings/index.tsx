@@ -3,6 +3,7 @@ import { render } from "preact";
 import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
 import { CheckboxMultiSelect } from "@svoverlay/ui-kit/checkbox-multi-select";
 import { UI_SCALE_VALUES } from "@svoverlay/desktop-platform/ui-scale";
@@ -25,6 +26,10 @@ const rpc = Electroview.defineRPC<LauncherSettingsRpc>({
 });
 const electroview = new Electroview({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+
+const SETTINGS_DEFAULT_WIDTH = 798;
+const SETTINGS_DEFAULT_HEIGHT = 680;
+void ensureInitialWindowSize(electroview.rpc?.request, { width: 560, height: 420 });
 
 const UI_SCALE_OPTIONS = UI_SCALE_VALUES.map((value) => ({ value: String(value), label: `${Math.round(value * 100)}%` }));
 const KEYBIND_LABELS: Record<KeybindAction, string> = {
@@ -72,7 +77,7 @@ function App() {
       appTag="Settings"
       minWidth={560}
       minHeight={420}
-      getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 110, y: 110, width: 798, height: 680 }}
+      getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 110, y: 110, width: SETTINGS_DEFAULT_WIDTH, height: SETTINGS_DEFAULT_HEIGHT }}
       setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
       onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
       onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}

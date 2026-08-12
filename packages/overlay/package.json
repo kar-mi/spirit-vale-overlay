@@ -5,11 +5,13 @@
   "exports": {
     ".": "./src/index.ts",
     "./app-types": "./src/app-types.ts",
-    "./required-statuses": "./src/required-statuses.ts"
+    "./required-statuses": "./src/required-statuses.ts",
+    "./settings": "./src/settings.ts",
+    "./display-layout": "./src/display-layout.ts"
   },
   "dependencies": {
     "@kar-mi/spirit-vale-tools-character": "0.4.1",
-    "@kar-mi/spirit-vale-tools-combat": "2.2.3",
+    "@kar-mi/spirit-vale-tools-combat": "2.2.4",
     "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
     "@kar-mi/spirit-vale-tools-rewards": "1.1.2",
     "@kar-mi/spirit-vale-tools-statuses": "0.2.2",

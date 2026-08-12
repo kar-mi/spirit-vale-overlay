@@ -1,12 +1,14 @@
-import Electrobun, { BrowserView, BrowserWindow, Tray, Utils } from "electrobun/bun";
+import path from "node:path";
+import Electrobun, { BrowserView, BrowserWindow, Screen, Tray, Utils } from "electrobun/bun";
 import { applyRoundedCorners, makeProcessDpiAware, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/spirit-vale-tools-capture/capture";
 
 import { createBuildExportWindow } from "@svoverlay/build-export";
 import { createRewardsWindow } from "@svoverlay/rewards";
-import type { LauncherRpc, LauncherSettingsRpc, LauncherState, ToolWindow } from "../launcher/types.ts";
+import type { LauncherRpc, LauncherSettingsRpc, LauncherState, ManageSettingsRpc, ToolWindow } from "../launcher/types.ts";
 import { loadLauncherSettings, saveLauncherSettings } from "../launcher/settings.ts";
+import { applyImport, planImport, resetAllSettings } from "./manage-settings.ts";
 import {
   activeCharacterSnapshot,
   loadCharacterCache,
@@ -63,6 +65,8 @@ const placements = await WindowPlacementStore.load(storagePaths.windowPlacements
 let launcherWindow: BrowserWindow;
 let settingsWindow: BrowserWindow | undefined;
 let settingsLifecycle: DisposableStore | undefined;
+let manageSettingsWindow: BrowserWindow | undefined;
+let manageSettingsLifecycle: DisposableStore | undefined;
 const launcherLifecycle = new DisposableStore();
 let launcherState: LauncherState = {
   appVersion,
@@ -232,6 +236,7 @@ const rpc = BrowserView.defineRPC<LauncherRpc>({
         return launcherState;
       },
       openSettings: () => { openSettings(); },
+      manageSettings: () => { openManageSettings(); },
       openUpdateRelease: () => { if (launcherState.update) Utils.openExternal(launcherState.update.url); },
       skipUpdateVersion: async () => {
         if (!launcherState.update) return;
@@ -472,6 +477,141 @@ async function refreshCaptureDevices(): Promise<void> {
   publish();
 }
 
+function readDisplays() {
+  const all = Screen.getAllDisplays();
+  if (all.length > 0) return all;
+  // getAllDisplays returns nothing if the FFI call fails; primary is always answerable.
+  return [Screen.getPrimaryDisplay()];
+}
+
+async function importSettingsAndClose(): Promise<void> {
+  const [selected] = await Utils.openFileDialog({
+    canChooseDirectory: true,
+    canChooseFiles: false,
+    allowsMultipleSelection: false,
+    startingFolder: localRoot,
+  });
+  if (!selected) return;
+  const plan = planImport(selected, storagePaths);
+  if (plan.status === "same-folder") {
+    await Utils.showMessageBox({
+      type: "info",
+      title: "Manage Settings",
+      message: "That's already your current settings folder — nothing to import.",
+    });
+    return;
+  }
+  if (plan.status === "not-found") {
+    await Utils.showMessageBox({
+      type: "warning",
+      title: "Manage Settings",
+      message: "No Spirit Vale Overlay settings were found in that folder.",
+    });
+    return;
+  }
+  try {
+    // Close every window before writing anything: the overlay controller (and any other open
+    // window's controller) only reloads settings at startup, so leaving it open here would let its
+    // stale in-memory copy get flushed back over the files we're about to import.
+    await closeAllWindowsAndFlush();
+    await applyImport(plan.oldPaths, storagePaths, readDisplays());
+    await Utils.showMessageBox({
+      type: "info",
+      title: "Manage Settings",
+      message: "Settings imported. Spirit Vale Overlay will now close — please reopen it to use the imported settings.",
+    });
+  } finally {
+    await quitImmediately();
+  }
+}
+
+function openSettingsDataFolder(): void {
+  Utils.showItemInFolder(path.dirname(storagePaths.launcherSettingsPath));
+}
+
+async function resetSettingsAndClose(): Promise<void> {
+  const confirmation = await Utils.showMessageBox({
+    type: "warning",
+    title: "Reset All Settings",
+    message: "Reset all settings to their defaults? This cannot be undone.",
+    buttons: ["Reset", "Cancel"],
+    defaultId: 1,
+    cancelId: 1,
+  });
+  if (confirmation.response !== 0) return;
+  try {
+    // Same reasoning as importSettingsAndClose: close windows first so no controller's stale
+    // in-memory settings get flushed back over the defaults we're about to write.
+    await closeAllWindowsAndFlush();
+    await resetAllSettings(storagePaths, readDisplays());
+    await Utils.showMessageBox({
+      type: "info",
+      title: "Manage Settings",
+      message: "Settings reset. Spirit Vale Overlay will now close — please reopen it.",
+    });
+  } finally {
+    await quitImmediately();
+  }
+}
+
+const manageSettingsRpc = BrowserView.defineRPC<ManageSettingsRpc>({
+  maxRequestTime: 30_000,
+  handlers: {
+    requests: {
+      getState: () => ({ dataFolder: path.dirname(storagePaths.launcherSettingsPath) }),
+      importSettings: () => importSettingsAndClose(),
+      openDataFolder: () => { openSettingsDataFolder(); },
+      resetSettings: () => resetSettingsAndClose(),
+      getWindowFrame: () => manageSettingsWindow?.getFrame() ?? { x: 130, y: 130, width: 480, height: 380 },
+      setWindowFrame: ({ x, y, width, height }) => { manageSettingsWindow?.setFrame(x, y, width, height); },
+      windowAction: async ({ action }) => {
+        if (action === "minimize") manageSettingsWindow?.minimize();
+        else manageSettingsWindow?.close();
+      },
+    },
+    messages: {},
+  },
+});
+
+function openManageSettings(): void {
+  if (manageSettingsWindow) {
+    manageSettingsWindow.show();
+    manageSettingsWindow.activate();
+    return;
+  }
+  const nextWindow = new BrowserWindow({
+    title: "Manage Settings",
+    url: "views://managesettingsview/index.html",
+    frame: placements.frame(
+      "manage-settings",
+      { x: 130, y: 130, width: 480, height: 380 },
+      { width: 420, height: 340 },
+    ),
+    titleBarStyle: "hidden",
+    transparent: false,
+    rpc: manageSettingsRpc,
+  });
+  const lifecycle = new DisposableStore();
+  manageSettingsWindow = nextWindow;
+  manageSettingsLifecycle = lifecycle;
+  applyRoundedCorners(nextWindow.ptr);
+  setWindowIcon(nextWindow.ptr, appIconPath);
+  lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
+  lifecycle.add(placements.track("manage-settings", nextWindow));
+  lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
+    const width = Math.max(scaledSize(420), event.data.width);
+    const height = Math.max(scaledSize(340), event.data.height);
+    if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
+  }));
+  lifecycle.add(onceWindowEvent(nextWindow, "close", () => {
+    lifecycle.dispose();
+    if (manageSettingsWindow === nextWindow) {
+      manageSettingsWindow = undefined;
+      manageSettingsLifecycle = undefined;
+    }
+  }));
+}
+
 async function openTool(tool: ToolWindow): Promise<void> {
   if (tool === "combat") await combatWindow.open();
   else if (tool === "overlay") await overlayWindow.open();
@@ -625,28 +765,46 @@ function updateStorageWarning(): void {
   publish();
 }
 
-async function shutdown(): Promise<void> {
+/**
+ * Closes every window and flushes each controller's own settled state to disk. Extracted from
+ * {@link shutdown} so the manage-settings import/reset flows can run this *before* writing files
+ * of their own: the overlay controller (and any other window's controller) only reloads its
+ * settings at startup, so if it's still open when we write a fresh settings file directly, closing
+ * it afterward re-persists its stale in-memory copy and clobbers what we just wrote.
+ */
+async function closeAllWindowsAndFlush(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   placements.remember("launcher", launcherWindow.getFrame());
   launcherLifecycle.dispose();
   settingsLifecycle?.dispose();
   settingsLifecycle = undefined;
+  manageSettingsLifecycle?.dispose();
+  manageSettingsLifecycle = undefined;
   launcherWindow.hide();
   settingsWindow?.close();
+  manageSettingsWindow?.close();
+  await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close()]);
+  liveDeathLogWindow.close();
+  unsubscribeCharacterPersistence();
+  const character = capture.characterState().snapshot;
+  if (character?.source === "live") characterCache = updateCharacterCache(characterCache, character);
+  await characterPersistence.flush(characterCache);
+  await actorIdentityPersistence.flush(actorIdentityCache);
+  await launcherSettingsPersistence.flush();
+  await placements.flush();
+  xpTracker.shutdown();
+  await readModel.close();
+}
+
+async function quitImmediately(): Promise<void> {
+  try { await capture.stop(); } finally { Utils.quit(); }
+}
+
+async function shutdown(): Promise<void> {
   try {
-    await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close()]);
-    liveDeathLogWindow.close();
-    unsubscribeCharacterPersistence();
-    const character = capture.characterState().snapshot;
-    if (character?.source === "live") characterCache = updateCharacterCache(characterCache, character);
-    await characterPersistence.flush(characterCache);
-    await actorIdentityPersistence.flush(actorIdentityCache);
-    await launcherSettingsPersistence.flush();
-    await placements.flush();
-    xpTracker.shutdown();
-    await readModel.close();
+    await closeAllWindowsAndFlush();
   } finally {
-    try { await capture.stop(); } finally { Utils.quit(); }
+    await quitImmediately();
   }
 }

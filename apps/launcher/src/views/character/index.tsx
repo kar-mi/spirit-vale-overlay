@@ -3,6 +3,7 @@ import { render } from "preact";
 import { useRef, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-chrome";
+import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { resolveFishNetItem, type FishNetArtifactSlot } from "@kar-mi/spirit-vale-tools-items";
 import type {
@@ -28,6 +29,10 @@ const rpc = Electroview.defineRPC<CharacterRpc>({ handlers: { requests: {}, mess
 const electroview = new Electroview({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
+const CHARACTER_DEFAULT_WIDTH = 920;
+const CHARACTER_DEFAULT_HEIGHT = 720;
+void ensureInitialWindowSize(electroview.rpc?.request, { width: 680, height: 520 });
+
 function App() {
   const [tab, setTab] = useState<Tab>("basic");
   const chromeRef = useRef<WindowChrome | undefined>(undefined);
@@ -35,7 +40,7 @@ function App() {
     if (!node || chromeRef.current) return;
     chromeRef.current = initWindowChrome({
       titlebar: node, minWidth: 680, minHeight: 520,
-      getFrame: async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: 920, height: 720 },
+      getFrame: async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: CHARACTER_DEFAULT_WIDTH, height: CHARACTER_DEFAULT_HEIGHT },
       setFrame: (frame) => void electroview.rpc?.request.setWindowFrame(frame),
     });
   };

@@ -2,6 +2,7 @@ import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 
@@ -20,6 +21,7 @@ const rpc = Electroview.defineRPC<BuildExportRpc>({
   },
 });
 const electroview = new Electroview({ rpc });
+void ensureInitialWindowSize(electroview.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 
 const GROUP_LABELS: Record<string, string> = {
   equipment: "Equipment",

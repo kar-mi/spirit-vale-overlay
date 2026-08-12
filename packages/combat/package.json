@@ -5,12 +5,13 @@
   "exports": {
     ".": "./src/index.ts",
     "./app-types": "./src/app-types.ts",
-    "./personal-character": "./src/personal-character.ts"
+    "./personal-character": "./src/personal-character.ts",
+    "./settings": "./src/settings.ts"
   },
   "dependencies": {
     "@preact/signals": "^2.9.4",
     "@kar-mi/spirit-vale-tools-character": "0.4.1",
-    "@kar-mi/spirit-vale-tools-combat": "2.2.3",
+    "@kar-mi/spirit-vale-tools-combat": "2.2.4",
     "@kar-mi/spirit-vale-tools-logging": "0.8.0",
     "@kar-mi/spirit-vale-tools-sqlite": "0.1.5",
     "@svoverlay/desktop-platform": "workspace:*",
