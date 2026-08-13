@@ -1,5 +1,6 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
+import { useEffect, useRef } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
@@ -12,6 +13,7 @@ const MINIMUM_WIDTH = 420;
 const MINIMUM_HEIGHT = 340;
 
 const state = signal<ManageSettingsState | undefined>(undefined);
+const resetPromptOpen = signal(false);
 const rpc = Electroview.defineRPC<ManageSettingsRpc>({
   handlers: { requests: {}, messages: {} },
 });
@@ -45,13 +47,33 @@ function App() {
           <button class="btn" type="button" onClick={() => void electroview.rpc?.request.openDataFolder({})}>
             Open Settings Folder
           </button>
-          <button class="btn" type="button" onClick={() => void electroview.rpc?.request.resetSettings({})}>
+          <button class="btn" type="button" onClick={() => { resetPromptOpen.value = true; }}>
             Reset All Settings…
           </button>
         </div>
       </main>
+      {resetPromptOpen.value ? <ResetSettingsPrompt /> : null}
     </div>
   );
+}
+
+function ResetSettingsPrompt() {
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { cancelButtonRef.current?.focus(); }, []);
+
+  const cancel = (): void => { resetPromptOpen.value = false; };
+  return <div class="modal-layer" role="presentation">
+    <form class="modal-card reset-modal" role="dialog" aria-modal="true" aria-labelledby="reset-title" onSubmit={(event) => {
+      event.preventDefault();
+      resetPromptOpen.value = false;
+      void electroview.rpc?.request.resetSettings({});
+    }} onKeyDown={(event) => {
+      if (event.key === "Escape") cancel();
+    }}>
+      <div class="modal-head"><div><h2 id="reset-title">Reset all settings?</h2><p>Reset all settings to their defaults? This cannot be undone.</p></div><button class="modal-close" type="button" aria-label="Cancel" onClick={cancel}>×</button></div>
+      <div class="modal-actions"><button ref={cancelButtonRef} class="btn" type="button" onClick={cancel}>Cancel</button><button class="btn reset-button" type="submit">Reset</button></div>
+    </form>
+  </div>;
 }
 
 render(<App />, document.getElementById("root")!);

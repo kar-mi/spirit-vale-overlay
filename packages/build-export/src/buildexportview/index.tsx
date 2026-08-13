@@ -1,5 +1,5 @@
 import { render } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
@@ -25,6 +25,7 @@ function App() {
   const [state, setState] = useState<BuildExportState>();
   const [copied, setCopied] = useState(false);
   const [confirmAction, setConfirmAction] = useState<"clear" | "delete" | undefined>();
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     setStateExternal = setState;
     void electroview.rpc?.request.getState({}).then((next) => setState(repairRendererPayload(next)));
@@ -49,6 +50,18 @@ function App() {
     setConfirmAction(undefined);
     if (request) await update(request);
   }
+  useEffect(() => {
+    if (!confirmAction) return;
+    confirmButtonRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Enter" || event.repeat) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void confirmRosterChange();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [confirmAction]);
   const selectedInspected = state?.selectedId.startsWith("inspect:") ?? false;
   const character = state?.character;
   const ready = state?.status === "ready";
@@ -88,7 +101,7 @@ function App() {
       </div>
       <div class="provenance"><div>Catalog snapshot from game build {state?.snapshotGameBuild || "unknown"}{state?.snapshotGameLabel ? ` (${state.snapshotGameLabel})` : ""}{state?.snapshotGeneratedAt ? `, generated ${new Date(state.snapshotGeneratedAt).toLocaleDateString()}` : ""}.</div><div>Item and skill data derived from <a href="#" onClick={(event) => { event.preventDefault(); void electroview.rpc?.request.openSite({}); }}>spiritvalers.com</a>. The planner link carries your build in the URL fragment, which never leaves your browser.</div></div>
     </div>
-    {confirmAction ? <div class="modal-layer" role="presentation"><section class="modal-card confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title"><div class="modal-head"><div><h2 id="confirm-title">{confirmAction === "clear" ? "Clear saved roster?" : "Remove saved player?"}</h2><p>{confirmAction === "clear" ? "This removes every inspected player from this device." : `Remove ${state?.character?.name ?? "this player"} from the saved roster.`}</p></div><button class="modal-close" type="button" aria-label="Cancel" onClick={() => setConfirmAction(undefined)}>×</button></div><div class="modal-actions"><button class="btn" type="button" onClick={() => setConfirmAction(undefined)}>Cancel</button><button class="btn danger-button" type="button" onClick={() => void confirmRosterChange()}>{confirmAction === "clear" ? "Clear roster" : "Remove player"}</button></div></section></div> : null}
+    {confirmAction ? <div class="modal-layer" role="presentation"><form class="modal-card confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" onSubmit={(event) => { event.preventDefault(); void confirmRosterChange(); }}><div class="modal-head"><div><h2 id="confirm-title">{confirmAction === "clear" ? "Clear saved roster?" : "Remove saved player?"}</h2><p>{confirmAction === "clear" ? "This removes every inspected player from this device." : `Remove ${state?.character?.name ?? "this player"} from the saved roster.`}</p></div><button class="modal-close" type="button" aria-label="Cancel" onClick={() => setConfirmAction(undefined)}>×</button></div><div class="modal-actions"><button class="btn" type="button" onClick={() => setConfirmAction(undefined)}>Cancel</button><button ref={confirmButtonRef} class="btn danger-button" type="submit">{confirmAction === "clear" ? "Clear roster" : "Remove player"}</button></div></form></div> : null}
   </div>;
 }
 

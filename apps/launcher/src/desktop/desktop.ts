@@ -515,6 +515,9 @@ async function importSettingsAndClose(): Promise<void> {
       type: "info",
       title: "Manage Settings",
       message: "That's already your current settings folder — nothing to import.",
+      buttons: ["OK"],
+      defaultId: 0,
+      cancelId: 0,
     });
     return;
   }
@@ -523,6 +526,9 @@ async function importSettingsAndClose(): Promise<void> {
       type: "warning",
       title: "Manage Settings",
       message: "No Spirit Vale Overlay settings were found in that folder.",
+      buttons: ["OK"],
+      defaultId: 0,
+      cancelId: 0,
     });
     return;
   }
@@ -536,6 +542,9 @@ async function importSettingsAndClose(): Promise<void> {
       type: "info",
       title: "Manage Settings",
       message: "Settings imported. Spirit Vale Overlay will now close — please reopen it to use the imported settings.",
+      buttons: ["OK"],
+      defaultId: 0,
+      cancelId: 0,
     });
   } finally {
     await quitImmediately();
@@ -547,15 +556,6 @@ function openSettingsDataFolder(): void {
 }
 
 async function resetSettingsAndClose(): Promise<void> {
-  const confirmation = await Utils.showMessageBox({
-    type: "warning",
-    title: "Reset All Settings",
-    message: "Reset all settings to their defaults? This cannot be undone.",
-    buttons: ["Reset", "Cancel"],
-    defaultId: 1,
-    cancelId: 1,
-  });
-  if (confirmation.response !== 0) return;
   try {
     // Same reasoning as importSettingsAndClose: close windows first so no controller's stale
     // in-memory settings get flushed back over the defaults we're about to write.
@@ -565,6 +565,9 @@ async function resetSettingsAndClose(): Promise<void> {
       type: "info",
       title: "Manage Settings",
       message: "Settings reset. Spirit Vale Overlay will now close — please reopen it.",
+      buttons: ["OK"],
+      defaultId: 0,
+      cancelId: 0,
     });
   } finally {
     await quitImmediately();
