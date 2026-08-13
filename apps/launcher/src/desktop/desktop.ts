@@ -556,15 +556,6 @@ function openSettingsDataFolder(): void {
 }
 
 async function resetSettingsAndClose(): Promise<void> {
-  const confirmation = await Utils.showMessageBox({
-    type: "warning",
-    title: "Reset All Settings",
-    message: "Reset all settings to their defaults? This cannot be undone.",
-    buttons: ["Reset", "Cancel"],
-    defaultId: 1,
-    cancelId: 1,
-  });
-  if (confirmation.response !== 0) return;
   try {
     // Same reasoning as importSettingsAndClose: close windows first so no controller's stale
     // in-memory settings get flushed back over the defaults we're about to write.

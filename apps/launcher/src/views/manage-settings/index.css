@@ -6,3 +6,6 @@ main { display: grid; align-content: start; gap: 16px; padding: 20px; min-height
 .data-folder-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .manage-settings-actions { display: grid; gap: 10px; }
 .manage-settings-actions .btn { justify-content: center; height: 38px; }
+.reset-modal { max-width: 420px; }
+.reset-button { border-color: var(--error); color: var(--error); }
+.reset-button:hover { border-color: var(--error); background: color-mix(in srgb, var(--error) 12%, transparent); }
