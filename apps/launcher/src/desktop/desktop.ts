@@ -17,6 +17,7 @@ import {
   type CharacterSnapshotCache,
 } from "../character/storage.ts";
 import { InspectedCharacterStore } from "../character/inspected-character-store.ts";
+import { DurableInspectedCharacterRoster } from "../character/durable-inspected-character-roster.ts";
 import {
   loadActorIdentityCache,
   saveActorIdentityCache,
@@ -114,11 +115,14 @@ const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
   onWarning: (warning) => { characterStorageWarning = warning; updateStorageWarning(); },
 });
 const inspectedCharacterStore = new InspectedCharacterStore(storagePaths.inspectedCharactersPath);
-let inspectedCharacters = inspectedCharacterStore.list();
-const inspectedCharacterListeners = new Set<() => void>();
-const publishInspectedCharacters = () => {
-  for (const listener of inspectedCharacterListeners) listener();
-};
+const inspectedCharacterRoster = new DurableInspectedCharacterRoster(inspectedCharacterStore, {
+  onPersistenceError: (error) => {
+    inspectedCharacterStorageWarning = error === undefined
+      ? undefined
+      : `Could not save inspected characters: ${error instanceof Error ? error.message : String(error)}`;
+    updateStorageWarning();
+  },
+});
 let actorIdentityCache: ActorIdentityCache = await loadActorIdentityCache(storagePaths.actorIdentitiesPath);
 const actorIdentityPersistence = new SafeSaveQueue<ActorIdentityCache>({
   label: "actor identities",
@@ -199,16 +203,7 @@ const unsubscribeCharacterPersistence = capture.subscribeCharacter((state) => {
   characterPersistence.schedule(characterCache);
 });
 const unsubscribeInspectedCharacterPersistence = capture.subscribeInspectedCharacters((roster) => {
-  try {
-    for (const entry of roster) inspectedCharacterStore.upsert(entry);
-    inspectedCharacters = inspectedCharacterStore.list();
-    publishInspectedCharacters();
-    inspectedCharacterStorageWarning = undefined;
-    updateStorageWarning();
-  } catch (error) {
-    inspectedCharacterStorageWarning = `Could not save inspected characters: ${error instanceof Error ? error.message : String(error)}`;
-    updateStorageWarning();
-  }
+  inspectedCharacterRoster.ingest(roster);
 });
 const characterWindow = new WindowSlot((onClosed) => createCharacterWindow({
   getState: () => capture.characterState(),
@@ -220,21 +215,10 @@ const characterWindow = new WindowSlot((onClosed) => createCharacterWindow({
 const buildExportWindow = new WindowSlot((onClosed) => createBuildExportWindow({
   getCharacter: () => capture.characterState().snapshot,
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
-  getInspected: () => inspectedCharacters,
-  subscribeInspected: (listener) => {
-    inspectedCharacterListeners.add(listener);
-    return () => inspectedCharacterListeners.delete(listener);
-  },
-  deleteInspected: (name) => {
-    inspectedCharacterStore.delete(name);
-    inspectedCharacters = inspectedCharacterStore.list();
-    publishInspectedCharacters();
-  },
-  clearInspected: () => {
-    inspectedCharacterStore.clear();
-    inspectedCharacters = [];
-    publishInspectedCharacters();
-  },
+  getInspected: () => inspectedCharacterRoster.list(),
+  subscribeInspected: (listener) => inspectedCharacterRoster.subscribe(listener),
+  deleteInspected: (name) => { inspectedCharacterRoster.delete(name); },
+  clearInspected: () => { inspectedCharacterRoster.clear(); },
   placements,
   onClosed,
   onOpenSettings: openSettings,
@@ -827,7 +811,7 @@ async function closeAllWindowsAndFlush(): Promise<void> {
   await actorIdentityPersistence.flush(actorIdentityCache);
   await launcherSettingsPersistence.flush();
   await placements.flush();
-  inspectedCharacterStore.close();
+  inspectedCharacterRoster.close();
   xpTracker.shutdown();
   await readModel.close();
 }
