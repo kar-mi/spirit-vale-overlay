@@ -1375,7 +1375,7 @@ describe("central capture coordinator", () => {
         });
         await coordinator.stop();
 
-        const admissions = admissionRecords(await readOtherLog(directory));
+        const admissions = admissionRecords(await readOtherLogs(directory, outgoing?.path));
         const buffered = admissions.filter((record) => record.decision === "buffered");
         expect(buffered.length).toBeGreaterThan(0);
         expect(buffered.every((record) => record.reason === "capture-session-handoff")).toBe(true);
