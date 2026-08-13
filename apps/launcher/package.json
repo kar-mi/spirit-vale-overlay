@@ -8,9 +8,9 @@
     "build:stable": "electrobun build --env=stable"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-capture": "1.4.0",
+    "@kar-mi/spirit-vale-tools-capture": "1.5.0",
     "@kar-mi/spirit-vale-tools-character": "0.4.1",
-    "@kar-mi/spirit-vale-tools-combat": "2.2.4",
+    "@kar-mi/spirit-vale-tools-combat": "2.2.5",
     "@kar-mi/spirit-vale-tools-items": "0.1.6",
     "@kar-mi/spirit-vale-tools-logging": "0.8.0",
     "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
