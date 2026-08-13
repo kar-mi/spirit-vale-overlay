@@ -1370,12 +1370,18 @@ describe("central capture coordinator", () => {
         await coordinator.start();
         capture.packet(authenticatedPacket(1_000, "conn-a"));
 
+        // The rotation swaps the coordinator's "other" logger onto the replacement session
+        // partway through, so one handoff's admission records are split across the outgoing and
+        // incoming logs. Both are read below; looking only at the current pointer would make the
+        // assertions depend on which side of that swap the packets happened to land.
+        const outgoing = await readCurrentLogStream("other", directory);
+
         const sentTicks = await sendAcross(coordinator.resetSession(), (tick) => {
           capture.packet(statusPacket(tick, 10, "conn-a"));
         });
         await coordinator.stop();
 
-        const admissions = admissionRecords(await readOtherLog(directory));
+        const admissions = admissionRecords(await readOtherLogs(directory, outgoing?.path));
         const buffered = admissions.filter((record) => record.decision === "buffered");
         expect(buffered.length).toBeGreaterThan(0);
         expect(buffered.every((record) => record.reason === "capture-session-handoff")).toBe(true);
@@ -1466,10 +1472,18 @@ async function sendAcross(rotation: Promise<unknown>, send: (tick: number) => vo
   return ticks;
 }
 
-async function readOtherLog(directory: string): Promise<Array<{ type: string; data: Record<string, unknown> }>> {
+/**
+ * Reads the current "other" log, plus any earlier log paths the caller captured before a session
+ * rotation moved the pointer. Records are returned oldest log first.
+ */
+async function readOtherLogs(directory: string, ...earlier: Array<string | undefined>): Promise<Array<{ type: string; data: Record<string, unknown> }>> {
   const pointer = await readCurrentLogStream("other", directory);
-  if (!pointer) return [];
-  return records(await readFile(pointer.path, "utf8")) as Array<{ type: string; data: Record<string, unknown> }>;
+  const paths = new Set([...earlier, pointer?.path].filter((value): value is string => value !== undefined));
+  const all: Array<{ type: string; data: Record<string, unknown> }> = [];
+  for (const logPath of paths) {
+    all.push(...records(await readFile(logPath, "utf8")) as Array<{ type: string; data: Record<string, unknown> }>);
+  }
+  return all;
 }
 
 function admissionRecords(all: Array<{ type: string; data: Record<string, unknown> }>): Array<Record<string, unknown>> {
