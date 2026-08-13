@@ -1,6 +1,6 @@
+@import url("./elements.css");
 @import url("./content.css");
 @import url("./statuses.css");
-@import url("./elements.css");
 
 :root, html, body, #root {
   width: 100%;
