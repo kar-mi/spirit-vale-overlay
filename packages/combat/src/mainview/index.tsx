@@ -1,9 +1,8 @@
 import { render } from "preact";
-import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
-import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { DesktopTitleBar } from "@svoverlay/ui-kit/desktop-title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { StatusDot } from "@svoverlay/ui-kit/status-dot";
@@ -12,6 +11,9 @@ import { formatDps, formatDuration } from "@svoverlay/ui-kit/format";
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
 import { StatTypeSelect } from "@svoverlay/ui-kit/stat-type-select";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
+import { activateOnEnterOrSpace } from "@svoverlay/ui-kit/keyboard";
+import { SortableHeader as SharedSortableHeader } from "@svoverlay/ui-kit/sortable-header";
+import { meterLabels } from "@svoverlay/ui-kit/meter-labels";
 
 import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppTab, MeterEncounterSnapshot, StatType } from "../app-types.ts";
 import { PastSessionPanel } from "./past-session-panel.tsx";
@@ -60,12 +62,6 @@ function setScreen(screen: CombatLogScreen): void {
   void electroview.rpc?.request.setScreen({ screen });
 }
 
-function activateRow(event: JSX.TargetedKeyboardEvent<HTMLTableRowElement>, activate: () => void): void {
-  if (event.key !== "Enter" && event.key !== " ") return;
-  event.preventDefault();
-  activate();
-}
-
 function setStatType(statType: StatType): void {
   if (state.value) state.value = { ...state.value, statType };
   void electroview.rpc?.request.setStatType({ statType });
@@ -94,9 +90,10 @@ function App() {
     next.statType === "tanked" ? next.tankedSnapshot :
     next.statType === "heal" ? next.healSnapshot :
     next.snapshot;
-  const metricLabel = next.statType === "tanked" ? "TPS" : next.statType === "heal" ? "HPS" : "DPS";
+  const labels = meterLabels(next.statType);
+  const metricLabel = labels.rate;
   const isHeal = next.statType === "heal";
-  const amountLabel = isHeal ? "HEAL" : "DMG";
+  const amountLabel = labels.shortAmount;
 
   const actors = activeSnapshot?.actors ?? [];
   const sortedActors = [...actors].sort((left, right) => {
@@ -116,19 +113,13 @@ function App() {
 
   return (
     <main class="app-shell">
-      <TitleBar
+      <DesktopTitleBar
         appTag="DPS"
         minWidth={DPS_WINDOW_MINIMUM_WIDTH}
         minHeight={DPS_WINDOW_MINIMUM_HEIGHT}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? {
-          x: 0,
-          y: 0,
-          width: DPS_WINDOW_DEFAULT_WIDTH,
-          height: DPS_WINDOW_DEFAULT_HEIGHT,
-        }}
-        setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-        onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-        onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+        defaultWidth={DPS_WINDOW_DEFAULT_WIDTH}
+        defaultHeight={DPS_WINDOW_DEFAULT_HEIGHT}
+        requests={electroview.rpc?.request}
         extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
       />
 
@@ -197,7 +188,7 @@ function App() {
                     title="Double-click for live player detail"
                     tabIndex={0}
                     onDblClick={activate}
-                    onKeyDown={(event) => activateRow(event, activate)}
+                    onKeyDown={(event) => activateOnEnterOrSpace(event, activate)}
                   >
                     <th scope="row">{actor.displayName}</th>
                     <td>{formatDps(actor.dps)}</td>
@@ -295,18 +286,7 @@ interface SortableHeaderProps {
 
 function SortableHeader({ label, sortKey, sort, onSort }: SortableHeaderProps) {
   const active = sort.key === sortKey;
-  return (
-    <th class="sortable-column" aria-sort={active ? sort.direction : undefined}>
-      <button
-        class="sort-button"
-        type="button"
-        onClick={() => onSort(sortKey)}
-      >
-        <span>{label}</span>
-        <span class={active ? "sort-indicator active" : "sort-indicator"} aria-hidden="true">{active ? (sort.direction === "descending" ? "▼" : "▲") : "↕"}</span>
-      </button>
-    </th>
-  );
+  return <SharedSortableHeader label={label} active={active} direction={sort.direction} onSort={() => onSort(sortKey)} />;
 }
 
 render(<App />, document.getElementById("root")!);

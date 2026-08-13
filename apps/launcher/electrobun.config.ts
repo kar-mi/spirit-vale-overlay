@@ -12,12 +12,17 @@ if (!packageJson.version) throw new Error("package.json must define a version be
 
 /**
  * Electrobun's `copy` config is a plain `{ [sourcePath]: destPath }` map, so copying the
- * same `theme.css` into every view's own folder needs a textually distinct source key per
- * view even though every one resolves to the same file — otherwise the object literal would
- * silently collapse duplicate keys and most views would end up without a theme.css.
+ * the shared theme modules into every view's folder needs textually distinct source keys even
+ * though they resolve to the same files. Otherwise the object literal would collapse duplicate
+ * keys and most views would end up without their imported CSS.
  */
-function themeCssSource(variant: number): string {
-  return `../../packages/ui-kit/${"./".repeat(variant)}theme.css`;
+const THEME_CSS_FILES = ["theme.css", "foundation.css", "controls.css", "tables.css", "forms.css", "window-resize.css", "charts.css"] as const;
+
+function themeCssCopies(variant: number, destinationDirectory: string): Record<string, string> {
+  return Object.fromEntries(THEME_CSS_FILES.map((name, index) => [
+    `../../packages/ui-kit/${"./".repeat(variant * THEME_CSS_FILES.length + index)}${name}`,
+    `${destinationDirectory}/${name}`,
+  ]));
 }
 
 /**
@@ -83,40 +88,43 @@ export default {
       ...directoryCopy("assets/status-icons", "views/assets/status-icons"),
       "src/views/launcher/index.html": "views/launcherview/index.html",
       "src/views/launcher/index.css": "views/launcherview/index.css",
-      [themeCssSource(0)]: "views/launcherview/theme.css",
+      ...themeCssCopies(0, "views/launcherview"),
       "src/views/settings/index.html": "views/settingsview/index.html",
       "src/views/settings/index.css": "views/settingsview/index.css",
-      [themeCssSource(1)]: "views/settingsview/theme.css",
+      ...themeCssCopies(1, "views/settingsview"),
       "src/views/manage-settings/index.html": "views/managesettingsview/index.html",
       "src/views/manage-settings/index.css": "views/managesettingsview/index.css",
-      [themeCssSource(15)]: "views/managesettingsview/theme.css",
+      ...themeCssCopies(15, "views/managesettingsview"),
       "../../packages/combat/src/mainview/index.html": "views/mainview/index.html",
       "../../packages/combat/src/mainview/index.css": "views/mainview/index.css",
-      [themeCssSource(2)]: "views/mainview/theme.css",
+      ...themeCssCopies(2, "views/mainview"),
       "../../packages/overlay/src/overlayview/index.html": "views/overlayview/index.html",
       "../../packages/overlay/src/overlayview/index.css": "views/overlayview/index.css",
-      [themeCssSource(12)]: "views/overlayview/theme.css",
+      "../../packages/overlay/src/overlayview/content.css": "views/overlayview/content.css",
+      "../../packages/overlay/src/overlayview/elements.css": "views/overlayview/elements.css",
+      "../../packages/overlay/src/overlayview/statuses.css": "views/overlayview/statuses.css",
+      ...themeCssCopies(12, "views/overlayview"),
       "src/views/character/index.html": "views/characterview/index.html",
       "src/views/character/index.css": "views/characterview/index.css",
-      [themeCssSource(4)]: "views/characterview/theme.css",
+      ...themeCssCopies(4, "views/characterview"),
       "../../packages/rewards/src/rewardsview/index.html": "views/rewardsview/index.html",
       "../../packages/rewards/src/rewardsview/index.css": "views/rewardsview/index.css",
-      [themeCssSource(7)]: "views/rewardsview/theme.css",
+      ...themeCssCopies(7, "views/rewardsview"),
       "../../packages/rewards/src/catalogview/index.html": "views/rewardscatalogview/index.html",
       "../../packages/rewards/src/catalogview/index.css": "views/rewardscatalogview/index.css",
-      [themeCssSource(8)]: "views/rewardscatalogview/theme.css",
+      ...themeCssCopies(8, "views/rewardscatalogview"),
       "src/views/session-picker/index.html": "views/sessionpickerview/index.html",
       "src/views/session-picker/index.css": "views/sessionpickerview/index.css",
-      [themeCssSource(9)]: "views/sessionpickerview/theme.css",
+      ...themeCssCopies(9, "views/sessionpickerview"),
       "../../packages/combat/src/analysisdetailview/index.html": "views/analysisdetailview/index.html",
       "../../packages/combat/src/analysisdetailview/index.css": "views/analysisdetailview/index.css",
-      [themeCssSource(11)]: "views/analysisdetailview/theme.css",
+      ...themeCssCopies(11, "views/analysisdetailview"),
       "../../packages/combat/src/deathlogview/index.html": "views/deathlogview/index.html",
       "../../packages/combat/src/deathlogview/index.css": "views/deathlogview/index.css",
-      [themeCssSource(14)]: "views/deathlogview/theme.css",
+      ...themeCssCopies(14, "views/deathlogview"),
       "../../packages/build-export/src/buildexportview/index.html": "views/buildexportview/index.html",
       "../../packages/build-export/src/buildexportview/index.css": "views/buildexportview/index.css",
-      [themeCssSource(3)]: "views/buildexportview/theme.css",
+      ...themeCssCopies(3, "views/buildexportview"),
     },
     buildFolder: "dist/electrobun",
     artifactFolder: "dist/artifacts",

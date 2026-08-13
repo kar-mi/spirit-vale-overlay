@@ -1,0 +1,102 @@
+.seg {
+  display: flex;
+  border: 1px solid var(--outline);
+  border-radius: var(--shape-full);
+  overflow: hidden;
+}
+
+.seg > button {
+  flex: 1 0 auto;
+  padding: 6px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--on-surface);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.seg > button + button { border-left: 1px solid var(--outline); }
+
+.seg > button:hover {
+  background: color-mix(in srgb, var(--on-surface) 8%, transparent);
+}
+
+.seg > button.active {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+
+/* ---- buttons ---- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--outline);
+  border-radius: var(--shape-full);
+  background: transparent;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.btn:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.btn:disabled { cursor: default; border-color: var(--outline-variant); color: var(--outline); background: transparent; }
+
+.btn.active {
+  border-color: transparent;
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+
+.btn.active:hover {
+  background: color-mix(in srgb, var(--on-secondary-container) 8%, var(--secondary-container));
+}
+
+.btn-primary {
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.btn-primary:hover {
+  background: color-mix(in srgb, var(--on-primary) 8%, var(--primary));
+}
+
+.btn-ghost { border-color: transparent; }
+.btn-ghost:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--shape-full);
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ---- stat tiles (filled cards) ---- */
+
+.stat-tiles { display: grid; gap: 8px; }
+
+.stat-tile {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--shape-md);
+  background: var(--surface-container);
+}
+
+.stat-tile .t-data {
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* ---- compact data tables ---- */

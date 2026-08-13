@@ -9,6 +9,7 @@
     "./window-chrome": "./window-chrome.ts",
     "./ensure-window-size": "./ensure-window-size.ts",
     "./title-bar": "./title-bar.tsx",
+    "./desktop-title-bar": "./desktop-title-bar.tsx",
     "./settings-button": "./settings-button.tsx",
     "./status-dot": "./status-dot.tsx",
     "./enemy-filter": "./enemy-filter.tsx",
@@ -16,9 +17,15 @@
     "./custom-select": "./custom-select.tsx",
     "./stat-type-select": "./stat-type-select.tsx",
     "./interactive-chart": "./interactive-chart.tsx",
+    "./timeline-chart": "./timeline-chart.tsx",
+    "./sortable-header": "./sortable-header.tsx",
+    "./keyboard": "./keyboard.ts",
+    "./class-icon": "./class-icon.ts",
+    "./meter-labels": "./meter-labels.ts",
     "./format": "./format.ts",
     "./renderer-text": "./renderer-text.ts",
-    "./use-dismissable": "./use-dismissable.ts"
+    "./use-dismissable": "./use-dismissable.ts",
+    "./use-expanded-rows": "./use-expanded-rows.ts"
   },
   "dependencies": {
     "preact": "^10.29.7"

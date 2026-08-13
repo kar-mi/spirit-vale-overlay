@@ -1,0 +1,14 @@
+.resize-handle { position: fixed; z-index: 1000; }
+
+.resize-edge-n { top: 0; right: 6px; left: 6px; height: 6px; cursor: ns-resize; }
+.resize-edge-s { right: 6px; bottom: 0; left: 6px; height: 6px; cursor: ns-resize; }
+.resize-edge-e { top: 6px; right: 0; bottom: 6px; width: 6px; cursor: ew-resize; }
+.resize-edge-w { top: 6px; bottom: 6px; left: 0; width: 6px; cursor: ew-resize; }
+
+.resize-corner { width: 12px; height: 12px; }
+.resize-corner-nw { top: 0; left: 0; cursor: nwse-resize; }
+.resize-corner-ne { top: 0; right: 0; cursor: nesw-resize; }
+.resize-corner-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.resize-corner-se { bottom: 0; right: 0; cursor: nwse-resize; }
+
+/* ---- scrollbars ---- */

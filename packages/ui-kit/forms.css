@@ -1,0 +1,244 @@
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--outline);
+  border-radius: var(--shape-xs);
+  background: transparent;
+  color: var(--on-surface-variant);
+}
+
+.field:focus-within {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.field input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  color: var(--on-surface);
+  outline: 0;
+}
+
+.field input::placeholder { color: var(--on-surface-variant); }
+
+.input {
+  width: 100%;
+  padding: 7px 12px;
+  border: 1px solid var(--outline);
+  border-radius: var(--shape-xs);
+  background: transparent;
+  color: var(--on-surface);
+  outline: 0;
+}
+
+.input:focus {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.input:disabled { border-color: var(--outline-variant); color: var(--outline); }
+.input::placeholder { color: var(--on-surface-variant); }
+
+/* ---- custom select (themed replacement for native <select>; see custom-select.tsx) ---- */
+
+.custom-select { position: relative; }
+
+.custom-select-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.custom-select-toggle::after {
+  content: "";
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background-color: var(--on-surface-variant);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") no-repeat center / contain;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+.custom-select-toggle:disabled::after { background-color: var(--outline); }
+
+.custom-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-select-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  border-radius: var(--shape-md);
+  background: var(--surface-container-high);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  list-style: none;
+}
+
+.custom-select-option {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--shape-xs);
+  background: transparent;
+  color: var(--on-surface);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.custom-select-option:hover { background: var(--surface-container-highest); }
+.custom-select-option.active { background: var(--secondary-container); color: var(--on-secondary-container); }
+
+input[type="checkbox"] { accent-color: var(--primary); }
+
+/* ---- searchable checkbox multi-select (enemy filter, required-status pickers) ---- */
+
+.multi-select { position: relative; }
+
+.multi-select-toggle { min-width: 140px; }
+
+.multi-select-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  max-height: 320px;
+  padding: 10px;
+  border-radius: var(--shape-md);
+  background: var(--surface-container-high);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.multi-select-search { margin-bottom: 8px; }
+
+.multi-select-list { min-height: 0; overflow-y: auto; }
+
+.multi-select-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  color: var(--on-surface);
+  font-size: 12px;
+}
+
+.multi-select-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.multi-select-icon { flex: none; width: 18px; height: 18px; border-radius: 4px; }
+
+.multi-select-empty { margin: 8px 4px; color: var(--on-surface-variant); font-size: 12px; }
+
+.multi-select-clear { margin-top: 8px; align-self: flex-start; }
+
+/* ---- dialogs ---- */
+
+.modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--scrim);
+}
+
+.modal-card {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  max-height: 100%;
+  padding: 20px;
+  border-radius: var(--shape-xl);
+  background: var(--surface-container-high);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.modal-wide { width: min(760px, 100%); }
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.modal-head h1,
+.modal-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.modal-head p { margin: 4px 0 0; color: var(--on-surface-variant); font-size: 12px; }
+
+.modal-close {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--shape-full);
+  background: transparent;
+  color: var(--on-surface-variant);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  background: color-mix(in srgb, var(--on-surface) 8%, transparent);
+  color: var(--on-surface);
+}
+
+.modal-tools {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.modal-scroll { min-height: 0; overflow: auto; padding-right: 2px; }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+dialog {
+  padding: 0;
+  border: 0;
+  border-radius: var(--shape-xl);
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+
+/* ---- frameless window chrome: invisible resize handles ----
+   Created by window-chrome.ts; metrics ported from ffxiv_gear_setup. */

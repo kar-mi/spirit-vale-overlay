@@ -2,16 +2,17 @@ import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
-import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { DesktopTitleBar } from "@svoverlay/ui-kit/desktop-title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
-import { formatDuration } from "@svoverlay/ui-kit/format";
 import { EnemyFilterControl } from "@svoverlay/ui-kit/enemy-filter";
 import { StatTypeSelect } from "@svoverlay/ui-kit/stat-type-select";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
+import { TimelineChart } from "@svoverlay/ui-kit/timeline-chart";
+import { meterLabels } from "@svoverlay/ui-kit/meter-labels";
 
 import type { FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
-import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState, MeterActorRow, MeterTimelinePoint, StatType } from "../app-types.ts";
+import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState, MeterActorRow, StatType } from "../app-types.ts";
 
 type Metric = "cumulative" | "dps";
 
@@ -110,8 +111,9 @@ function App() {
     statType === "tanked" ? next.tankedPlayer :
     statType === "heal" ? next.healPlayer :
     next.player;
-  const metricLabel = statType === "tanked" ? "TPS" : statType === "heal" ? "HPS" : "DPS";
-  const damageLabel = statType === "tanked" ? "Damage taken" : statType === "heal" ? "Healing" : "Damage";
+  const labels = meterLabels(statType);
+  const metricLabel = labels.rate;
+  const damageLabel = labels.amount;
 
   const fold: SkillFold = statType === "damage"
     ? foldSkillsByEnemy(next, selectedEnemyIds)
@@ -130,15 +132,14 @@ function App() {
 
   return (
     <main class="app-shell">
-      <TitleBar
+      <DesktopTitleBar
         appTag="Player detail"
         minWidth={620}
         minHeight={500}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: ANALYSIS_DETAIL_DEFAULT_WIDTH, height: ANALYSIS_DETAIL_DEFAULT_HEIGHT }}
-        setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-        onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-      onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
-      extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
+        defaultWidth={ANALYSIS_DETAIL_DEFAULT_WIDTH}
+        defaultHeight={ANALYSIS_DETAIL_DEFAULT_HEIGHT}
+        requests={electroview.rpc?.request}
+        extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
       />
       <section class="detail-content">
         <section class="toolbar">
@@ -165,7 +166,14 @@ function App() {
             <p>{metric === "cumulative" ? `Cumulative ${damageLabel.toLowerCase()} across the encounter.` : `${damageLabel} per second in five-second buckets.`}</p>
           </div>
           <div class="chart-card">
-            <DamageChart points={activePlayer?.timeline ?? []} durationMs={next.encounterDurationMs} metric={metric} damageLabel={damageLabel} />
+            <TimelineChart
+              points={(activePlayer?.timeline ?? []).map((point) => ({
+                elapsedMs: point.elapsedMs,
+                value: metric === "cumulative" ? point.cumulativeDamage : point.dps,
+              }))}
+              durationMs={next.encounterDurationMs}
+              label={damageLabel}
+            />
           </div>
         </section>
         <section class="skills-section">
@@ -198,42 +206,6 @@ function App() {
         </section>
       </section>
     </main>
-  );
-}
-
-interface DamageChartProps {
-  points: readonly MeterTimelinePoint[];
-  durationMs: number;
-  metric: Metric;
-  damageLabel: string;
-}
-
-function DamageChart({ points, durationMs, metric, damageLabel }: DamageChartProps) {
-  const width = 760;
-  const height = 280;
-  const left = 52;
-  const top = 18;
-  const right = 18;
-  const bottom = 34;
-  const maxValue = Math.max(1, ...points.map((point) => (metric === "cumulative" ? point.cumulativeDamage : point.dps)));
-  const duration = Math.max(1, durationMs);
-  const linePoints = points
-    .map((point) => {
-      const x = left + (point.elapsedMs / duration) * (width - left - right);
-      const value = metric === "cumulative" ? point.cumulativeDamage : point.dps;
-      const y = top + (1 - value / maxValue) * (height - top - bottom);
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  return (
-    <svg id="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${damageLabel} over time chart`}>
-      <line class="chart-axis" x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} />
-      <polyline class="chart-line" points={linePoints} />
-      <text class="chart-label" x={0} y={top + 4}>{compactFormat.format(maxValue)}</text>
-      <text class="chart-label" x={left} y={height - 8}>0:00</text>
-      <text class="chart-label" text-anchor="end" x={width - right} y={height - 8}>{formatDuration(durationMs)}</text>
-    </svg>
   );
 }
 

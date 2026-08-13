@@ -1,0 +1,177 @@
+/* Spirit Vale shared theme — Material 3, dark scheme, green seed.
+   Copied into each app's view folder by electrobun build.copy and linked
+   BEFORE the app stylesheet. App CSS supplies layout and app-specific
+   components built on these tokens only — no raw hex outside this file. */
+
+:root {
+  color-scheme: dark;
+
+  /* M3 color roles (dark scheme, green seed ≈ #63d68b) */
+  --surface: #101410;
+  --surface-container-low: #181d17;
+  --surface-container: #1c211b;
+  --surface-container-high: #262b24;
+  --surface-container-highest: #31362f;
+  --on-surface: #e0e4db;
+  --on-surface-variant: #c1c9bd;
+  --outline: #8b9389;
+  --outline-variant: #414941;
+
+  --primary: #8fd6a2;
+  --on-primary: #0b3820;
+  --primary-container: #1d5233;
+  --on-primary-container: #aaf2bc;
+
+  --secondary-container: #3a4b3f;
+  --on-secondary-container: #d5e8d6;
+
+  --error: #ffb4ab;
+  --error-container: #93000a;
+  --on-error-container: #ffdad6;
+
+  --warning: #dbc66e;
+  --warning-container: #574500;
+  --on-warning-container: #f8e287;
+
+  /* extended role: currency / reward numerals */
+  --value: #dbc66e;
+
+  --scrim: rgba(0, 0, 0, 0.5);
+
+  /* M3 shape scale */
+  --shape-xs: 4px;
+  --shape-sm: 8px;
+  --shape-md: 12px;
+  --shape-lg: 16px;
+  --shape-xl: 28px;
+  --shape-full: 999px;
+
+  --font-ui: Roboto, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-synthesis: none;
+  background: var(--surface);
+  color: var(--on-surface);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+#root { width: 100%; height: 100%; min-width: 0; min-height: 0; }
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:is(button, input, select):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ---- type roles ---- */
+
+.t-label {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.015em;
+}
+
+.t-data { font-variant-numeric: tabular-nums; }
+
+.is-value { color: var(--value); }
+
+/* ---- titlebar (frameless apps only — styled as an M3 top app bar) ---- */
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding-left: 14px;
+  background: var(--surface-container-low);
+  user-select: none;
+}
+
+.brand {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.brand-icon {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.brand-tag { color: var(--primary); }
+
+.window-controls {
+  position: relative;
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding-right: 4px;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--shape-full);
+  background: transparent;
+  color: var(--on-surface-variant);
+}
+
+.icon-button:hover {
+  background: color-mix(in srgb, var(--on-surface) 8%, transparent);
+  color: var(--on-surface);
+}
+
+.icon-button.active {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+
+.close-button:hover {
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  color: var(--error);
+}
+
+/* ---- status ---- */
+
+.status-readout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+}
+
+.status-readout span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--shape-full);
+  background: var(--outline);
+}
+
+.status-dot.is-idle { background: var(--outline); }
+.status-dot.is-ok { background: var(--primary); }
+.status-dot.is-warn { background: var(--warning); }
+.status-dot.is-err { background: var(--error); }
+
+/* ---- segmented button ---- */

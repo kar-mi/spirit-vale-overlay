@@ -1,9 +1,10 @@
-import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { activateOnEnterOrSpace } from "@svoverlay/ui-kit/keyboard";
 import { formatDuration } from "@svoverlay/ui-kit/format";
 import { EnemyFilterControl } from "@svoverlay/ui-kit/enemy-filter";
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
 import { StatTypeSelect } from "@svoverlay/ui-kit/stat-type-select";
+import { meterLabels } from "@svoverlay/ui-kit/meter-labels";
 
 import type { CombatAnalysisState, MeterActorRow, MeterEncounterSnapshot, StatType } from "../app-types.ts";
 
@@ -28,12 +29,6 @@ interface PastAnalysisPanelProps {
   onSetStatType(statType: StatType): void;
   onOpenDeathLog(): void;
   onOpenPlayerDetails(actorId: number, selectedEnemyIds: number[]): void;
-}
-
-function activateRow(event: JSX.TargetedKeyboardEvent<HTMLTableRowElement>, activate: () => void): void {
-  if (event.key !== "Enter" && event.key !== " ") return;
-  event.preventDefault();
-  activate();
 }
 
 function applyEnemyFilter(next: CombatAnalysisState, rows: MeterActorRow[], selectedEnemyIds: ReadonlySet<number>): FilteredRow[] {
@@ -83,8 +78,9 @@ export function PastAnalysisPanel({
     state.statType === "tanked" ? state.tankedSnapshot :
     state.statType === "heal" ? state.healSnapshot :
     state.snapshot;
-  const metricLabel = state.statType === "tanked" ? "TPS" : state.statType === "heal" ? "HPS" : "DPS";
-  const damageLabel = state.statType === "tanked" ? "Damage taken" : state.statType === "heal" ? "Healing" : "Damage";
+  const labels = meterLabels(state.statType);
+  const metricLabel = labels.rate;
+  const damageLabel = labels.amount;
   const rows = activeSnapshot?.actors ?? [];
   const filteredRows = applyEnemyFilter(state, rows, selectedEnemyIds);
   const hasFilter = state.statType === "damage" && selectedEnemyIds.size > 0;
@@ -141,7 +137,7 @@ export function PastAnalysisPanel({
                 title="Double-click for player detail"
                 tabIndex={0}
                 onDblClick={activate}
-                onKeyDown={(event) => activateRow(event, activate)}
+                onKeyDown={(event) => activateOnEnterOrSpace(event, activate)}
               >
                 <th scope="row">{actor.displayName}</th>
                 <td>{compactFormat.format(damage)}</td>

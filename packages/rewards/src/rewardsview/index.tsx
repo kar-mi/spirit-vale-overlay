@@ -1,27 +1,21 @@
-import { Fragment, render } from "preact";
-import { useCallback, useState } from "preact/hooks";
+import { render } from "preact";
+import { useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
-import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { DesktopTitleBar } from "@svoverlay/ui-kit/desktop-title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { StatusDot } from "@svoverlay/ui-kit/status-dot";
 import type { StatusTone } from "@svoverlay/ui-kit/status-dot";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
-import { InteractiveChart } from "@svoverlay/ui-kit/interactive-chart";
-import type { ChartRenderResult } from "@svoverlay/ui-kit/interactive-chart";
-import {
-  bigintRatio,
-  buildCumulativeTrend,
-  buildRateTrend,
-  trendExtent,
-} from "@kar-mi/spirit-vale-tools-rewards";
-import type { TrendMetric, TrendMode, TrendRange, TrendSample } from "@kar-mi/spirit-vale-tools-rewards";
-import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
+import { SortableHeader as RewardSortHeader, nextSort } from "@svoverlay/ui-kit/sortable-header";
+import { useExpandedRows } from "@svoverlay/ui-kit/use-expanded-rows";
 
-import type { RewardsAppRpc, RewardsAppState, RewardsAppView, RewardsUiDrop } from "../app-types.ts";
+import type { RewardsAppRpc, RewardsAppState, RewardsAppView } from "../app-types.ts";
 import { sortRewardKills, sortRewardSummaries } from "../table-sort.ts";
-import type { KillSortKey, SortDirection, SummarySortKey, TableSort } from "../table-sort.ts";
+import type { KillSortKey, SummarySortKey, TableSort } from "../table-sort.ts";
+import { RewardRow } from "./reward-row.tsx";
+import { TrendChart, XpTrackerSection, formatDecimal } from "./trend-sections.tsx";
 
 const STATUS_TONE: Record<RewardsAppState["status"], StatusTone> = {
   waiting: "is-warn",
@@ -55,24 +49,8 @@ function returnToLive(): void {
   void electroview.rpc?.request.setMode({ mode: "live" });
 }
 
-function formatDecimal(value: string): string {
-  try {
-    return format.format(BigInt(value));
-  } catch {
-    return value;
-  }
-}
-
 function killsLabel(mob: { kills: number; attributedKills: number }): string {
   return format.format(mob.kills);
-}
-
-function formatChance(value: number): string {
-  return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(value)}%`;
-}
-
-function formatDrop(drop: RewardsUiDrop): string {
-  return `${drop.itemName} ×${drop.count}${drop.chance === undefined ? "" : ` · ${formatChance(drop.chance)}`}`;
 }
 
 function formatTimestamp(value: string | undefined): string {
@@ -85,31 +63,22 @@ function App() {
   const next = state.value;
   const [summarySort, setSummarySort] = useState<TableSort<SummarySortKey>>({ key: "kills", direction: "descending" });
   const [killSort, setKillSort] = useState<TableSort<KillSortKey>>({ key: "timestamp", direction: "descending" });
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [expanded, toggleExpanded] = useExpandedRows();
   if (!next) return null;
 
   const sessionKey = `${next.mode}:${next.replayFileName ?? "live"}`;
   const summaries = sortRewardSummaries(next.summaries, summarySort);
   const kills = sortRewardKills(next.kills, killSort);
-  const toggleExpanded = (key: string): void => {
-    setExpanded((current) => {
-      const updated = new Set(current);
-      if (updated.has(key)) updated.delete(key); else updated.add(key);
-      return updated;
-    });
-  };
-
   return (
     <>
-      <TitleBar
+      <DesktopTitleBar
         appTag="Rewards"
         minWidth={620}
         minHeight={520}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: REWARDS_DEFAULT_WIDTH, height: REWARDS_DEFAULT_HEIGHT }}
-        setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-        toggleMaximize={async () => (await electroview.rpc?.request.toggleMaximize({}))?.maximized ?? false}
-        onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-        onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+        defaultWidth={REWARDS_DEFAULT_WIDTH}
+        defaultHeight={REWARDS_DEFAULT_HEIGHT}
+        requests={electroview.rpc?.request}
+        maximizable
         extraControls={
           <>
           <SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />
@@ -240,188 +209,11 @@ function App() {
             <h1>Character XP tracker</h1>
             <p>Cumulative Character XP across sessions, until reset.</p>
           </div>
-          <XpTrackerSection xp={next.xp} gold={next.gold} />
+          <XpTrackerSection xp={next.xp} gold={next.gold} onResetXp={() => void electroview.rpc?.request.resetXpTracker({})} onResetGold={() => void electroview.rpc?.request.resetGoldTracker({})} />
         </section>
       </main>
     </>
   );
-}
-
-function XpTrackerSection({ xp, gold }: { xp: RewardsAppState["xp"]; gold: RewardsAppState["gold"] }) {
-  const samples = bucketsToTrendSamples(xp.timeline);
-  const computeRender = useCallback((range: TrendRange, width: number): ChartRenderResult => {
-    const rates = buildRateTrend(samples, "experience", range, width);
-    const maximum = rates.reduce((highest, point) => Math.max(highest, point.value), 0);
-    return {
-      points: rates.map((point) => ({
-        time: point.time,
-        ratio: maximum > 0 ? point.value / maximum : 0,
-        primary: `${formatRate(point.value)}/sec`,
-        secondary: `${format.format(point.gain)} XP in ${formatTrendDuration(point.seconds)}`,
-      })),
-      yLabels: axisTicks(5).map((tick) => formatRate((maximum * tick) / 4)),
-    };
-  }, [samples]);
-
-  return (
-    <>
-      <div class="table-scroll totals">
-        <table class="data-table summary-table rewards-total-table" aria-label="All-time XP totals">
-          <thead><tr><th>Total XP</th><th>XP / sec</th><th>XP / hr</th></tr></thead>
-          <tbody>
-            <tr>
-              <td>{format.format(xp.total)}</td>
-              <td>{format.format(xp.perSecond)}</td>
-              <td>{format.format(xp.perHour)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="table-scroll totals">
-        <table class="data-table summary-table rewards-total-table" aria-label="All-time gold totals">
-          <thead><tr><th>Total gold</th><th>Gold / sec</th><th>Gold / hr</th></tr></thead>
-          <tbody>
-            <tr>
-              <td>{format.format(gold.total)}</td>
-              <td>{format.format(gold.perSecond)}</td>
-              <td>{format.format(gold.perHour)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="xp-tracker-actions">
-        <button class="btn" type="button" onClick={() => void electroview.rpc?.request.resetXpTracker({})}>Reset all-time XP</button>
-        <button class="btn" type="button" onClick={() => void electroview.rpc?.request.resetGoldTracker({})}>Reset all-time gold</button>
-      </div>
-      <InteractiveChart
-        extent={trendExtent(samples)}
-        computeRender={computeRender}
-        stepped={false}
-        emptyLabel="XP gained will appear here as a graph once there's enough recent activity."
-        ariaLabel="Character XP rate over time"
-        resetKey="xp-tracker"
-      />
-    </>
-  );
-}
-
-/** The tracker's neutral buckets, re-keyed onto the `experience` field `buildRateTrend` reads. */
-function bucketsToTrendSamples(buckets: RateSnapshot["timeline"]): TrendSample[] {
-  return buckets.map((bucket) => ({
-    recordedAt: new Date(bucket.atMs).toISOString(),
-    experience: bucket.value,
-    jobExperience: 0,
-    coins: "0",
-  }));
-}
-
-function RewardRow({ rowKey, name, values, drops, trailingValues = [], expanded, onToggle }: { rowKey: string; name: string; values: readonly string[]; drops: readonly RewardsUiDrop[]; trailingValues?: readonly string[]; expanded: ReadonlySet<string>; onToggle(key: string): void }) {
-  const isExpanded = expanded.has(rowKey);
-  const detailId = `reward-drops-${safeDomId(rowKey)}`;
-  return <Fragment>
-    <tr>
-      <th scope="row" title={name}>{name}</th>
-      {values.map((value, index) => <td key={index}>{value}</td>)}
-      <td>{drops.length === 0 ? "—" : <button class="table-detail-button" type="button" aria-expanded={isExpanded} aria-controls={detailId} onClick={() => onToggle(rowKey)}>{isExpanded ? "▾" : "▸"} {drops.length}</button>}</td>
-      {trailingValues.map((value, index) => <td key={`trailing-${index}`} title={value}>{value}</td>)}
-    </tr>
-    {isExpanded && drops.length > 0 && <tr id={detailId} class="table-detail-row"><td colSpan={values.length + trailingValues.length + 2}><div class="table-detail-chips">{drops.map((drop, index) => <span class="chip" key={`${drop.itemId}-${index}`}>{formatDrop(drop)}</span>)}</div></td></tr>}
-  </Fragment>;
-}
-
-function RewardSortHeader({ label, active, direction, onSort }: { label: string; active: boolean; direction: SortDirection; onSort(): void }) {
-  return <th class="sortable-column" aria-sort={active ? direction : undefined}><button class="sort-button" type="button" onClick={onSort}><span>{label}</span><span class={active ? "sort-indicator active" : "sort-indicator"} aria-hidden="true">{active ? (direction === "descending" ? "▼" : "▲") : "↕"}</span></button></th>;
-}
-
-function nextSort<K extends string>(current: TableSort<K>, key: K): TableSort<K> {
-  return { key, direction: current.key === key && current.direction === "descending" ? "ascending" : "descending" };
-}
-
-function safeDomId(value: string): string { return value.replace(/[^a-zA-Z0-9_-]/g, "-"); }
-
-interface TrendChartProps {
-  samples: readonly TrendSample[];
-  replay: boolean;
-  sessionKey: string;
-}
-
-function TrendChart({ samples, replay, sessionKey }: TrendChartProps) {
-  const [metric, setMetric] = useState<TrendMetric>("experience");
-  const [mode, setMode] = useState<TrendMode>("rate");
-
-  const computeRender = useCallback((range: TrendRange, width: number): ChartRenderResult => {
-    if (mode === "cumulative") {
-      const cumulative = buildCumulativeTrend(samples, metric, range);
-      const maximum = cumulative.reduce((highest, point) => (point.value > highest ? point.value : highest), 0n);
-      return {
-        points: cumulative.map((point) => ({
-          time: point.time,
-          ratio: bigintRatio(point.value, maximum),
-          primary: formatDecimal(point.value.toString()),
-          secondary: `${metricLabel(metric)} total`,
-        })),
-        yLabels: axisTicks(5).map((tick) => formatDecimal((maximum * BigInt(tick) / 4n).toString())),
-      };
-    }
-    const rates = buildRateTrend(samples, metric, range, width);
-    const maximum = rates.reduce((highest, point) => Math.max(highest, point.value), 0);
-    return {
-      points: rates.map((point) => ({
-        time: point.time,
-        ratio: maximum > 0 ? point.value / maximum : 0,
-        primary: `${formatRate(point.value)}/sec`,
-        secondary: `${formatDecimal(point.gain.toString())} in ${formatTrendDuration(point.seconds)}`,
-      })),
-      yLabels: axisTicks(5).map((tick) => formatRate((maximum * tick) / 4)),
-    };
-  }, [samples, metric, mode]);
-
-  const chartTitle = `${metricLabel(metric)} ${mode === "rate" ? "rate per second" : "cumulative total"} over time`;
-  const emptyLabel = replay ? "No timestamped rewards in this replay." : "Confirmed rewards will appear here.";
-
-  return (
-    <>
-      <div class="trend-controls">
-        <div class="seg" aria-label="Trend metric">
-          <button class={metric === "experience" ? "active" : undefined} type="button" onClick={() => setMetric("experience")}>Character XP</button>
-          <button class={metric === "jobExperience" ? "active" : undefined} type="button" onClick={() => setMetric("jobExperience")}>Job XP</button>
-          <button class={metric === "coins" ? "active" : undefined} type="button" onClick={() => setMetric("coins")}>Coins</button>
-        </div>
-        <div class="seg" aria-label="Trend calculation">
-          <button class={mode === "rate" ? "active" : undefined} type="button" onClick={() => setMode("rate")}>Rate/sec</button>
-          <button class={mode === "cumulative" ? "active" : undefined} type="button" onClick={() => setMode("cumulative")}>Cumulative</button>
-        </div>
-      </div>
-      <InteractiveChart
-        extent={trendExtent(samples)}
-        computeRender={computeRender}
-        stepped={mode === "cumulative"}
-        emptyLabel={emptyLabel}
-        ariaLabel={chartTitle}
-        resetKey={`${sessionKey}:${metric}:${mode}`}
-      />
-    </>
-  );
-}
-
-function metricLabel(metric: TrendMetric): string {
-  if (metric === "experience") return "Character XP";
-  if (metric === "jobExperience") return "Job XP";
-  return "Coins";
-}
-
-function formatRate(value: number): string {
-  return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: value < 10 ? 2 : 1 }).format(value);
-}
-
-function formatTrendDuration(seconds: number): string {
-  return seconds >= 60
-    ? `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(seconds / 60)} min`
-    : `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(seconds)} sec`;
-}
-
-function axisTicks(count: number): number[] {
-  return Array.from({ length: count }, (_, index) => index);
 }
 
 render(<App />, document.getElementById("root")!);

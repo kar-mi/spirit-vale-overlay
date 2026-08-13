@@ -1,0 +1,212 @@
+.overlay-element {
+  position: absolute;
+  z-index: 5;
+  min-width: 160px;
+  min-height: 100px;
+  overflow: visible;
+  border-radius: 12px;
+  /* Hard-bounds each tile's layout and style invalidation so one tile updating cannot pull work
+     into the other thirteen. Paint containment goes on .overlay-surface instead: it would clip the
+     edit-mode handles, badge and opacity slider, which deliberately sit outside the tile. */
+  contain: layout style;
+}
+.overlay-surface {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+  background: rgb(10 12 18 / var(--element-background-alpha, .76));
+  /* The surface already clips its children, so paint containment costs nothing visually; the
+     element's own box-shadow (the missing-status glow) is not clipped by its own containment. */
+  contain: layout style paint;
+}
+
+.overlay-root.editing .overlay-surface {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.38);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+.overlay-element[data-element-id="weight"] {
+  min-height: 40px;
+  border-radius: 8px;
+}
+.overlay-element[data-element-id="health"],
+.overlay-element[data-element-id="mana"],
+.overlay-element[data-element-id="characterXp"],
+.overlay-element[data-element-id="jobXp"] {
+  container-type: size;
+  min-height: 24px;
+  border-radius: 8px;
+}
+.overlay-element[data-element-id="buffs"],
+.overlay-element[data-element-id="debuffs"],
+.overlay-element[data-element-id="toggles"] {
+  min-height: 40px;
+  border-radius: 8px;
+}
+
+/* An armed status is missing. Drawn inset on the surface so it neither shifts the tile's box nor
+   competes with the dashed edit-mode border below. */
+.overlay-element.missing-statuses .overlay-surface {
+  /* Tints the panel rather than painting flat red, and reuses the tile's own opacity so the
+     warning still honours the user's transparency slider. */
+  background: rgb(62 14 14 / var(--element-background-alpha, .76));
+  box-shadow: inset 0 0 0 4px rgba(228, 72, 72, 0.95), 0 0 16px rgba(228, 72, 72, 0.45);
+}
+
+/* The character is nearing maximum carry weight. Same inset ring as the missing-status warning
+   above, in caution yellow. */
+.overlay-element.weight-caution .overlay-surface {
+  box-shadow: inset 0 0 0 4px rgba(255, 213, 74, 0.9), 0 0 14px rgba(255, 213, 74, 0.4);
+}
+
+/* Past the danger share the ring turns red and flashes. The steady ring below keeps the tile
+   marked between pulses; the flash itself is an overlay animating only opacity, for the same
+   compositor reasons as the expiring-buff pulse (see .status-cell.expiring). Hung off the element
+   rather than the surface, whose overflow and paint containment would clip the glow. */
+.overlay-element.weight-danger .overlay-surface {
+  box-shadow: inset 0 0 0 4px rgba(228, 72, 72, 0.55);
+}
+.overlay-element.weight-danger::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  border: 4px solid rgba(255, 96, 96, 0.95);
+  border-radius: inherit;
+  box-shadow: 0 0 16px rgba(228, 72, 72, 0.75);
+  content: "";
+  pointer-events: none;
+  /* Promoted only while it is actually animating, never blanket-applied to every tile. */
+  will-change: opacity;
+  animation: warning-pulse .6s ease-in-out infinite alternate;
+}
+
+.overlay-root.editing .overlay-element {
+  border: 1px dashed rgba(204, 187, 255, 0.95);
+  cursor: grab;
+}
+
+.overlay-root.editing .overlay-element.hidden-preview .overlay-surface::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 10px,
+    rgba(255, 213, 74, .9) 10px 12px,
+    transparent 12px 20px
+  );
+  content: "";
+  pointer-events: none;
+}
+
+.hidden-indicator {
+  position: absolute;
+  top: 34px;
+  right: 8px;
+  z-index: 4;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(18, 18, 24, .94);
+  color: rgba(255,255,255,.9);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.element-title-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  padding: 3px 8px;
+  border: 1px solid rgba(204, 187, 255, .55);
+  border-radius: 999px;
+  background: rgba(18, 18, 24, .94);
+  color: rgba(255,255,255,.85);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-overflow: ellipsis;
+  text-shadow: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.overlay-root.editing .overlay-element.dragging {
+  z-index: 10;
+  cursor: grabbing;
+}
+
+.overlay-root.editing .overlay-element.resizing {
+  z-index: 10;
+}
+
+.element-opacity-control {
+  position: absolute;
+  top: calc(100% + 9px);
+  left: 50%;
+  z-index: 4;
+  display: grid;
+  width: clamp(160px, 100%, 220px);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px 10px;
+  padding: 7px 9px;
+  border: 1px solid rgba(204, 187, 255, .55);
+  border-radius: 8px;
+  background: rgba(18, 18, 24, .96);
+  color: rgba(255,255,255,.82);
+  font-size: 10px;
+  text-shadow: none;
+  transform: translateX(-50%);
+  cursor: default;
+}
+.element-opacity-control output { font-variant-numeric: tabular-nums; }
+.element-opacity-control input { grid-column: 1 / -1; width: 100%; accent-color: #bca7ff; cursor: pointer; }
+
+.resize-handle {
+  position: absolute;
+  z-index: 3;
+}
+
+.resize-n,
+.resize-s {
+  right: 12px;
+  left: 12px;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.resize-e,
+.resize-w {
+  top: 12px;
+  bottom: 12px;
+  width: 10px;
+  cursor: ew-resize;
+}
+
+.resize-n { top: -5px; }
+.resize-s { bottom: -5px; }
+.resize-e { right: -5px; }
+.resize-w { left: -5px; }
+
+.resize-ne,
+.resize-nw,
+.resize-se,
+.resize-sw {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(204, 187, 255, 0.95);
+  border-radius: 50%;
+  background: rgba(78, 52, 132, 0.95);
+}
+
+.resize-ne { top: -5px; right: -5px; cursor: nesw-resize; }
+.resize-nw { top: -5px; left: -5px; cursor: nwse-resize; }
+.resize-se { right: -5px; bottom: -5px; cursor: nwse-resize; }
+.resize-sw { bottom: -5px; left: -5px; cursor: nesw-resize; }

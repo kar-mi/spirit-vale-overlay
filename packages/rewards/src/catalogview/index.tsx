@@ -2,14 +2,17 @@ import { Fragment, render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
-import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { DesktopTitleBar } from "@svoverlay/ui-kit/desktop-title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
+import { SortableHeader as CatalogSortHeader, nextSort, safeDomId } from "@svoverlay/ui-kit/sortable-header";
+import { useExpandedRows } from "@svoverlay/ui-kit/use-expanded-rows";
+import { formatPercentageValue } from "@svoverlay/ui-kit/format";
 
 import type { RewardsCatalogRpc, RewardsCatalogState } from "../app-types.ts";
 import { sortRewardCatalog } from "../table-sort.ts";
-import type { CatalogSortKey, SortDirection, TableSort } from "../table-sort.ts";
+import type { CatalogSortKey, TableSort } from "../table-sort.ts";
 
 const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
@@ -27,14 +30,14 @@ const CATALOG_DEFAULT_HEIGHT = 420;
 void ensureInitialWindowSize(electroview.rpc?.request, { width: CATALOG_DEFAULT_WIDTH, height: CATALOG_DEFAULT_HEIGHT });
 
 function formatChance(value: number): string {
-  return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(value)}%`;
+  return formatPercentageValue(value);
 }
 
 function App() {
   const next = state.value;
   const queryRef = useRef<HTMLInputElement>(null);
   const [sort, setSort] = useState<TableSort<CatalogSortKey>>({ key: "level", direction: "ascending" });
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [expanded, toggleExpanded] = useExpandedRows();
 
   // Only sync the field from server state when the user isn't actively typing
   // in it — mirrors the original imperative guard against clobbering keystrokes.
@@ -49,25 +52,16 @@ function App() {
 
   if (!next) return null;
   const catalog = sortRewardCatalog(next.catalog, sort);
-  const toggleExpanded = (key: string): void => {
-    setExpanded((current) => {
-      const updated = new Set(current);
-      if (updated.has(key)) updated.delete(key); else updated.add(key);
-      return updated;
-    });
-  };
-
   return (
     <>
-      <TitleBar
+      <DesktopTitleBar
         appTag="Mob Catalog"
         minWidth={520}
         minHeight={420}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: CATALOG_DEFAULT_WIDTH, height: CATALOG_DEFAULT_HEIGHT }}
-        setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-        toggleMaximize={async () => (await electroview.rpc?.request.toggleMaximize({}))?.maximized ?? false}
-        onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-        onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+        defaultWidth={CATALOG_DEFAULT_WIDTH}
+        defaultHeight={CATALOG_DEFAULT_HEIGHT}
+        requests={electroview.rpc?.request}
+        maximizable
         extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
       />
       <main>
@@ -131,15 +125,5 @@ function App() {
     </>
   );
 }
-
-function CatalogSortHeader({ label, active, direction, onSort }: { label: string; active: boolean; direction: SortDirection; onSort(): void }) {
-  return <th class="sortable-column" aria-sort={active ? direction : undefined}><button class="sort-button" type="button" onClick={onSort}><span>{label}</span><span class={active ? "sort-indicator active" : "sort-indicator"} aria-hidden="true">{active ? (direction === "descending" ? "▼" : "▲") : "↕"}</span></button></th>;
-}
-
-function nextSort<K extends string>(current: TableSort<K>, key: K): TableSort<K> {
-  return { key, direction: current.key === key && current.direction === "descending" ? "ascending" : "descending" };
-}
-
-function safeDomId(value: string): string { return value.replace(/[^a-zA-Z0-9_-]/g, "-"); }
 
 render(<App />, document.getElementById("root")!);

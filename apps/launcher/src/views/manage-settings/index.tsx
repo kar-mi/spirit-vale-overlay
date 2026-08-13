@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { Electroview } from "electrobun/view";
-import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { DesktopTitleBar } from "@svoverlay/ui-kit/desktop-title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import type { ManageSettingsRpc, ManageSettingsState } from "../../launcher/types.ts";
@@ -24,14 +24,13 @@ function App() {
 
   return (
     <div class="manage-settings-shell">
-      <TitleBar
+      <DesktopTitleBar
         appTag="Manage Settings"
         minWidth={MINIMUM_WIDTH}
         minHeight={MINIMUM_HEIGHT}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }}
-        setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-        onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-        onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+        defaultWidth={DEFAULT_WIDTH}
+        defaultHeight={DEFAULT_HEIGHT}
+        requests={electroview.rpc?.request}
       />
       <main>
         <div class="manage-settings-intro">

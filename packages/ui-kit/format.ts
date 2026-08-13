@@ -1,5 +1,24 @@
 const integerFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
+const percentFormat = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 1 });
+const percentageValueFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 });
+
+export function formatInteger(value: number): string {
+  return integerFormat.format(value);
+}
+
+export function formatCompact(value: number): string {
+  return compactFormat.format(value);
+}
+
+export function formatPercent(value: number): string {
+  return percentFormat.format(value);
+}
+
+/** Formats a value that is already expressed on a 0-100 percentage scale. */
+export function formatPercentageValue(value: number): string {
+  return `${percentageValueFormat.format(value)}%`;
+}
 
 export function formatDuration(milliseconds: number): string {
   const seconds = Math.round(milliseconds / 1_000);

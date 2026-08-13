@@ -2,7 +2,7 @@ import { render } from "preact";
 import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
-import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import { DesktopTitleBar } from "@svoverlay/ui-kit/desktop-title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { formatDuration, normalizeSearchText } from "@svoverlay/ui-kit/format";
@@ -36,14 +36,13 @@ function App() {
   const attackerLabels = numberedMonsterLabels(next);
   const summary = summarize(selected === undefined ? [] : [selected], attackerLabels);
   return <main class="app-shell">
-    <TitleBar
+    <DesktopTitleBar
       appTag="Death log"
       minWidth={680}
       minHeight={500}
-      getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEATH_LOG_DEFAULT_WIDTH, height: DEATH_LOG_DEFAULT_HEIGHT }}
-      setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-      onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-      onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+      defaultWidth={DEATH_LOG_DEFAULT_WIDTH}
+      defaultHeight={DEATH_LOG_DEFAULT_HEIGHT}
+      requests={electroview.rpc?.request}
       extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
     />
     <section class="death-log-content">

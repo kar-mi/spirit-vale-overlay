@@ -1,0 +1,144 @@
+.element-content { width: 100%; height: 100%; overflow: hidden; padding: 14px; border-radius: inherit; }
+.element-title { margin: 0 0 10px; color: rgba(255,255,255,.72); font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.empty {
+  display: flex;
+  height: calc(100% - 26px);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  color: rgba(255,255,255,.6);
+  font-size: 12px;
+  text-align: center;
+}
+.empty-help { max-width: 34rem; color: rgba(255,255,255,.46); font-size: 10px; line-height: 1.35; }
+
+.chart { width: 100%; height: calc(100% - 24px); overflow: visible; }
+.chart-grid { stroke: rgba(255,255,255,.18); stroke-width: 1; }
+.chart-line { fill: none; stroke: #c9b7ff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
+.chart-label { fill: rgba(255,255,255,.68); font-size: 11px; }
+
+.personal-value { font-size: clamp(11px, 1.6vw, 19px); font-weight: 800; line-height: 1; }
+.personal-unit { margin-left: 6px; color: rgba(255,255,255,.65); font-size: 13px; }
+.personal-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.personal-heading .element-title { margin: 0; }
+.personal-duration { display: block; margin-top: 2px; color: rgba(255,255,255,.54); font-size: 11px; font-variant-numeric: tabular-nums; }
+.personal-class-icon,
+.ranking-class-icon {
+  padding: 2px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, .42);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .9));
+  object-fit: contain;
+}
+.personal-class-icon { width: 25px; height: 25px; flex: 0 0 auto; }
+.personal-details { display: flex; gap: 18px; margin-top: 15px; color: rgba(255,255,255,.78); font-size: 12px; }
+.personal-details strong { display: block; margin-top: 3px; color: white; font-size: 15px; }
+
+.xp-tracker, .gold-tracker { position: relative; }
+.xp-total, .gold-total { display: flex; align-items: baseline; gap: 6px; font-size: clamp(12px, 1.6vw, 17px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.xp-total small, .gold-total small { order: -1; color: rgba(255,255,255,.5); font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.xp-rates, .gold-rates { display: flex; gap: 14px; margin-top: 6px; color: rgba(255,255,255,.78); font-size: 13px; font-variant-numeric: tabular-nums; }
+.xp-rates small, .gold-rates small { margin-left: 2px; color: rgba(255,255,255,.5); font-weight: 500; }
+.xp-chart { display: flex; flex-direction: column; }
+.xp-chart .interactive-chart { flex: 1; min-height: 0; }
+.xp-chart .trend-chart {
+  height: 100%;
+  min-height: 0;
+  border: none;
+  background: transparent;
+  touch-action: none;
+}
+.xp-reset-button, .gold-reset-button {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 2px 8px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 999px;
+  background: rgba(0,0,0,.32);
+  color: rgba(255,255,255,.78);
+  font-size: 10px;
+  cursor: pointer;
+}
+.xp-reset-button:hover, .gold-reset-button:hover { background: rgba(0,0,0,.5); }
+
+.weight-value {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.weight-label { letter-spacing: .04em; }
+.weight-numbers {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+.weight-numbers > span { color: rgba(255,255,255,.5); font-weight: 500; }
+.weight-waiting { color: rgba(255,255,255,.58); }
+.weight-empty { overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+
+.resource-value {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  overflow: hidden;
+  border-radius: inherit;
+  font-size: clamp(10px, 20cqh, 16px);
+  font-variant-numeric: tabular-nums;
+}
+/* Scales a full-width fill rather than animating `width`: HP and MP move constantly in combat, and
+   a width transition runs layout and paint on every frame of every change. `transform` is
+   compositor-only. `--resource-fill` is a unitless 0-1 ratio for the same reason. */
+.resource-value::before {
+  position: absolute;
+  inset: 0 0 0 0;
+  transform: scaleX(var(--resource-fill));
+  transform-origin: left center;
+  background: var(--resource-color);
+  content: "";
+  transition: transform 120ms linear;
+}
+.resource-value > * { position: relative; z-index: 1; }
+.resource-health { --resource-color: rgba(194, 51, 61, .72); }
+.resource-mana { --resource-color: rgba(45, 105, 205, .72); }
+.resource-character-xp { --resource-color: rgba(224, 178, 42, .76); }
+.resource-job-xp { --resource-color: rgba(45, 105, 205, .72); }
+.resource-label { letter-spacing: .08em; }
+.resource-numbers {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+.resource-numbers > span { color: rgba(255,255,255,.5); font-weight: 500; }
+.resource-waiting { color: rgba(255,255,255,.58); }
+.resource-empty { overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+
+.ranking { display: grid; gap: 7px; }
+.party-heading { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+.party-heading .element-title { margin: 0; }
+.party-duration { display: block; margin-top: 2px; color: rgba(255,255,255,.54); font-size: 11px; font-variant-numeric: tabular-nums; }
+.party-reset-hint { margin-left: auto; color: rgba(255,255,255,.54); font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.ranking-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 6px 8px; overflow: hidden; border-radius: 6px; }
+.ranking-row::before { position: absolute; inset: 0 auto 0 0; width: var(--row-fill); background: var(--row-color); content: ""; }
+.ranking-row > * { position: relative; z-index: 1; }
+.ranking-player { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.ranking-class-icon { width: 24px; height: 24px; flex: 0 0 auto; }
+.ranking-rank { width: 2ch; flex: 0 0 auto; color: rgba(255,255,255,.68); text-align: right; font-variant-numeric: tabular-nums; }
+.ranking-name { overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.ranking-dps { font-variant-numeric: tabular-nums; }
