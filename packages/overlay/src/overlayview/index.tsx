@@ -897,10 +897,13 @@ function formatRemaining(remainingMs: number): string {
 }
 
 function WaitingForDps({ label = "Waiting for DPS" }: { label?: string } = {}) {
+  const toggleLockShortcut = chromeState.value?.shortcuts.toggleLock;
   return (
     <div class="empty">
       <span>{label}</span>
-      <span class="empty-help">Press F11 to toggle edit mode, or open Settings from any app window</span>
+      <span class="empty-help">{toggleLockShortcut
+        ? `Press ${toggleLockShortcut} to toggle edit mode, or open Settings from any app window`
+        : "Open Settings from any app window to toggle edit mode"}</span>
     </div>
   );
 }

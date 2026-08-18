@@ -78,6 +78,10 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
           controller.setShortcut(action, shortcut);
           return controller.controlState(key);
         },
+        resetShortcutsToDefaults: () => {
+          controller.resetShortcutsToDefaults();
+          return controller.controlState(key);
+        },
         setRequiredStatuses: ({ category, statusIds }) => {
           controller.setRequiredStatuses(category, statusIds);
           return controller.controlState(key);

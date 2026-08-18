@@ -17,6 +17,7 @@ import {
 } from "@svoverlay/overlay/app-types";
 import { REQUIRED_STATUS_CATEGORIES, requiredStatusOptions } from "@svoverlay/overlay/required-statuses";
 import type { LauncherSettingsRpc, SharedSettingsState } from "../../launcher/types.ts";
+import { shortcutFromKeyboardEvent } from "./shortcut-from-keyboard-event.ts";
 
 type Tab = "general" | "network" | "overlay" | "combat" | "status" | "keybinds";
 const state = signal<SharedSettingsState | undefined>(undefined);
@@ -175,6 +176,12 @@ function App() {
 
       <section class="settings-panel" hidden={tab !== "keybinds"}>
         <header class="settings-heading"><h1>Keybinds</h1><p>Global pass-through shortcuts remain active while Spirit Vale Overlay is running; the foreground app receives the same key press.</p></header>
+        <div class="settings-actions">
+          <button class="btn" type="button" disabled={busy} onClick={() => {
+            recordingAction.value = undefined;
+            update(electroview.rpc?.request.resetShortcutsToDefaults({}));
+          }}>Reset to defaults</button>
+        </div>
         <section class="keybind-list" aria-label="Keybind assignments">
           <h2>Click to select</h2>
           {KEYBIND_ACTIONS.map((action) => <div class="keybind-row" key={action}>
@@ -184,6 +191,7 @@ function App() {
               <p class="keybind-message" aria-live="polite">{overlay.shortcutErrors[action] ?? "Press a key or Escape to cancel."}</p>}
           </div>)}
         </section>
+        <p class="settings-hint">Shortcuts pass through to the foreground app. Windows or another app may also use the same combination; Ctrl+Shift can switch input languages when configured that way in Windows.</p>
       </section>
     </section>
   </main>;
@@ -207,14 +215,6 @@ function captureShortcut(action: KeybindAction, event: KeyboardEvent): Promise<v
   if (!shortcut) return Promise.resolve();
   recordingAction.value = undefined;
   return electroview.rpc?.request.setShortcut({ action, shortcut }).then((next) => { state.value = repairRendererPayload(next); }) ?? Promise.resolve();
-}
-
-function shortcutFromKeyboardEvent(event: KeyboardEvent): string | undefined {
-  if (["Control", "Alt", "Shift", "Meta"].includes(event.key)) return undefined;
-  const special: Record<string, string> = { " ": "Space", Enter: "Enter", Tab: "Tab", Backspace: "Backspace", Delete: "Delete", Home: "Home", End: "End", PageUp: "PageUp", PageDown: "PageDown", ArrowUp: "ArrowUp", ArrowDown: "ArrowDown", ArrowLeft: "ArrowLeft", ArrowRight: "ArrowRight" };
-  const key = /^F(?:[1-9]|1[0-9]|2[0-4])$/i.test(event.key) ? event.key.toUpperCase() : /^[a-z0-9]$/i.test(event.key) ? event.key.toUpperCase() : special[event.key];
-  if (!key) return undefined;
-  return [...(event.ctrlKey ? ["Ctrl"] : []), ...(event.altKey ? ["Alt"] : []), ...(event.shiftKey ? ["Shift"] : []), ...(event.metaKey ? ["Meta"] : []), key].join("+");
 }
 
 render(<App />, document.getElementById("root")!);
