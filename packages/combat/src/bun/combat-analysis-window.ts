@@ -37,7 +37,7 @@ export interface CombatAnalysisController {
   getState(): CombatAnalysisState;
   selectEncounter(id: string): CombatAnalysisState;
   setStatType(statType: StatType): CombatAnalysisState;
-  openPlayerDetails(actorId: number, selectedEnemyIds: readonly number[]): void;
+  openPlayerDetails(rowId: string, selectedEnemyIds: readonly number[]): void;
   openLivePlayerDetails(input: LivePlayerDetailInput): void;
   refreshLivePlayerDetails(input: LivePlayerDetailRefresh): void;
   closeDetails(): void;
@@ -235,7 +235,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
       ...(selected.tankedSnapshot === undefined ? {} : { tankedSnapshot: selected.tankedSnapshot }),
       ...(selected.healSnapshot === undefined ? {} : { healSnapshot: selected.healSnapshot }),
       enemies: selected.breakdown.enemies,
-      actorEnemyBreakdown: buildActorEnemyBreakdown(selected.snapshot),
+      actorEnemyBreakdown: buildActorEnemyBreakdown(),
     };
   }
 
@@ -272,15 +272,15 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     return state;
   }
 
-  function openPlayerDetails(actorId: number, selectedEnemyIds: readonly number[]): void {
+  function openPlayerDetails(rowId: string, selectedEnemyIds: readonly number[]): void {
     liveDetailActorId = undefined;
     const snapshot = state.snapshot;
     if (!snapshot || !state.fileName || !selected) return;
     const tankedSnapshot = selected.tankedSnapshot;
     const healSnapshot = selected.healSnapshot;
-    const dpsPlayer = snapshot.actors.find((actor) => actor.actorIds.includes(actorId));
-    const tankedPlayer = tankedSnapshot?.actors.find((actor) => actor.actorIds.includes(actorId));
-    const healPlayer = healSnapshot?.actors.find((actor) => actor.actorIds.includes(actorId));
+    const dpsPlayer = snapshot.actors.find((actor) => actor.rowId === rowId);
+    const tankedPlayer = tankedSnapshot?.actors.find((actor) => actor.rowId === rowId);
+    const healPlayer = healSnapshot?.actors.find((actor) => actor.rowId === rowId);
     // A player who never dealt damage (a dedicated healer/tank) has no row in the DPS
     // snapshot — double-clicking them from the HPS/TPS tab must still open the detail
     // window, using whichever row we do have for identity and a zero-value DPS row so
@@ -288,7 +288,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     const identity = dpsPlayer ?? tankedPlayer ?? healPlayer;
     if (!identity) return;
     const player = dpsPlayer ?? emptyDpsRow(identity, snapshot.durationMs);
-    const skillsByEnemy = buildSkillsByEnemy(player, snapshot.durationMs);
+    const skillsByEnemy = buildSkillsByEnemy(rowId, snapshot.durationMs);
     const enemies = selected.breakdown.enemies.filter((enemy) => enemy.targetId in skillsByEnemy);
     detailState = {
       fileName: state.fileName,
@@ -390,50 +390,44 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     await deathLogWindow.open(loadedPath, false);
   }
 
-  function buildActorEnemyBreakdown(snapshot: FishNetDpsEncounterSnapshot): Record<number, EnemyDamageRow[]> {
+  function buildActorEnemyBreakdown(): Record<string, EnemyDamageRow[]> {
     const breakdown = selected?.breakdown;
-    const result: Record<number, EnemyDamageRow[]> = {};
+    const result: Record<string, EnemyDamageRow[]> = {};
     if (!breakdown) return result;
-    for (const actor of snapshot.actors) {
+    for (const [rowId, targets] of breakdown.bySkill) {
       const byTarget = new Map<number, EnemyDamageRow>();
-      for (const actorId of actor.actorIds) {
-        const targets = breakdown.bySkill.get(actorId);
-        if (!targets) continue;
-        for (const [targetId, skills] of targets) {
-          const row = byTarget.get(targetId) ?? { targetId, damage: 0, hits: 0, criticalHits: 0 };
-          for (const stats of skills.values()) {
-            row.damage += stats.damage;
-            row.hits += stats.hits;
-            row.criticalHits += stats.criticalHits;
-          }
-          byTarget.set(targetId, row);
+      for (const [targetId, skills] of targets) {
+        const row = byTarget.get(targetId) ?? { targetId, damage: 0, hits: 0, criticalHits: 0 };
+        for (const stats of skills.values()) {
+          row.damage += stats.damage;
+          row.hits += stats.hits;
+          row.criticalHits += stats.criticalHits;
         }
+        byTarget.set(targetId, row);
       }
-      result[actor.actorIds[0]!] = [...byTarget.values()];
+      result[rowId] = [...byTarget.values()];
     }
     return result;
   }
 
-  function buildSkillsByEnemy(player: FishNetDpsActorRow, durationMs: number): Record<number, FishNetDpsSkillRow[]> {
+  function buildSkillsByEnemy(rowId: string, durationMs: number): Record<number, FishNetDpsSkillRow[]> {
     const breakdown = selected?.breakdown;
     const result: Record<number, FishNetDpsSkillRow[]> = {};
     if (!breakdown) return result;
     const durationSeconds = Math.max(1, durationMs) / 1000;
     const byTarget = new Map<number, Map<string, EnemySkillStats>>();
-    for (const actorId of player.actorIds) {
-      const targets = breakdown.bySkill.get(actorId);
-      if (!targets) continue;
-      for (const [targetId, skills] of targets) {
-        const merged = byTarget.get(targetId) ?? new Map<string, EnemySkillStats>();
-        for (const [sourceId, stats] of skills) {
-          const existing = merged.get(sourceId) ?? { sourceLabel: stats.sourceLabel, damage: 0, hits: 0, criticalHits: 0 };
-          existing.damage += stats.damage;
-          existing.hits += stats.hits;
-          existing.criticalHits += stats.criticalHits;
-          merged.set(sourceId, existing);
-        }
-        byTarget.set(targetId, merged);
+    const targets = breakdown.bySkill.get(rowId);
+    if (!targets) return result;
+    for (const [targetId, skills] of targets) {
+      const merged = byTarget.get(targetId) ?? new Map<string, EnemySkillStats>();
+      for (const [sourceId, stats] of skills) {
+        const existing = merged.get(sourceId) ?? { sourceLabel: stats.sourceLabel, damage: 0, hits: 0, criticalHits: 0 };
+        existing.damage += stats.damage;
+        existing.hits += stats.hits;
+        existing.criticalHits += stats.criticalHits;
+        merged.set(sourceId, existing);
       }
+      byTarget.set(targetId, merged);
     }
     for (const [targetId, merged] of byTarget) {
       const totalDamage = [...merged.values()].reduce((sum, stats) => sum + stats.damage, 0);

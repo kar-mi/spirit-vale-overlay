@@ -5,6 +5,7 @@ import { buildLivePlayerDetailState } from "./live-player-detail.ts";
 
 function actor(): MeterActorRow {
   return {
+    rowId: "name:healer",
     actorIds: [42],
     displayName: "Healer",
     damage: 100,

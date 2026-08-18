@@ -5,23 +5,14 @@ import { EnemyFilterControl } from "@svoverlay/ui-kit/enemy-filter";
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
 import { StatTypeSelect } from "@svoverlay/ui-kit/stat-type-select";
 
-import type { CombatAnalysisState, MeterActorRow, MeterEncounterSnapshot, StatType } from "../app-types.ts";
+import type { CombatAnalysisState, MeterEncounterSnapshot, StatType } from "../app-types.ts";
 import { CombatClassCell } from "../combat-class.tsx";
 import { nextTableSort, SortableHeader, sortTableRows, type TableSort } from "@svoverlay/ui-kit/sortable-table";
+import { applyEnemyFilter } from "../enemy-filtering.ts";
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
 const percentFormat = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 1 });
-
-interface FilteredRow {
-  actor: MeterActorRow;
-  damage: number;
-  dps: number;
-  hits: number;
-  criticalHits: number;
-  critRate?: number;
-  contribution: number;
-}
 
 type PlayerSortKey = "damage" | "dps" | "contribution" | "hits" | "criticalHits" | "critRate" | "kills";
 
@@ -31,7 +22,7 @@ interface PastAnalysisPanelProps {
   onSelectEncounter(id: string): void;
   onSetStatType(statType: StatType): void;
   onOpenDeathLog(): void;
-  onOpenPlayerDetails(actorId: number, selectedEnemyIds: number[]): void;
+  onOpenPlayerDetails(rowId: string, selectedEnemyIds: number[]): void;
 }
 
 function activateRow(event: JSX.TargetedKeyboardEvent<HTMLTableRowElement>, activate: () => void): void {
@@ -48,31 +39,6 @@ function navigateBackOnMiddleClick(event: JSX.TargetedMouseEvent<HTMLElement>, o
 
 function preventMiddleMouseDefault(event: JSX.TargetedMouseEvent<HTMLElement>): void {
   if (event.button === 1) event.preventDefault();
-}
-
-function applyEnemyFilter(next: CombatAnalysisState, rows: MeterActorRow[], selectedEnemyIds: ReadonlySet<number>): FilteredRow[] {
-  if (next.statType !== "damage" || selectedEnemyIds.size === 0) {
-    return rows.map((actor) => ({
-      actor,
-      damage: actor.damage,
-      dps: actor.dps,
-      hits: actor.hits,
-      criticalHits: actor.criticalHits,
-      critRate: actor.critRate,
-      contribution: actor.contribution,
-    }));
-  }
-  const durationSeconds = Math.max(1, next.snapshot?.durationMs ?? 0) / 1000;
-  const partial = rows.map((actor) => {
-    const filtered = (next.actorEnemyBreakdown[actor.actorIds[0]!] ?? [])
-      .filter((row) => selectedEnemyIds.has(row.targetId));
-    const damage = filtered.reduce((sum, row) => sum + row.damage, 0);
-    const hits = filtered.reduce((sum, row) => sum + row.hits, 0);
-    const criticalHits = filtered.reduce((sum, row) => sum + row.criticalHits, 0);
-    return { actor, damage, hits, criticalHits, dps: damage / durationSeconds, critRate: hits > 0 ? criticalHits / hits : undefined };
-  });
-  const totalDamage = partial.reduce((sum, row) => sum + row.damage, 0);
-  return partial.map((row) => ({ ...row, contribution: totalDamage > 0 ? row.damage / totalDamage : 0 }));
 }
 
 export function PastAnalysisPanel({
@@ -172,9 +138,9 @@ export function PastAnalysisPanel({
               <SortableHeader sortKey="kills" sort={playerSort} onSort={sortPlayersBy}>Kills</SortableHeader>
             </tr></thead>
             <tbody>{sortedRows.map(({ actor, damage, dps, hits, criticalHits, critRate, contribution }) => {
-              const activate = () => onOpenPlayerDetails(actor.actorIds[0]!, [...selectedEnemyIds]);
+              const activate = () => onOpenPlayerDetails(actor.rowId, [...selectedEnemyIds]);
               return <tr
-                key={actor.actorIds[0]}
+                key={actor.rowId}
                 class="player-row"
                 title="Double-click for player detail"
                 tabIndex={0}

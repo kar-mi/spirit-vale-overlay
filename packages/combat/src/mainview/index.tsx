@@ -290,9 +290,9 @@ function App() {
             onSelectEncounter={(id) => void electroview.rpc?.request.selectPastEncounter({ id })}
             onSetStatType={(statType) => void electroview.rpc?.request.setPastStatType({ statType })}
             onOpenDeathLog={() => void electroview.rpc?.request.openActiveDeathLog({})}
-            onOpenPlayerDetails={(actorId, selectedEnemyIds) => void electroview.rpc?.request.openPlayerDetails({
+            onOpenPlayerDetails={(rowId, selectedEnemyIds) => void electroview.rpc?.request.openPlayerDetails({
               source: "past",
-              actorId,
+              rowId,
               selectedEnemyIds,
             })}
           />}

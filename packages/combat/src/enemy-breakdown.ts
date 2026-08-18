@@ -25,6 +25,6 @@ export interface EnemyDamageRow {
 export interface EnemyBreakdownEncounter {
   encounterId: string;
   enemies: EnemyOption[];
-  /** actorId (attacker) -> targetId (enemy) -> sourceId (skill) -> accumulated stats. */
-  bySkill: Map<number, Map<number, Map<string, EnemySkillStats>>>;
+  /** rendered attacker row -> target enemy -> source skill -> accumulated stats. */
+  bySkill: Map<string, Map<number, Map<string, EnemySkillStats>>>;
 }

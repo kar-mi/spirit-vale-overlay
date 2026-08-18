@@ -107,10 +107,10 @@ export function loadIndexedEncounter(
 
 /** Reshapes the store's flat skill rows into the nested map the analysis views index by. */
 export function toEnemyBreakdown(breakdown: CombatEnemyBreakdown): EnemyBreakdownEncounter {
-  const bySkill = new Map<number, Map<number, Map<string, EnemySkillStats>>>();
+  const bySkill = new Map<string, Map<number, Map<string, EnemySkillStats>>>();
   for (const row of breakdown.skills) {
-    const byTarget = bySkill.get(row.attackerActorId) ?? new Map<number, Map<string, EnemySkillStats>>();
-    bySkill.set(row.attackerActorId, byTarget);
+    const byTarget = bySkill.get(row.attackerRowId) ?? new Map<number, Map<string, EnemySkillStats>>();
+    bySkill.set(row.attackerRowId, byTarget);
     const skills = byTarget.get(row.targetId) ?? new Map<string, EnemySkillStats>();
     byTarget.set(row.targetId, skills);
     skills.set(row.sourceId, {

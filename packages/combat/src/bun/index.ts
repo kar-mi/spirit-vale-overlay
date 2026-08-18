@@ -153,16 +153,17 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
         analysis.setStatType(statType);
         return appState();
       },
-      openPlayerDetails: ({ source, actorId, selectedEnemyIds }) => {
+      openPlayerDetails: (request) => {
+        const { source, selectedEnemyIds } = request;
         if (source === "past") {
-          if (screen === "past" && past.view === "analysis") analysis.openPlayerDetails(actorId, selectedEnemyIds);
+          if (screen === "past" && past.view === "analysis") analysis.openPlayerDetails(request.rowId, selectedEnemyIds);
           return;
         }
         if (screen !== "live") return;
         const live = liveSnapshots();
         if (!currentLiveLogPath || !live.snapshot) return;
         analysis.openLivePlayerDetails({
-          actorId,
+          actorId: request.actorId,
           fileName: path.basename(currentLiveLogPath),
           ...live,
           statType: settings.statType,
