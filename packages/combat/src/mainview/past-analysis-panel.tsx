@@ -118,7 +118,7 @@ export function PastAnalysisPanel({
             <td>{numberFormat.format(partyDps)}</td>
             <td>{compactFormat.format(partyDamage)}</td>
             <td>{activeSnapshot ? formatDuration(activeSnapshot.durationMs) : "—"}</td>
-            <td>{numberFormat.format(rows.length)}</td>
+            <td>{numberFormat.format(hasFilter ? filteredRows.length : rows.length)}</td>
           </tr></tbody>
         </table>
       </div>

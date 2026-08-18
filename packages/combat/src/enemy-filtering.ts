@@ -44,5 +44,7 @@ export function applyEnemyFilter(
     };
   });
   const totalDamage = partial.reduce((sum, row) => sum + row.damage, 0);
-  return partial.map((row) => ({ ...row, contribution: totalDamage > 0 ? row.damage / totalDamage : 0 }));
+  return partial
+    .filter((row) => row.damage > 0)
+    .map((row) => ({ ...row, contribution: totalDamage > 0 ? row.damage / totalDamage : 0 }));
 }

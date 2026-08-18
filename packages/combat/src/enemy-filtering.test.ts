@@ -57,9 +57,20 @@ describe("enemy filtering", () => {
     const filtered = applyEnemyFilter(state(actors), actors, new Set([91]));
 
     expect(filtered.map((row) => [row.actor.rowId, row.damage, row.hits, row.contribution])).toEqual([
-      ["unidentified", 0, 0, 0],
       ["name:bramble", 118_200, 4, 1],
     ]);
+  });
+
+  test("hides actors with no damage against the selected enemies", () => {
+    const actors = [actor("name:aurora", "Aurora", 100, 1), actor("name:bramble", "Bramble", 300, 2)];
+    const next = state(actors);
+    next.actorEnemyBreakdown = {
+      "name:aurora": [{ targetId: 90, damage: 100, hits: 2, criticalHits: 1 }],
+      "name:bramble": [{ targetId: 91, damage: 300, hits: 3, criticalHits: 0 }],
+    };
+
+    const filtered = applyEnemyFilter(next, actors, new Set([90]));
+    expect(filtered.map((row) => row.actor.rowId)).toEqual(["name:aurora"]);
   });
 
   test("computes share from total party damage against the selected enemies", () => {
