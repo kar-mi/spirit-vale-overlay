@@ -1,4 +1,4 @@
-import { FishNetActorDirectory, FishNetCombatTracker, FishNetStatusTracker } from "@kar-mi/spirit-vale-tools-combat";
+import { FishNetActorDirectory, FishNetCombatTracker, FishNetStatusTracker, normalizeName } from "@kar-mi/spirit-vale-tools-combat";
 import type {
   FishNetActiveStatus,
   FishNetActorIdentity,
@@ -846,7 +846,11 @@ export class CaptureCoordinator {
   private isLocalRewardActor(actorId: number): boolean {
     if (actorId === this.character.physicalObjectId()) return true;
     const characterName = this.character.current()?.name;
-    return characterName !== undefined && this.actors.getAttribution(actorId)?.displayName === characterName;
+    if (characterName === undefined) return false;
+    const attributed = this.actors.getAttribution(actorId)?.displayName;
+    // The CharacterData name and the spawn/VisualData name are separate wire sources, so they
+    // must be compared through the shared identity key rather than raw equality.
+    return attributed !== undefined && normalizeName(attributed) === normalizeName(characterName);
   }
 
   private logMobIdentity(actorId: number, tick: number): void {

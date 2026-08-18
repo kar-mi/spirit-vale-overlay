@@ -4,6 +4,7 @@ import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
+import { normalizeName } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterSnapshot } from "@kar-mi/spirit-vale-tools-character";
 
 import type { BuildExportRpc, BuildExportSource, BuildExportState, BuildExportUnresolvedGroup } from "../app-types.ts";
@@ -59,7 +60,7 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
     }
     for (const entry of options.getInspected?.() ?? []) {
       // Inspecting yourself would otherwise produce a duplicate of the entry above.
-      if (own && entry.snapshot.name.localeCompare(own.name, undefined, { sensitivity: "accent" }) === 0) continue;
+      if (own && normalizeName(entry.snapshot.name) === normalizeName(own.name)) continue;
       list.push({
         id: `inspect:${encodeURIComponent(entry.snapshot.name)}`,
         name: entry.snapshot.name,
@@ -84,7 +85,7 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
     if (id === "self") return options.getCharacter();
     const name = id.startsWith("inspect:") ? decodeURIComponent(id.slice("inspect:".length)) : undefined;
     if (name === undefined) return undefined;
-    return options.getInspected?.().find((entry) => entry.snapshot.name === name)?.snapshot;
+    return options.getInspected?.().find((entry) => normalizeName(entry.snapshot.name) === normalizeName(name))?.snapshot;
   };
 
   const translate = () => {

@@ -1,3 +1,4 @@
+import { normalizeName } from "@kar-mi/spirit-vale-tools-combat";
 import type { InspectedCharacter } from "@kar-mi/spirit-vale-tools-character";
 
 export interface InspectedCharacterPersistence {
@@ -146,7 +147,7 @@ export class DurableInspectedCharacterRoster {
 }
 
 function characterKey(name: string): string {
-  return name.toLocaleLowerCase();
+  return normalizeName(name);
 }
 
 function sameEntry(left: InspectedCharacter, right: InspectedCharacter): boolean {
