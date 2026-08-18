@@ -81,6 +81,7 @@ function snapshot(id: string, durationMs: number, actors: FishNetDpsActorRow[]):
 
 function actor(actorId: number, dps: number): FishNetDpsActorRow {
   return {
+    rowId: `name:player ${actorId}`,
     actorIds: [actorId],
     displayName: `Player ${actorId}`,
     archetype: 2,

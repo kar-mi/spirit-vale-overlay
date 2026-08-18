@@ -32,6 +32,7 @@ test("party ranking retains an actor through the 60-second idle boundary", () =>
 
 function actor(actorId: number, dps: number, lastDamageAtMs: number): FishNetDpsActorRow {
   return {
+    rowId: `name:fictional player ${actorId}`,
     actorIds: [actorId],
     displayName: `Fictional Player ${actorId}`,
     lastDamageAtMs,

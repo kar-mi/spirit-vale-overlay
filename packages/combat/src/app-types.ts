@@ -68,7 +68,9 @@ export type DpsAppRpc = {
       selectPastEncounter: { params: { id: string }; response: DpsAppState };
       setPastStatType: { params: { statType: StatType }; response: DpsAppState };
       openPlayerDetails: {
-        params: { source: CombatLogScreen; actorId: number; selectedEnemyIds: number[] };
+        params:
+          | { source: "live"; actorId: number; selectedEnemyIds: number[] }
+          | { source: "past"; rowId: string; selectedEnemyIds: number[] };
         response: void;
       };
       openActiveDeathLog: { params: Record<string, never>; response: void };
@@ -102,8 +104,8 @@ export interface CombatAnalysisState {
   healSnapshot?: MeterEncounterSnapshot;
   /** Enemies fought during the selected encounter, for the enemy filter control. */
   enemies: EnemyOption[];
-  /** Per-enemy damage for each actor row, keyed by that row's actorIds[0]. */
-  actorEnemyBreakdown: Record<number, EnemyDamageRow[]>;
+  /** Per-enemy damage for each exact rendered actor row. */
+  actorEnemyBreakdown: Record<string, EnemyDamageRow[]>;
 }
 
 export interface CombatAnalysisDetailState {

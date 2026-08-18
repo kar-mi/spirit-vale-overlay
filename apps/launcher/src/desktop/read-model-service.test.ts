@@ -101,7 +101,10 @@ describe("read model service", () => {
     } finally {
       await context.cleanup();
     }
-  });
+    // This is the first test in the file to touch bun:sqlite, so it eats that native module's
+    // one-time load cost. Across a full-suite run that load races dozens of other files doing the
+    // same thing, which can push it past the default 5s budget with no code on the hot path stuck.
+  }, 20_000);
 
   test("serialises concurrent passes instead of interleaving them", async () => {
     const context = await workspace();
