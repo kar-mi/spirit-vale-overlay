@@ -377,8 +377,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
       shortcutErrors: Object.fromEntries(shortcutErrors),
       overlayVisible,
       requiredStatuses: settings.requiredStatuses,
-      autoHideWhenUnfocused: settings.autoHideWhenUnfocused,
-      keybindsRequireGameFocus: settings.keybindsRequireGameFocus,
     };
   }
 
@@ -395,8 +393,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
       overlayVisible: control.overlayVisible,
       requiredStatuses: control.requiredStatuses,
       personalDpsMode: control.personalDpsMode,
-      autoHideWhenUnfocused: control.autoHideWhenUnfocused,
-      keybindsRequireGameFocus: control.keybindsRequireGameFocus,
+      autoHideWhenUnfocused: settings.autoHideWhenUnfocused,
+      keybindsRequireGameFocus: settings.keybindsRequireGameFocus,
     };
   }
 
@@ -626,10 +624,12 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function setAutoHideWhenUnfocused(enabled: boolean): OverlayControlState {
     if (settings.autoHideWhenUnfocused === enabled) return controlState();
+    const previousVisibility = overlayVisible;
     settings = { ...settings, autoHideWhenUnfocused: enabled };
     persist();
     reconcileFocusVisibility(enabled);
-    publishControl();
+    // A visibility transition publishes both control and launcher settings state itself.
+    if (overlayVisible === previousVisibility) publishControl();
     return controlState();
   }
 

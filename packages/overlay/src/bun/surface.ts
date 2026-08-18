@@ -74,14 +74,6 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
           controller.setOverlayVisible(visible);
           return controller.controlState(key);
         },
-        setAutoHideWhenUnfocused: ({ enabled }) => {
-          controller.setAutoHideWhenUnfocused(enabled);
-          return controller.controlState(key);
-        },
-        setKeybindsRequireGameFocus: ({ enabled }) => {
-          controller.setKeybindsRequireGameFocus(enabled);
-          return controller.controlState(key);
-        },
         setShortcut: ({ action, shortcut }) => {
           controller.setShortcut(action, shortcut);
           return controller.controlState(key);

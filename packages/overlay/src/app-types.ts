@@ -103,8 +103,6 @@ export interface OverlayControlState {
   shortcutErrors: Partial<Record<KeybindAction, string>>;
   overlayVisible: boolean;
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
-  autoHideWhenUnfocused: boolean;
-  keybindsRequireGameFocus: boolean;
 }
 
 export interface OverlayCharacterState {
@@ -212,8 +210,6 @@ type OverlaySharedRequests = {
   };
   setHomeDisplay: { params: { display: string }; response: OverlayControlState };
   setOverlayVisible: { params: { visible: boolean }; response: OverlayControlState };
-  setAutoHideWhenUnfocused: { params: { enabled: boolean }; response: OverlayControlState };
-  setKeybindsRequireGameFocus: { params: { enabled: boolean }; response: OverlayControlState };
   setShortcut: { params: { action: KeybindAction; shortcut: string }; response: OverlayControlState };
   resetShortcutsToDefaults: { params: Record<string, never>; response: OverlayControlState };
   setRequiredStatuses: {
