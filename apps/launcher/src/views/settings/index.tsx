@@ -176,6 +176,12 @@ function App() {
 
       <section class="settings-panel" hidden={tab !== "keybinds"}>
         <header class="settings-heading"><h1>Keybinds</h1><p>Global pass-through shortcuts remain active while Spirit Vale Overlay is running; the foreground app receives the same key press.</p></header>
+        <div class="settings-actions">
+          <button class="btn" type="button" disabled={busy} onClick={() => {
+            recordingAction.value = undefined;
+            update(electroview.rpc?.request.resetShortcutsToDefaults({}));
+          }}>Reset to defaults</button>
+        </div>
         <section class="keybind-list" aria-label="Keybind assignments">
           <h2>Click to select</h2>
           {KEYBIND_ACTIONS.map((action) => <div class="keybind-row" key={action}>
@@ -185,12 +191,6 @@ function App() {
               <p class="keybind-message" aria-live="polite">{overlay.shortcutErrors[action] ?? "Press a key or Escape to cancel."}</p>}
           </div>)}
         </section>
-        <div class="settings-actions">
-          <button class="btn" type="button" disabled={busy} onClick={() => {
-            recordingAction.value = undefined;
-            update(electroview.rpc?.request.resetShortcutsToDefaults({}));
-          }}>Reset to defaults</button>
-        </div>
         <p class="settings-hint">Shortcuts pass through to the foreground app. Windows or another app may also use the same combination; Ctrl+Shift can switch input languages when configured that way in Windows.</p>
       </section>
     </section>
