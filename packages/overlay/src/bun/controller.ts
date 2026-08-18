@@ -12,6 +12,7 @@ import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { publishSafely } from "@svoverlay/desktop-platform/window-publish";
 import { createPassThroughShortcutListener, type PassThroughShortcutListener } from "@svoverlay/desktop-platform/pass-through-shortcuts";
+import { getForegroundProcess } from "@svoverlay/desktop-platform/win32";
 import { Screen } from "electrobun/bun";
 
 import type {
@@ -52,6 +53,13 @@ import {
   saveOverlaySettings,
   type OverlaySettings,
 } from "../settings.ts";
+import {
+  classifyForegroundProcess,
+  manuallySetVisibility,
+  permitsGameKeybind,
+  reconcileAutoHide,
+  type FocusVisibilityState,
+} from "./focus-policy.ts";
 
 /**
  * Tail interval for the `SPIRIT_VALE_COMBAT_LOG` override only.
@@ -87,6 +95,8 @@ const ESCAPE_LOCK_SHORTCUT = "Escape";
 const LOCK_STYLE_DEBOUNCE_MS = 50;
 /** How often the connected-monitor set is re-read. Electrobun exposes no display-changed event. */
 const DISPLAY_RECONCILE_MS = 5_000;
+/** How often focus is reconciled while auto-hide is enabled. */
+const AUTO_HIDE_POLL_MS = 400;
 /** Timeline buckets retained per encounter. Beyond this, adjacent buckets merge. */
 const TIMELINE_POINTS = 720;
 const EXPERIENCE_REQUIREMENTS = loadBundledMobRewardCatalog().experienceRequirements;
@@ -170,6 +180,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
     : "Looking for a combat session…";
   let shuttingDown = false;
   let overlayVisible = true;
+  let manualHideEngaged = false;
+  let autoHidden = false;
   const surfaces = new Map<string, OverlaySurfaceSink>();
   /** Control state is projected per display, so the dedupe string has to be per surface too. */
   const lastControlJson = new Map<string, string>();
@@ -221,6 +233,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
   // stranded on a monitor that has been unplugged.
   const displayTimer = setInterval(() => reconcileDisplays(), DISPLAY_RECONCILE_MS);
   displayTimer.unref?.();
+  const autoHideTimer = setInterval(() => checkAutoHide(), AUTO_HIDE_POLL_MS);
+  autoHideTimer.unref?.();
   const unsubscribeCharacter = options.subscribeCharacter((next) => {
     characterState = next;
     const personalName = detectedPersonalName(characterState);
@@ -286,7 +300,9 @@ export async function createOverlayController(options: OverlayControllerOptions)
     setElementPlacement,
     setElementOpacity,
     relayDragPreview,
-    setOverlayVisible: updateOverlayVisible,
+    setOverlayVisible: setOverlayVisibleManually,
+    setAutoHideWhenUnfocused,
+    setKeybindsRequireGameFocus,
     setShortcut,
     resetShortcutsToDefaults,
     setShortcutCapture,
@@ -314,6 +330,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       if (lockStyleTimer !== undefined) clearTimeout(lockStyleTimer);
       lockStyleTimer = undefined;
       clearInterval(displayTimer);
+      clearInterval(autoHideTimer);
       unsubscribeCharacter();
       unsubscribeActiveStatuses();
       unsubscribeXp();
@@ -360,6 +377,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
       shortcutErrors: Object.fromEntries(shortcutErrors),
       overlayVisible,
       requiredStatuses: settings.requiredStatuses,
+      autoHideWhenUnfocused: settings.autoHideWhenUnfocused,
+      keybindsRequireGameFocus: settings.keybindsRequireGameFocus,
     };
   }
 
@@ -376,6 +395,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
       overlayVisible: control.overlayVisible,
       requiredStatuses: control.requiredStatuses,
       personalDpsMode: control.personalDpsMode,
+      autoHideWhenUnfocused: control.autoHideWhenUnfocused,
+      keybindsRequireGameFocus: control.keybindsRequireGameFocus,
     };
   }
 
@@ -593,9 +614,50 @@ export async function createOverlayController(options: OverlayControllerOptions)
   }
 
   function updateOverlayVisible(visible: boolean): void {
+    if (overlayVisible === visible) return;
     overlayVisible = visible;
     for (const surface of surfaces.values()) surface.setVisible(visible);
     publishControl();
+  }
+
+  function setOverlayVisibleManually(visible: boolean): void {
+    applyFocusVisibility(manuallySetVisibility(visible));
+  }
+
+  function setAutoHideWhenUnfocused(enabled: boolean): OverlayControlState {
+    if (settings.autoHideWhenUnfocused === enabled) return controlState();
+    settings = { ...settings, autoHideWhenUnfocused: enabled };
+    persist();
+    reconcileFocusVisibility(enabled);
+    publishControl();
+    return controlState();
+  }
+
+  function setKeybindsRequireGameFocus(enabled: boolean): OverlayControlState {
+    if (settings.keybindsRequireGameFocus === enabled) return controlState();
+    settings = { ...settings, keybindsRequireGameFocus: enabled };
+    persist();
+    publishControl();
+    return controlState();
+  }
+
+  function checkAutoHide(): void {
+    if (shuttingDown || !settings.autoHideWhenUnfocused || manualHideEngaged) return;
+    reconcileFocusVisibility(true);
+  }
+
+  function reconcileFocusVisibility(enabled: boolean): void {
+    applyFocusVisibility(reconcileAutoHide(
+      { visible: overlayVisible, manualHideEngaged, autoHidden },
+      enabled,
+      classifyForegroundProcess(getForegroundProcess(), process.pid),
+    ));
+  }
+
+  function applyFocusVisibility(next: FocusVisibilityState): void {
+    manualHideEngaged = next.manualHideEngaged;
+    autoHidden = next.autoHidden;
+    updateOverlayVisible(next.visible);
   }
 
   function cycleMeterStatType(): void {
@@ -621,10 +683,14 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function handleShortcut(action: KeybindAction | "lockOnEscape"): void {
     if (shuttingDown || shortcutsSuspended) return;
+    if (action !== "lockOnEscape" && settings.keybindsRequireGameFocus) {
+      const foreground = classifyForegroundProcess(getForegroundProcess(), process.pid);
+      if (!permitsGameKeybind(foreground)) return;
+    }
     if (action === "lockOnEscape") {
       if (!settings.locked) updateLocked(true);
     } else if (action === "toggleLock") updateLocked(!settings.locked);
-    else if (action === "toggleOverlayVisible") updateOverlayVisible(!overlayVisible);
+    else if (action === "toggleOverlayVisible") setOverlayVisibleManually(!overlayVisible);
     else if (action === "cycleMeterStatType") cycleMeterStatType();
     else if (action === "openLiveDeathLog") {
       void options.onOpenLiveDeathLog?.();

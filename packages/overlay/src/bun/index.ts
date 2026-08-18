@@ -54,6 +54,8 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     setElementDisplay: (id: OverlayElementId, display: string) => controller.setElementDisplay(id, display),
     setHomeDisplay: (display: string) => controller.setHomeDisplay(display),
     setOverlayVisible: (visible: boolean) => controller.setOverlayVisible(visible),
+    setAutoHideWhenUnfocused: (enabled: boolean) => controller.setAutoHideWhenUnfocused(enabled),
+    setKeybindsRequireGameFocus: (enabled: boolean) => controller.setKeybindsRequireGameFocus(enabled),
     setShortcut: (action: KeybindAction, shortcut: string) => controller.setShortcut(action, shortcut),
     resetShortcutsToDefaults: () => controller.resetShortcutsToDefaults(),
     setShortcutCapture: (active: boolean) => controller.setShortcutCapture(active),

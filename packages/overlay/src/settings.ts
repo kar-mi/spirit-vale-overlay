@@ -46,6 +46,10 @@ export interface OverlaySettings {
   personalDpsMode: PersonalDpsMode;
   /** Statuses the user expects to keep up; the matching tile is highlighted while any is missing. */
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
+  /** Hide the overlay while neither the game nor one of this app's windows has OS focus. */
+  autoHideWhenUnfocused: boolean;
+  /** Ignore configurable overlay shortcuts unless the game has OS focus. */
+  keybindsRequireGameFocus: boolean;
 }
 
 const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
@@ -153,6 +157,8 @@ export function normalizeOverlaySettings(
     meterStatType: normalizeMeterStatType(source.meterStatType),
     personalDpsMode: normalizePersonalDpsMode(source.personalDpsMode),
     requiredStatuses: normalizeRequiredStatuses(source.requiredStatuses),
+    autoHideWhenUnfocused: source.autoHideWhenUnfocused === true,
+    keybindsRequireGameFocus: source.keybindsRequireGameFocus === true,
   };
 }
 
