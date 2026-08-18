@@ -2,24 +2,19 @@ import { signal } from "@preact/signals";
 import { render } from "preact";
 import { useState } from "preact/hooks";
 import { Electroview } from "electrobun/view";
-import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
-import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
-import { CheckboxMultiSelect } from "@svoverlay/ui-kit/checkbox-multi-select";
-import { UI_SCALE_VALUES } from "@svoverlay/desktop-platform/ui-scale";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
-import {
-  KEYBIND_ACTIONS,
-  OVERLAY_ELEMENT_IDS,
-  OVERLAY_ELEMENT_LABELS,
-  type KeybindAction,
-  type RequiredStatusCategory,
-} from "@svoverlay/overlay/app-types";
-import { REQUIRED_STATUS_CATEGORIES, requiredStatusOptions } from "@svoverlay/overlay/required-statuses";
+import { TitleBar } from "@svoverlay/ui-kit/title-bar";
+import type { KeybindAction } from "@svoverlay/overlay/app-types";
 import type { LauncherSettingsRpc, SharedSettingsState } from "../../launcher/types.ts";
+import { SettingsLayout } from "./settings-layout.tsx";
+import type { SettingsActions, SettingsSectionContext } from "./settings-section.ts";
+import { buildBasicSettingsSections } from "./sections/basic-settings.tsx";
+import { buildKeybindSettingsSection } from "./sections/keybind-settings.tsx";
+import { buildOverlaySettingsSection } from "./sections/overlay-settings.tsx";
+import { buildStatusSettingsSection } from "./sections/status-settings.tsx";
 import { shortcutFromKeyboardEvent } from "./shortcut-from-keyboard-event.ts";
 
-type Tab = "general" | "network" | "overlay" | "combat" | "status" | "keybinds";
 const state = signal<SharedSettingsState | undefined>(undefined);
 const recordingAction = signal<KeybindAction | undefined>(undefined);
 const rpc = Electroview.defineRPC<LauncherSettingsRpc>({
@@ -32,47 +27,50 @@ const SETTINGS_DEFAULT_WIDTH = 798;
 const SETTINGS_DEFAULT_HEIGHT = 680;
 void ensureInitialWindowSize(electroview.rpc?.request, { width: 560, height: 420 });
 
-const UI_SCALE_OPTIONS = UI_SCALE_VALUES.map((value) => ({ value: String(value), label: `${Math.round(value * 100)}%` }));
-const KEYBIND_LABELS: Record<KeybindAction, string> = {
-  toggleLock: "Lock/unlock overlay", resetSession: "Reset session",
-  openLiveDeathLog: "Open live death log", toggleOverlayVisible: "Show/hide overlay",
-  cycleMeterStatType: "Cycle party meter",
-  resetXpTracker: "Reset all-time XP", resetGoldTracker: "Reset all-time gold",
-};
-const REQUIRED_STATUS_LABELS: Record<RequiredStatusCategory, string> = { buffs: "Buffs", toggles: "Toggles" };
-const PERSONAL_DPS_MODE_OPTIONS = [
-  { value: "encounter", label: "Encounter average" },
-  { value: "live", label: "Live (recent rate)" },
-];
-/** Status sprites are copied into a single shared assets folder for every view. */
-const REQUIRED_STATUS_OPTIONS = Object.fromEntries(REQUIRED_STATUS_CATEGORIES.map((category) => [
-  category,
-  requiredStatusOptions(category).map((option) => ({
-    value: option.statusId,
-    label: option.displayName,
-    iconSrc: `views://assets/status-icons/${option.spriteId}.webp`,
-  })),
-])) as Record<RequiredStatusCategory, { value: string; label: string; iconSrc: string }[]>;
-
 function App() {
-  const [tab, setTab] = useState<Tab>("general");
   const [busy, setBusy] = useState(false);
   const next = state.value;
   if (!next) return <main class="app-shell" />;
-  const { launcher, overlay } = next;
-  const displayOptions = overlay.displays.map((display) => ({ value: display.key, label: display.label }));
-  const adapterOptions = [
-    { value: "auto", label: "Automatic (default route)" },
-    ...launcher.adapters.map((adapter) => ({ value: adapter.id, label: adapter.label })),
-    ...(launcher.selectedAdapter !== "auto" && !launcher.adapters.some((adapter) => adapter.id === launcher.selectedAdapter)
-      ? [{ value: launcher.selectedAdapter, label: "Saved adapter (currently unavailable)" }] : []),
-  ];
 
   const update = (request: Promise<SharedSettingsState> | undefined): void => {
     if (!request) return;
     setBusy(true);
     void request.then((updated) => { state.value = repairRendererPayload(updated); }).finally(() => setBusy(false));
   };
+
+  const actions: SettingsActions = {
+    setUiScale: (uiScale) => update(electroview.rpc?.request.setUiScale({ uiScale })),
+    setMinimizeToTray: (minimizeToTray) => update(electroview.rpc?.request.setMinimizeToTray({ minimizeToTray })),
+    setCaptureAdapter: (value) => update(electroview.rpc?.request.setCaptureAdapter({ deviceName: value === "auto" ? null : value })),
+    refreshCaptureDevices: () => update(electroview.rpc?.request.refreshCaptureDevices({})),
+    openNpcapDownload: () => { void electroview.rpc?.request.openNpcapDownload({}); },
+    setOverlayLocked: (locked) => update(electroview.rpc?.request.setOverlayLocked({ locked })),
+    setOverlayVisible: (visible) => update(electroview.rpc?.request.setOverlayVisible({ visible })),
+    setAutoHideWhenUnfocused: (enabled) => update(electroview.rpc?.request.setAutoHideWhenUnfocused({ enabled })),
+    setOverlayHomeDisplay: (display) => update(electroview.rpc?.request.setOverlayHomeDisplay({ display })),
+    setOverlayElementEnabled: (id, enabled) => update(electroview.rpc?.request.setOverlayElementEnabled({ id, enabled })),
+    setOverlayElementDisplay: (id, display) => update(electroview.rpc?.request.setOverlayElementDisplay({ id, display })),
+    setResetMeterOnMapChange: (resetMeterOnMapChange) => update(electroview.rpc?.request.setResetMeterOnMapChange({ resetMeterOnMapChange })),
+    setResetGoldOnMapChange: (resetGoldOnMapChange) => update(electroview.rpc?.request.setResetGoldOnMapChange({ resetGoldOnMapChange })),
+    setPersonalDpsMode: (mode) => update(electroview.rpc?.request.setPersonalDpsMode({ mode })),
+    setRequiredStatuses: (category, statusIds) => update(electroview.rpc?.request.setOverlayRequiredStatuses({ category, statusIds })),
+    setKeybindsRequireGameFocus: (enabled) => update(electroview.rpc?.request.setKeybindsRequireGameFocus({ enabled })),
+    resetShortcuts: () => {
+      recordingAction.value = undefined;
+      update(electroview.rpc?.request.resetShortcutsToDefaults({}));
+    },
+    beginShortcutCapture: (action) => { void beginShortcutCapture(action); },
+    captureShortcut: (action, event) => { void captureShortcut(action, event); },
+  };
+  const context: SettingsSectionContext = { state: next, busy, recordingAction: recordingAction.value, actions };
+  const basicSections = buildBasicSettingsSections(context);
+  const sections = [
+    ...basicSections.slice(0, 2),
+    buildOverlaySettingsSection(context),
+    basicSections[2]!,
+    buildStatusSettingsSection(context),
+    buildKeybindSettingsSection(context),
+  ];
 
   return <main class="app-shell">
     <TitleBar
@@ -85,118 +83,8 @@ function App() {
       onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
     />
     <section class="settings-content">
-      {(launcher.storageWarning || overlay.shortcutErrors.openLiveDeathLog) && <div class="banner is-warn" aria-live="polite">{launcher.storageWarning ?? overlay.shortcutErrors.openLiveDeathLog}</div>}
-      <div class="settings-tabs" role="tablist" aria-label="Settings sections">
-        {(["general", "network", "overlay", "combat", "status", "keybinds"] as const).map((id) =>
-          <button class={tab === id ? "settings-tab is-active" : "settings-tab"} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
-            {id[0]!.toUpperCase() + id.slice(1)}
-          </button>)}
-      </div>
-
-      <section class="settings-panel" hidden={tab !== "general"}>
-        <header class="settings-heading"><h1>General</h1><p>Configure application behavior and appearance.</p></header>
-        <label class="settings-field"><span>Interface scale</span><CustomSelect ariaLabel="Interface scale" disabled={busy} value={String(launcher.uiScale)} options={UI_SCALE_OPTIONS} onChange={(value) => update(electroview.rpc?.request.setUiScale({ uiScale: Number(value) as typeof launcher.uiScale }))} /></label>
-        <label class="settings-check"><input type="checkbox" checked={launcher.minimizeToTray} disabled={busy} onChange={(event) => update(electroview.rpc?.request.setMinimizeToTray({ minimizeToTray: event.currentTarget.checked }))} /><span>Minimize launcher to tray</span></label>
-      </section>
-
-      <section class="settings-panel" hidden={tab !== "network"}>
-        <header class="settings-heading"><h1>Network</h1><p>Npcap capture configuration.</p></header>
-        <div class="settings-row"><span>Status</span><strong>{launcher.npcapAvailability}</strong></div>
-        <p class="settings-hint">{launcher.npcapVersion ? `${launcher.npcapDetail} · ${launcher.npcapVersion}` : launcher.npcapDetail}</p>
-        <label class="settings-field"><span>Network adapter</span><CustomSelect ariaLabel="Network adapter" disabled={busy || launcher.npcapAvailability !== "ready"} value={launcher.selectedAdapter} options={adapterOptions} onChange={(value) => update(electroview.rpc?.request.setCaptureAdapter({ deviceName: value === "auto" ? null : value }))} /></label>
-        <div class="settings-actions"><button class="btn" type="button" onClick={() => update(electroview.rpc?.request.refreshCaptureDevices({}))}>Refresh</button>{launcher.npcapAvailability !== "ready" && <button class="btn primary" type="button" onClick={() => void electroview.rpc?.request.openNpcapDownload({})}>Get Npcap</button>}</div>
-      </section>
-
-      <section class="settings-panel" hidden={tab !== "overlay"}>
-        <header class="settings-heading"><h1>Overlay</h1><p>Control overlay visibility and layout.</p></header>
-        <div class="settings-card settings-row"><span><strong>{overlay.locked ? "Overlay locked" : "Edit mode"}</strong></span><button class="btn" type="button" onClick={() => update(electroview.rpc?.request.setOverlayLocked({ locked: !overlay.locked }))}>{overlay.locked ? "Unlock overlay" : "Lock overlay"}</button></div>
-        <div class="settings-card settings-row"><span><strong>{overlay.overlayVisible ? "Overlay shown" : "Overlay hidden"}</strong></span><button class="btn" type="button" onClick={() => update(electroview.rpc?.request.setOverlayVisible({ visible: !overlay.overlayVisible }))}>{overlay.overlayVisible ? "Hide overlay" : "Show overlay"}</button></div>
-        <label class="settings-check"><input type="checkbox" checked={overlay.autoHideWhenUnfocused} disabled={busy} onChange={(event) => update(electroview.rpc?.request.setAutoHideWhenUnfocused({ enabled: event.currentTarget.checked }))} /><span>Auto-hide overlay when the game or Spirit Vale Overlay is not focused</span></label>
-        <p class="settings-hint">Spirit Vale and this app's own windows keep the overlay visible. Switching to another app hides it; a manual hide remains hidden until you show it again.</p>
-        {overlay.displays.length > 1 && <label class="settings-field"><span>Home display</span><CustomSelect ariaLabel="Home display" disabled={busy} value={overlay.homeDisplay} options={displayOptions} onChange={(value) => update(electroview.rpc?.request.setOverlayHomeDisplay({ display: value }))} /></label>}
-        {overlay.displays.length > 1 && <p class="settings-hint">Where new tiles land, and where a tile falls back to if its monitor is disconnected.</p>}
-        <div class="settings-card"><h2>Visible elements</h2>{OVERLAY_ELEMENT_IDS.map((id) => <div class="settings-element-row" key={id}>
-          <label class="settings-check settings-element"><input type="checkbox" checked={overlay.elements[id].enabled} onChange={(event) => update(electroview.rpc?.request.setOverlayElementEnabled({ id, enabled: event.currentTarget.checked }))} /><span>{OVERLAY_ELEMENT_LABELS[id]}</span></label>
-          {/* Tiles cannot be dragged between monitors — separate documents — so the move happens here. */}
-          {overlay.displays.length > 1 && <CustomSelect ariaLabel={`Display for ${OVERLAY_ELEMENT_LABELS[id]}`} disabled={busy} value={overlay.elements[id].display} options={displayOptions} onChange={(value) => update(electroview.rpc?.request.setOverlayElementDisplay({ id, display: value }))} />}
-        </div>)}</div>
-        <p class="settings-hint">{overlay.personalName ? `Detected character: ${overlay.personalName}` : "Waiting to detect your active character."}</p>
-      </section>
-
-      <section class="settings-panel" hidden={tab !== "combat"}>
-        <header class="settings-heading"><h1>Combat</h1><p>Control how combat tracking behaves.</p></header>
-        <label class="settings-check"><input type="checkbox" checked={launcher.resetMeterOnMapChange} disabled={busy} onChange={(event) => update(electroview.rpc?.request.setResetMeterOnMapChange({ resetMeterOnMapChange: event.currentTarget.checked }))} /><span>Reset meter on map/channel change</span></label>
-        <p class="settings-hint">Starts a new session when you zone or switch channel, exactly as the Reset session keybind does.</p>
-        <label class="settings-check"><input type="checkbox" checked={launcher.resetGoldOnMapChange} disabled={busy} onChange={(event) => update(electroview.rpc?.request.setResetGoldOnMapChange({ resetGoldOnMapChange: event.currentTarget.checked }))} /><span>Reset gold on map/channel change</span></label>
-        <p class="settings-hint">Resets the all-time gold tracker whenever you zone or switch channel.</p>
-        <label class="settings-field"><span>Personal DPS display</span><CustomSelect ariaLabel="Personal DPS display" disabled={busy} value={overlay.personalDpsMode} options={PERSONAL_DPS_MODE_OPTIONS} onChange={(value) => update(electroview.rpc?.request.setPersonalDpsMode({ mode: value as "live" | "encounter" }))} /></label>
-        <p class="settings-hint">Controls whether your personal DPS tile shows the whole-encounter average (matches the party meter) or a live, recent-rate estimate.</p>
-      </section>
-
-      <section class="settings-panel" hidden={tab !== "status"}>
-        <header class="settings-heading"><h1>Status</h1><p>Warn when the buffs you rely on drop off.</p></header>
-        <div class="settings-card">
-          <h2>Missing buff warning</h2>
-          {REQUIRED_STATUS_CATEGORIES.map((category) => {
-            const armed = new Set(overlay.requiredStatuses[category]);
-            const setArmed = (statusIds: string[]): void =>
-              update(electroview.rpc?.request.setOverlayRequiredStatuses({ category, statusIds }));
-            return <div class="settings-field" key={category}>
-              <span>{REQUIRED_STATUS_LABELS[category]}</span>
-              <CheckboxMultiSelect
-                options={REQUIRED_STATUS_OPTIONS[category]}
-                selected={armed}
-                onChange={(next) => setArmed([...next])}
-                ariaLabel={`Warn when these ${REQUIRED_STATUS_LABELS[category].toLowerCase()} are missing`}
-                searchPlaceholder="Search buffs"
-                clearLabel="Clear selection"
-                noMatchLabel={(query) => `No buffs match "${query}".`}
-                summarize={(chosen) => chosen.size === 0 ? "Select buffs…" : `${chosen.size} selected`}
-              />
-              {armed.size > 0 && <ul class="status-chips">
-                {/* Listed in the picker's own order so a chip does not jump when others are removed. */}
-                {REQUIRED_STATUS_OPTIONS[category].filter((option) => armed.has(option.value)).map((option) =>
-                  <li class="status-chip" key={option.value}>
-                    <img src={option.iconSrc} alt="" aria-hidden="true" />
-                    <span>{option.label}</span>
-                    <button
-                      type="button"
-                      class="status-chip-remove"
-                      aria-label={`Stop warning when ${option.label} is missing`}
-                      onClick={() => setArmed([...armed].filter((statusId) => statusId !== option.value))}
-                    >
-                      ×
-                    </button>
-                  </li>)}
-              </ul>}
-            </div>;
-          })}
-          <p class="settings-hint">Selected buffs that aren't active outline the matching overlay tile in red.</p>
-        </div>
-        <p class="settings-hint">The Buffs and Toggles tiles must be enabled under Overlay for the warning to be visible.</p>
-      </section>
-
-      <section class="settings-panel" hidden={tab !== "keybinds"}>
-        <header class="settings-heading"><h1>Keybinds</h1><p>Global pass-through shortcuts remain active while Spirit Vale Overlay is running; the foreground app receives the same key press.</p></header>
-        <label class="settings-check"><input type="checkbox" checked={overlay.keybindsRequireGameFocus} disabled={busy} onChange={(event) => update(electroview.rpc?.request.setKeybindsRequireGameFocus({ enabled: event.currentTarget.checked }))} /><span>Only enable keybinds while Spirit Vale is focused</span></label>
-        <p class="settings-hint">The fixed Escape shortcut for leaving overlay edit mode remains available as a recovery action.</p>
-        <div class="settings-actions">
-          <button class="btn" type="button" disabled={busy} onClick={() => {
-            recordingAction.value = undefined;
-            update(electroview.rpc?.request.resetShortcutsToDefaults({}));
-          }}>Reset to defaults</button>
-        </div>
-        <section class="keybind-list" aria-label="Keybind assignments">
-          <h2>Click to select</h2>
-          {KEYBIND_ACTIONS.map((action) => <div class="keybind-row" key={action}>
-            <span>{KEYBIND_LABELS[action]}</span>
-            <button class="btn" type="button" onClick={() => void beginShortcutCapture(action)} onKeyDown={(event) => void captureShortcut(action, event)}>{recordingAction.value === action ? "Press a shortcut…" : overlay.shortcuts[action]}</button>
-            {(overlay.shortcutErrors[action] || recordingAction.value === action) &&
-              <p class="keybind-message" aria-live="polite">{overlay.shortcutErrors[action] ?? "Press a key or Escape to cancel."}</p>}
-          </div>)}
-        </section>
-        <p class="settings-hint">Shortcuts pass through to the foreground app. Windows or another app may also use the same combination; Ctrl+Shift can switch input languages when configured that way in Windows.</p>
-      </section>
+      {(next.launcher.storageWarning || next.overlay.shortcutErrors.openLiveDeathLog) && <div class="banner is-warn" aria-live="polite">{next.launcher.storageWarning ?? next.overlay.shortcutErrors.openLiveDeathLog}</div>}
+      <SettingsLayout sections={sections} />
     </section>
   </main>;
 }
