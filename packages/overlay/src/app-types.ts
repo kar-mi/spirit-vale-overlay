@@ -193,6 +193,8 @@ export interface OverlaySettingsState {
   overlayVisible: boolean;
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
   personalDpsMode: PersonalDpsMode;
+  autoHideWhenUnfocused: boolean;
+  keybindsRequireGameFocus: boolean;
 }
 
 type OverlaySharedRequests = {

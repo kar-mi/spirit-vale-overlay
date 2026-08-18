@@ -327,6 +327,14 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
         await overlayWindow.withWindow((overlay) => overlay.setOverlayVisible(visible));
         return sharedSettingsState();
       },
+      setAutoHideWhenUnfocused: async ({ enabled }) => {
+        await overlayWindow.withWindow((overlay) => overlay.setAutoHideWhenUnfocused(enabled));
+        return sharedSettingsState();
+      },
+      setKeybindsRequireGameFocus: async ({ enabled }) => {
+        await overlayWindow.withWindow((overlay) => overlay.setKeybindsRequireGameFocus(enabled));
+        return sharedSettingsState();
+      },
       setShortcut: async ({ action, shortcut }) => {
         await overlayWindow.withWindow((overlay) => overlay.setShortcut(action, shortcut));
         return sharedSettingsState();

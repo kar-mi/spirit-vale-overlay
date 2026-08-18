@@ -111,6 +111,8 @@ function App() {
         <header class="settings-heading"><h1>Overlay</h1><p>Control overlay visibility and layout.</p></header>
         <div class="settings-card settings-row"><span><strong>{overlay.locked ? "Overlay locked" : "Edit mode"}</strong></span><button class="btn" type="button" onClick={() => update(electroview.rpc?.request.setOverlayLocked({ locked: !overlay.locked }))}>{overlay.locked ? "Unlock overlay" : "Lock overlay"}</button></div>
         <div class="settings-card settings-row"><span><strong>{overlay.overlayVisible ? "Overlay shown" : "Overlay hidden"}</strong></span><button class="btn" type="button" onClick={() => update(electroview.rpc?.request.setOverlayVisible({ visible: !overlay.overlayVisible }))}>{overlay.overlayVisible ? "Hide overlay" : "Show overlay"}</button></div>
+        <label class="settings-check"><input type="checkbox" checked={overlay.autoHideWhenUnfocused} disabled={busy} onChange={(event) => update(electroview.rpc?.request.setAutoHideWhenUnfocused({ enabled: event.currentTarget.checked }))} /><span>Auto-hide overlay when the game or Spirit Vale Overlay is not focused</span></label>
+        <p class="settings-hint">Spirit Vale and this app's own windows keep the overlay visible. Switching to another app hides it; a manual hide remains hidden until you show it again.</p>
         {overlay.displays.length > 1 && <label class="settings-field"><span>Home display</span><CustomSelect ariaLabel="Home display" disabled={busy} value={overlay.homeDisplay} options={displayOptions} onChange={(value) => update(electroview.rpc?.request.setOverlayHomeDisplay({ display: value }))} /></label>}
         {overlay.displays.length > 1 && <p class="settings-hint">Where new tiles land, and where a tile falls back to if its monitor is disconnected.</p>}
         <div class="settings-card"><h2>Visible elements</h2>{OVERLAY_ELEMENT_IDS.map((id) => <div class="settings-element-row" key={id}>
@@ -176,6 +178,8 @@ function App() {
 
       <section class="settings-panel" hidden={tab !== "keybinds"}>
         <header class="settings-heading"><h1>Keybinds</h1><p>Global pass-through shortcuts remain active while Spirit Vale Overlay is running; the foreground app receives the same key press.</p></header>
+        <label class="settings-check"><input type="checkbox" checked={overlay.keybindsRequireGameFocus} disabled={busy} onChange={(event) => update(electroview.rpc?.request.setKeybindsRequireGameFocus({ enabled: event.currentTarget.checked }))} /><span>Only enable keybinds while Spirit Vale is focused</span></label>
+        <p class="settings-hint">The fixed Escape shortcut for leaving overlay edit mode remains available as a recovery action.</p>
         <div class="settings-actions">
           <button class="btn" type="button" disabled={busy} onClick={() => {
             recordingAction.value = undefined;
