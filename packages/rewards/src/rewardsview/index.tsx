@@ -18,10 +18,12 @@ import {
 } from "@kar-mi/spirit-vale-tools-rewards";
 import type { TrendMetric, TrendMode, TrendRange, TrendSample } from "@kar-mi/spirit-vale-tools-rewards";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
+import { nextTableSort, SortableHeader } from "@svoverlay/ui-kit/sortable-table";
+import type { TableSort } from "@svoverlay/ui-kit/sortable-table";
 
 import type { RewardsAppRpc, RewardsAppState, RewardsAppView, RewardsUiDrop } from "../app-types.ts";
 import { sortRewardKills, sortRewardSummaries } from "../table-sort.ts";
-import type { KillSortKey, SortDirection, SummarySortKey, TableSort } from "../table-sort.ts";
+import type { KillSortKey, SummarySortKey } from "../table-sort.ts";
 
 const STATUS_TONE: Record<RewardsAppState["status"], StatusTone> = {
   waiting: "is-warn",
@@ -97,6 +99,12 @@ function App() {
       if (updated.has(key)) updated.delete(key); else updated.add(key);
       return updated;
     });
+  };
+  const sortSummariesBy = (key: SummarySortKey): void => {
+    setSummarySort((current) => nextTableSort(current, key));
+  };
+  const sortKillsBy = (key: KillSortKey): void => {
+    setKillSort((current) => nextTableSort(current, key));
   };
 
   return (
@@ -174,12 +182,12 @@ function App() {
               <div class="table-scroll rewards-table-scroll">
                 <table class="data-table rewards-table" aria-label="Mob reward summary">
                   <thead><tr>
-                    <RewardSortHeader label="Mob" active={summarySort.key === "displayName"} direction={summarySort.direction} onSort={() => setSummarySort(nextSort(summarySort, "displayName"))} />
-                    <RewardSortHeader label="Level" active={summarySort.key === "level"} direction={summarySort.direction} onSort={() => setSummarySort(nextSort(summarySort, "level"))} />
-                    <RewardSortHeader label="Kills" active={summarySort.key === "kills"} direction={summarySort.direction} onSort={() => setSummarySort(nextSort(summarySort, "kills"))} />
-                    <RewardSortHeader label="Char XP" active={summarySort.key === "experience"} direction={summarySort.direction} onSort={() => setSummarySort(nextSort(summarySort, "experience"))} />
-                    <RewardSortHeader label="Job XP" active={summarySort.key === "jobExperience"} direction={summarySort.direction} onSort={() => setSummarySort(nextSort(summarySort, "jobExperience"))} />
-                    <RewardSortHeader label="Coins" active={summarySort.key === "coins"} direction={summarySort.direction} onSort={() => setSummarySort(nextSort(summarySort, "coins"))} />
+                    <SortableHeader sortKey="displayName" sort={summarySort} onSort={sortSummariesBy} align="start">Mob</SortableHeader>
+                    <SortableHeader sortKey="level" sort={summarySort} onSort={sortSummariesBy}>Level</SortableHeader>
+                    <SortableHeader sortKey="kills" sort={summarySort} onSort={sortSummariesBy}>Kills</SortableHeader>
+                    <SortableHeader sortKey="experience" sort={summarySort} onSort={sortSummariesBy}>Char XP</SortableHeader>
+                    <SortableHeader sortKey="jobExperience" sort={summarySort} onSort={sortSummariesBy}>Job XP</SortableHeader>
+                    <SortableHeader sortKey="coins" sort={summarySort} onSort={sortSummariesBy}>Coins</SortableHeader>
                     <th>Drops</th>
                   </tr></thead>
                   <tbody>
@@ -207,13 +215,13 @@ function App() {
               <div class="table-scroll rewards-table-scroll">
                 <table class="data-table rewards-table recent-rewards-table" aria-label="Recent kills">
                   <thead><tr>
-                    <RewardSortHeader label="Mob" active={killSort.key === "displayName"} direction={killSort.direction} onSort={() => setKillSort(nextSort(killSort, "displayName"))} />
-                    <RewardSortHeader label="Level" active={killSort.key === "level"} direction={killSort.direction} onSort={() => setKillSort(nextSort(killSort, "level"))} />
-                    <RewardSortHeader label="Char XP" active={killSort.key === "experience"} direction={killSort.direction} onSort={() => setKillSort(nextSort(killSort, "experience"))} />
-                    <RewardSortHeader label="Job XP" active={killSort.key === "jobExperience"} direction={killSort.direction} onSort={() => setKillSort(nextSort(killSort, "jobExperience"))} />
-                    <RewardSortHeader label="Coins" active={killSort.key === "coins"} direction={killSort.direction} onSort={() => setKillSort(nextSort(killSort, "coins"))} />
+                    <SortableHeader sortKey="displayName" sort={killSort} onSort={sortKillsBy} align="start">Mob</SortableHeader>
+                    <SortableHeader sortKey="level" sort={killSort} onSort={sortKillsBy}>Level</SortableHeader>
+                    <SortableHeader sortKey="experience" sort={killSort} onSort={sortKillsBy}>Char XP</SortableHeader>
+                    <SortableHeader sortKey="jobExperience" sort={killSort} onSort={sortKillsBy}>Job XP</SortableHeader>
+                    <SortableHeader sortKey="coins" sort={killSort} onSort={sortKillsBy}>Coins</SortableHeader>
                     <th>Drops</th>
-                    <RewardSortHeader label="Timestamp" active={killSort.key === "timestamp"} direction={killSort.direction} onSort={() => setKillSort(nextSort(killSort, "timestamp"))} />
+                    <SortableHeader sortKey="timestamp" sort={killSort} onSort={sortKillsBy}>Timestamp</SortableHeader>
                   </tr></thead>
                   <tbody>{kills.map((kill) => <RewardRow
                     key={kill.id}
@@ -327,14 +335,6 @@ function RewardRow({ rowKey, name, values, drops, trailingValues = [], expanded,
     </tr>
     {isExpanded && drops.length > 0 && <tr id={detailId} class="table-detail-row"><td colSpan={values.length + trailingValues.length + 2}><div class="table-detail-chips">{drops.map((drop, index) => <span class="chip" key={`${drop.itemId}-${index}`}>{formatDrop(drop)}</span>)}</div></td></tr>}
   </Fragment>;
-}
-
-function RewardSortHeader({ label, active, direction, onSort }: { label: string; active: boolean; direction: SortDirection; onSort(): void }) {
-  return <th class="sortable-column" aria-sort={active ? direction : undefined}><button class="sort-button" type="button" onClick={onSort}><span>{label}</span><span class={active ? "sort-indicator active" : "sort-indicator"} aria-hidden="true">{active ? (direction === "descending" ? "▼" : "▲") : "↕"}</span></button></th>;
-}
-
-function nextSort<K extends string>(current: TableSort<K>, key: K): TableSort<K> {
-  return { key, direction: current.key === key && current.direction === "descending" ? "ascending" : "descending" };
 }
 
 function safeDomId(value: string): string { return value.replace(/[^a-zA-Z0-9_-]/g, "-"); }

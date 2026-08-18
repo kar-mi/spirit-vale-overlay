@@ -6,10 +6,12 @@ import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
+import { nextTableSort, SortableHeader } from "@svoverlay/ui-kit/sortable-table";
+import type { TableSort } from "@svoverlay/ui-kit/sortable-table";
 
 import type { RewardsCatalogRpc, RewardsCatalogState } from "../app-types.ts";
 import { sortRewardCatalog } from "../table-sort.ts";
-import type { CatalogSortKey, SortDirection, TableSort } from "../table-sort.ts";
+import type { CatalogSortKey } from "../table-sort.ts";
 
 const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
@@ -56,6 +58,9 @@ function App() {
       return updated;
     });
   };
+  const sortBy = (key: CatalogSortKey): void => {
+    setSort((current) => nextTableSort(current, key));
+  };
 
   return (
     <>
@@ -98,12 +103,12 @@ function App() {
             <div class="table-scroll catalog-table-scroll">
               <table class="data-table catalog-table" aria-label="Mob reward catalog">
                 <thead><tr>
-                  <CatalogSortHeader label="Mob" active={sort.key === "displayName"} direction={sort.direction} onSort={() => setSort(nextSort(sort, "displayName"))} />
-                  <CatalogSortHeader label="ID" active={sort.key === "id"} direction={sort.direction} onSort={() => setSort(nextSort(sort, "id"))} />
-                  <CatalogSortHeader label="Level" active={sort.key === "level"} direction={sort.direction} onSort={() => setSort(nextSort(sort, "level"))} />
-                  <CatalogSortHeader label="Boss" active={sort.key === "boss"} direction={sort.direction} onSort={() => setSort(nextSort(sort, "boss"))} />
-                  <CatalogSortHeader label="Base XP" active={sort.key === "baseExperience"} direction={sort.direction} onSort={() => setSort(nextSort(sort, "baseExperience"))} />
-                  <CatalogSortHeader label="Base coins" active={sort.key === "baseCoins"} direction={sort.direction} onSort={() => setSort(nextSort(sort, "baseCoins"))} />
+                  <SortableHeader sortKey="displayName" sort={sort} onSort={sortBy} align="start">Mob</SortableHeader>
+                  <SortableHeader sortKey="id" sort={sort} onSort={sortBy}>ID</SortableHeader>
+                  <SortableHeader sortKey="level" sort={sort} onSort={sortBy}>Level</SortableHeader>
+                  <SortableHeader sortKey="boss" sort={sort} onSort={sortBy}>Boss</SortableHeader>
+                  <SortableHeader sortKey="baseExperience" sort={sort} onSort={sortBy}>Base XP</SortableHeader>
+                  <SortableHeader sortKey="baseCoins" sort={sort} onSort={sortBy}>Base coins</SortableHeader>
                   <th>Drops</th>
                 </tr></thead>
                 <tbody>{catalog.map((mob) => {
@@ -130,14 +135,6 @@ function App() {
       </main>
     </>
   );
-}
-
-function CatalogSortHeader({ label, active, direction, onSort }: { label: string; active: boolean; direction: SortDirection; onSort(): void }) {
-  return <th class="sortable-column" aria-sort={active ? direction : undefined}><button class="sort-button" type="button" onClick={onSort}><span>{label}</span><span class={active ? "sort-indicator active" : "sort-indicator"} aria-hidden="true">{active ? (direction === "descending" ? "▼" : "▲") : "↕"}</span></button></th>;
-}
-
-function nextSort<K extends string>(current: TableSort<K>, key: K): TableSort<K> {
-  return { key, direction: current.key === key && current.direction === "descending" ? "ascending" : "descending" };
 }
 
 function safeDomId(value: string): string { return value.replace(/[^a-zA-Z0-9_-]/g, "-"); }

@@ -337,6 +337,7 @@ button { cursor: pointer; }
 
 .sort-button > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .sort-button:hover { background: color-mix(in srgb, var(--on-surface) 8%, transparent); }
+.sort-button.align-start { justify-content: flex-start; }
 .sort-indicator { flex: 0 0 10px; width: 10px; opacity: 0.35; font-size: 8px; }
 .sort-indicator.active { opacity: 1; color: var(--primary); }
 
