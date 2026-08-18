@@ -64,7 +64,7 @@ export function snapshotToBuild(snapshot: CharacterSnapshot, options: TranslateO
   const build: V2Build = {
     v: 2,
     cls,
-    name: (options.name ?? snapshot.name ?? "").slice(0, 60),
+    name: [...(options.name ?? snapshot.name ?? "")].slice(0, 60).join(""),
     overview: "",
     lv: clampInt(snapshot.level, 1, 150, 100),
     job: clampInt(snapshot.jobLevel, 1, classData?.maxJobLevel ?? 50, 1),

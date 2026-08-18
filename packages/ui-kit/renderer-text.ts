@@ -16,8 +16,24 @@ const WINDOWS_1252_BYTES = new Map<number, number>([
   [0x0153, 0x9c], [0x017e, 0x9e], [0x0178, 0x9f],
 ]);
 
-const MOJIBAKE_LEAD = /(?:\u00c2[\u0080-\u00ff\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d\u2018-\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178]|\u00c3[\u0080-\u00ff\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d\u2018-\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178]|\u00e2[\u0080-\u00ff\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d\u2018-\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178])/u;
-const HALFWIDTH_UTF8_SEQUENCE = /[\uffc2\uffc3\uffe2][\uff80-\uffbf]+/gu;
+const characterFor = (codePoint: number): string => String.fromCharCode(codePoint);
+
+/**
+ * Every character a UTF-8 continuation byte (0x80-0xbf) can appear as once Windows-1252 has
+ * decoded it: the pass-through range, plus the 27 bytes Windows-1252 remaps to punctuation.
+ * Derived from the table above so the two cannot drift apart.
+ */
+const CONTINUATION = `[${characterFor(0x80)}-${characterFor(0xbf)}${[...WINDOWS_1252_BYTES.keys()].sort((left, right) => left - right).map(characterFor).join("")}]`;
+
+/**
+ * Lead bytes 0xc2-0xf4 cover every multi-byte UTF-8 sequence, so this matches mojibake in any
+ * script - Latin-1 (0xc2-0xc3), Greek and Cyrillic (0xce-0xd1), CJK (0xe3-0xed) and astral
+ * planes (0xf0-0xf4). Windows-1252 leaves 0xa0-0xff alone, so the leads map to themselves.
+ */
+const MOJIBAKE_LEAD = new RegExp(`[${characterFor(0xc2)}-${characterFor(0xf4)}]${CONTINUATION}`, "u");
+/** The same shape, for renderers that map each raw byte into the halfwidth-forms block. */
+const HALFWIDTH = 0xff00;
+const HALFWIDTH_UTF8_SEQUENCE = new RegExp(`[${characterFor(HALFWIDTH + 0xc2)}-${characterFor(HALFWIDTH + 0xf4)}][${characterFor(HALFWIDTH + 0x80)}-${characterFor(HALFWIDTH + 0xbf)}]+`, "gu");
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 
 /** Repairs one or more layers of UTF-8 decoded as Windows-1252. */
