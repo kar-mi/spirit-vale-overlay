@@ -6,6 +6,8 @@ import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
 import { StatTypeSelect } from "@svoverlay/ui-kit/stat-type-select";
 
 import type { CombatAnalysisState, MeterActorRow, MeterEncounterSnapshot, StatType } from "../app-types.ts";
+import { CombatClassCell } from "../combat-class.tsx";
+import { nextTableSort, SortableHeader, sortTableRows, type TableSort } from "@svoverlay/ui-kit/sortable-table";
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
@@ -20,6 +22,8 @@ interface FilteredRow {
   critRate?: number;
   contribution: number;
 }
+
+type PlayerSortKey = "damage" | "dps" | "contribution" | "hits" | "criticalHits" | "critRate" | "kills";
 
 interface PastAnalysisPanelProps {
   state: CombatAnalysisState;
@@ -70,6 +74,7 @@ export function PastAnalysisPanel({
   onOpenPlayerDetails,
 }: PastAnalysisPanelProps) {
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
+  const [playerSort, setPlayerSort] = useState<TableSort<PlayerSortKey>>({ key: "damage", direction: "descending" });
   const lastEncounterId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -87,6 +92,15 @@ export function PastAnalysisPanel({
   const damageLabel = state.statType === "tanked" ? "Damage taken" : state.statType === "heal" ? "Healing" : "Damage";
   const rows = activeSnapshot?.actors ?? [];
   const filteredRows = applyEnemyFilter(state, rows, selectedEnemyIds);
+  const sortedRows = sortTableRows(
+    filteredRows,
+    playerSort,
+    (row, key) => key === "kills" ? row.actor.kills : row[key],
+    (left, right) => left.actor.displayName.localeCompare(right.actor.displayName),
+  );
+  const sortPlayersBy = (key: PlayerSortKey): void => {
+    setPlayerSort((current) => nextTableSort(current, key));
+  };
   const hasFilter = state.statType === "damage" && selectedEnemyIds.size > 0;
   const partyDamage = hasFilter ? filteredRows.reduce((sum, row) => sum + row.damage, 0) : (activeSnapshot?.totalDamage ?? 0);
   const partyDps = hasFilter
@@ -131,9 +145,19 @@ export function PastAnalysisPanel({
       <section class="players-section" aria-label="Player analysis">
         <div class="section-head"><h1>Player {damageLabel.toLowerCase()}</h1><p>Double-click a player for skills and damage over time.</p></div>
         {filteredRows.length > 0 && <div class="table-scroll">
-          <table class="data-table combat-table" aria-label={`Player ${damageLabel.toLowerCase()}`}>
-            <thead><tr><th>Player</th><th>{damageLabel}</th><th>{metricLabel}</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th><th>Kills</th></tr></thead>
-            <tbody>{filteredRows.map(({ actor, damage, dps, hits, criticalHits, critRate, contribution }) => {
+          <table class="data-table combat-table player-combat-table" aria-label={`Player ${damageLabel.toLowerCase()}`}>
+            <thead><tr>
+              <th>Class</th>
+              <th>Player</th>
+              <SortableHeader sortKey="damage" sort={playerSort} onSort={sortPlayersBy}>{damageLabel}</SortableHeader>
+              <SortableHeader sortKey="dps" sort={playerSort} onSort={sortPlayersBy}>{metricLabel}</SortableHeader>
+              <SortableHeader sortKey="contribution" sort={playerSort} onSort={sortPlayersBy}>Share</SortableHeader>
+              <SortableHeader sortKey="hits" sort={playerSort} onSort={sortPlayersBy}>Hits</SortableHeader>
+              <SortableHeader sortKey="criticalHits" sort={playerSort} onSort={sortPlayersBy}>Crits</SortableHeader>
+              <SortableHeader sortKey="critRate" sort={playerSort} onSort={sortPlayersBy}>Crit rate</SortableHeader>
+              <SortableHeader sortKey="kills" sort={playerSort} onSort={sortPlayersBy}>Kills</SortableHeader>
+            </tr></thead>
+            <tbody>{sortedRows.map(({ actor, damage, dps, hits, criticalHits, critRate, contribution }) => {
               const activate = () => onOpenPlayerDetails(actor.actorIds[0]!, [...selectedEnemyIds]);
               return <tr
                 key={actor.actorIds[0]}
@@ -143,6 +167,7 @@ export function PastAnalysisPanel({
                 onDblClick={activate}
                 onKeyDown={(event) => activateRow(event, activate)}
               >
+                <CombatClassCell archetype={actor.archetype} />
                 <th scope="row">{actor.displayName}</th>
                 <td>{compactFormat.format(damage)}</td>
                 <td>{numberFormat.format(dps)}</td>

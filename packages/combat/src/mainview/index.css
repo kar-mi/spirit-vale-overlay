@@ -87,15 +87,24 @@ body {
 .meter-table :is(th, td) { padding: 4px 7px; }
 .meter-table thead th.sortable-column { padding: 0; }
 .party-meter-table { min-width: 100%; table-layout: fixed; }
-.party-meter-table :is(th, td):first-child { width: 25%; }
-.party-meter-table :is(th, td):nth-child(n + 2) { width: 15%; padding-right: 4px; padding-left: 4px; }
-.party-meter-table :is(th, td):nth-child(n + 2) .sort-button { padding-right: 4px; padding-left: 4px; }
+.party-meter-table :is(th, td):first-child { width: 18%; }
+.party-meter-table :is(th, td):nth-child(2) { width: 22%; text-align: left; }
+.party-meter-table :is(th, td):nth-child(n + 3) { width: 10%; padding-right: 4px; padding-left: 4px; }
+.party-meter-table :is(th, td):nth-child(n + 3) .sort-button { padding-right: 4px; padding-left: 4px; }
 .party-meter-table tbody :is(th, td) { overflow: hidden; text-overflow: ellipsis; }
 .meter-table .sort-button { padding: 4px 7px; }
 .meter-table-row { background: linear-gradient(90deg, var(--primary-container) 0 var(--row-fill), var(--surface-container-low) var(--row-fill) 100%) !important; }
 .meter-table-row:nth-child(even) { background: linear-gradient(90deg, var(--primary-container) 0 var(--row-fill), var(--surface-container) var(--row-fill) 100%) !important; }
 .live-player-row { cursor: default; }
 .live-player-row:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
+.combat-class-cell { text-align: left !important; }
+.combat-class-content { display: flex; align-items: center; gap: 5px; }
+.combat-class-icon, .combat-class-placeholder { flex: 0 0 18px; width: 18px; height: 18px; }
+.combat-class-icon { object-fit: contain; }
+.combat-class-placeholder { display: inline-grid; place-items: center; border-radius: 50%; background: var(--surface-container-highest); color: var(--on-surface-variant); font-size: 11px; }
+.combat-class-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.player-combat-table { min-width: 760px; }
+.player-combat-table :is(th, td):nth-child(2) { text-align: left; }
 
 @media (max-width: 380px) {
   .brand > span:not(.brand-tag) { display: none; }

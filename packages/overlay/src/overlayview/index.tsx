@@ -6,6 +6,7 @@ import { formatDps, formatDuration } from "@svoverlay/ui-kit/format";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { InteractiveChart } from "@svoverlay/ui-kit/interactive-chart";
 import type { ChartRange, ChartRenderResult } from "@svoverlay/ui-kit/interactive-chart";
+import { classIconUrlForArchetype, classIconUrlForName } from "@svoverlay/ui-kit/class-display";
 
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import {
@@ -44,23 +45,6 @@ const FLASH_MINIMUM_DURATION_MS = 59_000;
 const STATUS_TICK_MS = 100;
 const GRID_SIZE = 10;
 const RESIZE_EDGES = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
-const CLASS_ICON_BY_ARCHETYPE: Readonly<Record<number, string>> = {
-  0: "warrior",
-  1: "mage",
-  2: "rogue",
-  3: "knight",
-  4: "summoner",
-  5: "acolyte",
-  6: "scout",
-  10: "paladin",
-  12: "berserker",
-  14: "priest",
-  16: "wizard",
-  21: "shinobi",
-  22: "gunslinger",
-  26: "necromancer",
-  31: "weaver",
-};
 const PARTY_ROW_COLORS = [
   "rgba(111, 91, 211, 0.52)",
   "rgba(40, 132, 210, 0.52)",
@@ -621,7 +605,7 @@ function PersonalDpsElement() {
   return (
     <div class="element-content">
       <div class="personal-heading">
-        <img class="personal-class-icon" src={classIcon(personal?.archetype)} alt="" aria-hidden="true" />
+        <img class="personal-class-icon" src={overlayClassIcon(personal?.archetype)} alt="" aria-hidden="true" />
         <div>
           <h2 class="element-title">{personalDpsMode === "live" ? "Live DPS" : "Encounter DPS"}</h2>
           {personalDpsMode !== "live" && <span class="personal-duration">{formatDuration(personal?.durationMs ?? 0)}</span>}
@@ -814,7 +798,7 @@ function PartyRankingElement() {
           style={`--row-fill:${actor.dps / maxDps * 100}%;--row-color:${PARTY_ROW_COLORS[index % PARTY_ROW_COLORS.length]}`}
         >
           <span class="ranking-player">
-            <img class="ranking-class-icon" src={classIcon(actor.archetype)} alt="" aria-hidden="true" />
+            <img class="ranking-class-icon" src={overlayClassIcon(actor.archetype)} alt="" aria-hidden="true" />
             <span class="ranking-rank">{index + 1}.</span>
             <span class="ranking-name">{actor.displayName}</span>
           </span>
@@ -921,9 +905,8 @@ function WaitingForDps({ label = "Waiting for DPS" }: { label?: string } = {}) {
   );
 }
 
-function classIcon(archetype: number | undefined): string {
-  const icon = archetype === undefined ? "weaver" : CLASS_ICON_BY_ARCHETYPE[archetype] ?? "weaver";
-  return `views://assets/class-icons/class-${icon}.webp`;
+function overlayClassIcon(archetype: number | undefined): string {
+  return classIconUrlForArchetype(archetype) ?? classIconUrlForName("Weaver")!;
 }
 
 function setLocked(locked: boolean): Promise<void> {

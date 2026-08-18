@@ -1,19 +1,23 @@
 import { render } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Electroview } from "electrobun/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
-import { formatDuration } from "@svoverlay/ui-kit/format";
 import { EnemyFilterControl } from "@svoverlay/ui-kit/enemy-filter";
 import { StatTypeSelect } from "@svoverlay/ui-kit/stat-type-select";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
+import { InteractiveChart } from "@svoverlay/ui-kit/interactive-chart";
+import type { ChartRange, ChartRenderResult } from "@svoverlay/ui-kit/interactive-chart";
 
 import type { FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
 import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState, MeterActorRow, MeterTimelinePoint, StatType } from "../app-types.ts";
+import { nextTableSort, SortableHeader, sortTableRows, type TableSort } from "@svoverlay/ui-kit/sortable-table";
+import { buildDamageChartRender, damageChartExtent, formatElapsedChartTime } from "../damage-chart.ts";
+import type { DamageChartMetric } from "../damage-chart.ts";
 
-type Metric = "cumulative" | "dps";
+type SkillSortKey = "sourceLabel" | "damage" | "dps" | "contribution" | "hits" | "criticalHits" | "critRate";
 
 interface SkillFold {
   skills: FishNetDpsSkillRow[];
@@ -83,7 +87,8 @@ const ANALYSIS_DETAIL_DEFAULT_HEIGHT = 720;
 void ensureInitialWindowSize(electroview.rpc?.request, { width: 620, height: 500 });
 
 function App() {
-  const [metric, setMetric] = useState<Metric>("dps");
+  const [metric, setMetric] = useState<DamageChartMetric>("dps");
+  const [skillSort, setSkillSort] = useState<TableSort<SkillSortKey>>({ key: "damage", direction: "descending" });
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
   const [statType, setStatType] = useState<StatType>("damage");
   const next = state.value;
@@ -127,6 +132,15 @@ function App() {
     ["Crit hits", numberFormat.format(fold.criticalHits)],
     ["Crit rate", fold.critRate === undefined ? "—" : percentFormat.format(fold.critRate)],
   ];
+  const sortedSkills = sortTableRows(
+    fold.skills,
+    skillSort,
+    (skill, key) => skill[key],
+    (left, right) => left.sourceLabel.localeCompare(right.sourceLabel),
+  );
+  const sortSkillsBy = (key: SkillSortKey): void => {
+    setSkillSort((current) => nextTableSort(current, key, key === "sourceLabel" ? "ascending" : "descending"));
+  };
 
   return (
     <main class="app-shell">
@@ -165,7 +179,14 @@ function App() {
             <p>{metric === "cumulative" ? `Cumulative ${damageLabel.toLowerCase()} across the encounter.` : `${damageLabel} per second in five-second buckets.`}</p>
           </div>
           <div class="chart-card">
-            <DamageChart points={activePlayer?.timeline ?? []} durationMs={next.encounterDurationMs} metric={metric} damageLabel={damageLabel} />
+            <DamageChart
+              points={activePlayer?.timeline ?? []}
+              durationMs={next.encounterDurationMs}
+              metric={metric}
+              damageLabel={damageLabel}
+              metricLabel={metricLabel}
+              resetKey={`${selectionScope}:${statType}:${metric}`}
+            />
           </div>
         </section>
         <section class="skills-section">
@@ -181,8 +202,16 @@ function App() {
               </p>
             : <div class="table-scroll">
                 <table class="data-table combat-table" aria-label="Skill breakdown">
-                  <thead><tr><th>{statType === "tanked" ? "Attacker skill" : "Skill"}</th><th>{damageLabel}</th><th>{metricLabel}</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th></tr></thead>
-                  <tbody>{fold.skills.map((skill) => (
+                  <thead><tr>
+                    <SortableHeader sortKey="sourceLabel" sort={skillSort} onSort={sortSkillsBy} align="start">{statType === "tanked" ? "Attacker skill" : "Skill"}</SortableHeader>
+                    <SortableHeader sortKey="damage" sort={skillSort} onSort={sortSkillsBy}>{damageLabel}</SortableHeader>
+                    <SortableHeader sortKey="dps" sort={skillSort} onSort={sortSkillsBy}>{metricLabel}</SortableHeader>
+                    <SortableHeader sortKey="contribution" sort={skillSort} onSort={sortSkillsBy}>Share</SortableHeader>
+                    <SortableHeader sortKey="hits" sort={skillSort} onSort={sortSkillsBy}>Hits</SortableHeader>
+                    <SortableHeader sortKey="criticalHits" sort={skillSort} onSort={sortSkillsBy}>Crits</SortableHeader>
+                    <SortableHeader sortKey="critRate" sort={skillSort} onSort={sortSkillsBy}>Crit rate</SortableHeader>
+                  </tr></thead>
+                  <tbody>{sortedSkills.map((skill) => (
                     <tr key={skill.sourceId}>
                       <th scope="row">{skill.sourceLabel}</th>
                       <td>{compactFormat.format(skill.damage)}</td>
@@ -204,36 +233,29 @@ function App() {
 interface DamageChartProps {
   points: readonly MeterTimelinePoint[];
   durationMs: number;
-  metric: Metric;
+  metric: DamageChartMetric;
   damageLabel: string;
+  metricLabel: string;
+  resetKey: string;
 }
 
-function DamageChart({ points, durationMs, metric, damageLabel }: DamageChartProps) {
-  const width = 760;
-  const height = 280;
-  const left = 52;
-  const top = 18;
-  const right = 18;
-  const bottom = 34;
-  const maxValue = Math.max(1, ...points.map((point) => (metric === "cumulative" ? point.cumulativeDamage : point.dps)));
-  const duration = Math.max(1, durationMs);
-  const linePoints = points
-    .map((point) => {
-      const x = left + (point.elapsedMs / duration) * (width - left - right);
-      const value = metric === "cumulative" ? point.cumulativeDamage : point.dps;
-      const y = top + (1 - value / maxValue) * (height - top - bottom);
-      return `${x},${y}`;
-    })
-    .join(" ");
-
+function DamageChart({ points, durationMs, metric, damageLabel, metricLabel, resetKey }: DamageChartProps) {
+  const computeRender = useCallback(
+    (range: ChartRange, _plotWidth: number): ChartRenderResult =>
+      buildDamageChartRender(points, range, metric, damageLabel, metricLabel),
+    [points, metric, damageLabel, metricLabel],
+  );
   return (
-    <svg id="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${damageLabel} over time chart`}>
-      <line class="chart-axis" x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} />
-      <polyline class="chart-line" points={linePoints} />
-      <text class="chart-label" x={0} y={top + 4}>{compactFormat.format(maxValue)}</text>
-      <text class="chart-label" x={left} y={height - 8}>0:00</text>
-      <text class="chart-label" text-anchor="end" x={width - right} y={height - 8}>{formatDuration(durationMs)}</text>
-    </svg>
+    <InteractiveChart
+      extent={damageChartExtent(points, durationMs)}
+      computeRender={computeRender}
+      stepped={metric === "cumulative"}
+      emptyLabel={`No ${damageLabel.toLowerCase()} timeline is available.`}
+      ariaLabel={`${damageLabel} over time chart`}
+      resetKey={resetKey}
+      formatAxisTime={formatElapsedChartTime}
+      formatTooltipTime={formatElapsedChartTime}
+    />
   );
 }
 

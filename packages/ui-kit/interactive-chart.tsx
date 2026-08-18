@@ -47,6 +47,8 @@ export interface InteractiveChartProps {
   /** Number of evenly spaced labels on the x axis. */
   xAxisTickCount?: number;
   formatAxisTime?: (value: number, range: ChartRange) => string;
+  /** Formats the highlighted point's time. Defaults to a localized date and time. */
+  formatTooltipTime?: (value: number, range: ChartRange) => string;
 }
 
 export function InteractiveChart(
@@ -60,6 +62,7 @@ export function InteractiveChart(
     interactive = true,
     xAxisTickCount = 5,
     formatAxisTime = defaultFormatAxisTime,
+    formatTooltipTime = defaultFormatTooltipTime,
   }: InteractiveChartProps,
 ) {
   const [zoom, setZoom] = useState<ChartRange | undefined>(undefined);
@@ -156,7 +159,7 @@ export function InteractiveChart(
     tooltip.replaceChildren(
       svgText("strong", "", point.primary),
       svgText("div", "", point.secondary),
-      svgText("div", "", new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" }).format(point.time)),
+      svgText("div", "", formatTooltipTime(point.time, chart.range)),
     );
     tooltip.hidden = false;
     const tooltipWidth = 180;
@@ -262,6 +265,10 @@ export function InteractiveChart(
       {interactive && zoom !== undefined && <button class="btn chart-reset-zoom" type="button" onClick={() => setZoom(undefined)}>Reset zoom</button>}
     </div>
   );
+}
+
+function defaultFormatTooltipTime(value: number): string {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" }).format(value);
 }
 
 function drawAxes(

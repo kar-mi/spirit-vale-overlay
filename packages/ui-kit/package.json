@@ -16,6 +16,8 @@
     "./custom-select": "./custom-select.tsx",
     "./stat-type-select": "./stat-type-select.tsx",
     "./interactive-chart": "./interactive-chart.tsx",
+    "./sortable-table": "./sortable-table.tsx",
+    "./class-display": "./class-display.ts",
     "./format": "./format.ts",
     "./renderer-text": "./renderer-text.ts",
     "./use-dismissable": "./use-dismissable.ts"

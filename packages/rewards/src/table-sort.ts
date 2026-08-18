@@ -1,11 +1,9 @@
 import type { RewardsUiKill, RewardsUiMob, RewardsUiSummary } from "./app-types.ts";
+import type { SortDirection, TableSort } from "@svoverlay/ui-kit/sortable-table";
 
-export type SortDirection = "ascending" | "descending";
 export type SummarySortKey = "displayName" | "level" | "kills" | "experience" | "jobExperience" | "coins";
 export type KillSortKey = "displayName" | "level" | "timestamp" | "experience" | "jobExperience" | "coins";
 export type CatalogSortKey = "displayName" | "id" | "level" | "boss" | "baseExperience" | "baseCoins";
-
-export interface TableSort<K extends string> { key: K; direction: SortDirection }
 
 export function sortRewardSummaries(rows: readonly RewardsUiSummary[], sort: TableSort<SummarySortKey>): RewardsUiSummary[] {
   return sortRows(rows, sort.direction, (left, right) => compareReward(left, right, sort.key), (row) => `${row.displayName}:${row.mobId}`);

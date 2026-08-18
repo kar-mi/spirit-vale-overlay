@@ -17,6 +17,8 @@ import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppTab, MeterEncounter
 import { PastSessionPanel } from "./past-session-panel.tsx";
 import { PastAnalysisPanel } from "./past-analysis-panel.tsx";
 import { formatZone } from "../zone-label.ts";
+import { CombatClassCell } from "../combat-class.tsx";
+import { nextTableSort, SortableHeader, sortTableRows, type TableSort } from "@svoverlay/ui-kit/sortable-table";
 import {
   DPS_WINDOW_DEFAULT_HEIGHT,
   DPS_WINDOW_DEFAULT_WIDTH,
@@ -37,8 +39,7 @@ const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
 
 type ActorSortKey = "dps" | "damage" | "contribution" | "critRate" | "kills" | "mobsHit";
-type SortDirection = "ascending" | "descending";
-interface ActorSort { key: ActorSortKey; direction: SortDirection }
+type SkillSortKey = "sourceLabel" | "dps" | "damage" | "contribution" | "hits" | "criticalHits" | "critRate";
 
 const state = signal<DpsAppState | undefined>(undefined);
 
@@ -79,14 +80,10 @@ function formatCritRate(critRate: number | undefined): string {
   return critRate === undefined ? "—" : formatPercent(critRate);
 }
 
-function actorSortValue(actor: MeterEncounterSnapshot["actors"][number], key: ActorSortKey): number {
-  if (key === "critRate") return actor.critRate ?? 0;
-  return actor[key];
-}
-
 function App() {
   const next = state.value;
-  const [actorSort, setActorSort] = useState<ActorSort>({ key: "dps", direction: "descending" });
+  const [actorSort, setActorSort] = useState<TableSort<ActorSortKey>>({ key: "dps", direction: "descending" });
+  const [skillSort, setSkillSort] = useState<TableSort<SkillSortKey>>({ key: "damage", direction: "descending" });
 
   if (!next) return <main class="app-shell" />;
 
@@ -99,18 +96,25 @@ function App() {
   const amountLabel = isHeal ? "HEAL" : "DMG";
 
   const actors = activeSnapshot?.actors ?? [];
-  const sortedActors = [...actors].sort((left, right) => {
-    const difference = actorSortValue(left, actorSort.key) - actorSortValue(right, actorSort.key);
-    if (difference !== 0) return actorSort.direction === "ascending" ? difference : -difference;
-    return left.displayName.localeCompare(right.displayName);
-  });
+  const sortedActors = sortTableRows(
+    actors,
+    actorSort,
+    (actor, key) => actor[key],
+    (left, right) => left.displayName.localeCompare(right.displayName),
+  );
   const sortActorsBy = (key: ActorSortKey): void => {
-    setActorSort((current) => ({
-      key,
-      direction: current.key === key && current.direction === "descending" ? "ascending" : "descending",
-    }));
+    setActorSort((current) => nextTableSort(current, key));
   };
   const personalSkills = activeSnapshot?.personal?.skills ?? [];
+  const sortedPersonalSkills = sortTableRows(
+    personalSkills,
+    skillSort,
+    (skill, key) => skill[key],
+    (left, right) => left.sourceLabel.localeCompare(right.sourceLabel),
+  );
+  const sortSkillsBy = (key: SkillSortKey): void => {
+    setSkillSort((current) => nextTableSort(current, key, key === "sourceLabel" ? "ascending" : "descending"));
+  };
   const personalMatch = activeSnapshot?.personalMatch ?? (next.personalName ? "missing" : "unconfigured");
   const allActive = next.tab === "all";
 
@@ -175,13 +179,14 @@ function App() {
           : <div class="table-scroll meter-table-scroll">
               <table class="data-table meter-table party-meter-table" aria-label="Party damage">
                 <thead><tr>
+                  <th>Class</th>
                   <th>IGN</th>
-                  <SortableHeader label={metricLabel} sortKey="dps" sort={actorSort} onSort={sortActorsBy} />
-                  <SortableHeader label={amountLabel} sortKey="damage" sort={actorSort} onSort={sortActorsBy} />
-                  <SortableHeader label={`${amountLabel} %`} sortKey="contribution" sort={actorSort} onSort={sortActorsBy} />
-                  <SortableHeader label="CRT %" sortKey="critRate" sort={actorSort} onSort={sortActorsBy} />
-                  <SortableHeader label="Kills" sortKey="kills" sort={actorSort} onSort={sortActorsBy} />
-                  <SortableHeader label="Mobs hit" sortKey="mobsHit" sort={actorSort} onSort={sortActorsBy} />
+                  <SortableHeader sortKey="dps" sort={actorSort} onSort={sortActorsBy}>{metricLabel}</SortableHeader>
+                  <SortableHeader sortKey="damage" sort={actorSort} onSort={sortActorsBy}>{amountLabel}</SortableHeader>
+                  <SortableHeader sortKey="contribution" sort={actorSort} onSort={sortActorsBy}>{amountLabel} %</SortableHeader>
+                  <SortableHeader sortKey="critRate" sort={actorSort} onSort={sortActorsBy}>CRT %</SortableHeader>
+                  <SortableHeader sortKey="kills" sort={actorSort} onSort={sortActorsBy}>Kills</SortableHeader>
+                  <SortableHeader sortKey="mobsHit" sort={actorSort} onSort={sortActorsBy}>Mobs hit</SortableHeader>
                 </tr></thead>
                 <tbody>{sortedActors.map((actor) => {
                   const activate = () => void electroview.rpc?.request.openPlayerDetails({
@@ -199,6 +204,7 @@ function App() {
                     onDblClick={activate}
                     onKeyDown={(event) => activateRow(event, activate)}
                   >
+                    <CombatClassCell archetype={actor.archetype} />
                     <th scope="row">{actor.displayName}</th>
                     <td>{formatDps(actor.dps)}</td>
                     <td>{compactFormat.format(actor.damage)}</td>
@@ -247,8 +253,16 @@ function App() {
           ? <div class="empty-state">{personalMatch === "matched" ? "No personal skill damage yet." : "Personal skills appear after your character is matched."}</div>
           : <div class="table-scroll meter-table-scroll">
               <table class="data-table meter-table" aria-label="Personal skill damage">
-                <thead><tr><th>{next.statType === "tanked" ? "Attacker skill" : "Skill"}</th><th>{metricLabel}</th><th>{amountLabel}</th><th>Share</th><th>Hits</th><th>Crits</th><th>Crit rate</th></tr></thead>
-                <tbody>{personalSkills.map((skill) => (
+                <thead><tr>
+                  <SortableHeader sortKey="sourceLabel" sort={skillSort} onSort={sortSkillsBy} align="start">{next.statType === "tanked" ? "Attacker skill" : "Skill"}</SortableHeader>
+                  <SortableHeader sortKey="dps" sort={skillSort} onSort={sortSkillsBy}>{metricLabel}</SortableHeader>
+                  <SortableHeader sortKey="damage" sort={skillSort} onSort={sortSkillsBy}>{amountLabel}</SortableHeader>
+                  <SortableHeader sortKey="contribution" sort={skillSort} onSort={sortSkillsBy}>Share</SortableHeader>
+                  <SortableHeader sortKey="hits" sort={skillSort} onSort={sortSkillsBy}>Hits</SortableHeader>
+                  <SortableHeader sortKey="criticalHits" sort={skillSort} onSort={sortSkillsBy}>Crits</SortableHeader>
+                  <SortableHeader sortKey="critRate" sort={skillSort} onSort={sortSkillsBy}>Crit rate</SortableHeader>
+                </tr></thead>
+                <tbody>{sortedPersonalSkills.map((skill) => (
                   <tr key={skill.sourceId} class="meter-table-row" style={`--row-fill:${Math.max(0, Math.min(100, skill.contribution * 100))}%`}>
                     <th scope="row">{skill.sourceLabel}</th>
                     <td>{formatDps(skill.dps)}</td>
@@ -283,29 +297,6 @@ function App() {
             })}
           />}
     </main>
-  );
-}
-
-interface SortableHeaderProps {
-  label: string;
-  sortKey: ActorSortKey;
-  sort: ActorSort;
-  onSort(key: ActorSortKey): void;
-}
-
-function SortableHeader({ label, sortKey, sort, onSort }: SortableHeaderProps) {
-  const active = sort.key === sortKey;
-  return (
-    <th class="sortable-column" aria-sort={active ? sort.direction : undefined}>
-      <button
-        class="sort-button"
-        type="button"
-        onClick={() => onSort(sortKey)}
-      >
-        <span>{label}</span>
-        <span class={active ? "sort-indicator active" : "sort-indicator"} aria-hidden="true">{active ? (sort.direction === "descending" ? "▼" : "▲") : "↕"}</span>
-      </button>
-    </th>
   );
 }
 
