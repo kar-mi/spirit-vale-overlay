@@ -185,6 +185,12 @@ function App() {
               <p class="keybind-message" aria-live="polite">{overlay.shortcutErrors[action] ?? "Press a key or Escape to cancel."}</p>}
           </div>)}
         </section>
+        <div class="settings-actions">
+          <button class="btn" type="button" disabled={busy} onClick={() => {
+            recordingAction.value = undefined;
+            update(electroview.rpc?.request.resetShortcutsToDefaults({}));
+          }}>Reset to defaults</button>
+        </div>
         <p class="settings-hint">Shortcuts pass through to the foreground app. Windows or another app may also use the same combination; Ctrl+Shift can switch input languages when configured that way in Windows.</p>
       </section>
     </section>

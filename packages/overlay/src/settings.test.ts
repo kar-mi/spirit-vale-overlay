@@ -7,6 +7,7 @@ import {
   defaultOverlaySettings,
   loadOverlaySettings,
   normalizeOverlaySettings,
+  resetOverlayShortcuts,
   saveOverlaySettings,
 } from "./settings.ts";
 import { displayKey } from "./display-layout.ts";
@@ -232,6 +233,26 @@ describe("overlay settings", () => {
       resetXpTracker: "F8",
       resetGoldTracker: "Shift+F8",
     });
+  });
+
+  test("resets every shortcut without changing other overlay settings", () => {
+    const settings = defaultOverlaySettings(displays);
+    settings.locked = true;
+    settings.shortcuts = {
+      toggleLock: "F11",
+      resetSession: "F5",
+      openLiveDeathLog: "F6",
+      toggleOverlayVisible: "F9",
+      cycleMeterStatType: "F7",
+      resetXpTracker: "F8",
+      resetGoldTracker: "Shift+F8",
+    };
+
+    const reset = resetOverlayShortcuts(settings);
+
+    expect(reset).not.toBe(settings);
+    expect(reset.locked).toBe(true);
+    expect(reset.shortcuts).toEqual(defaultOverlaySettings(displays).shortcuts);
   });
 
   test("arms no missing-buff warning by default", () => {

@@ -80,6 +80,11 @@ export function defaultOverlaySettings(displays: readonly OverlayDisplay[]): Ove
   return normalizeOverlaySettings({ schemaVersion: 5 }, displays);
 }
 
+/** Restore only keybindings, leaving every other overlay preference untouched. */
+export function resetOverlayShortcuts(settings: OverlaySettings): OverlaySettings {
+  return { ...settings, shortcuts: { ...DEFAULT_SHORTCUTS } };
+}
+
 export async function loadOverlaySettings(
   settingsPath: string | undefined,
   displays: readonly OverlayDisplay[],

@@ -55,6 +55,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     setHomeDisplay: (display: string) => controller.setHomeDisplay(display),
     setOverlayVisible: (visible: boolean) => controller.setOverlayVisible(visible),
     setShortcut: (action: KeybindAction, shortcut: string) => controller.setShortcut(action, shortcut),
+    resetShortcutsToDefaults: () => controller.resetShortcutsToDefaults(),
     setShortcutCapture: (active: boolean) => controller.setShortcutCapture(active),
     setRequiredStatuses: (category: RequiredStatusCategory, statusIds: string[]) =>
       controller.setRequiredStatuses(category, statusIds),

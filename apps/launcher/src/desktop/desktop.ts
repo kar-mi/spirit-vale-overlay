@@ -331,6 +331,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
         await overlayWindow.withWindow((overlay) => overlay.setShortcut(action, shortcut));
         return sharedSettingsState();
       },
+      resetShortcutsToDefaults: async () => {
+        await overlayWindow.withWindow((overlay) => overlay.resetShortcutsToDefaults());
+        return sharedSettingsState();
+      },
       setShortcutCapture: async ({ active }) => {
         await overlayWindow.withWindow((overlay) => overlay.setShortcutCapture(active));
         return sharedSettingsState();

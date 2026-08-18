@@ -48,6 +48,7 @@ import {
   normalizeSingleShortcut,
   normalizeOverlaySettings,
   overlayDisplayOptions,
+  resetOverlayShortcuts,
   saveOverlaySettings,
   type OverlaySettings,
 } from "../settings.ts";
@@ -287,6 +288,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     relayDragPreview,
     setOverlayVisible: updateOverlayVisible,
     setShortcut,
+    resetShortcutsToDefaults,
     setShortcutCapture,
     setRequiredStatuses,
     setPersonalDpsMode,
@@ -567,6 +569,16 @@ export async function createOverlayController(options: OverlayControllerOptions)
     if (normalized === settings.shortcuts[action]) return controlState();
     settings = { ...settings, shortcuts: { ...settings.shortcuts, [action]: normalized } };
     shortcutErrors.delete(action);
+    updateShortcutBindings();
+    persist();
+    publishControl();
+    return controlState();
+  }
+
+  function resetShortcutsToDefaults(): OverlayControlState {
+    setShortcutCapture(false);
+    settings = resetOverlayShortcuts(settings);
+    shortcutErrors.clear();
     updateShortcutBindings();
     persist();
     publishControl();

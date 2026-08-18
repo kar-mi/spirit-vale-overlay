@@ -209,6 +209,7 @@ type OverlaySharedRequests = {
   setHomeDisplay: { params: { display: string }; response: OverlayControlState };
   setOverlayVisible: { params: { visible: boolean }; response: OverlayControlState };
   setShortcut: { params: { action: KeybindAction; shortcut: string }; response: OverlayControlState };
+  resetShortcutsToDefaults: { params: Record<string, never>; response: OverlayControlState };
   setRequiredStatuses: {
     params: { category: RequiredStatusCategory; statusIds: string[] };
     response: OverlayControlState;
