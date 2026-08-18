@@ -40,6 +40,16 @@ function activateRow(event: JSX.TargetedKeyboardEvent<HTMLTableRowElement>, acti
   activate();
 }
 
+function navigateBackOnMiddleClick(event: JSX.TargetedMouseEvent<HTMLElement>, onBack: () => void): void {
+  if (event.button !== 1) return;
+  event.preventDefault();
+  onBack();
+}
+
+function preventMiddleMouseDefault(event: JSX.TargetedMouseEvent<HTMLElement>): void {
+  if (event.button === 1) event.preventDefault();
+}
+
 function applyEnemyFilter(next: CombatAnalysisState, rows: MeterActorRow[], selectedEnemyIds: ReadonlySet<number>): FilteredRow[] {
   if (next.statType !== "damage" || selectedEnemyIds.size === 0) {
     return rows.map((actor) => ({
@@ -108,7 +118,11 @@ export function PastAnalysisPanel({
     : (activeSnapshot?.partyDps ?? 0);
 
   return (
-    <section class="past-analysis-panel">
+    <section
+      class="past-analysis-panel"
+      onMouseDown={preventMiddleMouseDefault}
+      onAuxClick={(event) => navigateBackOnMiddleClick(event, onBack)}
+    >
       <section class="toolbar">
         <button class="btn back-button" type="button" onClick={onBack}>← Back</button>
         <label class="encounter-picker">
