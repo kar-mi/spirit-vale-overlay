@@ -57,10 +57,15 @@ describe("overlay settings", () => {
 
     const settings = await loadOverlaySettings(settingsPath, displays);
     expect(settings.locked).toBe(true);
-    expect(settings.shortcuts.toggleLock).toBe("F11");
-    expect(settings.shortcuts.resetSession).toBe("F5");
-    expect(settings.shortcuts.openLiveDeathLog).toBe("F6");
-    expect(settings.shortcuts.toggleOverlayVisible).toBe("F9");
+    expect(settings.shortcuts).toEqual({
+      toggleLock: "Ctrl+Shift+1",
+      resetSession: "Ctrl+Shift+2",
+      openLiveDeathLog: "Ctrl+Shift+3",
+      toggleOverlayVisible: "Ctrl+Shift+4",
+      cycleMeterStatType: "Ctrl+Shift+5",
+      resetXpTracker: "Ctrl+Shift+6",
+      resetGoldTracker: "Ctrl+Shift+7",
+    });
     expect(settings).not.toHaveProperty("personalName");
     expect(settings.elements.dpsChart).toEqual({ enabled: false, opacity: 0.55, x: 780, y: 0, width: 500, height: 200, display: primaryKey });
     expect(settings.elements.health.opacity).toBe(1);
@@ -153,22 +158,22 @@ describe("overlay settings", () => {
   test("ignores the retired flat reset shortcut", async () => {
     const settingsPath = await createSettingsPath();
     const settings = normalizeOverlaySettings({ schemaVersion: 3, resetShortcut: "shift+ctrl+f8" }, displays);
-    expect(settings.shortcuts.resetSession).toBe("F5");
+    expect(settings.shortcuts.resetSession).toBe("Ctrl+Shift+2");
     await saveOverlaySettings(settings, settingsPath);
-    expect((await loadOverlaySettings(settingsPath, displays)).shortcuts.resetSession).toBe("F5");
+    expect((await loadOverlaySettings(settingsPath, displays)).shortcuts.resetSession).toBe("Ctrl+Shift+2");
   });
 
   test("ignores the retired flat overlay-visible shortcut", async () => {
     const settingsPath = await createSettingsPath();
     const settings = normalizeOverlaySettings({ schemaVersion: 3, overlayVisibleShortcut: "shift+ctrl+f8" }, displays);
-    expect(settings.shortcuts.toggleOverlayVisible).toBe("F9");
+    expect(settings.shortcuts.toggleOverlayVisible).toBe("Ctrl+Shift+4");
     await saveOverlaySettings(settings, settingsPath);
-    expect((await loadOverlaySettings(settingsPath, displays)).shortcuts.toggleOverlayVisible).toBe("F9");
+    expect((await loadOverlaySettings(settingsPath, displays)).shortcuts.toggleOverlayVisible).toBe("Ctrl+Shift+4");
   });
 
-  test("defaults the lock shortcut to F11 and allows reassigning it", () => {
+  test("uses the numbered lock shortcut by default and allows reassigning it", () => {
     const settings = normalizeOverlaySettings({ schemaVersion: 3 }, displays);
-    expect(settings.shortcuts.toggleLock).toBe("F11");
+    expect(settings.shortcuts.toggleLock).toBe("Ctrl+Shift+1");
     const reassigned = normalizeOverlaySettings(
       { schemaVersion: 4, shortcuts: { toggleLock: "Ctrl+F1" } },
       displays,
@@ -181,7 +186,7 @@ describe("overlay settings", () => {
       { schemaVersion: 5, shortcuts: { toggleLock: "Escape" } },
       displays,
     );
-    expect(settings.shortcuts.toggleLock).toBe("F11");
+    expect(settings.shortcuts.toggleLock).toBe("Ctrl+Shift+1");
   });
 
   test("falls back later shortcuts to their defaults when they collide with an earlier one", () => {
@@ -190,18 +195,43 @@ describe("overlay settings", () => {
       displays,
     );
     expect(settings.shortcuts.toggleLock).toBe("F8");
-    expect(settings.shortcuts.resetSession).toBe("F5");
-    expect(settings.shortcuts.toggleOverlayVisible).toBe("F9");
+    expect(settings.shortcuts.resetSession).toBe("Ctrl+Shift+2");
+    expect(settings.shortcuts.toggleOverlayVisible).toBe("Ctrl+Shift+4");
   });
 
-  test("defaults the party meter cycle shortcut to F7 and allows reassigning it", () => {
+  test("uses the numbered party meter shortcut by default and allows reassigning it", () => {
     const settings = normalizeOverlaySettings({}, displays);
-    expect(settings.shortcuts.cycleMeterStatType).toBe("F7");
+    expect(settings.shortcuts.cycleMeterStatType).toBe("Ctrl+Shift+5");
     const reassigned = normalizeOverlaySettings(
       { schemaVersion: 4, shortcuts: { cycleMeterStatType: "Ctrl+F7" } },
       displays,
     );
     expect(reassigned.shortcuts.cycleMeterStatType).toBe("Ctrl+F7");
+  });
+
+  test("preserves every valid saved shortcut instead of migrating old defaults", () => {
+    const settings = normalizeOverlaySettings({
+      schemaVersion: 5,
+      shortcuts: {
+        toggleLock: "F11",
+        resetSession: "F5",
+        openLiveDeathLog: "F6",
+        toggleOverlayVisible: "F9",
+        cycleMeterStatType: "F7",
+        resetXpTracker: "F8",
+        resetGoldTracker: "Shift+F8",
+      },
+    }, displays);
+
+    expect(settings.shortcuts).toEqual({
+      toggleLock: "F11",
+      resetSession: "F5",
+      openLiveDeathLog: "F6",
+      toggleOverlayVisible: "F9",
+      cycleMeterStatType: "F7",
+      resetXpTracker: "F8",
+      resetGoldTracker: "Shift+F8",
+    });
   });
 
   test("arms no missing-buff warning by default", () => {

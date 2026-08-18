@@ -49,13 +49,13 @@ export interface OverlaySettings {
 }
 
 const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
-  toggleLock: "F11",
-  resetSession: "F5",
-  openLiveDeathLog: "F6",
-  toggleOverlayVisible: "F9",
-  cycleMeterStatType: "F7",
-  resetXpTracker: "F8",
-  resetGoldTracker: "Shift+F8",
+  toggleLock: "Ctrl+Shift+1",
+  resetSession: "Ctrl+Shift+2",
+  openLiveDeathLog: "Ctrl+Shift+3",
+  toggleOverlayVisible: "Ctrl+Shift+4",
+  cycleMeterStatType: "Ctrl+Shift+5",
+  resetXpTracker: "Ctrl+Shift+6",
+  resetGoldTracker: "Ctrl+Shift+7",
 };
 
 /** Positions assume a ~1920x1200 display; they are clamped into whatever the home display really is. */

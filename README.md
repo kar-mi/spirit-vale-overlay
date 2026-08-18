@@ -7,10 +7,12 @@ Spirit Vale Overlay is a passive Windows companion app for live combat, characte
 > Looking for the pacakges to use for development? See
 > [spirit-vale-tools](https://github.com/kar-mi/spirit-vale-tools).
 
-> **Overlay hotkeys:** `F5` resets/refreshes the overlay, `F6` opens the live death log, `F9` shows or hides
-> the overlay, `F7` cycles the party meter, and `F11` unlocks the overlay for editing (drag and resize
-> elements, then press `F11` again to lock. These can re-bound). Hotkeys pass through to the foreground
-> program, so its normal action for the same key still runs.
+> **Default overlay hotkeys:** `Ctrl+Shift+1` locks or unlocks the overlay, `Ctrl+Shift+2` resets the
+> session, `Ctrl+Shift+3` opens the live death log, `Ctrl+Shift+4` shows or hides the overlay,
+> `Ctrl+Shift+5` cycles the party meter, and `Ctrl+Shift+6` / `Ctrl+Shift+7` reset all-time XP / gold.
+> These can be rebound in Settings. Hotkeys pass through to the foreground program, so its normal
+> action for the same combination still runs. Windows may also use Ctrl+Shift to switch input languages
+> when configured that way.
 
 ## Features
 
@@ -24,7 +26,7 @@ The in-game overlay shows live party DPS along with HP/MP during combat.
 
 ![In-game DPS overlay](docs/img/dps_overlay.png)
 
-Press `F11` to unlock the overlay and drag elements into the layout you want.
+Press `Ctrl+Shift+1` to unlock the overlay and drag elements into the layout you want.
 
 ![Editing the overlay layout](docs/img/edit_overlay.png)
 

@@ -2,7 +2,7 @@
  * The overlay's timeline for everything it derives from the combat log.
  *
  * The log follower reports times relative to the first record of the file it is currently tailing,
- * so a session rotation (F5 / the Reset button) restarts that clock near zero. State that survives
+ * so a session rotation (the reset-session shortcut / Reset button) restarts that clock near zero. State that survives
  * the rotation - the status tracker's active buffs, whose expiries are absolute points on this
  * timeline - would otherwise be stranded in the previous session's numbering and appear frozen.
  * Rotating the clock instead of resetting it keeps the timeline monotonic, so retained timers keep
