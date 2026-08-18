@@ -3,7 +3,7 @@ interface GameClass {
   slug: string;
 }
 
-export interface ClassDisplay {
+interface ClassDisplay {
   name: string;
   iconUrl?: string;
 }
@@ -34,14 +34,16 @@ export function classDisplayForArchetype(archetype: number | undefined): ClassDi
   return known ? { name: known.name, iconUrl: classIconUrl(known.slug) } : { name: "Unknown" };
 }
 
-/** Resolves actor metadata to artwork, preserving the established Weaver fallback when unknown. */
-export function classIconUrlForArchetype(archetype: number | undefined): string {
-  return classIconUrl(CLASS_BY_ARCHETYPE.get(archetype ?? -1)?.slug ?? "weaver");
+/** Resolves actor metadata to artwork when the archetype is known. */
+export function classIconUrlForArchetype(archetype: number | undefined): string | undefined {
+  const known = CLASS_BY_ARCHETYPE.get(archetype ?? -1);
+  return known ? classIconUrl(known.slug) : undefined;
 }
 
-/** Resolves a displayed class name to artwork, preserving the established Weaver fallback when unknown. */
-export function classIconUrlForName(name: string): string {
-  return classIconUrl(CLASS_BY_NAME.get(name)?.slug ?? "weaver");
+/** Resolves a displayed class name to artwork when the name is known. */
+export function classIconUrlForName(name: string): string | undefined {
+  const known = CLASS_BY_NAME.get(name);
+  return known ? classIconUrl(known.slug) : undefined;
 }
 
 function classIconUrl(slug: string): string {

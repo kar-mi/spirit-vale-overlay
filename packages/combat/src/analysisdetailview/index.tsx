@@ -15,8 +15,8 @@ import type { FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
 import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState, MeterActorRow, MeterTimelinePoint, StatType } from "../app-types.ts";
 import { nextTableSort, SortableHeader, sortTableRows, type TableSort } from "@svoverlay/ui-kit/sortable-table";
 import { buildDamageChartRender, damageChartExtent, formatElapsedChartTime } from "../damage-chart.ts";
+import type { DamageChartMetric } from "../damage-chart.ts";
 
-type Metric = "cumulative" | "dps";
 type SkillSortKey = "sourceLabel" | "damage" | "dps" | "contribution" | "hits" | "criticalHits" | "critRate";
 
 interface SkillFold {
@@ -87,7 +87,7 @@ const ANALYSIS_DETAIL_DEFAULT_HEIGHT = 720;
 void ensureInitialWindowSize(electroview.rpc?.request, { width: 620, height: 500 });
 
 function App() {
-  const [metric, setMetric] = useState<Metric>("dps");
+  const [metric, setMetric] = useState<DamageChartMetric>("dps");
   const [skillSort, setSkillSort] = useState<TableSort<SkillSortKey>>({ key: "damage", direction: "descending" });
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
   const [statType, setStatType] = useState<StatType>("damage");
@@ -233,7 +233,7 @@ function App() {
 interface DamageChartProps {
   points: readonly MeterTimelinePoint[];
   durationMs: number;
-  metric: Metric;
+  metric: DamageChartMetric;
   damageLabel: string;
   metricLabel: string;
   resetKey: string;

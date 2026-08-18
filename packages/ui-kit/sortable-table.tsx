@@ -7,7 +7,7 @@ export interface TableSort<K extends string> {
   direction: SortDirection;
 }
 
-export type TableSortValue = number | string | undefined;
+type TableSortValue = number | string | undefined;
 
 export function nextTableSort<K extends string>(
   current: TableSort<K>,
@@ -29,12 +29,11 @@ export function sortTableRows<T, K extends string>(
   valueFor: (row: T, key: K) => TableSortValue,
   tieBreak: (left: T, right: T) => number,
 ): T[] {
-  return rows.map((row, index) => ({ row, index })).sort((left, right) => {
-    const difference = compareTableValues(valueFor(left.row, sort.key), valueFor(right.row, sort.key), sort.direction);
+  return [...rows].sort((left, right) => {
+    const difference = compareTableValues(valueFor(left, sort.key), valueFor(right, sort.key), sort.direction);
     if (difference !== 0) return difference;
-    const tie = tieBreak(left.row, right.row);
-    return tie !== 0 ? tie : left.index - right.index;
-  }).map(({ row }) => row);
+    return tieBreak(left, right);
+  });
 }
 
 function compareTableValues(left: TableSortValue, right: TableSortValue, direction: SortDirection): number {

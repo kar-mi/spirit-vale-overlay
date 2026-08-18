@@ -16,9 +16,9 @@ test("maps every supported archetype to a class name and shared artwork URL", ()
   }
 });
 
-test("keeps neutral displays and legacy image-only fallbacks for unknown classes", () => {
+test("keeps neutral displays and leaves image-only fallback policy to callers", () => {
   expect(classDisplayForArchetype(undefined)).toEqual({ name: "Unknown" });
   expect(classDisplayForArchetype(999)).toEqual({ name: "Unknown" });
-  expect(classIconUrlForArchetype(undefined)).toContain("class-weaver.webp");
-  expect(classIconUrlForName("Not a class")).toContain("class-weaver.webp");
+  expect(classIconUrlForArchetype(undefined)).toBeUndefined();
+  expect(classIconUrlForName("Not a class")).toBeUndefined();
 });

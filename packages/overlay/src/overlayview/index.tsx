@@ -6,7 +6,7 @@ import { formatDps, formatDuration } from "@svoverlay/ui-kit/format";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { InteractiveChart } from "@svoverlay/ui-kit/interactive-chart";
 import type { ChartRange, ChartRenderResult } from "@svoverlay/ui-kit/interactive-chart";
-import { classIconUrlForArchetype } from "@svoverlay/ui-kit/class-display";
+import { classIconUrlForArchetype, classIconUrlForName } from "@svoverlay/ui-kit/class-display";
 
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import {
@@ -605,7 +605,7 @@ function PersonalDpsElement() {
   return (
     <div class="element-content">
       <div class="personal-heading">
-        <img class="personal-class-icon" src={classIconUrlForArchetype(personal?.archetype)} alt="" aria-hidden="true" />
+        <img class="personal-class-icon" src={overlayClassIcon(personal?.archetype)} alt="" aria-hidden="true" />
         <div>
           <h2 class="element-title">{personalDpsMode === "live" ? "Live DPS" : "Encounter DPS"}</h2>
           {personalDpsMode !== "live" && <span class="personal-duration">{formatDuration(personal?.durationMs ?? 0)}</span>}
@@ -798,7 +798,7 @@ function PartyRankingElement() {
           style={`--row-fill:${actor.dps / maxDps * 100}%;--row-color:${PARTY_ROW_COLORS[index % PARTY_ROW_COLORS.length]}`}
         >
           <span class="ranking-player">
-            <img class="ranking-class-icon" src={classIconUrlForArchetype(actor.archetype)} alt="" aria-hidden="true" />
+            <img class="ranking-class-icon" src={overlayClassIcon(actor.archetype)} alt="" aria-hidden="true" />
             <span class="ranking-rank">{index + 1}.</span>
             <span class="ranking-name">{actor.displayName}</span>
           </span>
@@ -903,6 +903,10 @@ function WaitingForDps({ label = "Waiting for DPS" }: { label?: string } = {}) {
       <span class="empty-help">Press F11 to toggle edit mode, or open Settings from any app window</span>
     </div>
   );
+}
+
+function overlayClassIcon(archetype: number | undefined): string {
+  return classIconUrlForArchetype(archetype) ?? classIconUrlForName("Weaver")!;
 }
 
 function setLocked(locked: boolean): Promise<void> {

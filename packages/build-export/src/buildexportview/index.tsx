@@ -84,7 +84,7 @@ function App() {
           <label class="field roster-search"><span aria-hidden="true">⌕</span><input value={state?.searchQuery ?? ""} onInput={(event) => void update(electroview.rpc!.request.setSearch({ query: event.currentTarget.value }))} placeholder="Search name or class" aria-label="Search saved players" /></label>
           <div class="roster-list" role="tablist" aria-label="Captured characters">
             {state?.sources.map((source) => <button key={source.id} type="button" role="tab" aria-selected={source.id === state.selectedId} class={`roster-row${source.id === state.selectedId ? " is-active" : ""}`} onClick={() => void update(electroview.rpc!.request.selectCharacter({ id: source.id }))}>
-              <img class="roster-class-icon" src={classIconUrlForName(source.cls)} alt="" /><span class="roster-player"><strong>{source.name}</strong><span>{source.kind === "self" ? "Your character" : `${source.cls} · Level ${source.level}`}</span></span>{source.inspectedAt ? <time title={`Inspected ${new Date(source.inspectedAt).toLocaleString()}`}>{formatMeasuredAt(source.inspectedAt)}</time> : <span class="roster-you">You</span>}
+              <img class="roster-class-icon" src={rosterClassIcon(source.cls)} alt="" /><span class="roster-player"><strong>{source.name}</strong><span>{source.kind === "self" ? "Your character" : `${source.cls} · Level ${source.level}`}</span></span>{source.inspectedAt ? <time title={`Inspected ${new Date(source.inspectedAt).toLocaleString()}`}>{formatMeasuredAt(source.inspectedAt)}</time> : <span class="roster-you">You</span>}
             </button>)}
             {onlySelf && state?.searchQuery ? <p class="roster-empty">No saved players match this search.</p> : null}
             {!state?.sources.length ? <p class="roster-empty">Inspect a player to save them here.</p> : null}
@@ -110,6 +110,10 @@ function CharacterCard({ character }: { character: NonNullable<BuildExportState[
   const summary = character.base && character.base !== character.cls ? `${character.base} › ${character.cls}` : character.cls;
   const values = [[character.equipmentCount, "Equipment"], [character.cardCount, "Cards"], [character.artifactCount, "Artifacts"], [character.gemCount, "Gems"], [character.skillCount, "Skills"], [character.grimoireCount, "Grimoires"], ...(character.weaponSetCount === undefined ? [] : [[character.weaponSetCount, "Weapon sets"]])];
   return <div class="character-card"><div class="who"><span class="name">{character.name}</span><span class="meta">{summary} · Level {character.level} · Job {character.jobLevel}{character.inspectedAt ? ` · inspected ${new Date(character.inspectedAt).toLocaleString()}` : ""}</span></div><div class="tally">{values.map(([value, label]) => <div key={label}><span class="n">{value}</span><span class="k">{label}</span></div>)}</div></div>;
+}
+
+function rosterClassIcon(className: string): string {
+  return classIconUrlForName(className) ?? classIconUrlForName("Weaver")!;
 }
 
 render(<App />, document.getElementById("root")!);
