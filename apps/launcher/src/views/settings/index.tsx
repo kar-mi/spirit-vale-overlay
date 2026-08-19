@@ -11,6 +11,7 @@ import { SettingsLayout } from "./settings-layout.tsx";
 import type { SettingsActions, SettingsSectionContext } from "./settings-section.ts";
 import { buildBasicSettingsSections } from "./sections/basic-settings.tsx";
 import { buildKeybindSettingsSection } from "./sections/keybind-settings.tsx";
+import { buildMinimapSettingsSection } from "./sections/minimap-settings.tsx";
 import { buildOverlaySettingsSection } from "./sections/overlay-settings.tsx";
 import { buildStatusSettingsSection } from "./sections/status-settings.tsx";
 import { shortcutFromKeyboardEvent } from "./shortcut-from-keyboard-event.ts";
@@ -53,6 +54,7 @@ function App() {
     setResetMeterOnMapChange: (resetMeterOnMapChange) => update(electroview.rpc?.request.setResetMeterOnMapChange({ resetMeterOnMapChange })),
     setResetGoldOnMapChange: (resetGoldOnMapChange) => update(electroview.rpc?.request.setResetGoldOnMapChange({ resetGoldOnMapChange })),
     setPersonalDpsMode: (mode) => update(electroview.rpc?.request.setPersonalDpsMode({ mode })),
+    setMinimapRarityFilter: (rarity) => update(electroview.rpc?.request.setMinimapRarityFilter({ rarity })),
     setRequiredStatuses: (category, statusIds) => update(electroview.rpc?.request.setOverlayRequiredStatuses({ category, statusIds })),
     setKeybindsRequireGameFocus: (enabled) => update(electroview.rpc?.request.setKeybindsRequireGameFocus({ enabled })),
     resetShortcuts: () => {
@@ -69,6 +71,7 @@ function App() {
     buildOverlaySettingsSection(context),
     basicSections[2]!,
     buildStatusSettingsSection(context),
+    buildMinimapSettingsSection(context),
     buildKeybindSettingsSection(context),
   ];
 

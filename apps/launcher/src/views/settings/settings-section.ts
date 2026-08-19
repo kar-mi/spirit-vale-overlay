@@ -2,7 +2,7 @@ import type { ComponentChildren } from "preact";
 import type { KeybindAction, OverlayElementId, RequiredStatusCategory } from "@svoverlay/overlay/app-types";
 import type { SharedSettingsState } from "../../launcher/types.ts";
 
-export type SectionId = "general" | "network" | "overlay" | "combat" | "status" | "keybinds";
+export type SectionId = "general" | "network" | "overlay" | "combat" | "status" | "keybinds" | "minimap";
 
 export interface SettingsItem {
   id: string;
@@ -32,6 +32,7 @@ export interface SettingsActions {
   setResetMeterOnMapChange(value: boolean): void;
   setResetGoldOnMapChange(value: boolean): void;
   setPersonalDpsMode(value: SharedSettingsState["overlay"]["personalDpsMode"]): void;
+  setMinimapRarityFilter(value: number): void;
   setRequiredStatuses(category: RequiredStatusCategory, statusIds: string[]): void;
   setKeybindsRequireGameFocus(value: boolean): void;
   resetShortcuts(): void;

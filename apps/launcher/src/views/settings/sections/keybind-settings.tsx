@@ -6,6 +6,7 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   openLiveDeathLog: "Open live death log", toggleOverlayVisible: "Show/hide overlay",
   cycleMeterStatType: "Cycle party meter",
   resetXpTracker: "Reset all-time XP", resetGoldTracker: "Reset all-time gold",
+  toggleMinimap: "Show/hide minimap",
 };
 
 export function buildKeybindSettingsSection({ state, busy, recordingAction, actions }: SettingsSectionContext): SettingsSection {

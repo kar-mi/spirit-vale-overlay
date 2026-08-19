@@ -1,0 +1,100 @@
+:root, html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+* { box-sizing: border-box; }
+
+.minimap-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  color: white;
+  font-family: system-ui, sans-serif;
+  user-select: none;
+}
+
+.minimap-radar {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(6, 9, 16, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.minimap-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transform: translate(-50%, -50%);
+}
+
+.minimap-crosshair {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.minimap-crosshair.horizontal {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-0.5px);
+}
+
+.minimap-crosshair.vertical {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-0.5px);
+}
+
+.minimap-compass {
+  position: absolute;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.minimap-compass.north { top: 6px; left: 50%; transform: translateX(-50%); }
+.minimap-compass.south { bottom: 6px; left: 50%; transform: translateX(-50%); }
+.minimap-compass.east { right: 6px; top: 50%; transform: translateY(-50%); }
+.minimap-compass.west { left: 6px; top: 50%; transform: translateY(-50%); }
+
+.minimap-player {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: #4fb1ff;
+  box-shadow: 0 0 6px 2px rgba(79, 177, 255, 0.6);
+}
+
+.minimap-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: #ffd24f;
+  box-shadow: 0 0 4px 1px rgba(255, 210, 79, 0.55);
+  transition: opacity 0.15s ease;
+}
+
+.minimap-empty {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+}

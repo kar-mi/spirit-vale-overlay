@@ -66,6 +66,7 @@ describe("overlay settings", () => {
       cycleMeterStatType: "Ctrl+Shift+5",
       resetXpTracker: "Ctrl+Shift+6",
       resetGoldTracker: "Ctrl+Shift+7",
+      toggleMinimap: "TAB",
     });
     expect(settings).not.toHaveProperty("personalName");
     expect(settings.elements.dpsChart).toEqual({ enabled: false, opacity: 0.55, x: 780, y: 0, width: 500, height: 200, display: primaryKey });
@@ -221,6 +222,7 @@ describe("overlay settings", () => {
         cycleMeterStatType: "F7",
         resetXpTracker: "F8",
         resetGoldTracker: "Shift+F8",
+        toggleMinimap: "F10",
       },
     }, displays);
 
@@ -232,6 +234,7 @@ describe("overlay settings", () => {
       cycleMeterStatType: "F7",
       resetXpTracker: "F8",
       resetGoldTracker: "Shift+F8",
+      toggleMinimap: "F10",
     });
   });
 
@@ -246,6 +249,7 @@ describe("overlay settings", () => {
       cycleMeterStatType: "F7",
       resetXpTracker: "F8",
       resetGoldTracker: "Shift+F8",
+      toggleMinimap: "F10",
     };
 
     const reset = resetOverlayShortcuts(settings);
@@ -337,7 +341,7 @@ describe("overlay settings", () => {
       elements: { health: { enabled: false, x: 25, width: 325 } },
     }, displays);
 
-    expect(settings.schemaVersion).toBe(5);
+    expect(settings.schemaVersion).toBe(6);
     expect(settings.homeDisplay).toBe(primaryKey);
     expect(new Set(Object.values(settings.elements).map((element) => element.display))).toEqual(new Set([primaryKey]));
     expect(settings.elements.health).toMatchObject({ enabled: false, x: 25, width: 325 });

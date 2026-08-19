@@ -1,7 +1,7 @@
 /* Bun-process helpers for the custom frameless windows (Windows only).
    Ported from the proven setup in ffxiv_gear_setup/src/desktop/index.ts. */
 
-import { dlopen, FFIType, ptr, type Pointer } from "bun:ffi";
+import { dlopen, FFIType, JSCallback, ptr, type Pointer } from "bun:ffi";
 
 /** Encodes a JS string as a null-terminated UTF-16LE buffer for Win32 "W" APIs. */
 function toWideString(value: string): Uint16Array {
@@ -244,6 +244,91 @@ export function getForegroundProcess(): ForegroundProcess | undefined {
     }
   } catch (error) {
     console.warn("[desktop-platform] could not determine the foreground process:", error);
+    return undefined;
+  }
+}
+
+export interface WindowRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function openWindowRectLibraries() {
+  return {
+    user32: dlopen("user32", {
+      EnumWindows: { args: [FFIType.function, FFIType.i64_fast], returns: FFIType.bool },
+      GetWindowThreadProcessId: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.u32 },
+      GetWindowRect: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.bool },
+      IsWindowVisible: { args: [FFIType.ptr], returns: FFIType.bool },
+    }),
+    kernel32: dlopen("kernel32", {
+      OpenProcess: { args: [FFIType.u32, FFIType.bool, FFIType.u32], returns: FFIType.ptr },
+      QueryFullProcessImageNameW: {
+        args: [FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.ptr],
+        returns: FFIType.bool,
+      },
+      CloseHandle: { args: [FFIType.ptr], returns: FFIType.bool },
+    }),
+  };
+}
+
+let windowRectLibraries: ReturnType<typeof openWindowRectLibraries> | undefined;
+
+/**
+ * Bounds of the first visible top-level window belonging to a process, matched by executable name.
+ *
+ * There is no direct "find window by process name" Win32 call, so this enumerates every top-level
+ * window and resolves each one's owning process image path the same way {@link getForegroundProcess}
+ * does, stopping at the first visible match. Re-resolve on demand rather than polling — the minimap
+ * only needs this once per toggle-open, not continuously.
+ */
+export function getWindowRectForProcess(exeName: string): WindowRect | undefined {
+  if (process.platform !== "win32") return undefined;
+  try {
+    windowRectLibraries ??= openWindowRectLibraries();
+    const { user32, kernel32 } = windowRectLibraries;
+    let found: WindowRect | undefined;
+    const target = exeName.toLowerCase();
+    const callback = new JSCallback(
+      (hwnd: Pointer) => {
+        if (!user32.symbols.IsWindowVisible(hwnd)) return true;
+        const pidBuffer = new Uint32Array(1);
+        user32.symbols.GetWindowThreadProcessId(hwnd, ptr(pidBuffer));
+        const pid = pidBuffer[0];
+        if (!pid) return true;
+        const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+        const processHandle = kernel32.symbols.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (!processHandle) return true;
+        try {
+          const pathBuffer = new Uint16Array(32_768);
+          const lengthBuffer = new Uint32Array([pathBuffer.length]);
+          const gotPath = kernel32.symbols.QueryFullProcessImageNameW(processHandle, 0, ptr(pathBuffer), ptr(lengthBuffer));
+          if (!gotPath) return true;
+          const fullPath = String.fromCharCode(...pathBuffer.subarray(0, lengthBuffer[0]));
+          const name = fullPath.split(/[\\/]/).pop()?.toLowerCase();
+          if (name !== target) return true;
+        } finally {
+          kernel32.symbols.CloseHandle(processHandle);
+        }
+        const rectBuffer = new Int32Array(4);
+        if (!user32.symbols.GetWindowRect(hwnd, ptr(rectBuffer))) return true;
+        const [left, top, right, bottom] = rectBuffer as unknown as [number, number, number, number];
+        if (right <= left || bottom <= top) return true;
+        found = { x: left, y: top, width: right - left, height: bottom - top };
+        return false;
+      },
+      { args: [FFIType.ptr, FFIType.i64_fast], returns: FFIType.bool },
+    );
+    try {
+      if (callback.ptr) user32.symbols.EnumWindows(callback.ptr, 0n);
+    } finally {
+      callback.close();
+    }
+    return found;
+  } catch (error) {
+    console.warn("[desktop-platform] could not locate the game window:", error);
     return undefined;
   }
 }

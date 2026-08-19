@@ -53,6 +53,7 @@ export interface LauncherState {
 export interface SharedSettingsState {
   launcher: LauncherState;
   overlay: OverlaySettingsState;
+  minimapRarityFilter: number;
 }
 
 type LauncherSharedRequests = {
@@ -125,6 +126,7 @@ export type LauncherSettingsRpc = {
       response: SharedSettingsState;
     };
     setPersonalDpsMode: { params: { mode: PersonalDpsMode }; response: SharedSettingsState };
+    setMinimapRarityFilter: { params: { rarity: number }; response: SharedSettingsState };
     windowAction: { params: { action: "minimize" | "close" }; response: void };
     getWindowFrame: { params: Record<string, never>; response: WindowFrame };
     setWindowFrame: { params: WindowFrame; response: void };

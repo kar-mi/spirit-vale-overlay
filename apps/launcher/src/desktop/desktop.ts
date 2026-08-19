@@ -1,6 +1,6 @@
 import path from "node:path";
 import Electrobun, { BrowserView, BrowserWindow, Screen, Tray, Utils } from "electrobun/bun";
-import { applyRoundedCorners, makeProcessDpiAware, setWindowIcon } from "@svoverlay/desktop-platform/win32";
+import { applyRoundedCorners, getWindowRectForProcess, makeProcessDpiAware, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/spirit-vale-tools-capture/capture";
 
@@ -30,7 +30,7 @@ import { createReadModelService } from "./read-model-service.ts";
 import { measureLogStorage } from "./log-storage.ts";
 import { createCharacterWindow } from "./character-window.ts";
 import { createDeathLogWindow, createDpsWindow } from "@svoverlay/combat";
-import { createOverlayWindow } from "@svoverlay/overlay";
+import { createMinimapWindow, createOverlayWindow } from "@svoverlay/overlay";
 import { KEYBIND_ACTIONS, type KeybindAction } from "@svoverlay/overlay/app-types";
 import { resolveLocalRoot } from "./paths.ts";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
@@ -157,6 +157,7 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
   lockOnCreate: true,
   onReset: () => capture.resetSession(),
   onOpenLiveDeathLog: openLiveDeathLog,
+  onToggleMinimap: () => minimapWindow.toggle(),
   onLiveLogPathChanged: (nextPath) => {
     liveCombatLogPath = nextPath;
     if (nextPath) void liveDeathLogWindow.refresh(nextPath);
@@ -195,6 +196,14 @@ const capture = new CaptureCoordinator({
     actorIdentityPersistence.schedule(actorIdentityCache);
   },
 });
+// Created eagerly and hidden, rather than through a WindowSlot, so the Tab keybind is an instant
+// visibility flip instead of a create-on-demand flow.
+const minimapWindow = await createMinimapWindow({
+  settingsPath: storagePaths.minimapSettingsPath,
+  subscribeMinimap: (listener) => capture.subscribeMinimap(listener),
+  getGameWindowRect: () => getWindowRectForProcess("SpiritVale.exe"),
+});
+
 characterCache = await loadCharacterCache(storagePaths.characterStatePath);
 capture.setCachedCharacter(activeCharacterSnapshot(characterCache));
 const unsubscribeCharacterPersistence = capture.subscribeCharacter((state) => {
@@ -353,6 +362,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       },
       setPersonalDpsMode: async ({ mode }) => {
         await overlayWindow.withWindow((overlay) => overlay.setPersonalDpsMode(mode));
+        return sharedSettingsState();
+      },
+      setMinimapRarityFilter: async ({ rarity }) => {
+        minimapWindow.setRarityFilter(rarity);
         return sharedSettingsState();
       },
       windowAction: ({ action }) => {
@@ -777,14 +790,14 @@ function publish(): void {
 
 async function sharedSettingsState() {
   const overlay = await overlayWindow.withWindow((managed) => managed.getSettingsState());
-  return { launcher: launcherState, overlay };
+  return { launcher: launcherState, overlay, minimapRarityFilter: minimapWindow.getRarityFilter() };
 }
 
 async function publishSettings(overlayState?: Awaited<ReturnType<typeof sharedSettingsState>>["overlay"]): Promise<void> {
   if (!settingsWindow) return;
   try {
     settingsRpc.send.stateChanged(overlayState
-      ? { launcher: launcherState, overlay: overlayState }
+      ? { launcher: launcherState, overlay: overlayState, minimapRarityFilter: minimapWindow.getRarityFilter() }
       : await sharedSettingsState());
   } catch { /* Settings may be connecting or closing. */ }
 }
@@ -816,7 +829,7 @@ async function closeAllWindowsAndFlush(): Promise<void> {
   launcherWindow.hide();
   settingsWindow?.close();
   manageSettingsWindow?.close();
-  await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close()]);
+  await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close(), minimapWindow.close()]);
   liveDeathLogWindow.close();
   unsubscribeCharacterPersistence();
   unsubscribeInspectedCharacterPersistence();

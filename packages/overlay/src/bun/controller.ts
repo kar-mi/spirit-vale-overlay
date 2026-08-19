@@ -108,6 +108,7 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   openLiveDeathLog: "open live death log",
   resetXpTracker: "reset all-time XP",
   resetGoldTracker: "reset all-time gold",
+  toggleMinimap: "show/hide minimap",
 };
 
 /** The overlay's XP and gold tiles read from (and can reset) a tracker owned centrally, shared with the Rewards window, so both stay in sync. */
@@ -129,6 +130,7 @@ export interface OverlayControllerOptions {
   lockOnCreate?: boolean;
   onReset?: () => Promise<void>;
   onOpenLiveDeathLog?: () => Promise<void> | void;
+  onToggleMinimap?: () => void;
   onLiveLogPathChanged?: (path: string | undefined) => void;
   onSettingsStateChanged?: (state: OverlaySettingsState) => void;
   /** Asks the owner to create/close windows so the live set matches `displaysNeedingSurface`. */
@@ -705,6 +707,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
     } else if (action === "resetGoldTracker") {
       options.xp.resetCoins();
       publishCharacter();
+    } else if (action === "toggleMinimap") {
+      options.onToggleMinimap?.();
     }
   }
 
