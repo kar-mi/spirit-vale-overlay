@@ -40,7 +40,7 @@ import { ewmaSeries } from "@kar-mi/spirit-vale-tools-metrics";
 const RADAR_WORLD_RADIUS = 60;
 const RADAR_RING_COUNT = 3;
 /** How long a loot notification card stays on screen before it's dropped from the queue. */
-const LOOT_TOAST_LIFETIME_MS = 5_000;
+const LOOT_TOAST_LIFETIME_MS = 3_000;
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
