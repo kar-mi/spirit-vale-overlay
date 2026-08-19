@@ -995,9 +995,6 @@ function MinimapLootDot({ dot }: { dot: RadarDot }) {
 
 function LootToastElement() {
   const cards = lootToasts.value;
-  if (cards.length === 0) {
-    return <div class="loot-toast-empty"><span>No recent drops</span></div>;
-  }
   return (
     <div class="loot-toast-stack">
       {cards.map((card) => <LootToastCard key={card.id} event={card.event} />)}
