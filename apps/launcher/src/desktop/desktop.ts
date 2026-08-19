@@ -1,6 +1,6 @@
 import path from "node:path";
 import Electrobun, { BrowserView, BrowserWindow, Screen, Tray, Utils } from "electrobun/bun";
-import { applyRoundedCorners, getWindowRectForProcess, makeProcessDpiAware, setWindowIcon } from "@svoverlay/desktop-platform/win32";
+import { applyRoundedCorners, makeProcessDpiAware, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/spirit-vale-tools-capture/capture";
 
@@ -30,7 +30,7 @@ import { createReadModelService } from "./read-model-service.ts";
 import { measureLogStorage } from "./log-storage.ts";
 import { createCharacterWindow } from "./character-window.ts";
 import { createDeathLogWindow, createDpsWindow } from "@svoverlay/combat";
-import { createMinimapWindow, createOverlayWindow } from "@svoverlay/overlay";
+import { createOverlayWindow } from "@svoverlay/overlay";
 import { KEYBIND_ACTIONS, type KeybindAction } from "@svoverlay/overlay/app-types";
 import { resolveLocalRoot } from "./paths.ts";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
@@ -150,6 +150,8 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
   getCharacterState: () => capture.characterState(),
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
   subscribeActiveStatuses: (listener) => capture.subscribeActiveStatuses(listener),
+  subscribeMinimap: (listener) => capture.subscribeMinimap(listener),
+  subscribeLootToast: (listener) => capture.subscribeLootToast(listener),
   xp: xpTracker,
   settingsPath: storagePaths.overlaySettingsPath,
   // No `placements` here: each overlay surface is pinned to a whole display, so there is no
@@ -157,7 +159,6 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
   lockOnCreate: true,
   onReset: () => capture.resetSession(),
   onOpenLiveDeathLog: openLiveDeathLog,
-  onToggleMinimap: () => minimapWindow.toggle(),
   onLiveLogPathChanged: (nextPath) => {
     liveCombatLogPath = nextPath;
     if (nextPath) void liveDeathLogWindow.refresh(nextPath);
@@ -190,21 +191,14 @@ const capture = new CaptureCoordinator({
   onError: (report) => errorLog.write(report),
   resetOnMapChange: () => settings.resetMeterOnMapChange,
   onGoldMapChange: () => { if (settings.resetGoldOnMapChange) xpTracker.resetCoins(); },
-  minimapEnabled: () => minimapWindow.getEnabled(),
+  minimapEnabled: () => overlayWindow.current?.getSettingsState().elements.minimap.enabled ?? true,
+  getMinimapRarityFilter: () => overlayWindow.current?.getSettingsState().minimapRarityFilter ?? 2,
   knownIdentities: [...actorIdentityCache.entries.values()],
   onIdentityLearned: (identity) => {
     actorIdentityCache = updateActorIdentityCache(actorIdentityCache, { ...identity, lastSeenAtMs: Date.now() });
     actorIdentityPersistence.schedule(actorIdentityCache);
   },
 });
-// Created eagerly and hidden, rather than through a WindowSlot, so the Tab keybind is an instant
-// visibility flip instead of a create-on-demand flow.
-const minimapWindow = await createMinimapWindow({
-  settingsPath: storagePaths.minimapSettingsPath,
-  subscribeMinimap: (listener) => capture.subscribeMinimap(listener),
-  getGameWindowRect: () => getWindowRectForProcess("SpiritVale.exe"),
-});
-
 characterCache = await loadCharacterCache(storagePaths.characterStatePath);
 capture.setCachedCharacter(activeCharacterSnapshot(characterCache));
 const unsubscribeCharacterPersistence = capture.subscribeCharacter((state) => {
@@ -366,11 +360,7 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
         return sharedSettingsState();
       },
       setMinimapRarityFilter: async ({ rarity }) => {
-        minimapWindow.setRarityFilter(rarity);
-        return sharedSettingsState();
-      },
-      setMinimapEnabled: async ({ enabled }) => {
-        minimapWindow.setEnabled(enabled);
+        await overlayWindow.withWindow((overlay) => overlay.setMinimapRarityFilter(rarity));
         return sharedSettingsState();
       },
       windowAction: ({ action }) => {
@@ -795,24 +785,14 @@ function publish(): void {
 
 async function sharedSettingsState() {
   const overlay = await overlayWindow.withWindow((managed) => managed.getSettingsState());
-  return {
-    launcher: launcherState,
-    overlay,
-    minimapRarityFilter: minimapWindow.getRarityFilter(),
-    minimapEnabled: minimapWindow.getEnabled(),
-  };
+  return { launcher: launcherState, overlay };
 }
 
 async function publishSettings(overlayState?: Awaited<ReturnType<typeof sharedSettingsState>>["overlay"]): Promise<void> {
   if (!settingsWindow) return;
   try {
     settingsRpc.send.stateChanged(overlayState
-      ? {
-        launcher: launcherState,
-        overlay: overlayState,
-        minimapRarityFilter: minimapWindow.getRarityFilter(),
-        minimapEnabled: minimapWindow.getEnabled(),
-      }
+      ? { launcher: launcherState, overlay: overlayState }
       : await sharedSettingsState());
   } catch { /* Settings may be connecting or closing. */ }
 }
@@ -844,7 +824,7 @@ async function closeAllWindowsAndFlush(): Promise<void> {
   launcherWindow.hide();
   settingsWindow?.close();
   manageSettingsWindow?.close();
-  await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close(), minimapWindow.close()]);
+  await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close()]);
   liveDeathLogWindow.close();
   unsubscribeCharacterPersistence();
   unsubscribeInspectedCharacterPersistence();

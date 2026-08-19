@@ -7,7 +7,7 @@ import type { RequiredStatusCategory } from "./required-statuses.ts";
 
 export type { StatType, RequiredStatusCategory };
 
-export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "characterXp", "jobXp", "weight", "xpTracker", "goldTracker", "xpChart", "buffs", "debuffs", "toggles"] as const;
+export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "characterXp", "jobXp", "weight", "xpTracker", "goldTracker", "xpChart", "buffs", "debuffs", "toggles", "lootToast", "minimap"] as const;
 export type OverlayElementId = (typeof OVERLAY_ELEMENT_IDS)[number];
 
 /** Short label describing each overlay element, shown in the settings toggle list and as an edit-mode badge on the element itself. */
@@ -15,7 +15,7 @@ export const OVERLAY_ELEMENT_LABELS: Record<OverlayElementId, string> = {
   dpsChart: "DPS chart", personalDps: "Personal DPS numbers", partyRanking: "Party DPS ranking",
   health: "HP bar", mana: "MP bar", characterXp: "Character XP bar", jobXp: "Job XP bar",
   weight: "Weight", xpTracker: "Character XP numbers", goldTracker: "Gold dropped", xpChart: "Character XP chart", buffs: "Buffs",
-  debuffs: "Debuffs", toggles: "Toggles (no timer)",
+  debuffs: "Debuffs", toggles: "Toggles (no timer)", lootToast: "Loot notifications", minimap: "Minimap",
 };
 
 export const KEYBIND_ACTIONS = ["toggleLock", "resetSession", "openLiveDeathLog", "toggleOverlayVisible", "cycleMeterStatType", "resetXpTracker", "resetGoldTracker", "toggleMinimap"] as const;
@@ -177,6 +177,31 @@ export interface OverlayViewState {
   character: OverlayCharacterState;
   statuses: OverlayStatusState;
   meter: OverlayMeterState;
+  minimap: OverlayMinimapState;
+}
+
+/** A single ground-loot drop, forwarded as a discrete event rather than polled state. */
+export interface OverlayLootToastEvent {
+  objectId: number;
+  displayName?: string;
+  rarity?: number;
+  spriteId?: string;
+}
+
+export interface OverlayMinimapLootDrop {
+  objectId: number;
+  x: number;
+  z: number;
+  displayName?: string;
+  spriteId?: string;
+  rarity?: number;
+  lootType?: number;
+}
+
+export interface OverlayMinimapState {
+  player?: { x: number; z: number };
+  loot: OverlayMinimapLootDrop[];
+  rarityFilter: number;
 }
 
 /** The subset consumed by the separate Settings window. */
@@ -195,6 +220,7 @@ export interface OverlaySettingsState {
   personalDpsMode: PersonalDpsMode;
   autoHideWhenUnfocused: boolean;
   keybindsRequireGameFocus: boolean;
+  minimapRarityFilter: number;
 }
 
 type OverlaySharedRequests = {
@@ -219,6 +245,7 @@ type OverlaySharedRequests = {
   setPersonalDpsMode: { params: { mode: PersonalDpsMode }; response: OverlayControlState };
   resetXpTracker: { params: Record<string, never>; response: OverlayCharacterState };
   resetGoldTracker: { params: Record<string, never>; response: OverlayCharacterState };
+  setMinimapRarityFilter: { params: { rarity: number }; response: OverlayMinimapState };
 };
 
 export type OverlayRpc = {
@@ -257,5 +284,8 @@ export type OverlayRpc = {
     statusesChanged: OverlayStatusState;
     meterChanged: OverlayMeterState;
     dragPreviewChanged: OverlayDragPreview | undefined;
+    minimapChanged: OverlayMinimapState;
+    /** Fire-and-forget: one loot drop that passed the notification rarity threshold. */
+    lootDropped: OverlayLootToastEvent;
   } }>;
 };

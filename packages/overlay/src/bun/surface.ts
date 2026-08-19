@@ -88,6 +88,7 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
         },
         resetXpTracker: () => controller.resetXpTracker(),
         resetGoldTracker: () => controller.resetGoldTracker(),
+        setMinimapRarityFilter: ({ rarity }) => controller.setMinimapRarityFilter(rarity),
       },
       messages: {
         dragPreview: (preview) => controller.relayDragPreview(preview),
@@ -129,6 +130,8 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
     sendStatuses: (state) => rpc.send.statusesChanged(state),
     sendMeter: (state) => rpc.send.meterChanged(state),
     sendDragPreview: (preview) => rpc.send.dragPreviewChanged(preview),
+    sendMinimap: (state) => rpc.send.minimapChanged(state),
+    sendLootToast: (event) => rpc.send.lootDropped(event),
   };
   controller.registerSurface(sink);
 

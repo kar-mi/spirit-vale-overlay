@@ -341,7 +341,7 @@ describe("overlay settings", () => {
       elements: { health: { enabled: false, x: 25, width: 325 } },
     }, displays);
 
-    expect(settings.schemaVersion).toBe(6);
+    expect(settings.schemaVersion).toBe(7);
     expect(settings.homeDisplay).toBe(primaryKey);
     expect(new Set(Object.values(settings.elements).map((element) => element.display))).toEqual(new Set([primaryKey]));
     expect(settings.elements.health).toMatchObject({ enabled: false, x: 25, width: 325 });

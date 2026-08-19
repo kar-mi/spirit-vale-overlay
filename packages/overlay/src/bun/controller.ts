@@ -5,9 +5,10 @@ import {
   DpsSessionLogFollower,
   LiveCombatService,
 } from "@kar-mi/spirit-vale-tools-combat";
-import type { DpsLogBatch, FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
+import type { DpsLogBatch, FishNetActiveStatus, FishNetPosition } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import { loadBundledMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
+import type { FishNetLootDrop } from "@kar-mi/spirit-vale-tools-rewards";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { publishSafely } from "@svoverlay/desktop-platform/window-publish";
@@ -22,6 +23,8 @@ import type {
   OverlayControlState,
   OverlayDragPreview,
   OverlayElementId,
+  OverlayLootToastEvent,
+  OverlayMinimapState,
   OverlaySettingsState,
   OverlayStatus,
   PersonalDpsMode,
@@ -111,6 +114,12 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   toggleMinimap: "show/hide minimap",
 };
 
+/** Raw tracker snapshot the capture pipeline publishes; matches `CaptureMinimapState` in the desktop app. */
+export interface OverlayMinimapSourceState {
+  self: FishNetPosition | undefined;
+  loot: FishNetLootDrop[];
+}
+
 /** The overlay's XP and gold tiles read from (and can reset) a tracker owned centrally, shared with the Rewards window, so both stay in sync. */
 export interface XpTrackerSource {
   getSnapshot(): RateSnapshot;
@@ -125,12 +134,15 @@ export interface OverlayControllerOptions {
   getCharacterState: () => CharacterViewState;
   subscribeCharacter: (listener: (state: CharacterViewState) => void) => () => void;
   subscribeActiveStatuses: (listener: (statuses: readonly FishNetActiveStatus[]) => void) => () => void;
+  /** The local player's position and current ground loot, coalesced by the capture pipeline. */
+  subscribeMinimap: (listener: (state: OverlayMinimapSourceState) => void) => () => void;
+  /** One notification per ground-loot spawn that already cleared the minimap's rarity filter. */
+  subscribeLootToast: (listener: (event: OverlayLootToastEvent) => void) => () => void;
   xp: XpTrackerSource;
   settingsPath?: string;
   lockOnCreate?: boolean;
   onReset?: () => Promise<void>;
   onOpenLiveDeathLog?: () => Promise<void> | void;
-  onToggleMinimap?: () => void;
   onLiveLogPathChanged?: (path: string | undefined) => void;
   onSettingsStateChanged?: (state: OverlaySettingsState) => void;
   /** Asks the owner to create/close windows so the live set matches `displaysNeedingSurface`. */
@@ -152,6 +164,8 @@ export interface OverlaySurfaceSink {
   sendStatuses(state: OverlayStatusState): void;
   sendMeter(state: OverlayViewState["meter"]): void;
   sendDragPreview(preview: OverlayDragPreview | undefined): void;
+  sendMinimap(state: OverlayMinimapState): void;
+  sendLootToast(event: OverlayLootToastEvent): void;
 }
 
 export type OverlayController = Awaited<ReturnType<typeof createOverlayController>>;
@@ -197,6 +211,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
   let lastCharacterJson: string | undefined;
   let lastStatusesJson: string | undefined;
   let lastMeterJson: string | undefined;
+  let lastMinimapJson: string | undefined;
+  let minimapSource: OverlayMinimapSourceState = { self: undefined, loot: [] };
   /**
    * Tracker revision the published status state was projected from.
    *
@@ -259,6 +275,17 @@ export async function createOverlayController(options: OverlayControllerOptions)
     scheduleTick();
   });
   const unsubscribeXp = options.xp.subscribe(() => publishCharacter());
+  const unsubscribeMinimap = options.subscribeMinimap((next) => {
+    minimapSource = next;
+    publishMinimap();
+  });
+  const unsubscribeLootToast = options.subscribeLootToast((event) => {
+    if (shuttingDown) return;
+    const element = settings.elements.lootToast;
+    if (!element.enabled) return;
+    const surface = surfaces.get(element.display);
+    if (surface) publishSafely(() => surface.sendLootToast(event));
+  });
 
   if (options.lockOnCreate) persistence.schedule(settings);
 
@@ -310,6 +337,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     setShortcutCapture,
     setRequiredStatuses,
     setPersonalDpsMode,
+    setMinimapRarityFilter,
     resetXpTracker: () => {
       options.xp.reset();
       publishCharacter();
@@ -336,6 +364,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
       unsubscribeCharacter();
       unsubscribeActiveStatuses();
       unsubscribeXp();
+      unsubscribeMinimap();
+      unsubscribeLootToast();
       shortcutListener?.close();
       await persistence.flush(settings);
     },
@@ -397,7 +427,31 @@ export async function createOverlayController(options: OverlayControllerOptions)
       personalDpsMode: control.personalDpsMode,
       autoHideWhenUnfocused: settings.autoHideWhenUnfocused,
       keybindsRequireGameFocus: settings.keybindsRequireGameFocus,
+      minimapRarityFilter: settings.minimapRarityFilter,
     };
+  }
+
+  function minimapState(): OverlayMinimapState {
+    return {
+      player: minimapSource.self ? { x: minimapSource.self.x, z: minimapSource.self.z } : undefined,
+      loot: minimapSource.loot.flatMap((drop) => (drop.position === undefined ? [] : [{
+        objectId: drop.objectId,
+        x: drop.position[0],
+        z: drop.position[2],
+        ...(drop.displayName === undefined ? {} : { displayName: drop.displayName }),
+        ...(drop.spriteId === undefined ? {} : { spriteId: drop.spriteId }),
+        ...(drop.rarity === undefined ? {} : { rarity: drop.rarity }),
+        ...(drop.lootType === undefined ? {} : { lootType: drop.lootType }),
+      }])),
+      rarityFilter: settings.minimapRarityFilter,
+    };
+  }
+
+  function setMinimapRarityFilter(rarity: number): OverlayMinimapState {
+    settings = normalizeOverlaySettings({ ...settings, minimapRarityFilter: rarity }, displays);
+    persist();
+    publishMinimap(true);
+    return minimapState();
   }
 
   function overlayCharacterState(): OverlayCharacterState {
@@ -459,6 +513,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       character: overlayCharacterState(),
       statuses: stampedStatusState(overlayStatusState(nowMs)),
       meter: overlayMeterState(record, settings.meterStatType, nowMs, settings.personalDpsMode),
+      minimap: minimapState(),
     };
   }
 
@@ -708,7 +763,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       options.xp.resetCoins();
       publishCharacter();
     } else if (action === "toggleMinimap") {
-      options.onToggleMinimap?.();
+      setElementEnabled("minimap", !settings.elements.minimap.enabled);
     }
   }
 
@@ -794,6 +849,15 @@ export async function createOverlayController(options: OverlayControllerOptions)
     if (!force && json === lastMeterJson) return;
     lastMeterJson = json;
     for (const surface of surfaces.values()) publishSafely(() => surface.sendMeter(next));
+  }
+
+  function publishMinimap(force = false): void {
+    if (shuttingDown) return;
+    const next = minimapState();
+    const json = JSON.stringify(next);
+    if (!force && json === lastMinimapJson) return;
+    lastMinimapJson = json;
+    for (const surface of surfaces.values()) publishSafely(() => surface.sendMinimap(next));
   }
 
   /**

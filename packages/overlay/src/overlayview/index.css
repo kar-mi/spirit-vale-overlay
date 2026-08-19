@@ -569,3 +569,100 @@
     will-change: auto;
   }
 }
+
+.minimap-radar {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(6, 9, 16, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.minimap-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transform: translate(-50%, -50%);
+}
+.minimap-crosshair { position: absolute; background: rgba(255, 255, 255, 0.14); }
+.minimap-crosshair.horizontal { left: 0; right: 0; top: 50%; height: 1px; transform: translateY(-0.5px); }
+.minimap-crosshair.vertical { top: 0; bottom: 0; left: 50%; width: 1px; transform: translateX(-0.5px); }
+.minimap-compass {
+  position: absolute;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.minimap-compass.north { top: 6px; left: 50%; transform: translateX(-50%); }
+.minimap-compass.south { bottom: 6px; left: 50%; transform: translateX(-50%); }
+.minimap-compass.east { right: 6px; top: 50%; transform: translateY(-50%); }
+.minimap-compass.west { left: 6px; top: 50%; transform: translateY(-50%); }
+.minimap-player {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: #4fb1ff;
+  box-shadow: 0 0 6px 2px rgba(79, 177, 255, 0.6);
+}
+.minimap-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  box-shadow: 0 0 4px 1px color-mix(in srgb, var(--dot-color, #ffd24f) 55%, transparent);
+  transition: left 0.1s linear, top 0.1s linear, opacity 0.15s ease;
+}
+.minimap-empty {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+}
+
+.loot-toast-stack {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+  overflow: hidden;
+}
+.loot-toast-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(10, 12, 18, 0.72);
+  border-left: 3px solid var(--rarity-color, #f2f2f2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  animation: loot-toast-in 0.15s ease-out;
+}
+.loot-toast-name { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.92); }
+.loot-toast-rarity { font-size: 11px; font-weight: 700; color: var(--rarity-color, #f2f2f2); text-transform: uppercase; letter-spacing: 0.04em; }
+.loot-toast-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+}
+@keyframes loot-toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loot-toast-card { animation: none; }
+}
