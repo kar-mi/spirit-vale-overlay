@@ -176,6 +176,8 @@ export class CaptureCoordinator {
   private minimapTimer?: ReturnType<typeof setTimeout>;
   private lastPublishedMinimapJson?: string;
   private readonly lootToastListeners = new Set<(event: CaptureLootToastEvent) => void>();
+  /** Object ids already toasted this session, so a later `update` for the same drop does not repeat it. */
+  private readonly toastedLootIds = new Set<number>();
   private readonly character = new LocalCharacterRouter({
     onHandled: () => this.syncLocalActorIdentity(),
     onError: (packet, error) => this.logCharacterWarning(packet, error),
@@ -400,6 +402,7 @@ export class CaptureCoordinator {
     this.loggedMobIdentities.clear();
     this.positions.reset();
     this.loot.reset();
+    this.toastedLootIds.clear();
     if (this.minimapTimer !== undefined) clearTimeout(this.minimapTimer);
     this.minimapTimer = undefined;
     this.publishMinimap(true);
@@ -1083,14 +1086,22 @@ export class CaptureCoordinator {
     return this.options.minimapEnabled?.() ?? true;
   }
 
+  /**
+   * A drop's name and rarity usually arrive inside its own spawn packet, but are not guaranteed to
+   * — the game can send them as a follow-up `update` once the item is named. Both kinds are
+   * considered here, and `toastedLootIds` keeps a drop from raising a second toast once the later
+   * update arrives.
+   */
   private emitLootToasts(events: readonly FishNetLootDropEvent[]): void {
     if (this.lootToastListeners.size === 0) return;
     const threshold = this.options.getMinimapRarityFilter?.() ?? 0;
     for (const event of events) {
-      if (event.kind !== "spawn" || (event.drop.rarity ?? 0) < threshold) continue;
+      if (event.kind === "removed" || this.toastedLootIds.has(event.drop.objectId)) continue;
+      if (event.drop.displayName === undefined || (event.drop.rarity ?? 0) < threshold) continue;
+      this.toastedLootIds.add(event.drop.objectId);
       const toast: CaptureLootToastEvent = {
         objectId: event.drop.objectId,
-        ...(event.drop.displayName === undefined ? {} : { displayName: event.drop.displayName }),
+        displayName: event.drop.displayName,
         ...(event.drop.rarity === undefined ? {} : { rarity: event.drop.rarity }),
         ...(event.drop.spriteId === undefined ? {} : { spriteId: event.drop.spriteId }),
       };
