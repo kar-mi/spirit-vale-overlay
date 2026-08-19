@@ -184,20 +184,44 @@ export function setWindowClickThrough(windowPtr: unknown, enabled: boolean): boo
   }
 }
 
+function openProcessImageKernel32() {
+  return dlopen("kernel32", {
+    OpenProcess: { args: [FFIType.u32, FFIType.bool, FFIType.u32], returns: FFIType.ptr },
+    QueryFullProcessImageNameW: {
+      args: [FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.ptr],
+      returns: FFIType.bool,
+    },
+    CloseHandle: { args: [FFIType.ptr], returns: FFIType.bool },
+  });
+}
+
+/** Resolves a process id to its executable filename (without path), or undefined when inaccessible. */
+function getProcessExeName(
+  kernel32: ReturnType<typeof openProcessImageKernel32>,
+  pid: number,
+): string | undefined {
+  const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+  const processHandle = kernel32.symbols.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+  if (!processHandle) return undefined;
+  try {
+    const pathBuffer = new Uint16Array(32_768);
+    const lengthBuffer = new Uint32Array([pathBuffer.length]);
+    const found = kernel32.symbols.QueryFullProcessImageNameW(processHandle, 0, ptr(pathBuffer), ptr(lengthBuffer));
+    if (!found) return undefined;
+    const fullPath = String.fromCharCode(...pathBuffer.subarray(0, lengthBuffer[0]));
+    return fullPath.split(/[\\/]/).pop() || undefined;
+  } finally {
+    kernel32.symbols.CloseHandle(processHandle);
+  }
+}
+
 function openForegroundProcessLibraries() {
   return {
     user32: dlopen("user32", {
       GetForegroundWindow: { args: [], returns: FFIType.ptr },
       GetWindowThreadProcessId: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.u32 },
     }),
-    kernel32: dlopen("kernel32", {
-      OpenProcess: { args: [FFIType.u32, FFIType.bool, FFIType.u32], returns: FFIType.ptr },
-      QueryFullProcessImageNameW: {
-        args: [FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.ptr],
-        returns: FFIType.bool,
-      },
-      CloseHandle: { args: [FFIType.ptr], returns: FFIType.bool },
-    }),
+    kernel32: openProcessImageKernel32(),
   };
 }
 
@@ -224,24 +248,7 @@ export function getForegroundProcess(): ForegroundProcess | undefined {
     const pid = pidBuffer[0];
     if (!pid) return undefined;
 
-    const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
-    const processHandle = kernel32.symbols.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
-    if (!processHandle) return { pid };
-    try {
-      const pathBuffer = new Uint16Array(32_768);
-      const lengthBuffer = new Uint32Array([pathBuffer.length]);
-      const found = kernel32.symbols.QueryFullProcessImageNameW(
-        processHandle,
-        0,
-        ptr(pathBuffer),
-        ptr(lengthBuffer),
-      );
-      if (!found) return { pid };
-      const fullPath = String.fromCharCode(...pathBuffer.subarray(0, lengthBuffer[0]));
-      return { pid, exeName: fullPath.split(/[\\/]/).pop() || undefined };
-    } finally {
-      kernel32.symbols.CloseHandle(processHandle);
-    }
+    return { pid, exeName: getProcessExeName(kernel32, pid) };
   } catch (error) {
     console.warn("[desktop-platform] could not determine the foreground process:", error);
     return undefined;
@@ -263,14 +270,7 @@ function openWindowRectLibraries() {
       GetWindowRect: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.bool },
       IsWindowVisible: { args: [FFIType.ptr], returns: FFIType.bool },
     }),
-    kernel32: dlopen("kernel32", {
-      OpenProcess: { args: [FFIType.u32, FFIType.bool, FFIType.u32], returns: FFIType.ptr },
-      QueryFullProcessImageNameW: {
-        args: [FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.ptr],
-        returns: FFIType.bool,
-      },
-      CloseHandle: { args: [FFIType.ptr], returns: FFIType.bool },
-    }),
+    kernel32: openProcessImageKernel32(),
   };
 }
 
@@ -298,20 +298,8 @@ export function getWindowRectForProcess(exeName: string): WindowRect | undefined
         user32.symbols.GetWindowThreadProcessId(hwnd, ptr(pidBuffer));
         const pid = pidBuffer[0];
         if (!pid) return true;
-        const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
-        const processHandle = kernel32.symbols.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
-        if (!processHandle) return true;
-        try {
-          const pathBuffer = new Uint16Array(32_768);
-          const lengthBuffer = new Uint32Array([pathBuffer.length]);
-          const gotPath = kernel32.symbols.QueryFullProcessImageNameW(processHandle, 0, ptr(pathBuffer), ptr(lengthBuffer));
-          if (!gotPath) return true;
-          const fullPath = String.fromCharCode(...pathBuffer.subarray(0, lengthBuffer[0]));
-          const name = fullPath.split(/[\\/]/).pop()?.toLowerCase();
-          if (name !== target) return true;
-        } finally {
-          kernel32.symbols.CloseHandle(processHandle);
-        }
+        const name = getProcessExeName(kernel32, pid)?.toLowerCase();
+        if (name !== target) return true;
         const rectBuffer = new Int32Array(4);
         if (!user32.symbols.GetWindowRect(hwnd, ptr(rectBuffer))) return true;
         const [left, top, right, bottom] = rectBuffer as unknown as [number, number, number, number];
