@@ -8,16 +8,21 @@ export const MINIMAP_RARITY_MAX = 10;
 
 export interface MinimapSettings {
   schemaVersion: 1;
+  enabled: boolean;
   rarityFilter: number;
 }
 
 export function defaultMinimapSettings(): MinimapSettings {
-  return { schemaVersion: 1, rarityFilter: MINIMAP_RARITY_MIN };
+  return { schemaVersion: 1, enabled: true, rarityFilter: MINIMAP_RARITY_MIN };
 }
 
 export function normalizeMinimapSettings(candidate: unknown): MinimapSettings {
   const source = candidate && typeof candidate === "object" ? candidate as Record<string, unknown> : {};
-  return { schemaVersion: 1, rarityFilter: clampRarity(source.rarityFilter) };
+  return {
+    schemaVersion: 1,
+    enabled: typeof source.enabled === "boolean" ? source.enabled : true,
+    rarityFilter: clampRarity(source.rarityFilter),
+  };
 }
 
 export async function loadMinimapSettings(settingsPath: string | undefined): Promise<MinimapSettings> {

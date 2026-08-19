@@ -190,6 +190,7 @@ const capture = new CaptureCoordinator({
   onError: (report) => errorLog.write(report),
   resetOnMapChange: () => settings.resetMeterOnMapChange,
   onGoldMapChange: () => { if (settings.resetGoldOnMapChange) xpTracker.resetCoins(); },
+  minimapEnabled: () => minimapWindow.getEnabled(),
   knownIdentities: [...actorIdentityCache.entries.values()],
   onIdentityLearned: (identity) => {
     actorIdentityCache = updateActorIdentityCache(actorIdentityCache, { ...identity, lastSeenAtMs: Date.now() });
@@ -366,6 +367,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       },
       setMinimapRarityFilter: async ({ rarity }) => {
         minimapWindow.setRarityFilter(rarity);
+        return sharedSettingsState();
+      },
+      setMinimapEnabled: async ({ enabled }) => {
+        minimapWindow.setEnabled(enabled);
         return sharedSettingsState();
       },
       windowAction: ({ action }) => {
@@ -790,14 +795,24 @@ function publish(): void {
 
 async function sharedSettingsState() {
   const overlay = await overlayWindow.withWindow((managed) => managed.getSettingsState());
-  return { launcher: launcherState, overlay, minimapRarityFilter: minimapWindow.getRarityFilter() };
+  return {
+    launcher: launcherState,
+    overlay,
+    minimapRarityFilter: minimapWindow.getRarityFilter(),
+    minimapEnabled: minimapWindow.getEnabled(),
+  };
 }
 
 async function publishSettings(overlayState?: Awaited<ReturnType<typeof sharedSettingsState>>["overlay"]): Promise<void> {
   if (!settingsWindow) return;
   try {
     settingsRpc.send.stateChanged(overlayState
-      ? { launcher: launcherState, overlay: overlayState, minimapRarityFilter: minimapWindow.getRarityFilter() }
+      ? {
+        launcher: launcherState,
+        overlay: overlayState,
+        minimapRarityFilter: minimapWindow.getRarityFilter(),
+        minimapEnabled: minimapWindow.getEnabled(),
+      }
       : await sharedSettingsState());
   } catch { /* Settings may be connecting or closing. */ }
 }

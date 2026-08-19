@@ -86,7 +86,7 @@
   border-radius: 50%;
   background: #ffd24f;
   box-shadow: 0 0 4px 1px rgba(255, 210, 79, 0.55);
-  transition: opacity 0.15s ease;
+  transition: left 0.1s linear, top 0.1s linear, opacity 0.15s ease;
 }
 
 .minimap-empty {

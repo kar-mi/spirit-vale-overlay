@@ -54,7 +54,7 @@ const DIAGNOSTIC_PRE_AUTH_BYTE_LIMIT = 8 * 1024 * 1024;
 const DIAGNOSTIC_TRANSITION_BYTE_LIMIT = 32 * 1024 * 1024;
 const TOWER_LOCATION_SETTLE_MS = 500;
 /** Position/loot updates arrive on nearly every packet during movement; coalesced to this cadence. */
-const MINIMAP_PUBLISH_MS = 120;
+const MINIMAP_PUBLISH_MS = 60;
 const TOWER_LOCATION_MAX_SETTLE_MS = 2_000;
 const STATUS_RPC_NAMES = new Set([
   "ApplyEffect_T",
@@ -112,6 +112,11 @@ export interface CaptureCoordinatorOptions {
    * `resetOnMapChange` — the gold reset is a separate, unrelated setting.
    */
   onGoldMapChange?: () => void;
+  /**
+   * Read on every packet to decide whether to track/publish minimap position and loot data at all.
+   * Defaults to enabled. A live getter so users experiencing lag can turn it off without a restart.
+   */
+  minimapEnabled?: () => boolean;
 }
 
 export class CaptureCoordinator {
@@ -694,7 +699,7 @@ export class CaptureCoordinator {
       this.lastObservedMapId = undefined;
       this.positions.reset();
       this.loot.reset();
-      this.publishMinimap(true);
+      if (this.minimapEnabled()) this.publishMinimap(true);
     }
     const towerChanged = this.tower.consume(packet) || towerReset;
     if (towerChanged && isTowerStatePacket(packet)) {
@@ -723,7 +728,7 @@ export class CaptureCoordinator {
         this.loggedMobIdentities.clear();
       }
       const identities = this.actors.consume(packet);
-      if (this.positions.consume(packet).length > 0) this.scheduleMinimapPublish();
+      if (this.minimapEnabled() && this.positions.consume(packet).length > 0) this.scheduleMinimapPublish();
       const events = this.combat.consume(packet);
       combatEvents = events;
       if (isStatusPacket(packet)) {
@@ -770,7 +775,7 @@ export class CaptureCoordinator {
     }
 
     try {
-      if (this.loot.consume(packet).length > 0) this.scheduleMinimapPublish();
+      if (this.minimapEnabled() && this.loot.consume(packet).length > 0) this.scheduleMinimapPublish();
       const tracked = this.shouldTrackRewardPacket(combatEvents)
         ? this.rewards.consume(packet)
         : [];
@@ -1050,6 +1055,10 @@ export class CaptureCoordinator {
 
   private minimapState(): CaptureMinimapState {
     return { self: this.positions.self(), loot: this.loot.active() };
+  }
+
+  private minimapEnabled(): boolean {
+    return this.options.minimapEnabled?.() ?? true;
   }
 
   private scheduleMinimapPublish(): void {

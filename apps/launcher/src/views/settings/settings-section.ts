@@ -33,6 +33,7 @@ export interface SettingsActions {
   setResetGoldOnMapChange(value: boolean): void;
   setPersonalDpsMode(value: SharedSettingsState["overlay"]["personalDpsMode"]): void;
   setMinimapRarityFilter(value: number): void;
+  setMinimapEnabled(value: boolean): void;
   setRequiredStatuses(category: RequiredStatusCategory, statusIds: string[]): void;
   setKeybindsRequireGameFocus(value: boolean): void;
   resetShortcuts(): void;

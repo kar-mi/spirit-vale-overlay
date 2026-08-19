@@ -57,6 +57,8 @@ export async function createMinimapWindow(options: MinimapWindowOptions) {
     toggle: () => { if (visible) hide(); else show(); },
     setRarityFilter,
     getRarityFilter: () => settings.rarityFilter,
+    setEnabled,
+    getEnabled: () => settings.enabled,
     close: async () => {
       if (closed) return;
       closed = true;
@@ -72,7 +74,14 @@ export async function createMinimapWindow(options: MinimapWindowOptions) {
     publish();
   }
 
+  function setEnabled(enabled: boolean): void {
+    settings = normalizeMinimapSettings({ ...settings, enabled });
+    persistence.schedule(settings);
+    if (!enabled) hide();
+  }
+
   function show(): void {
+    if (!settings.enabled) return;
     visible = true;
     surface.setFrame(resolveFrame());
     surface.show();
