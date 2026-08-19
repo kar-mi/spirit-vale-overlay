@@ -1,7 +1,7 @@
 import { MINIMAP_RARITY_MAX, MINIMAP_RARITY_MIN } from "@svoverlay/overlay/minimap-settings";
 import type { SettingsSection, SettingsSectionContext } from "../settings-section.ts";
 
-export function buildMinimapSettingsSection({ state, busy, actions }: SettingsSectionContext): SettingsSection {
+export function buildMinimapSettingsSection({ state, actions }: SettingsSectionContext): SettingsSection {
   const { minimapRarityFilter } = state;
   return {
     id: "minimap",
@@ -16,12 +16,12 @@ export function buildMinimapSettingsSection({ state, busy, actions }: SettingsSe
             <span>Loot rarity filter</span>
             <div class="settings-row">
               <input
+                class="settings-slider"
                 type="range"
                 min={MINIMAP_RARITY_MIN}
                 max={MINIMAP_RARITY_MAX}
                 step={1}
                 value={minimapRarityFilter}
-                disabled={busy}
                 onInput={(event) => actions.setMinimapRarityFilter(event.currentTarget.valueAsNumber)}
               />
               <output>{minimapRarityFilter}</output>
