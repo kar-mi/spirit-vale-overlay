@@ -8,8 +8,7 @@
     "./required-statuses": "./src/required-statuses.ts",
     "./settings": "./src/settings.ts",
     "./display-layout": "./src/display-layout.ts",
-    "./minimap-types": "./src/minimap-types.ts",
-    "./minimap-settings": "./src/minimap-settings.ts"
+    "./rarity": "./src/rarity.ts"
   },
   "dependencies": {
     "@kar-mi/spirit-vale-tools-character": "0.4.1",

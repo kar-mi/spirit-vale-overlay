@@ -33,7 +33,7 @@ import type {
   LogWriteFailure,
 } from "@kar-mi/spirit-vale-tools-logging";
 import { FishNetLootDropTracker, FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
-import type { FishNetLootDrop } from "@kar-mi/spirit-vale-tools-rewards";
+import type { FishNetLootDrop, FishNetLootDropEvent } from "@kar-mi/spirit-vale-tools-rewards";
 import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
@@ -80,6 +80,14 @@ export interface CaptureMinimapState {
   loot: FishNetLootDrop[];
 }
 
+/** A single ground-loot drop that just spawned, forwarded as a discrete notification event. */
+export interface CaptureLootToastEvent {
+  objectId: number;
+  displayName?: string;
+  rarity?: number;
+  spriteId?: string;
+}
+
 export interface CaptureErrorReport {
   title: string;
   reason: string;
@@ -117,6 +125,11 @@ export interface CaptureCoordinatorOptions {
    * Defaults to enabled. A live getter so users experiencing lag can turn it off without a restart.
    */
   minimapEnabled?: () => boolean;
+  /**
+   * Read on every loot spawn to decide whether it clears the bar for a toast notification. Shares
+   * the minimap's own rarity filter rather than a separate setting. Defaults to showing everything.
+   */
+  getMinimapRarityFilter?: () => number;
 }
 
 export class CaptureCoordinator {
@@ -162,6 +175,9 @@ export class CaptureCoordinator {
   private readonly minimapListeners = new Set<(state: CaptureMinimapState) => void>();
   private minimapTimer?: ReturnType<typeof setTimeout>;
   private lastPublishedMinimapJson?: string;
+  private readonly lootToastListeners = new Set<(event: CaptureLootToastEvent) => void>();
+  /** Object ids already toasted this session, so a later `update` for the same drop does not repeat it. */
+  private readonly toastedLootIds = new Set<number>();
   private readonly character = new LocalCharacterRouter({
     onHandled: () => this.syncLocalActorIdentity(),
     onError: (packet, error) => this.logCharacterWarning(packet, error),
@@ -273,6 +289,12 @@ export class CaptureCoordinator {
     return () => this.minimapListeners.delete(listener);
   }
 
+  /** Notified once per ground-loot spawn that clears the minimap's rarity filter. No initial replay. */
+  subscribeLootToast(listener: (event: CaptureLootToastEvent) => void): () => void {
+    this.lootToastListeners.add(listener);
+    return () => this.lootToastListeners.delete(listener);
+  }
+
   inspectedCharacters(): InspectedCharacter[] { return this.inspected.list(); }
 
   subscribeInspectedCharacters(listener: (roster: InspectedCharacter[]) => void): () => void {
@@ -380,6 +402,7 @@ export class CaptureCoordinator {
     this.loggedMobIdentities.clear();
     this.positions.reset();
     this.loot.reset();
+    this.toastedLootIds.clear();
     if (this.minimapTimer !== undefined) clearTimeout(this.minimapTimer);
     this.minimapTimer = undefined;
     this.publishMinimap(true);
@@ -775,7 +798,9 @@ export class CaptureCoordinator {
     }
 
     try {
-      if (this.minimapEnabled() && this.loot.consume(packet).length > 0) this.scheduleMinimapPublish();
+      const lootEvents = this.loot.consume(packet);
+      if (this.minimapEnabled() && lootEvents.length > 0) this.scheduleMinimapPublish();
+      this.emitLootToasts(lootEvents);
       const tracked = this.shouldTrackRewardPacket(combatEvents)
         ? this.rewards.consume(packet)
         : [];
@@ -1059,6 +1084,29 @@ export class CaptureCoordinator {
 
   private minimapEnabled(): boolean {
     return this.options.minimapEnabled?.() ?? true;
+  }
+
+  /**
+   * A drop's name and rarity usually arrive inside its own spawn packet, but are not guaranteed to
+   * — the game can send them as a follow-up `update` once the item is named. Both kinds are
+   * considered here, and `toastedLootIds` keeps a drop from raising a second toast once the later
+   * update arrives.
+   */
+  private emitLootToasts(events: readonly FishNetLootDropEvent[]): void {
+    if (this.lootToastListeners.size === 0) return;
+    const threshold = this.options.getMinimapRarityFilter?.() ?? 0;
+    for (const event of events) {
+      if (event.kind === "removed" || this.toastedLootIds.has(event.drop.objectId)) continue;
+      if (event.drop.displayName === undefined || (event.drop.rarity ?? 0) < threshold) continue;
+      this.toastedLootIds.add(event.drop.objectId);
+      const toast: CaptureLootToastEvent = {
+        objectId: event.drop.objectId,
+        displayName: event.drop.displayName,
+        ...(event.drop.rarity === undefined ? {} : { rarity: event.drop.rarity }),
+        ...(event.drop.spriteId === undefined ? {} : { spriteId: event.drop.spriteId }),
+      };
+      for (const listener of this.lootToastListeners) listener(toast);
+    }
   }
 
   private scheduleMinimapPublish(): void {

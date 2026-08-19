@@ -19,8 +19,11 @@ import {
   type OverlayControlState,
   type OverlayDisplayPlacement,
   type OverlayDragPreview,
+  type OverlayLootToastEvent,
   type OverlayMeterPoint,
   type OverlayMeterState,
+  type OverlayMinimapLootDrop,
+  type OverlayMinimapState,
   type OverlayResource,
   type OverlayRpc,
   type OverlayStatusState,
@@ -29,8 +32,15 @@ import {
 } from "../app-types.ts";
 import { displayForRect } from "../display-layout.ts";
 import { resourceFill } from "../personal-resources.ts";
+import { rarityColor, rarityLabel } from "../rarity.ts";
 import { weightWarnLevel, type WeightWarnLevel } from "../weight-warning.ts";
 import { ewmaSeries } from "@kar-mi/spirit-vale-tools-metrics";
+
+/** World units mapped to the radar's edge, matched against a fraction of the tile's own size — the tile itself is user-resizable. */
+const RADAR_WORLD_RADIUS = 60;
+const RADAR_RING_COUNT = 3;
+/** How long a loot notification card stays on screen before it's dropped from the queue. */
+const LOOT_TOAST_LIFETIME_MS = 3_000;
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
@@ -98,6 +108,17 @@ const statusNow = signal(Date.now());
 /** Runs only while something is actually counting down; a screen of toggles needs no ticker. */
 let statusTicker: ReturnType<typeof setInterval> | undefined;
 const meterState = signal<OverlayMeterState | undefined>(undefined);
+const minimapState = signal<OverlayMinimapState | undefined>(undefined);
+interface LootToastCard { id: string; event: OverlayLootToastEvent }
+const lootToasts = signal<LootToastCard[]>([]);
+let lootToastSequence = 0;
+function pushLootToast(event: OverlayLootToastEvent): void {
+  const id = `${Date.now()}-${lootToastSequence++}`;
+  lootToasts.value = [...lootToasts.value, { id, event }];
+  setTimeout(() => {
+    lootToasts.value = lootToasts.value.filter((card) => card.id !== id);
+  }, LOOT_TOAST_LIFETIME_MS);
+}
 const gridEnabled = signal(false);
 /** A tile being dragged on another monitor's surface, relayed here so it can be ghosted. */
 const dragPreview = signal<OverlayDragPreview | undefined>(undefined);
@@ -158,6 +179,8 @@ const rpc = Electroview.defineRPC<OverlayRpc>({
     meterChanged: (next) => { meterState.value = repairRendererPayload(next); },
     // Numbers and an element id only, so it skips the mojibake repair every other channel pays.
     dragPreviewChanged: (next) => { dragPreview.value = next; },
+    minimapChanged: (next) => { minimapState.value = repairRendererPayload(next); },
+    lootDropped: (next) => { pushLootToast(repairRendererPayload(next)); },
   } },
 });
 const electroview = new Electroview({ rpc });
@@ -168,6 +191,7 @@ void electroview.rpc?.request.getState({}).then((next) => {
     characterState.value = repaired.character;
     applyStatuses(repaired.statuses);
     meterState.value = repaired.meter;
+    minimapState.value = repaired.minimap;
   });
 });
 
@@ -251,6 +275,12 @@ function App() {
       {/* Debuffs deliberately do not flash: one running out is good news. */}
       <StatusOverlayElement id="debuffs" locked={next.locked} category="debuffs" />
       <StatusOverlayElement id="toggles" locked={next.locked} category="toggles" />
+      <OverlayElement id="minimap" locked={next.locked}>
+        <MinimapElement />
+      </OverlayElement>
+      <OverlayElement id="lootToast" locked={next.locked}>
+        <LootToastElement />
+      </OverlayElement>
       {!next.locked && <DragGhost surface={next.surface} />}
     </main>
   );
@@ -894,6 +924,92 @@ function formatRemaining(remainingMs: number): string {
   const totalSeconds = Math.ceil(remainingMs / 1_000);
   if (totalSeconds >= 60) return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
   return `${totalSeconds}`;
+}
+
+interface RadarDot extends OverlayMinimapLootDrop {
+  /** Fraction of the radar's radius, -1..1 on each axis, so the dot lays out relative to the tile's own (user-resizable) size. */
+  fx: number;
+  fy: number;
+}
+
+const minimapDots = computed<RadarDot[]>(() => {
+  const state = minimapState.value;
+  const player = state?.player;
+  if (!player) return [];
+  return state.loot
+    .filter((drop) => (drop.rarity ?? 0) >= state.rarityFilter)
+    .flatMap((drop) => {
+      const dx = drop.x - player.x;
+      // The game's world-space x axis maps to the radar's vertical (N/S) axis (inverted), and z maps to horizontal (E/W, inverted).
+      const dz = drop.z - player.z;
+      const fx = -dz / RADAR_WORLD_RADIUS;
+      const fy = -dx / RADAR_WORLD_RADIUS;
+      if (Math.hypot(fx, fy) > 1) return [];
+      return [{ ...drop, fx, fy }];
+    });
+});
+
+function MinimapElement() {
+  const state = minimapState.value;
+  return (
+    <div class="minimap-radar">
+      <MinimapRangeRings />
+      <div class="minimap-crosshair horizontal" />
+      <div class="minimap-crosshair vertical" />
+      <span class="minimap-compass north">N</span>
+      <span class="minimap-compass south">S</span>
+      <span class="minimap-compass east">E</span>
+      <span class="minimap-compass west">W</span>
+      {state?.player ? (
+        <>
+          <span class="minimap-player" />
+          {minimapDots.value.map((dot) => <MinimapLootDot key={dot.objectId} dot={dot} />)}
+        </>
+      ) : <span class="minimap-empty">Waiting for position</span>}
+    </div>
+  );
+}
+
+function MinimapRangeRings() {
+  return <>{Array.from({ length: RADAR_RING_COUNT }, (_, index) => {
+    const percent = ((index + 1) / RADAR_RING_COUNT) * 100;
+    return <span key={index} class="minimap-ring" style={{ width: `${percent}%`, height: `${percent}%`, left: "50%", top: "50%" }} />;
+  })}</>;
+}
+
+function MinimapLootDot({ dot }: { dot: RadarDot }) {
+  const color = rarityColor(dot.rarity);
+  return (
+    <span
+      class="minimap-dot"
+      style={{
+        left: `calc(50% + ${dot.fx * 50}%)`,
+        top: `calc(50% + ${dot.fy * 50}%)`,
+        backgroundColor: color,
+        "--dot-color": color,
+      }}
+      title={`${dot.displayName ?? "Loot"} (${rarityLabel(dot.rarity)})`}
+    />
+  );
+}
+
+function LootToastElement() {
+  const cards = lootToasts.value;
+  return (
+    <div class="loot-toast-stack">
+      {cards.map((card) => <LootToastCard key={card.id} event={card.event} />)}
+    </div>
+  );
+}
+
+function LootToastCard({ event }: { event: OverlayLootToastEvent }) {
+  const color = rarityColor(event.rarity);
+  return (
+    <div class="loot-toast-card" style={{ "--rarity-color": color }}>
+      <span class="loot-toast-name">{event.displayName ?? "Loot"}</span>
+      <span class="loot-toast-rarity">{rarityLabel(event.rarity)}</span>
+    </div>
+  );
 }
 
 function WaitingForDps({ label = "Waiting for DPS" }: { label?: string } = {}) {

@@ -26,13 +26,14 @@ import {
   type DisplayBounds,
   type OverlayDisplay,
 } from "./display-layout.ts";
+import { RARITY_TIERS } from "./rarity.ts";
 
 export { KEYBIND_ACTIONS, OVERLAY_ELEMENT_IDS };
 export type { KeybindAction, OverlayElementId, OverlayElementSettings, PersonalDpsMode };
 export type { DisplayBounds, OverlayDisplay };
 
 export interface OverlaySettings {
-  schemaVersion: 6;
+  schemaVersion: 7;
   /**
    * Where new tiles land and where a tile whose monitor was unplugged falls back to. Empty means
    * "use the primary display", which is also what an unrecognised key resolves to.
@@ -50,6 +51,8 @@ export interface OverlaySettings {
   autoHideWhenUnfocused: boolean;
   /** Ignore configurable overlay shortcuts unless the game has OS focus. */
   keybindsRequireGameFocus: boolean;
+  /** Only ground loot at or above this rarity is shown on the minimap tile or raises a loot notification. */
+  minimapRarityFilter: number;
 }
 
 const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
@@ -81,10 +84,12 @@ const DEFAULT_ELEMENTS: Record<OverlayElementId, Omit<OverlayElementSettings, "d
   buffs: { enabled: false, opacity: 1, x: 1040, y: 830, width: 380, height: 70 },
   debuffs: { enabled: false, opacity: 1, x: 1040, y: 760, width: 380, height: 60 },
   toggles: { enabled: false, opacity: 1, x: 1430, y: 840, width: 280, height: 60 },
+  lootToast: { enabled: false, opacity: 1, x: 1400, y: 20, width: 340, height: 240 },
+  minimap: { enabled: true, opacity: 1, x: 790, y: 430, width: 340, height: 340 },
 };
 
 export function defaultOverlaySettings(displays: readonly OverlayDisplay[]): OverlaySettings {
-  return normalizeOverlaySettings({ schemaVersion: 6 }, displays);
+  return normalizeOverlaySettings({ schemaVersion: 7 }, displays);
 }
 
 /** Restore only keybindings, leaving every other overlay preference untouched. */
@@ -116,7 +121,9 @@ export function normalizeOverlaySettings(
   displays: readonly OverlayDisplay[],
 ): OverlaySettings {
   const parsed = candidate && typeof candidate === "object" ? candidate as Record<string, unknown> : {};
-  const source = parsed.schemaVersion === 4 || parsed.schemaVersion === 5 || parsed.schemaVersion === 6 ? parsed : {};
+  const source = parsed.schemaVersion === 4 || parsed.schemaVersion === 5 || parsed.schemaVersion === 6 || parsed.schemaVersion === 7
+    ? parsed
+    : {};
   const homeDisplay = resolveHomeDisplayKey(
     displays,
     typeof source.homeDisplay === "string" ? source.homeDisplay : "",
@@ -152,7 +159,7 @@ export function normalizeOverlaySettings(
   })) as unknown as Record<OverlayElementId, OverlayElementSettings>;
   const shortcuts = normalizeShortcuts(source);
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     homeDisplay,
     locked: typeof source.locked === "boolean" ? source.locked : false,
     shortcuts,
@@ -162,7 +169,24 @@ export function normalizeOverlaySettings(
     requiredStatuses: normalizeRequiredStatuses(source.requiredStatuses),
     autoHideWhenUnfocused: source.autoHideWhenUnfocused === true,
     keybindsRequireGameFocus: source.keybindsRequireGameFocus === true,
+    minimapRarityFilter: normalizeRarityFilter(source.minimapRarityFilter),
   };
+}
+
+/** Default rarity filter is "Rare" — snaps to the nearest known tier rather than an arbitrary numeric range. */
+const DEFAULT_RARITY_FILTER = 2;
+function normalizeRarityFilter(value: unknown): number {
+  const number = typeof value === "number" && Number.isFinite(value) ? value : DEFAULT_RARITY_FILTER;
+  let closest = RARITY_TIERS[0]!.value;
+  let closestDistance = Infinity;
+  for (const tier of RARITY_TIERS) {
+    const distance = Math.abs(tier.value - number);
+    if (distance < closestDistance) {
+      closest = tier.value;
+      closestDistance = distance;
+    }
+  }
+  return closest;
 }
 
 /** Human-readable choices for the Settings window's display pickers. */

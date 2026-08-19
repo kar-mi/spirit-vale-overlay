@@ -7,7 +7,6 @@ export interface DesktopStoragePaths {
   readonly dpsSettingsPath: string;
   readonly overlaySettingsPath: string;
   readonly rewardsSettingsPath: string;
-  readonly minimapSettingsPath: string;
   readonly windowPlacementsPath: string;
   readonly characterStatePath: string;
   readonly inspectedCharactersPath: string;
@@ -32,7 +31,6 @@ export function resolveDesktopStoragePaths(options: DesktopStoragePathOptions): 
     dpsSettingsPath: path.join(settingsDirectory, "dps.json"),
     overlaySettingsPath: path.join(settingsDirectory, "overlay.json"),
     rewardsSettingsPath: path.join(settingsDirectory, "rewards.json"),
-    minimapSettingsPath: path.join(settingsDirectory, "minimap.json"),
     windowPlacementsPath: path.join(settingsDirectory, "windows.json"),
     characterStatePath: path.join(dataDirectory, "character.json"),
     inspectedCharactersPath: path.join(dataDirectory, "inspected-characters.sqlite"),

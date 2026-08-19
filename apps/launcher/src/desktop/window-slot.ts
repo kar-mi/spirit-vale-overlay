@@ -11,6 +11,11 @@ export class WindowSlot<T extends ManagedWindow> {
 
   constructor(private readonly factory: (onClosed: () => void) => T | Promise<T>) {}
 
+  /** The live window instance, or undefined before the first `open()` resolves. */
+  get current(): T | undefined {
+    return this.window;
+  }
+
   async open(): Promise<void> {
     if (this.window) {
       try {
