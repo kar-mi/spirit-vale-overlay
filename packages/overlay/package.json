@@ -7,13 +7,15 @@
     "./app-types": "./src/app-types.ts",
     "./required-statuses": "./src/required-statuses.ts",
     "./settings": "./src/settings.ts",
-    "./display-layout": "./src/display-layout.ts"
+    "./display-layout": "./src/display-layout.ts",
+    "./minimap-types": "./src/minimap-types.ts",
+    "./minimap-settings": "./src/minimap-settings.ts"
   },
   "dependencies": {
     "@kar-mi/spirit-vale-tools-character": "0.4.1",
-    "@kar-mi/spirit-vale-tools-combat": "3.1.0",
+    "@kar-mi/spirit-vale-tools-combat": "3.2.0",
     "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
-    "@kar-mi/spirit-vale-tools-rewards": "1.1.3",
+    "@kar-mi/spirit-vale-tools-rewards": "1.2.0",
     "@kar-mi/spirit-vale-tools-statuses": "0.2.2",
     "@preact/signals": "^2.9.4",
     "@svoverlay/combat": "workspace:*",

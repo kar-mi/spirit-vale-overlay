@@ -1,9 +1,16 @@
-import { FishNetActorDirectory, FishNetCombatTracker, FishNetStatusTracker, normalizeName } from "@kar-mi/spirit-vale-tools-combat";
+import {
+  FishNetActorDirectory,
+  FishNetCombatTracker,
+  FishNetPositionTracker,
+  FishNetStatusTracker,
+  normalizeName,
+} from "@kar-mi/spirit-vale-tools-combat";
 import type {
   FishNetActiveStatus,
   FishNetActorIdentity,
   FishNetCombatEvent,
   FishNetKnownIdentity,
+  FishNetPosition,
 } from "@kar-mi/spirit-vale-tools-combat";
 import { FishNetInspectRoster, resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterSnapshot, CharacterViewState, InspectedCharacter } from "@kar-mi/spirit-vale-tools-character";
@@ -25,7 +32,8 @@ import type {
   LogStream,
   LogWriteFailure,
 } from "@kar-mi/spirit-vale-tools-logging";
-import { FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
+import { FishNetLootDropTracker, FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
+import type { FishNetLootDrop } from "@kar-mi/spirit-vale-tools-rewards";
 import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
@@ -45,6 +53,8 @@ const DIAGNOSTIC_POST_AUTH_MS = 10_000;
 const DIAGNOSTIC_PRE_AUTH_BYTE_LIMIT = 8 * 1024 * 1024;
 const DIAGNOSTIC_TRANSITION_BYTE_LIMIT = 32 * 1024 * 1024;
 const TOWER_LOCATION_SETTLE_MS = 500;
+/** Position/loot updates arrive on nearly every packet during movement; coalesced to this cadence. */
+const MINIMAP_PUBLISH_MS = 60;
 const TOWER_LOCATION_MAX_SETTLE_MS = 2_000;
 const STATUS_RPC_NAMES = new Set([
   "ApplyEffect_T",
@@ -62,6 +72,12 @@ type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDeta
 interface SessionSeed {
   identities?: readonly FishNetActorIdentity[];
   location?: SpiritValeLocation;
+}
+
+/** The local player's position and the ground loot currently believed to be on the map. */
+export interface CaptureMinimapState {
+  self: FishNetPosition | undefined;
+  loot: FishNetLootDrop[];
 }
 
 export interface CaptureErrorReport {
@@ -96,6 +112,11 @@ export interface CaptureCoordinatorOptions {
    * `resetOnMapChange` — the gold reset is a separate, unrelated setting.
    */
   onGoldMapChange?: () => void;
+  /**
+   * Read on every packet to decide whether to track/publish minimap position and loot data at all.
+   * Defaults to enabled. A live getter so users experiencing lag can turn it off without a restart.
+   */
+  minimapEnabled?: () => boolean;
 }
 
 export class CaptureCoordinator {
@@ -135,6 +156,12 @@ export class CaptureCoordinator {
   private readonly unresolvedCounts = new Map<string, number>();
   private unresolvedReportedAtMs = 0;
   private readonly mobs = new FishNetMobDirectory();
+  /** Assigned in the constructor: it needs `this.actors`, which is itself constructor-assigned. */
+  private readonly positions: FishNetPositionTracker;
+  private readonly loot = new FishNetLootDropTracker();
+  private readonly minimapListeners = new Set<(state: CaptureMinimapState) => void>();
+  private minimapTimer?: ReturnType<typeof setTimeout>;
+  private lastPublishedMinimapJson?: string;
   private readonly character = new LocalCharacterRouter({
     onHandled: () => this.syncLocalActorIdentity(),
     onError: (packet, error) => this.logCharacterWarning(packet, error),
@@ -196,6 +223,7 @@ export class CaptureCoordinator {
       ...(options.knownIdentities === undefined ? {} : { knownIdentities: options.knownIdentities }),
       ...(options.onIdentityLearned === undefined ? {} : { onIdentityLearned: options.onIdentityLearned }),
     });
+    this.positions = new FishNetPositionTracker({ directory: this.actors });
     this.diagnosticLogging = options.diagnosticLogging ?? envFlag(Bun.env["SPIRIT_VALE_DIAGNOSTIC_LOGS"]);
     this.capture = options.captureFactory?.() ?? new PacketCapture();
     this.capture.on("started", () => this.captureStarted());
@@ -232,6 +260,17 @@ export class CaptureCoordinator {
     this.activeStatusListeners.add(listener);
     listener(this.activeStatuses());
     return () => this.activeStatusListeners.delete(listener);
+  }
+
+  /**
+   * Subscribes to the local player's position and the ground loot currently on the map, coalesced
+   * onto {@link MINIMAP_PUBLISH_MS} rather than published per packet. The callback is invoked
+   * immediately so opening the minimap does not wait for the next change.
+   */
+  subscribeMinimap(listener: (state: CaptureMinimapState) => void): () => void {
+    this.minimapListeners.add(listener);
+    listener(this.minimapState());
+    return () => this.minimapListeners.delete(listener);
   }
 
   inspectedCharacters(): InspectedCharacter[] { return this.inspected.list(); }
@@ -339,6 +378,11 @@ export class CaptureCoordinator {
     this.locallyDamagedRewardTargets.clear();
     this.mobs.reset();
     this.loggedMobIdentities.clear();
+    this.positions.reset();
+    this.loot.reset();
+    if (this.minimapTimer !== undefined) clearTimeout(this.minimapTimer);
+    this.minimapTimer = undefined;
+    this.publishMinimap(true);
     this.tower.reset();
     this.lastLoggedLocation = undefined;
     this.lastObservedMapId = undefined;
@@ -651,7 +695,12 @@ export class CaptureCoordinator {
     // Without an explicit reset the stale floor outlives the run and every zone on the new connection
     // would be logged as that floor.
     const towerReset = packet.packetName === "authenticated" ? this.tower.reset() : false;
-    if (packet.packetName === "authenticated") this.lastObservedMapId = undefined;
+    if (packet.packetName === "authenticated") {
+      this.lastObservedMapId = undefined;
+      this.positions.reset();
+      this.loot.reset();
+      if (this.minimapEnabled()) this.publishMinimap(true);
+    }
     const towerChanged = this.tower.consume(packet) || towerReset;
     if (towerChanged && isTowerStatePacket(packet)) {
       const location = this.effectiveLocation();
@@ -679,6 +728,7 @@ export class CaptureCoordinator {
         this.loggedMobIdentities.clear();
       }
       const identities = this.actors.consume(packet);
+      if (this.minimapEnabled() && this.positions.consume(packet).length > 0) this.scheduleMinimapPublish();
       const events = this.combat.consume(packet);
       combatEvents = events;
       if (isStatusPacket(packet)) {
@@ -725,6 +775,7 @@ export class CaptureCoordinator {
     }
 
     try {
+      if (this.minimapEnabled() && this.loot.consume(packet).length > 0) this.scheduleMinimapPublish();
       const tracked = this.shouldTrackRewardPacket(combatEvents)
         ? this.rewards.consume(packet)
         : [];
@@ -1002,6 +1053,31 @@ export class CaptureCoordinator {
     this.activeStatusTimer.unref?.();
   }
 
+  private minimapState(): CaptureMinimapState {
+    return { self: this.positions.self(), loot: this.loot.active() };
+  }
+
+  private minimapEnabled(): boolean {
+    return this.options.minimapEnabled?.() ?? true;
+  }
+
+  private scheduleMinimapPublish(): void {
+    if (this.minimapTimer !== undefined) return;
+    this.minimapTimer = setTimeout(() => {
+      this.minimapTimer = undefined;
+      this.publishMinimap();
+    }, MINIMAP_PUBLISH_MS);
+    this.minimapTimer.unref?.();
+  }
+
+  private publishMinimap(force = false): void {
+    const state = this.minimapState();
+    const json = JSON.stringify(state);
+    if (!force && json === this.lastPublishedMinimapJson) return;
+    this.lastPublishedMinimapJson = json;
+    for (const listener of this.minimapListeners) listener(state);
+  }
+
   private shouldLogCombatEvent(event: FishNetCombatEvent): boolean {
     const isShortDisplayRefresh = event.kind === "status"
       && event.rpc === "ApplyEffectDisplays_O"
@@ -1151,6 +1227,7 @@ export class CaptureCoordinator {
   }
 
   private syncLocalActorIdentity(): void {
+    this.positions.setLocalObjectId(this.character.physicalObjectId());
     const snapshot = this.character.current();
     // Inspecting yourself replies on the same RPC, so the roster needs your name to exclude it.
     this.inspected.setLocalName(snapshot?.name);

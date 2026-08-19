@@ -32,7 +32,7 @@ export type { KeybindAction, OverlayElementId, OverlayElementSettings, PersonalD
 export type { DisplayBounds, OverlayDisplay };
 
 export interface OverlaySettings {
-  schemaVersion: 5;
+  schemaVersion: 6;
   /**
    * Where new tiles land and where a tile whose monitor was unplugged falls back to. Empty means
    * "use the primary display", which is also what an unrecognised key resolves to.
@@ -60,6 +60,9 @@ const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
   cycleMeterStatType: "Ctrl+Shift+5",
   resetXpTracker: "Ctrl+Shift+6",
   resetGoldTracker: "Ctrl+Shift+7",
+  // Defaults bypass `normalizeShortcut` on first load (see `normalizeShortcuts` below), so this is
+  // spelled in its own already-normalized form — the same "TAB" a saved/reloaded "Tab" would become.
+  toggleMinimap: "TAB",
 };
 
 /** Positions assume a ~1920x1200 display; they are clamped into whatever the home display really is. */
@@ -81,7 +84,7 @@ const DEFAULT_ELEMENTS: Record<OverlayElementId, Omit<OverlayElementSettings, "d
 };
 
 export function defaultOverlaySettings(displays: readonly OverlayDisplay[]): OverlaySettings {
-  return normalizeOverlaySettings({ schemaVersion: 5 }, displays);
+  return normalizeOverlaySettings({ schemaVersion: 6 }, displays);
 }
 
 /** Restore only keybindings, leaving every other overlay preference untouched. */
@@ -113,7 +116,7 @@ export function normalizeOverlaySettings(
   displays: readonly OverlayDisplay[],
 ): OverlaySettings {
   const parsed = candidate && typeof candidate === "object" ? candidate as Record<string, unknown> : {};
-  const source = parsed.schemaVersion === 4 || parsed.schemaVersion === 5 ? parsed : {};
+  const source = parsed.schemaVersion === 4 || parsed.schemaVersion === 5 || parsed.schemaVersion === 6 ? parsed : {};
   const homeDisplay = resolveHomeDisplayKey(
     displays,
     typeof source.homeDisplay === "string" ? source.homeDisplay : "",
@@ -149,7 +152,7 @@ export function normalizeOverlaySettings(
   })) as unknown as Record<OverlayElementId, OverlayElementSettings>;
   const shortcuts = normalizeShortcuts(source);
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     homeDisplay,
     locked: typeof source.locked === "boolean" ? source.locked : false,
     shortcuts,
@@ -203,6 +206,7 @@ export function normalizeShortcuts(source: Record<string, unknown>): Record<Keyb
     cycleMeterStatType: shortcutsSource.cycleMeterStatType,
     resetXpTracker: shortcutsSource.resetXpTracker,
     resetGoldTracker: shortcutsSource.resetGoldTracker,
+    toggleMinimap: shortcutsSource.toggleMinimap,
   };
   const shortcuts = {} as Record<KeybindAction, string>;
   for (const action of KEYBIND_ACTIONS) {

@@ -18,7 +18,7 @@ export const OVERLAY_ELEMENT_LABELS: Record<OverlayElementId, string> = {
   debuffs: "Debuffs", toggles: "Toggles (no timer)",
 };
 
-export const KEYBIND_ACTIONS = ["toggleLock", "resetSession", "openLiveDeathLog", "toggleOverlayVisible", "cycleMeterStatType", "resetXpTracker", "resetGoldTracker"] as const;
+export const KEYBIND_ACTIONS = ["toggleLock", "resetSession", "openLiveDeathLog", "toggleOverlayVisible", "cycleMeterStatType", "resetXpTracker", "resetGoldTracker", "toggleMinimap"] as const;
 export type KeybindAction = (typeof KEYBIND_ACTIONS)[number];
 
 /** Party/map meter cycles damage -> heal -> tanked -> damage on each press of its keybind. */
