@@ -9,7 +9,8 @@ Spirit Vale Overlay is a passive Windows companion app for live combat, characte
 
 > **Default overlay hotkeys:** `Ctrl+Shift+1` locks or unlocks the overlay, `Ctrl+Shift+2` resets the
 > session, `Ctrl+Shift+3` opens the live death log, `Ctrl+Shift+4` shows or hides the overlay,
-> `Ctrl+Shift+5` cycles the party meter, and `Ctrl+Shift+6` / `Ctrl+Shift+7` reset all-time XP / gold.
+> `Ctrl+Shift+5` cycles the party meter, `Ctrl+Shift+6` / `Ctrl+Shift+7` reset all-time XP / gold, and
+> `Ctrl+Shift+8` cycles the boss timer tile between regions when you have timers in more than one.
 > These can be rebound in Settings. Hotkeys pass through to the foreground program, so its normal
 > action for the same combination still runs. Windows may also use Ctrl+Shift to switch input languages
 > when configured that way.

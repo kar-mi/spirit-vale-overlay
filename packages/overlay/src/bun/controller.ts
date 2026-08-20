@@ -17,6 +17,7 @@ import { getForegroundProcess } from "@svoverlay/desktop-platform/win32";
 import { Screen } from "electrobun/bun";
 
 import type {
+  BossTimerState,
   KeybindAction,
   RateTotals,
   OverlayCharacterState,
@@ -33,6 +34,7 @@ import type {
   RequiredStatusCategory,
 } from "../app-types.ts";
 import { KEYBIND_ACTIONS, METER_STAT_TYPE_CYCLE } from "../app-types.ts";
+import { bossRegionsPresent, nextBossRegion, resolveBossRegion } from "@svoverlay/contracts/boss-timers";
 import { missingRequiredStatuses } from "../required-statuses.ts";
 import { detectedPersonalName } from "../personal-character.ts";
 import { personalExperience } from "../personal-experience.ts";
@@ -112,6 +114,7 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   resetXpTracker: "reset all-time XP",
   resetGoldTracker: "reset all-time gold",
   toggleMinimap: "show/hide minimap",
+  cycleBossRegion: "cycle boss region",
 };
 
 /** Raw tracker snapshot the capture pipeline publishes; matches `CaptureMinimapState` in the desktop app. */
@@ -129,6 +132,12 @@ export interface XpTrackerSource {
   subscribe(listener: () => void): () => void;
 }
 
+/** The boss timers tile reads from the launcher-owned coordinator, so timers run with the overlay closed. */
+export interface BossTimerSource {
+  getState(): BossTimerState;
+  subscribe(listener: () => void): () => void;
+}
+
 export interface OverlayControllerOptions {
   logDirectory: string;
   getCharacterState: () => CharacterViewState;
@@ -139,6 +148,7 @@ export interface OverlayControllerOptions {
   /** One notification per ground-loot spawn that already cleared the minimap's rarity filter. */
   subscribeLootToast: (listener: (event: OverlayLootToastEvent) => void) => () => void;
   xp: XpTrackerSource;
+  bossTimers: BossTimerSource;
   settingsPath?: string;
   lockOnCreate?: boolean;
   onReset?: () => Promise<void>;
@@ -163,6 +173,7 @@ export interface OverlaySurfaceSink {
   sendCharacter(state: OverlayCharacterState): void;
   sendStatuses(state: OverlayStatusState): void;
   sendMeter(state: OverlayViewState["meter"]): void;
+  sendBossTimers(state: BossTimerState): void;
   sendDragPreview(preview: OverlayDragPreview | undefined): void;
   sendMinimap(state: OverlayMinimapState): void;
   sendLootToast(event: OverlayLootToastEvent): void;
@@ -213,6 +224,11 @@ export async function createOverlayController(options: OverlayControllerOptions)
   let lastMeterJson: string | undefined;
   let lastMinimapJson: string | undefined;
   let minimapSource: OverlayMinimapSourceState = { self: undefined, loot: [] };
+  let lastBossTimersJson: string | undefined;
+  /** Region tab explicitly chosen, until the player moves to a different region. */
+  let selectedBossRegion: string | undefined;
+  /** Last region the player was seen in, so only an actual move releases that choice. */
+  let lastBossRegion: string | undefined;
   /**
    * Tracker revision the published status state was projected from.
    *
@@ -286,6 +302,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     const surface = surfaces.get(element.display);
     if (surface) publishSafely(() => surface.sendLootToast(event));
   });
+  const unsubscribeBossTimers = options.bossTimers.subscribe(() => publishBossTimers());
 
   if (options.lockOnCreate) persistence.schedule(settings);
 
@@ -366,6 +383,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       unsubscribeXp();
       unsubscribeMinimap();
       unsubscribeLootToast();
+      unsubscribeBossTimers();
       shortcutListener?.close();
       await persistence.flush(settings);
     },
@@ -520,7 +538,49 @@ export async function createOverlayController(options: OverlayControllerOptions)
       statuses: stampedStatusState(overlayStatusState(nowMs)),
       meter: overlayMeterState(record, settings.meterStatType, nowMs, settings.personalDpsMode),
       minimap: minimapState(),
+      bossTimers: bossTimerState(),
     };
+  }
+
+  /**
+   * The timers plus which region tab is open, reconciling the selection against where the player
+   * now is before answering.
+   *
+   * The selection lives here rather than in the webview so the cycle keybind — which only the bun
+   * process hears — and a click in edit mode drive one shared answer, and so every surface in a
+   * multi-monitor setup agrees on which region is showing.
+   */
+  function bossTimerState(): BossTimerState {
+    const published = options.bossTimers.getState();
+    followCurrentBossRegion(published.currentRegion);
+    const selected = resolveBossRegion(
+      bossRegionsPresent(published.timers),
+      selectedBossRegion,
+      published.currentRegion,
+    );
+    return { ...published, ...(selected === undefined ? {} : { selectedRegion: selected }) };
+  }
+
+  /**
+   * Releases an explicit tab choice once the player moves to a different region, so the tile
+   * follows them there. Staying put — or dropping to no region while a reconnection is in flight —
+   * leaves the choice alone, since neither means the player went anywhere.
+   */
+  function followCurrentBossRegion(currentRegion: string | undefined): void {
+    if (currentRegion === undefined || currentRegion === lastBossRegion) return;
+    lastBossRegion = currentRegion;
+    selectedBossRegion = undefined;
+  }
+
+  /** Moves the boss tile to the next region tab, wrapping at the end. */
+  function cycleBossRegion(): void {
+    const published = options.bossTimers.getState();
+    const regions = bossRegionsPresent(published.timers);
+    const showing = resolveBossRegion(regions, selectedBossRegion, published.currentRegion);
+    const next = nextBossRegion(regions, showing);
+    if (next === undefined || next === showing) return;
+    selectedBossRegion = next;
+    publishBossTimers();
   }
 
   function updateLocked(locked: boolean): void {
@@ -770,6 +830,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
       publishCharacter();
     } else if (action === "toggleMinimap") {
       setElementEnabled("minimap", !settings.elements.minimap.enabled);
+    } else if (action === "cycleBossRegion") {
+      cycleBossRegion();
     }
   }
 
@@ -839,6 +901,17 @@ export async function createOverlayController(options: OverlayControllerOptions)
     lastStatusPublishMs = Date.now();
     const next = stampedStatusState(projected);
     for (const surface of surfaces.values()) publishSafely(() => surface.sendStatuses(next));
+  }
+
+  function publishBossTimers(): void {
+    if (shuttingDown) return;
+    // Timers change on the scale of kills, not frames: create, re-anchor, and eventual removal.
+    // The countdowns and phase transitions between those changes are ticked in the webview.
+    const next = bossTimerState();
+    const json = JSON.stringify(next);
+    if (json === lastBossTimersJson) return;
+    lastBossTimersJson = json;
+    for (const surface of surfaces.values()) publishSafely(() => surface.sendBossTimers(next));
   }
 
   function publishMeter(force = false): void {
