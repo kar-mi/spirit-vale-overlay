@@ -601,12 +601,12 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 10px;
-  height: 10px;
-  margin: -5px 0 0 -5px;
-  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  clip-path: polygon(50% 0%, 8% 100%, 50% 78%, 92% 100%);
   background: #4fb1ff;
-  box-shadow: 0 0 6px 2px rgba(79, 177, 255, 0.6);
+  filter: drop-shadow(0 0 4px rgba(79, 177, 255, 0.7));
 }
 .minimap-dot {
   position: absolute;
