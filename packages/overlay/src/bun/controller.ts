@@ -433,7 +433,13 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function minimapState(): OverlayMinimapState {
     return {
-      player: minimapSource.self ? { x: minimapSource.self.x, z: minimapSource.self.z } : undefined,
+      player: minimapSource.self
+        ? {
+          x: minimapSource.self.x,
+          z: minimapSource.self.z,
+          ...(minimapSource.self.heading === undefined ? {} : { heading: minimapSource.self.heading }),
+        }
+        : undefined,
       loot: minimapSource.loot.flatMap((drop) => (drop.position === undefined ? [] : [{
         objectId: drop.objectId,
         x: drop.position[0],

@@ -962,7 +962,12 @@ function MinimapElement() {
       <span class="minimap-compass west">W</span>
       {state?.player ? (
         <>
-          <span class="minimap-player" />
+          <span
+            class="minimap-player"
+            style={state.player.heading === undefined
+              ? undefined
+              : { transform: `translate(-50%, -50%) rotate(${state.player.heading * (180 / Math.PI) - 90}deg)` }}
+          />
           {minimapDots.value.map((dot) => <MinimapLootDot key={dot.objectId} dot={dot} />)}
         </>
       ) : <span class="minimap-empty">Waiting for position</span>}

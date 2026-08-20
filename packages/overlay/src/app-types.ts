@@ -199,7 +199,7 @@ export interface OverlayMinimapLootDrop {
 }
 
 export interface OverlayMinimapState {
-  player?: { x: number; z: number };
+  player?: { x: number; z: number; heading?: number };
   loot: OverlayMinimapLootDrop[];
   rarityFilter: number;
 }
