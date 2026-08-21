@@ -1449,6 +1449,189 @@ describe("central capture coordinator", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  test("forgets the channel and instance across a re-authentication", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-channel-reset-"));
+    const capture = new FakeCapture();
+    const sightings: Array<{
+      mobId: string;
+      bossName: string;
+      killedBy?: string;
+      channel?: number;
+      instanceId?: string;
+      diedAtMs: number;
+    }> = [];
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        onBossGravestone: (gravestone) => sightings.push(gravestone),
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet(channelListPacket(2, 0, "na3-12"));
+      expect(coordinator.currentServerInstance()).toBe("na3-12");
+      // A channel switch re-authenticates on a new connection; neither reading may stick, since the
+      // new connection can be a different channel and even a different region entirely.
+      capture.packet(authenticatedPacket(3, "second-connection"));
+      expect(coordinator.currentServerInstance()).toBeUndefined();
+      const diedAtMs = Math.floor((Date.now() - 10 * 60_000) / 1_000) * 1_000;
+      capture.packet(gravestonePacket(4, 700, diedAtMs, "Testerson", "Naga", "Snake Naga", "second-connection"));
+
+      // Reported with nothing to place it by, rather than with the old connection's channel.
+      expect(sightings).toEqual([
+        { mobId: "Snake Naga", bossName: "Naga", killedBy: "Testerson", diedAtMs },
+      ]);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("dates a boss kill nobody witnessed from its gravestone", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gravestone-"));
+    const capture = new FakeCapture();
+    const kills: Array<{
+      mobId: string;
+      bossName: string;
+      killedBy?: string;
+      channel?: number;
+      instanceId?: string;
+      diedAtMs: number;
+    }> = [];
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        onBossGravestone: (gravestone) => kills.push(gravestone),
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet(channelListPacket(2, 1, "na3-12"));
+      const diedAtMs = Math.floor((Date.now() - 40 * 60_000) / 1_000) * 1_000;
+      capture.packet(gravestonePacket(3, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie"));
+      // Walking back past the same marker re-spawns it into view; it must not be reported twice.
+      capture.packet(gravestonePacket(4, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie"));
+
+      expect(kills).toEqual([{
+        mobId: "Sunflora Pixie",
+        bossName: "Lady Fey",
+        killedBy: "Testerson",
+        channel: 2,
+        instanceId: "na3-12",
+        // The server's own time of death, not the moment the marker came into view.
+        diedAtMs,
+      }]);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("re-reports a gravestone first seen before the channel list arrived", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gravestone-late-"));
+    const capture = new FakeCapture();
+    const kills: Array<{
+      mobId: string;
+      bossName: string;
+      killedBy?: string;
+      channel?: number;
+      instanceId?: string;
+      diedAtMs: number;
+    }> = [];
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        onBossGravestone: (gravestone) => kills.push(gravestone),
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      // Loading in beside a marker is exactly when the channel is still unknown, so the first
+      // sighting can only say which boss died and when.
+      const diedAtMs = Math.floor((Date.now() - 40 * 60_000) / 1_000) * 1_000;
+      capture.packet(gravestonePacket(2, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie"));
+      expect(kills).toEqual([
+        { mobId: "Sunflora Pixie", bossName: "Lady Fey", killedBy: "Testerson", diedAtMs },
+      ]);
+
+      // Once the channel list lands, walking past the marker again files it properly rather than
+      // being swallowed as a repeat of the sighting that knew less.
+      capture.packet(channelListPacket(3, 1, "na3-12"));
+      capture.packet(gravestonePacket(4, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie"));
+      expect(kills).toHaveLength(2);
+      expect(kills[1]).toMatchObject({ mobId: "Sunflora Pixie", channel: 2, instanceId: "na3-12", diedAtMs });
+
+      // With the reading settled, further sightings are repeats again.
+      capture.packet(gravestonePacket(5, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie"));
+      expect(kills).toHaveLength(2);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("announces the server instance as the player moves between regions", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-instance-feed-"));
+    const capture = new FakeCapture();
+    const instances: Array<string | undefined> = [];
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        onServerInstance: (instanceId) => instances.push(instanceId),
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet(channelListPacket(2, 0, "na3-12"));
+      // The channel list repeats on the same instance; only a real move is worth announcing.
+      capture.packet(channelListPacket(3, 2, "na3-12"));
+      capture.packet(authenticatedPacket(4, "eu-connection"));
+      capture.packet(channelListPacket(5, 0, "eu2-6", "eu-connection"));
+
+      expect(instances).toEqual(["na3-12", undefined, "eu2-6"]);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("follows the channel list across a region change", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-region-change-"));
+    const capture = new FakeCapture();
+    const kills: Array<{ mobId: string; bossName: string; killedBy?: string; channel?: number; instanceId?: string; diedAtMs: number }> = [];
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        onBossGravestone: (gravestone) => kills.push(gravestone),
+      });
+      await coordinator.start();
+
+      const naDiedAtMs = Math.floor((Date.now() - 30 * 60_000) / 1_000) * 1_000;
+      const euDiedAtMs = Math.floor((Date.now() - 20 * 60_000) / 1_000) * 1_000;
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet(channelListPacket(2, 2, "na3-12"));
+      capture.packet(gravestonePacket(3, 300, naDiedAtMs, "Testerson", "Wraith King", "Wraith"));
+      // Hopping to EU re-authenticates, then a fresh channel list names the new instance.
+      capture.packet(authenticatedPacket(4, "eu-connection"));
+      capture.packet(channelListPacket(5, 0, "eu2-6", "eu-connection"));
+      capture.packet(gravestonePacket(6, 310, euDiedAtMs, "Someone", "Wraith King", "Wraith", "eu-connection"));
+
+      // The same boss in two regions: two rotations, each stamped with where it was seen.
+      expect(kills).toEqual([
+        { mobId: "Wraith", bossName: "Wraith King", killedBy: "Testerson", channel: 3, instanceId: "na3-12", diedAtMs: naDiedAtMs },
+        { mobId: "Wraith", bossName: "Wraith King", killedBy: "Someone", channel: 1, instanceId: "eu2-6", diedAtMs: euDiedAtMs },
+      ]);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 /**
@@ -1701,6 +1884,65 @@ function ownedSpawnPacket(
     payload: Buffer.alloc(0),
   };
 }
+
+
+/**
+ * The channel list the game sends this client: the zero-based index of the current channel, and
+ * the id of the server instance serving it. Shaped after real captures, e.g. `na3-12`.
+ */
+function channelListPacket(
+  tick: number,
+  currentIndex: number,
+  instanceId = "na3-12",
+  connectionId?: string,
+): TestPacket {
+  return {
+    tick,
+    packetId: 22,
+    packetName: "targetRpc",
+    objectId: 1,
+    rpcName: "ChannelList_T",
+    decodedFields: [
+      { name: "playerCounts", codec: "packedInt32Array", value: [39, 16, 17, 37, 15, 17, 17, 17, 16, 18] },
+      { name: "currentIndex", codec: "packedInt32", value: currentIndex },
+      { name: "instanceId", codec: "stringUtf8Packed", value: instanceId },
+    ],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    ...(connectionId === undefined ? {} : { connectionId }),
+  };
+}
+
+/** The marker the server spawns where a boss died; see boss-gravestone.ts for the layout. */
+function gravestonePacket(
+  tick: number,
+  objectId: number,
+  diedAtMs: number,
+  killedBy: string,
+  bossName: string,
+  mobId: string,
+  connectionId?: string,
+): TestPacket {
+  const header = Buffer.alloc(36);
+  const died = Buffer.alloc(8);
+  died.writeDoubleLE(diedAtMs / 1_000, 0);
+  const strings = [killedBy, bossName, mobId].map((text) => {
+    const bytes = Buffer.from(text, "utf8");
+    // Zigzag varint length, small enough here to always be one byte.
+    return Buffer.concat([Buffer.from([bytes.length << 1]), bytes]);
+  });
+  const payload = Buffer.concat([header, died, ...strings]);
+  return {
+    tick,
+    packetId: 5,
+    packetName: "objectSpawn",
+    objectId,
+    raw: payload,
+    payload,
+    ...(connectionId === undefined ? {} : { connectionId }),
+  };
+}
+
 
 function damagePacket(tick: number, targetId: number, actorId: number): TestPacket {
   return {

@@ -38,6 +38,8 @@ import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svov
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
 import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
+import { decodeBossGravestone } from "./boss-gravestone.ts";
+import type { BossGravestoneObservation } from "./boss-timer-coordinator.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
 import { RewardEventAttributor } from "./reward-event-attributor.ts";
 
@@ -130,6 +132,14 @@ export interface CaptureCoordinatorOptions {
    * the minimap's own rarity filter rather than a separate setting. Defaults to showing everything.
    */
   getMinimapRarityFilter?: () => number;
+  /** Invoked when the marker left where a world boss died comes into view, for the respawn timers. */
+  onBossGravestone?: (gravestone: BossGravestoneObservation) => void;
+  /**
+   * Invoked whenever the server instance the player is on changes, including to undefined while a
+   * reconnection is in flight. Drives the region a manual timer defaults to and the region tab the
+   * overlay opens on.
+   */
+  onServerInstance?: (instanceId: string | undefined) => void;
 }
 
 export class CaptureCoordinator {
@@ -231,6 +241,28 @@ export class CaptureCoordinator {
   private towerLocationTimer?: ReturnType<typeof setTimeout>;
   private towerLocationDeadlineMs?: number;
   private pendingTowerLocationTick = 0;
+  /**
+   * The in-game channel the local player is currently on.
+   *
+   * Cleared on every (re)authentication: both channel switches and map changes re-authenticate,
+   * and either may land on a different channel, so the old reading is stale until the new
+   * connection reports one of its own. Everything observed in between carries no channel rather
+   * than the wrong one.
+   */
+  private currentChannel: number | undefined;
+  /** Server instance the channel list last reported, e.g. `na3-12`; the region is derived from it. */
+  private currentInstanceId: string | undefined;
+  /**
+   * Gravestones already reported, keyed by object id, so re-approaching one does not re-report it.
+   *
+   * The fingerprint includes where we believed we were, not just which death the marker records.
+   * A marker noticed in the seconds before the channel list arrives is reported with no channel and
+   * no instance; keying on the death alone would make that first, least informed sighting the only
+   * one that ever counted, permanently stranding the timer in the "unknown" bucket. Including the
+   * location means the next sighting re-reports and corrects it, and repeats settle once the
+   * reading stops changing.
+   */
+  private readonly reportedGravestones = new Map<number, string>();
   /** Serializes stop() and resetSession() so their bodies never interleave. */
   private lifecycleChain: Promise<void> = Promise.resolve();
 
@@ -258,6 +290,58 @@ export class CaptureCoordinator {
   }
 
   characterState(): CharacterViewState { return this.character.state(); }
+
+  /** The server instance the player is currently on, e.g. `na3-12`. Undefined until one is seen. */
+  currentServerInstance(): string | undefined { return this.currentInstanceId; }
+
+  /**
+   * Reports the marker the server spawns where a world boss died, and says whether this packet was
+   * one.
+   *
+   * This is the only thing that starts a timer automatically, and deliberately so. Watching for a
+   * boss's death event was tried and removed: the same catalog id spawns as a Summoner's or
+   * Necromancer's pet, and the only thing separating the two on the wire is the level, which fails
+   * silently whenever a pet's owner happens to be the boss's catalog level. A marker is proof —
+   * the server only leaves one where a world boss really died — so there is nothing to second-guess.
+   *
+   * It is also strictly better informed. A death event dates a kill at the moment we noticed it and
+   * only if we were watching; a gravestone carries the server's own time of death, stands afterwards,
+   * and re-announces itself whenever a player comes near, so it dates a kill nobody here saw. Every
+   * case a death event could have caught is one where the player was standing at the very spot the
+   * marker then appeared.
+   *
+   * The channel rule still applies, because a boss raised from a summoning item leaves a marker too
+   * and only resets the rotation on a channel that runs one.
+   *
+   * The same gravestone re-spawns into view every time the player approaches it, so a sighting is
+   * dropped when it would say exactly what the last one did — the same death seen from the same
+   * place. A sighting that has something new to say is reported: a marker noticed in the seconds
+   * before the channel list arrives can only name the death, and passing it again once capture
+   * knows where we are is what files the timer properly. The coordinator, not this, decides what
+   * happens to the placeless one it already recorded.
+   */
+  private consumeGravestone(packet: CapturedFishNetPacket): boolean {
+    if (packet.packetName !== "objectSpawn" || packet.objectId === undefined) return false;
+    const gravestone = decodeBossGravestone(packet.payload, Date.now());
+    if (!gravestone) return false;
+    const fingerprint = [
+      gravestone.mobId,
+      gravestone.diedAtMs,
+      this.currentChannel ?? "?",
+      this.currentInstanceId ?? "?",
+    ].join("\u0000");
+    if (this.reportedGravestones.get(packet.objectId) === fingerprint) return true;
+    this.reportedGravestones.set(packet.objectId, fingerprint);
+    this.options.onBossGravestone?.({
+      mobId: gravestone.mobId,
+      bossName: gravestone.bossName,
+      killedBy: gravestone.killedBy,
+      ...(this.currentChannel === undefined ? {} : { channel: this.currentChannel }),
+      ...(this.currentInstanceId === undefined ? {} : { instanceId: this.currentInstanceId }),
+      diedAtMs: gravestone.diedAtMs,
+    });
+    return true;
+  }
 
   setCachedCharacter(snapshot: CharacterSnapshot | undefined): void {
     this.character.setCached(snapshot);
@@ -411,6 +495,9 @@ export class CaptureCoordinator {
     this.lastObservedMapId = undefined;
     this.clearTowerLocationTimer();
     this.towerLocationDeadlineMs = undefined;
+    this.currentChannel = undefined;
+    this.setServerInstance(undefined);
+    this.reportedGravestones.clear();
     this.clearPacketBuffer();
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
@@ -711,6 +798,7 @@ export class CaptureCoordinator {
       && packet.packetName !== "disconnect") {
       this.sawAdmittedTrafficBeforeAuthentication = true;
     }
+    this.trackChannel(packet);
     const admittedCharacterHandled = this.character.consumeAdmitted(packet);
     characterHandled ||= admittedCharacterHandled || inspectHandled;
     // The tracker only self-resets when the authentication arrives on the connection it was last
@@ -747,6 +835,7 @@ export class CaptureCoordinator {
     let combatEvents: FishNetCombatEvent[] = [];
     try {
       this.mobs.consume(packet);
+      handled = this.consumeGravestone(packet) || handled;
       if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
         this.loggedMobIdentities.clear();
       }
@@ -946,6 +1035,43 @@ export class CaptureCoordinator {
       sourceLabel: mob.displayName,
       level: mob.level,
     }));
+  }
+
+  /**
+   * Learns the local player's channel and server instance, for stamping onto boss kills.
+   *
+   * `ChannelList_T` is the only source. It is sent to this client alone, names the current channel
+   * outright, and carries the instance id (`na3-12`) the region is derived from. It also arrives on
+   * its own: the game sends one within a few seconds of every authentication, so no menu needs to
+   * be opened, and a channel switch re-authenticates and therefore produces a fresh one.
+   *
+   * `SyncInstanceState` looked like a continuous second source and is not: a full session's capture
+   * contained not one of them, so relying on it only made the channel look better covered than it
+   * was. Both readings are cleared on (re)authentication, leaving a few seconds where a kill is
+   * recorded with no channel rather than the previous connection's.
+   *
+   * `currentIndex` is zero-based, converted once here so every consumer downstream sees the channel
+   * number the game itself displays.
+   */
+  private trackChannel(packet: CapturedFishNetPacket): void {
+    if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
+      this.currentChannel = undefined;
+      this.setServerInstance(undefined);
+      return;
+    }
+    if (packet.rpcName !== "ChannelList_T") return;
+    const channel = channelFromIndex(packet, "currentIndex");
+    if (channel === undefined) return;
+    this.currentChannel = channel;
+    const instanceId = packet.decodedFields?.find((field) => field.name === "instanceId")?.value;
+    this.setServerInstance(typeof instanceId === "string" && instanceId.length > 0 ? instanceId : undefined);
+  }
+
+  /** Records the server instance, announcing it only when the reading actually moved. */
+  private setServerInstance(instanceId: string | undefined): void {
+    if (instanceId === this.currentInstanceId) return;
+    this.currentInstanceId = instanceId;
+    this.options.onServerInstance?.(instanceId);
   }
 
   /**
@@ -1395,6 +1521,13 @@ function isStatusPacket(packet: CapturedFishNetPacket): boolean {
 
 function isTowerStatePacket(packet: CapturedFishNetPacket): boolean {
   return packet.rpcName === "ETUpdateRun" || packet.rpcName === "ETAdvanceFloor";
+}
+
+/** A zero-based channel index field as the one-based channel number the game displays. */
+function channelFromIndex(packet: CapturedFishNetPacket, fieldName: string): number | undefined {
+  const index = packet.decodedFields?.find((field) => field.name === fieldName)?.value;
+  if (typeof index !== "number" || !Number.isSafeInteger(index) || index < 0) return undefined;
+  return index + 1;
 }
 
 function fishNetPacketDiagnostic(packet: CapturedFishNetPacket): JsonObject {
