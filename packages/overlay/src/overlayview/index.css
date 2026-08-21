@@ -32,11 +32,15 @@
   justify-items: center;
   gap: 8px;
   transform: translateX(-50%);
+  /* The hint can span a large part of the top edge; let tiles beneath its transparent area keep
+     receiving drag gestures, while the actual controls remain clickable below. */
+  pointer-events: none;
 }
 
 .edit-buttons {
   display: flex;
   gap: 8px;
+  pointer-events: auto;
 }
 
 .grid-overlay {
