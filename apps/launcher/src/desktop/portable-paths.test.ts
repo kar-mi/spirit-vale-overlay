@@ -18,6 +18,7 @@ test("environment-root storage remains beneath the extracted application root", 
     characterStatePath: path.join(root, "data", "character.json"),
     inspectedCharactersPath: path.join(root, "data", "inspected-characters.sqlite"),
     actorIdentitiesPath: path.join(root, "data", "actor-identities.json"),
+    bossTimersPath: path.join(root, "data", "boss-timers.json"),
   });
 });
 

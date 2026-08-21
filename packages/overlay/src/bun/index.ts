@@ -9,7 +9,7 @@ import { displayKey, type OverlayDisplay } from "../display-layout.ts";
 import { createOverlayController, type OverlayControllerOptions } from "./controller.ts";
 import { createOverlaySurface, type OverlaySurface } from "./surface.ts";
 
-export type { XpTrackerSource } from "./controller.ts";
+export type { BossTimerSource, XpTrackerSource } from "./controller.ts";
 export type OverlayWindowOptions = OverlayControllerOptions & { onClosed?: () => void };
 
 /**

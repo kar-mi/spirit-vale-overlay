@@ -129,6 +129,7 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
     sendCharacter: (state) => rpc.send.characterChanged(state),
     sendStatuses: (state) => rpc.send.statusesChanged(state),
     sendMeter: (state) => rpc.send.meterChanged(state),
+    sendBossTimers: (state) => rpc.send.bossTimersChanged(state),
     sendDragPreview: (preview) => rpc.send.dragPreviewChanged(preview),
     sendMinimap: (state) => rpc.send.minimapChanged(state),
     sendLootToast: (event) => rpc.send.lootDropped(event),

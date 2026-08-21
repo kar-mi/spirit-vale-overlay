@@ -24,7 +24,11 @@ import {
   updateActorIdentityCache,
   type ActorIdentityCache,
 } from "./actor-identity-storage.ts";
+import { compareBossRegions } from "@svoverlay/contracts/boss-timers";
+import type { BossTimerWindowState } from "../boss-timers/rpc.ts";
 import { CaptureCoordinator } from "./capture-coordinator.ts";
+import { createBossTimerCoordinator } from "./boss-timer-coordinator.ts";
+import { createBossTimerWindow } from "./boss-timer-window.ts";
 import { createXpTrackerCoordinator } from "./xp-tracker-coordinator.ts";
 import { createReadModelService } from "./read-model-service.ts";
 import { measureLogStorage } from "./log-storage.ts";
@@ -58,6 +62,11 @@ const errorLog = new HumanReadableErrorLog(localRoot);
 // logs, so tool windows can page history from disk instead of each rebuilding it in memory.
 const readModel = await createReadModelService({ logDirectory });
 const xpTracker = createXpTrackerCoordinator({ logDirectory });
+let bossTimerStorageWarning: string | undefined;
+const bossTimers = await createBossTimerCoordinator({
+  storagePath: storagePaths.bossTimersPath,
+  onWarning: (warning) => { bossTimerStorageWarning = warning; updateStorageWarning(); },
+});
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
 let placementStorageWarning: string | undefined;
@@ -153,6 +162,7 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
   subscribeMinimap: (listener) => capture.subscribeMinimap(listener),
   subscribeLootToast: (listener) => capture.subscribeLootToast(listener),
   xp: xpTracker,
+  bossTimers,
   settingsPath: storagePaths.overlaySettingsPath,
   // No `placements` here: each overlay surface is pinned to a whole display, so there is no
   // user-moved frame to remember.
@@ -198,10 +208,15 @@ const capture = new CaptureCoordinator({
     actorIdentityCache = updateActorIdentityCache(actorIdentityCache, { ...identity, lastSeenAtMs: Date.now() });
     actorIdentityPersistence.schedule(actorIdentityCache);
   },
+  onBossGravestone: (gravestone) => bossTimers.recordGravestone(gravestone),
+  onServerInstance: (instanceId) => bossTimers.setCurrentInstance(instanceId),
 });
 characterCache = await loadCharacterCache(storagePaths.characterStatePath);
 capture.setCachedCharacter(activeCharacterSnapshot(characterCache));
 const unsubscribeCharacterPersistence = capture.subscribeCharacter((state) => {
+  // Taken from any snapshot, live or cached: the marker only has to name who is being played, and
+  // a cached one still does that while capture is warming up.
+  bossTimers.setPlayerName(state.snapshot?.name);
   if (!state.snapshot || state.snapshot.source !== "live") return;
   characterCache = updateCharacterCache(characterCache, state.snapshot);
   characterPersistence.schedule(characterCache);
@@ -212,6 +227,21 @@ const unsubscribeInspectedCharacterPersistence = capture.subscribeInspectedChara
 const characterWindow = new WindowSlot((onClosed) => createCharacterWindow({
   getState: () => capture.characterState(),
   subscribe: (listener) => capture.subscribeCharacter(listener),
+  placements,
+  onClosed,
+  onOpenSettings: openSettings,
+}));
+const bossTimerWindow = new WindowSlot((onClosed) => createBossTimerWindow({
+  getState: bossTimerWindowState,
+  subscribe: (listener) => bossTimers.subscribe(listener),
+  addTimer: (entry) => {
+    bossTimers.addManualTimer({
+      ...entry,
+      // Falls back to where the player is now, which is where a gravestone they just saw must be.
+      region: entry.region ?? bossTimers.currentInstanceId(),
+    });
+  },
+  removeTimer: (id) => { bossTimers.removeTimer(id); },
   placements,
   onClosed,
   onOpenSettings: openSettings,
@@ -657,6 +687,7 @@ async function openTool(tool: ToolWindow): Promise<void> {
   else if (tool === "overlay") await overlayWindow.open();
   else if (tool === "rewards") await rewardsWindow.open();
   else if (tool === "build-export") await buildExportWindow.open();
+  else if (tool === "boss-timers") await bossTimerWindow.open();
   else await characterWindow.open();
 }
 
@@ -788,6 +819,26 @@ async function sharedSettingsState() {
   return { launcher: launcherState, overlay };
 }
 
+function bossTimerWindowState(): BossTimerWindowState {
+  const { timers, currentRegion, playerName } = bossTimers.getState();
+  const currentInstanceId = bossTimers.currentInstanceId();
+  // Whatever has been seen, so a gravestone can still be filed under a region the player is not
+  // currently standing in. Ordered the way the game lists regions, so the form's default is the
+  // first real region rather than whichever sorts first alphabetically.
+  const knownRegions = [...new Set([
+    ...(currentRegion === undefined ? [] : [currentRegion]),
+    ...timers.flatMap((timer) => timer.region === undefined ? [] : [timer.region]),
+  ])].sort(compareBossRegions);
+  return {
+    timers,
+    options: bossTimers.bossOptions(),
+    ...(currentInstanceId === undefined ? {} : { currentInstanceId }),
+    ...(currentRegion === undefined ? {} : { currentRegion }),
+    ...(playerName === undefined ? {} : { playerName }),
+    knownRegions,
+  };
+}
+
 async function publishSettings(overlayState?: Awaited<ReturnType<typeof sharedSettingsState>>["overlay"]): Promise<void> {
   if (!settingsWindow) return;
   try {
@@ -800,7 +851,7 @@ async function publishSettings(overlayState?: Awaited<ReturnType<typeof sharedSe
 function updateStorageWarning(): void {
   launcherState = {
     ...launcherState,
-    storageWarning: characterStorageWarning ?? inspectedCharacterStorageWarning ?? launcherSettingsStorageWarning ?? placementStorageWarning ?? actorIdentityStorageWarning,
+    storageWarning: characterStorageWarning ?? inspectedCharacterStorageWarning ?? launcherSettingsStorageWarning ?? placementStorageWarning ?? actorIdentityStorageWarning ?? bossTimerStorageWarning,
   };
   publish();
 }
@@ -824,7 +875,7 @@ async function closeAllWindowsAndFlush(): Promise<void> {
   launcherWindow.hide();
   settingsWindow?.close();
   manageSettingsWindow?.close();
-  await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close()]);
+  await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close(), bossTimerWindow.close()]);
   liveDeathLogWindow.close();
   unsubscribeCharacterPersistence();
   unsubscribeInspectedCharacterPersistence();
@@ -836,6 +887,7 @@ async function closeAllWindowsAndFlush(): Promise<void> {
   await placements.flush();
   inspectedCharacterRoster.close();
   xpTracker.shutdown();
+  await bossTimers.shutdown();
   await readModel.close();
 }
 

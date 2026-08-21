@@ -7,6 +7,7 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   cycleMeterStatType: "Cycle party meter",
   resetXpTracker: "Reset all-time XP", resetGoldTracker: "Reset all-time gold",
   toggleMinimap: "Show/hide minimap",
+  cycleBossRegion: "Cycle boss timer region",
 };
 
 export function buildKeybindSettingsSection({ state, busy, recordingAction, actions }: SettingsSectionContext): SettingsSection {

@@ -66,6 +66,7 @@ const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
   // Defaults bypass `normalizeShortcut` on first load (see `normalizeShortcuts` below), so this is
   // spelled in its own already-normalized form — the same "TAB" a saved/reloaded "Tab" would become.
   toggleMinimap: "TAB",
+  cycleBossRegion: "Ctrl+Shift+8",
 };
 
 /** Positions assume a ~1920x1200 display; they are clamped into whatever the home display really is. */
@@ -86,6 +87,7 @@ const DEFAULT_ELEMENTS: Record<OverlayElementId, Omit<OverlayElementSettings, "d
   toggles: { enabled: false, opacity: 1, x: 1430, y: 840, width: 280, height: 60 },
   lootToast: { enabled: false, opacity: 1, x: 1400, y: 20, width: 340, height: 240 },
   minimap: { enabled: true, opacity: 1, x: 790, y: 430, width: 340, height: 340 },
+  bossTimers: { enabled: false, opacity: 1, x: 1690, y: 500, width: 230, height: 150 },
 };
 
 export function defaultOverlaySettings(displays: readonly OverlayDisplay[]): OverlaySettings {
@@ -145,7 +147,7 @@ export function normalizeOverlaySettings(
     const width = clampNumber(value.width, defaults.width, 160, Math.max(160, bounds.width));
     const minimumHeight = id === "health" || id === "mana" || id === "characterXp" || id === "jobXp"
       ? 24
-      : id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" ? 40 : 100;
+      : id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" || id === "bossTimers" ? 40 : 100;
     const height = clampNumber(value.height, defaults.height, minimumHeight, Math.max(minimumHeight, bounds.height));
     return [id, {
       enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,
@@ -231,6 +233,7 @@ export function normalizeShortcuts(source: Record<string, unknown>): Record<Keyb
     resetXpTracker: shortcutsSource.resetXpTracker,
     resetGoldTracker: shortcutsSource.resetGoldTracker,
     toggleMinimap: shortcutsSource.toggleMinimap,
+    cycleBossRegion: shortcutsSource.cycleBossRegion,
   };
   const shortcuts = {} as Record<KeybindAction, string>;
   for (const action of KEYBIND_ACTIONS) {
