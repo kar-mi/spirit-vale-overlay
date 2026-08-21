@@ -126,6 +126,7 @@ export type LauncherSettingsRpc = {
     };
     setPersonalDpsMode: { params: { mode: PersonalDpsMode }; response: SharedSettingsState };
     setMinimapRarityFilter: { params: { rarity: number }; response: SharedSettingsState };
+    setMinimapLootChanceFilter: { params: { chance: number }; response: SharedSettingsState };
     windowAction: { params: { action: "minimize" | "close" }; response: void };
     getWindowFrame: { params: Record<string, never>; response: WindowFrame };
     setWindowFrame: { params: WindowFrame; response: void };

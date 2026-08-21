@@ -1239,6 +1239,7 @@ const minimapDots = computed<RadarDot[]>(() => {
   if (!player) return [];
   return state.loot
     .filter((drop) => (drop.rarity ?? 0) >= state.rarityFilter)
+    .filter((drop) => (drop.lootChance ?? 0) <= state.lootChanceFilter)
     .flatMap((drop) => {
       const dx = drop.x - player.x;
       // The game's world-space x axis maps to the radar's vertical (N/S) axis (inverted), and z maps to horizontal (E/W, inverted).
@@ -1294,7 +1295,7 @@ function MinimapLootDot({ dot }: { dot: RadarDot }) {
         backgroundColor: color,
         "--dot-color": color,
       }}
-      title={`${dot.displayName ?? "Loot"} (${rarityLabel(dot.rarity)})`}
+      title={`${dot.displayName ?? "Loot"} (${rarityLabel(dot.rarity)}${dot.lootChance !== undefined ? `, ${dot.lootChance.toFixed(2)}%` : ""})`}
     />
   );
 }

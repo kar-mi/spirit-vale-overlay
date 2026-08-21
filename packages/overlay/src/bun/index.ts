@@ -63,6 +63,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
       controller.setRequiredStatuses(category, statusIds),
     setPersonalDpsMode: (mode: PersonalDpsMode) => controller.setPersonalDpsMode(mode),
     setMinimapRarityFilter: (rarity: number) => controller.setMinimapRarityFilter(rarity),
+    setMinimapLootChanceFilter: (chance: number) => controller.setMinimapLootChanceFilter(chance),
   };
 
   /**

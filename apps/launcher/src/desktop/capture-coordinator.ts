@@ -88,6 +88,7 @@ export interface CaptureLootToastEvent {
   displayName?: string;
   rarity?: number;
   spriteId?: string;
+  lootChance?: number;
 }
 
 export interface CaptureErrorReport {
@@ -132,6 +133,12 @@ export interface CaptureCoordinatorOptions {
    * the minimap's own rarity filter rather than a separate setting. Defaults to showing everything.
    */
   getMinimapRarityFilter?: () => number;
+  /**
+   * Read on every loot spawn to decide whether it clears the bar for a toast notification. Shares
+   * the minimap's own drop-chance filter rather than a separate setting. Defaults to showing
+   * everything.
+   */
+  getMinimapLootChanceFilter?: () => number;
   /** Invoked when the marker left where a world boss died comes into view, for the respawn timers. */
   onBossGravestone?: (gravestone: BossGravestoneObservation) => void;
   /**
@@ -1221,15 +1228,18 @@ export class CaptureCoordinator {
   private emitLootToasts(events: readonly FishNetLootDropEvent[]): void {
     if (this.lootToastListeners.size === 0) return;
     const threshold = this.options.getMinimapRarityFilter?.() ?? 0;
+    const chanceThreshold = this.options.getMinimapLootChanceFilter?.() ?? 100;
     for (const event of events) {
       if (event.kind === "removed" || this.toastedLootIds.has(event.drop.objectId)) continue;
       if (event.drop.displayName === undefined || (event.drop.rarity ?? 0) < threshold) continue;
+      if ((event.drop.lootChance ?? 0) > chanceThreshold) continue;
       this.toastedLootIds.add(event.drop.objectId);
       const toast: CaptureLootToastEvent = {
         objectId: event.drop.objectId,
         displayName: event.drop.displayName,
         ...(event.drop.rarity === undefined ? {} : { rarity: event.drop.rarity }),
         ...(event.drop.spriteId === undefined ? {} : { spriteId: event.drop.spriteId }),
+        ...(event.drop.lootChance === undefined ? {} : { lootChance: event.drop.lootChance }),
       };
       for (const listener of this.lootToastListeners) listener(toast);
     }

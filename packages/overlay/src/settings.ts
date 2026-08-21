@@ -53,6 +53,8 @@ export interface OverlaySettings {
   keybindsRequireGameFocus: boolean;
   /** Only ground loot at or above this rarity is shown on the minimap tile or raises a loot notification. */
   minimapRarityFilter: number;
+  /** Only ground loot at or below this drop chance (a 0-100 percentage) is shown on the minimap tile or raises a loot notification. */
+  minimapLootChanceFilter: number;
 }
 
 const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
@@ -177,6 +179,7 @@ export function normalizeOverlaySettings(
       : DEFAULT_AUTO_HIDE_WHEN_UNFOCUSED,
     keybindsRequireGameFocus: source.keybindsRequireGameFocus === true,
     minimapRarityFilter: normalizeRarityFilter(source.minimapRarityFilter),
+    minimapLootChanceFilter: normalizeLootChanceFilter(source.minimapLootChanceFilter),
   };
 }
 
@@ -194,6 +197,13 @@ function normalizeRarityFilter(value: unknown): number {
     }
   }
   return closest;
+}
+
+/** Default drop-chance filter is 100 (no filtering) — every drop's chance is at or below 100%. */
+const DEFAULT_LOOT_CHANCE_FILTER = 100;
+function normalizeLootChanceFilter(value: unknown): number {
+  const number = typeof value === "number" && Number.isFinite(value) ? value : DEFAULT_LOOT_CHANCE_FILTER;
+  return Math.round(Math.max(0, Math.min(100, number)) * 100) / 100;
 }
 
 /** Human-readable choices for the Settings window's display pickers. */
