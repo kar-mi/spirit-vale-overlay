@@ -33,14 +33,14 @@ describe("overlay settings", () => {
     expect(settings.elements.personalDps.enabled).toBe(false);
   });
 
-  test("uses the slim stacked XP bar layout by default", () => {
+  test("positions the slim stacked XP bar layout, off by default", () => {
     const settings = defaultOverlaySettings([{ bounds: { x: 0, y: 0, width: 2560, height: 1440 }, isPrimary: true }]);
 
     expect(settings.elements.characterXp).toEqual({
-      enabled: true, opacity: 1, x: 1770, y: 1090, width: 410, height: 29, display: "2560x1440@0,0",
+      enabled: false, opacity: 1, x: 500, y: 586, width: 229, height: 24, display: "2560x1440@0,0",
     });
     expect(settings.elements.jobXp).toEqual({
-      enabled: true, opacity: 1, x: 1770, y: 1120, width: 410, height: 30, display: "2560x1440@0,0",
+      enabled: false, opacity: 1, x: 406, y: 586, width: 229, height: 25, display: "2560x1440@0,0",
     });
   });
 
@@ -71,17 +71,17 @@ describe("overlay settings", () => {
     });
     expect(settings).not.toHaveProperty("personalName");
     expect(settings.elements.dpsChart).toEqual({ enabled: false, opacity: 0.55, x: 780, y: 0, width: 500, height: 200, display: primaryKey });
-    expect(settings.elements.health.opacity).toBe(1);
+    expect(settings.elements.health.opacity).toBe(0.75);
     expect(settings.elements.personalDps.width).toBe(160);
     expect(settings.elements.personalDps.height).toBe(100);
     expect(settings.elements.health.enabled).toBe(true);
-    expect(settings.elements.health.height).toBe(50);
+    expect(settings.elements.health.height).toBe(38);
     expect(settings.elements.mana.enabled).toBe(true);
-    expect(settings.elements.mana.height).toBe(50);
-    expect(settings.elements.characterXp).toMatchObject({ enabled: true, width: 410, height: 29 });
-    expect(settings.elements.jobXp).toMatchObject({ enabled: true, width: 410, height: 30 });
+    expect(settings.elements.mana.height).toBe(42);
+    expect(settings.elements.characterXp).toMatchObject({ enabled: false, width: 229, height: 24 });
+    expect(settings.elements.jobXp).toMatchObject({ enabled: false, width: 229, height: 25 });
     expect(settings.elements.weight.enabled).toBe(true);
-    expect(settings.elements.weight.height).toBe(60);
+    expect(settings.elements.weight.height).toBe(40);
   });
 
   test("round-trips normalized settings", async () => {
@@ -113,16 +113,16 @@ describe("overlay settings", () => {
 
     expect(settings.elements.health).toMatchObject({ enabled: false, x: 25, width: 325 });
     expect(settings.elements.xpTracker.enabled).toBe(false);
-    expect(settings.elements.characterXp).toMatchObject({ enabled: true, width: 410, height: 29 });
-    expect(settings.elements.jobXp).toMatchObject({ enabled: true, width: 410, height: 30 });
+    expect(settings.elements.characterXp).toMatchObject({ enabled: false, width: 229, height: 24 });
+    expect(settings.elements.jobXp).toMatchObject({ enabled: false, width: 229, height: 25 });
   });
 
-  test("defaults the gold tracker tile on, near the XP tracker", () => {
+  test("defaults the gold tracker tile off, near the XP tracker", () => {
     const settings = defaultOverlaySettings([{ bounds: { x: 0, y: 0, width: 2560, height: 1440 }, isPrimary: true }]);
 
-    expect(settings.elements.goldTracker.enabled).toBe(true);
+    expect(settings.elements.goldTracker.enabled).toBe(false);
     expect(settings.elements.goldTracker).toEqual({
-      enabled: true, opacity: 1, x: 1720, y: 700, width: 160, height: 120, display: "2560x1440@0,0",
+      enabled: false, opacity: 1, x: 501, y: 509, width: 160, height: 100, display: "2560x1440@0,0",
     });
   });
 
@@ -163,7 +163,7 @@ describe("overlay settings", () => {
       elements: { weight: { height: 72 } },
     }, displays);
 
-    expect(retired.elements.weight).toMatchObject({ enabled: true, height: 60 });
+    expect(retired.elements.weight).toMatchObject({ enabled: true, height: 40 });
     expect(current.elements.weight.height).toBe(72);
   });
 
@@ -276,9 +276,9 @@ describe("overlay settings", () => {
     expect(defaultOverlaySettings(displays).requiredStatuses).toEqual({ buffs: [], toggles: [] });
   });
 
-  test("defaults both focus-aware behaviors to off", () => {
+  test("defaults auto-hide to on and require-focus to off", () => {
     const settings = defaultOverlaySettings(displays);
-    expect(settings.autoHideWhenUnfocused).toBe(false);
+    expect(settings.autoHideWhenUnfocused).toBe(true);
     expect(settings.keybindsRequireGameFocus).toBe(false);
   });
 
@@ -297,7 +297,7 @@ describe("overlay settings", () => {
       schemaVersion: 5,
       autoHideWhenUnfocused: "yes",
       keybindsRequireGameFocus: 1,
-    }, displays)).toMatchObject({ autoHideWhenUnfocused: false, keybindsRequireGameFocus: false });
+    }, displays)).toMatchObject({ autoHideWhenUnfocused: true, keybindsRequireGameFocus: false });
   });
 
   test("round-trips focus-aware settings", async () => {
@@ -374,7 +374,7 @@ describe("overlay settings", () => {
 
     expect(settings.homeDisplay).toBe(homeKey);
     // Coordinates stay display-relative, so the wider home display no longer clamps them.
-    expect(settings.elements.goldTracker).toMatchObject({ x: 1720, y: 700, display: homeKey });
+    expect(settings.elements.goldTracker).toMatchObject({ x: 501, y: 509, display: homeKey });
   });
 
   test("clamps each element against its own display's bounds", () => {

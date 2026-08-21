@@ -69,24 +69,27 @@ const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
   cycleBossRegion: "Ctrl+Shift+8",
 };
 
+const DEFAULT_LOCKED = true;
+const DEFAULT_AUTO_HIDE_WHEN_UNFOCUSED = true;
+
 /** Positions assume a ~1920x1200 display; they are clamped into whatever the home display really is. */
 const DEFAULT_ELEMENTS: Record<OverlayElementId, Omit<OverlayElementSettings, "display">> = {
-  dpsChart: { enabled: false, opacity: 1, x: 860, y: 20, width: 462, height: 226 },
-  personalDps: { enabled: false, opacity: 1, x: 862, y: 242, width: 161, height: 135 },
-  partyRanking: { enabled: true, opacity: 1, x: 730, y: 540, width: 290, height: 610 },
-  health: { enabled: true, opacity: 1, x: 1040, y: 910, width: 380, height: 50 },
-  mana: { enabled: true, opacity: 1, x: 1430, y: 910, width: 280, height: 50 },
-  characterXp: { enabled: true, opacity: 1, x: 1770, y: 1090, width: 410, height: 29 },
-  jobXp: { enabled: true, opacity: 1, x: 1770, y: 1120, width: 410, height: 30 },
-  weight: { enabled: true, opacity: 1, x: 1720, y: 970, width: 160, height: 60 },
-  xpTracker: { enabled: true, opacity: 1, x: 1720, y: 840, width: 160, height: 120 },
-  goldTracker: { enabled: true, opacity: 1, x: 1720, y: 700, width: 160, height: 120 },
-  xpChart: { enabled: false, opacity: 1, x: 1040, y: 60, width: 420, height: 300 },
-  buffs: { enabled: false, opacity: 1, x: 1040, y: 830, width: 380, height: 70 },
-  debuffs: { enabled: false, opacity: 1, x: 1040, y: 760, width: 380, height: 60 },
-  toggles: { enabled: false, opacity: 1, x: 1430, y: 840, width: 280, height: 60 },
-  lootToast: { enabled: false, opacity: 1, x: 1400, y: 20, width: 340, height: 240 },
-  minimap: { enabled: true, opacity: 1, x: 790, y: 430, width: 340, height: 340 },
+  dpsChart: { enabled: false, opacity: 1, x: 405, y: 399, width: 258, height: 188 },
+  personalDps: { enabled: false, opacity: 1, x: 405, y: 472, width: 160, height: 113 },
+  partyRanking: { enabled: true, opacity: 0.4, x: 1055, y: 353, width: 162, height: 508 },
+  health: { enabled: true, opacity: 0.75, x: 611, y: 758, width: 182, height: 38 },
+  mana: { enabled: true, opacity: 0.8, x: 798, y: 758, width: 160, height: 42 },
+  characterXp: { enabled: false, opacity: 1, x: 500, y: 586, width: 229, height: 24 },
+  jobXp: { enabled: false, opacity: 1, x: 406, y: 586, width: 229, height: 25 },
+  weight: { enabled: true, opacity: 0.75, x: 960, y: 763, width: 160, height: 40 },
+  xpTracker: { enabled: false, opacity: 1, x: 500, y: 473, width: 160, height: 100 },
+  goldTracker: { enabled: false, opacity: 1, x: 501, y: 509, width: 160, height: 100 },
+  xpChart: { enabled: false, opacity: 1, x: 406, y: 548, width: 234, height: 250 },
+  buffs: { enabled: false, opacity: 1, x: 501, y: 549, width: 212, height: 58 },
+  debuffs: { enabled: false, opacity: 1, x: 406, y: 510, width: 212, height: 50 },
+  toggles: { enabled: false, opacity: 1, x: 405, y: 438, width: 160, height: 50 },
+  lootToast: { enabled: false, opacity: 0, x: 499, y: 399, width: 190, height: 200 },
+  minimap: { enabled: false, opacity: 0, x: 500, y: 436, width: 216, height: 323 },
   bossTimers: { enabled: false, opacity: 1, x: 1690, y: 500, width: 230, height: 150 },
 };
 
@@ -151,7 +154,7 @@ export function normalizeOverlaySettings(
     const height = clampNumber(value.height, defaults.height, minimumHeight, Math.max(minimumHeight, bounds.height));
     return [id, {
       enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,
-      opacity: normalizeOpacity(value.opacity),
+      opacity: normalizeOpacity(value.opacity, defaults.opacity),
       x: clampNumber(value.x, defaults.x, 0, Math.max(0, bounds.width - width)),
       y: clampNumber(value.y, defaults.y, 0, Math.max(0, bounds.height - height)),
       width,
@@ -163,13 +166,15 @@ export function normalizeOverlaySettings(
   return {
     schemaVersion: 7,
     homeDisplay,
-    locked: typeof source.locked === "boolean" ? source.locked : false,
+    locked: typeof source.locked === "boolean" ? source.locked : DEFAULT_LOCKED,
     shortcuts,
     elements,
     meterStatType: normalizeMeterStatType(source.meterStatType),
     personalDpsMode: normalizePersonalDpsMode(source.personalDpsMode),
     requiredStatuses: normalizeRequiredStatuses(source.requiredStatuses),
-    autoHideWhenUnfocused: source.autoHideWhenUnfocused === true,
+    autoHideWhenUnfocused: typeof source.autoHideWhenUnfocused === "boolean"
+      ? source.autoHideWhenUnfocused
+      : DEFAULT_AUTO_HIDE_WHEN_UNFOCUSED,
     keybindsRequireGameFocus: source.keybindsRequireGameFocus === true,
     minimapRarityFilter: normalizeRarityFilter(source.minimapRarityFilter),
   };
@@ -259,9 +264,9 @@ function normalizeShortcut(value: unknown, fallback: string): string {
   return [...orderedModifiers.map((modifier) => modifier[0]!.toUpperCase() + modifier.slice(1)), key].join("+");
 }
 
-function normalizeOpacity(value: unknown): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) return 1;
-  return Math.round(Math.max(0, Math.min(1, value)) * 20) / 20;
+function normalizeOpacity(value: unknown, fallback: number): number {
+  const number = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  return Math.round(Math.max(0, Math.min(1, number)) * 20) / 20;
 }
 
 function clampNumber(value: unknown, fallback: number, minimum: number, maximum: number): number {
