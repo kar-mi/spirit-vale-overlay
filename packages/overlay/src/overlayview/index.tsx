@@ -10,8 +10,20 @@ import { classIconUrlForArchetype, classIconUrlForName } from "@svoverlay/ui-kit
 
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import {
+  bossDueAtMs,
+  bossEligibleAtMs,
+  bossRegionsPresent,
+  bossTimerPhase,
+  bossTimerRegion,
+  isOwnBossKill,
+  UNKNOWN_BOSS_REGION,
+} from "@svoverlay/contracts/boss-timers";
+import type { BossTimerPhase } from "@svoverlay/contracts/boss-timers";
+import {
   OVERLAY_ELEMENT_IDS,
   OVERLAY_ELEMENT_LABELS,
+  type BossTimer,
+  type BossTimerState,
   type KeybindAction,
   type OverlayElementId,
   type OverlayElementSettings,
@@ -44,6 +56,7 @@ const LOOT_TOAST_LIFETIME_MS = 3_000;
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
+const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 const MIN_ELEMENT_WIDTH = 160;
 const MIN_ELEMENT_HEIGHT = 100;
 const MIN_BAR_HEIGHT = 24;
@@ -53,6 +66,12 @@ const FLASH_REMAINING_FRACTION = 0.15;
 const FLASH_MINIMUM_DURATION_MS = 59_000;
 /** How often the status countdowns are redrawn. Fine enough that the last second reads smoothly. */
 const STATUS_TICK_MS = 100;
+/** How often the boss respawn countdowns are redrawn; they run for up to 90 minutes, so once a second. */
+const BOSS_TICK_MS = 1_000;
+/** How long the boss tile's ring pulses after a timer crosses the spawnable or overdue mark. */
+const BOSS_ALERT_PULSE_MS = 60_000;
+/** Shown in place of a channel a timer was recorded without. */
+const UNKNOWN_BOSS_CHANNEL = "?";
 const GRID_SIZE = 10;
 const RESIZE_EDGES = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
 /** Pointer movement below this counts as selecting a tile rather than repositioning it. */
@@ -109,6 +128,16 @@ const statusState = signal<OverlayStatusState | undefined>(undefined);
 const statusNow = signal(Date.now());
 /** Runs only while something is actually counting down; a screen of toggles needs no ticker. */
 let statusTicker: ReturnType<typeof setInterval> | undefined;
+const bossTimerState = signal<BossTimerState | undefined>(undefined);
+/**
+ * Wall clock the boss countdowns are drawn against. Separate from `statusNow` because it ticks a
+ * tenth as often: the boss timers publish only when a timer is created, re-anchored or removed,
+ * and everything between — countdown text, the 60- and 90-minute phase changes, the alert pulses —
+ * is derived here from the timers' own timestamps.
+ */
+const bossNow = signal(Date.now());
+/** Runs only while boss timers exist; an empty tile needs no clock. */
+let bossTicker: ReturnType<typeof setInterval> | undefined;
 const meterState = signal<OverlayMeterState | undefined>(undefined);
 const minimapState = signal<OverlayMinimapState | undefined>(undefined);
 interface LootToastCard { id: string; event: OverlayLootToastEvent }
@@ -183,6 +212,7 @@ const rpc = Electroview.defineRPC<OverlayRpc>({
     characterChanged: (next) => { characterState.value = repairRendererPayload(next); },
     statusesChanged: (next) => { applyStatuses(repairRendererPayload(next)); },
     meterChanged: (next) => { meterState.value = repairRendererPayload(next); },
+    bossTimersChanged: (next) => { applyBossTimers(repairRendererPayload(next)); },
     // Numbers and an element id only, so it skips the mojibake repair every other channel pays.
     dragPreviewChanged: (next) => { dragPreview.value = next; },
     minimapChanged: (next) => { minimapState.value = repairRendererPayload(next); },
@@ -198,6 +228,7 @@ void electroview.rpc?.request.getState({}).then((next) => {
     applyStatuses(repaired.statuses);
     meterState.value = repaired.meter;
     minimapState.value = repaired.minimap;
+    applyBossTimers(repaired.bossTimers);
   });
 });
 
@@ -217,6 +248,19 @@ function applyStatuses(next: OverlayStatusState): void {
   } else if (!counting && statusTicker !== undefined) {
     clearInterval(statusTicker);
     statusTicker = undefined;
+  }
+}
+
+/** Adopts a boss-timer publish and starts or stops the once-a-second countdown clock to match. */
+function applyBossTimers(next: BossTimerState): void {
+  bossTimerState.value = next;
+  bossNow.value = Date.now();
+  const counting = next.timers.length > 0;
+  if (counting && bossTicker === undefined) {
+    bossTicker = setInterval(() => { bossNow.value = Date.now(); }, BOSS_TICK_MS);
+  } else if (!counting && bossTicker !== undefined) {
+    clearInterval(bossTicker);
+    bossTicker = undefined;
   }
 }
 
@@ -288,6 +332,7 @@ function App() {
       <OverlayElement id="lootToast" locked={next.locked}>
         <LootToastElement />
       </OverlayElement>
+      <BossTimersOverlayElement locked={next.locked} />
       {!next.locked && <DragGhost surface={next.surface} />}
     </main>
   );
@@ -327,6 +372,8 @@ interface OverlayElementProps {
   warn?: boolean;
   /** Rings the weight tile as it nears maximum carry weight: steady caution, then flashing danger. */
   weightWarn?: WeightWarnLevel;
+  /** Pulses the boss tile's ring right after a timer turns spawnable (amber) or overdue (red). */
+  bossAlert?: "window" | "expired";
   children: ComponentChildren;
 }
 
@@ -335,7 +382,7 @@ function StatusOverlayElement({
   locked,
   category,
   flashExpiring,
-}: Omit<OverlayElementProps, "children" | "warn" | "weightWarn"> & {
+}: Omit<OverlayElementProps, "children" | "warn" | "weightWarn" | "bossAlert"> & {
   category: "buffs" | "debuffs" | "toggles";
   flashExpiring?: boolean;
 }) {
@@ -354,7 +401,7 @@ function StatusOverlayElement({
   );
 }
 
-function OverlayElement({ id, locked, warn, weightWarn, children }: OverlayElementProps) {
+function OverlayElement({ id, locked, warn, weightWarn, bossAlert, children }: OverlayElementProps) {
   const [gesture, setGesture] = useState<PointerGesture>();
   const [preview, setPreview] = useState<ElementRect>();
   // Read per tile rather than from a shared control object, so a change to one tile does not
@@ -371,6 +418,7 @@ function OverlayElement({ id, locked, warn, weightWarn, children }: OverlayEleme
     !settings.enabled && "hidden-preview",
     warn && settings.enabled && "missing-statuses",
     weightWarn && settings.enabled && `weight-${weightWarn}`,
+    bossAlert && settings.enabled && `boss-alert-${bossAlert}`,
     !locked && selected && "selected",
     gesture?.kind === "resize" ? "resizing" : gesture?.kind === "drag" ? "dragging" : undefined,
   ].filter(Boolean).join(" ");
@@ -638,7 +686,7 @@ function resizeRect(start: ElementRect, edge: ResizeEdge, dx: number, dy: number
   let bottom = start.y + start.height;
   const minimumHeight = id === "health" || id === "mana" || id === "characterXp" || id === "jobXp"
     ? MIN_BAR_HEIGHT
-    : id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles"
+    : id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" || id === "bossTimers"
       ? MIN_COMPACT_ELEMENT_HEIGHT
       : MIN_ELEMENT_HEIGHT;
   if (edge.includes("w")) left = clamp(start.x + dx, 0, right - MIN_ELEMENT_WIDTH);
@@ -1004,6 +1052,179 @@ function formatRemaining(remainingMs: number): string {
   const totalSeconds = Math.ceil(remainingMs / 1_000);
   if (totalSeconds >= 60) return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
   return `${totalSeconds}`;
+}
+
+/** The boss timers tile plus the ring that pulses when a timer crosses the 60- or 90-minute mark. */
+function BossTimersOverlayElement({ locked }: { locked: boolean }) {
+  const next = bossTimerState.value;
+  const timers = next?.timers ?? [];
+  const nowMs = bossNow.value;
+  return (
+    <OverlayElement id="bossTimers" locked={locked} bossAlert={bossTimerAlert(timers, nowMs)}>
+      <BossTimersElement
+        timers={timers}
+        nowMs={nowMs}
+        selectedRegion={next?.selectedRegion}
+        playerName={next?.playerName}
+      />
+    </OverlayElement>
+  );
+}
+
+/**
+ * Which alert pulse the tile should carry: a timer that just turned overdue outranks one that just
+ * became spawnable, and either only pulses for the minute after its crossing. Deriving this from
+ * the timers' own timestamps means no extra publish is needed at either boundary.
+ */
+function bossTimerAlert(timers: readonly BossTimer[], nowMs: number): "window" | "expired" | undefined {
+  let alert: "window" | undefined;
+  for (const timer of timers) {
+    const phase = bossTimerPhase(timer, nowMs);
+    if (phase === "expired" && nowMs - bossDueAtMs(timer) < BOSS_ALERT_PULSE_MS) return "expired";
+    if (phase === "window" && nowMs - bossEligibleAtMs(timer) < BOSS_ALERT_PULSE_MS) alert = "window";
+  }
+  return alert;
+}
+
+function BossTimersElement(
+  { timers, nowMs, selectedRegion, playerName }: {
+    timers: readonly BossTimer[];
+    nowMs: number;
+    selectedRegion: string | undefined;
+    playerName: string | undefined;
+  },
+) {
+  // Region hopping is a minority workflow, so the tabs only appear once they are earning their
+  // space; hunting one region keeps the whole tile for the timers themselves.
+  const regions = bossRegionsPresent(timers);
+  if (timers.length === 0) {
+    return (
+      <div class="boss-timers-empty">
+        <span>No boss timers</span>
+      </div>
+    );
+  }
+  if (regions.length < 2) {
+    return (
+      <div class="boss-timers">
+        {timers.map((timer) => (
+          <BossTimerRow key={timer.id} timer={timer} nowMs={nowMs} playerName={playerName} />
+        ))}
+      </div>
+    );
+  }
+  // Which tab is open is decided in the bun process, so the cycle keybind and a click in edit mode
+  // agree and every monitor's surface shows the same region.
+  const region = selectedRegion !== undefined && regions.includes(selectedRegion)
+    ? selectedRegion
+    : regions[0]!;
+  return (
+    <div class="boss-timers">
+      <div class="boss-timer-tabs" role="tablist" aria-label="Boss timers by region">
+        {regions.map((candidate) => (
+          <span
+            key={candidate}
+            class={`boss-timer-tab boss-${bossRegionAlert(timers, candidate, nowMs) ?? "quiet"}${candidate === region ? " is-active" : ""}`}
+            role="tab"
+            aria-selected={candidate === region}
+          >
+            {bossRegionLabel(candidate)}
+          </span>
+        ))}
+      </div>
+      {timers.filter((timer) => bossTimerRegion(timer) === region)
+        .map((timer) => (
+          <BossTimerRow key={timer.id} timer={timer} nowMs={nowMs} region={region} playerName={playerName} />
+        ))}
+    </div>
+  );
+}
+
+function bossRegionLabel(region: string): string {
+  return region === UNKNOWN_BOSS_REGION ? UNKNOWN_BOSS_REGION : region.toUpperCase();
+}
+
+/** The most urgent phase a region is holding, so a tab marks itself while it is not being shown. */
+function bossRegionAlert(
+  timers: readonly BossTimer[],
+  region: string,
+  nowMs: number,
+): "expired" | "window" | undefined {
+  let alert: "window" | undefined;
+  for (const timer of timers) {
+    if (bossTimerRegion(timer) !== region) continue;
+    const phase = bossTimerPhase(timer, nowMs);
+    if (phase === "expired") return "expired";
+    if (phase === "window") alert = "window";
+  }
+  return alert;
+}
+
+function BossTimerRow(
+  { timer, nowMs, region, playerName }: {
+    timer: BossTimer;
+    nowMs: number;
+    region?: string;
+    playerName: string | undefined;
+  },
+) {
+  const phase = bossTimerPhase(timer, nowMs);
+  // Under a region tab the row would repeat what the tab already says, so it shows only the channel
+  // and gives the width back to the boss's name.
+  const placeLabel = region === undefined
+    ? bossPlaceLabel(timer)
+    : `Ch ${timer.channel ?? UNKNOWN_BOSS_CHANNEL}`;
+  const { status, description } = bossTimerStatus(timer, phase, nowMs);
+  // The tile is compact, so the machine only appears in the tooltip; the Bosses settings tab lists
+  // it in full.
+  const place = timer.instanceId === undefined ? placeLabel : `${placeLabel} (${timer.instanceId})`;
+  return (
+    <div class={`boss-timer-row boss-${phase}`} title={`${timer.bossName} · ${place} — ${description}`}>
+      <span class="boss-timer-name">
+        <span class="boss-timer-name-text">{timer.bossName}</span>
+        {isOwnBossKill(timer, playerName) && <span class="boss-own-kill" aria-label="Your kill">✓</span>}
+      </span>
+      <span class="boss-timer-channel">{placeLabel}</span>
+      <span class="boss-timer-status">{status}</span>
+    </div>
+  );
+}
+
+/** Region and channel as one short label, e.g. `NA 3`, falling back to `?` for anything unseen. */
+function bossPlaceLabel(timer: BossTimer): string {
+  return `${bossRegionLabel(bossTimerRegion(timer))} ${timer.channel ?? UNKNOWN_BOSS_CHANNEL}`;
+}
+
+function bossTimerStatus(
+  timer: BossTimer,
+  phase: BossTimerPhase,
+  nowMs: number,
+): { status: string; description: string } {
+  if (phase === "waiting") {
+    return {
+      status: `in ${formatBossCountdown(bossEligibleAtMs(timer) - nowMs)}`,
+      description: `can spawn from ${clockTime(bossEligibleAtMs(timer))}`,
+    };
+  }
+  if (phase === "window") {
+    return {
+      status: `spawnable ${formatBossCountdown(bossDueAtMs(timer) - nowMs)}`,
+      description: `eligible to spawn now, guaranteed by ${clockTime(bossDueAtMs(timer))}`,
+    };
+  }
+  return {
+    status: "spawned",
+    description: `must have spawned by now (window closed at ${clockTime(bossDueAtMs(timer))})`,
+  };
+}
+
+/** Boss countdowns always render as m:ss (up to 90:00), clamped so a stale tick never shows negative. */
+function formatBossCountdown(remainingMs: number): string {
+  return formatDuration(Math.max(0, remainingMs));
+}
+
+function clockTime(atMs: number): string {
+  return timeFormat.format(atMs);
 }
 
 interface RadarDot extends OverlayMinimapLootDrop {

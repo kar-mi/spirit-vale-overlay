@@ -10,7 +10,7 @@ import type {
 } from "@svoverlay/overlay/app-types";
 
 export type CaptureStatus = "starting" | "capturing" | "unavailable" | "stopped";
-export type ToolWindow = "combat" | "overlay" | "rewards" | "character" | "build-export";
+export type ToolWindow = "combat" | "overlay" | "rewards" | "character" | "build-export" | "boss-timers";
 export type NpcapAvailability = "checking" | "ready" | "missing" | "admin-only" | "error";
 
 export interface CaptureAdapterOption {

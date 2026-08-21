@@ -3,11 +3,13 @@ import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterWeight } from "@kar-mi/spirit-vale-tools-character";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { StatType } from "@svoverlay/ui-kit/stat-type-select";
+import type { BossTimerState } from "@svoverlay/contracts/boss-timers";
 import type { RequiredStatusCategory } from "./required-statuses.ts";
 
 export type { StatType, RequiredStatusCategory };
+export type { BossTimer, BossTimerState } from "@svoverlay/contracts/boss-timers";
 
-export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "characterXp", "jobXp", "weight", "xpTracker", "goldTracker", "xpChart", "buffs", "debuffs", "toggles", "lootToast", "minimap"] as const;
+export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "characterXp", "jobXp", "weight", "xpTracker", "goldTracker", "xpChart", "buffs", "debuffs", "toggles", "lootToast", "minimap", "bossTimers"] as const;
 export type OverlayElementId = (typeof OVERLAY_ELEMENT_IDS)[number];
 
 /** Short label describing each overlay element, shown in the settings toggle list and as an edit-mode badge on the element itself. */
@@ -16,9 +18,10 @@ export const OVERLAY_ELEMENT_LABELS: Record<OverlayElementId, string> = {
   health: "HP bar", mana: "MP bar", characterXp: "Character XP", jobXp: "Job XP",
   weight: "Weight", xpTracker: "XP Tracker", goldTracker: "Gold Tracker", xpChart: "Character XP chart", buffs: "Buffs",
   debuffs: "Debuffs", toggles: "Toggles", lootToast: "Loot notifications", minimap: "Minimap",
+  bossTimers: "Boss timers",
 };
 
-export const KEYBIND_ACTIONS = ["toggleLock", "resetSession", "openLiveDeathLog", "toggleOverlayVisible", "cycleMeterStatType", "resetXpTracker", "resetGoldTracker", "toggleMinimap"] as const;
+export const KEYBIND_ACTIONS = ["toggleLock", "resetSession", "openLiveDeathLog", "toggleOverlayVisible", "cycleMeterStatType", "resetXpTracker", "resetGoldTracker", "toggleMinimap", "cycleBossRegion"] as const;
 export type KeybindAction = (typeof KEYBIND_ACTIONS)[number];
 
 /** Party/map meter cycles damage -> heal -> tanked -> damage on each press of its keybind. */
@@ -178,6 +181,7 @@ export interface OverlayViewState {
   statuses: OverlayStatusState;
   meter: OverlayMeterState;
   minimap: OverlayMinimapState;
+  bossTimers: BossTimerState;
 }
 
 /** A single ground-loot drop, forwarded as a discrete event rather than polled state. */
@@ -288,6 +292,7 @@ export type OverlayRpc = {
     characterChanged: OverlayCharacterState;
     statusesChanged: OverlayStatusState;
     meterChanged: OverlayMeterState;
+    bossTimersChanged: BossTimerState;
     dragPreviewChanged: OverlayDragPreview | undefined;
     minimapChanged: OverlayMinimapState;
     /** Fire-and-forget: one loot drop that passed the notification rarity threshold. */

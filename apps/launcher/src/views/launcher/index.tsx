@@ -17,6 +17,7 @@ const TOOLS: Array<{ tool: ToolWindow; title: string; description: string }> = [
   { tool: "combat", title: "Combat", description: "Live DPS and combat replay" },
   { tool: "rewards", title: "Rewards", description: "Mob rewards and catalog" },
   { tool: "character", title: "Character", description: "Your build and calculated stats" },
+  { tool: "boss-timers", title: "Boss Timers", description: "World boss respawns by region and channel" },
   { tool: "build-export", title: "Build Export", description: "Open your character in the spiritvalers.com planner" },
 ];
 
