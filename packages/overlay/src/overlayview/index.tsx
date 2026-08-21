@@ -362,6 +362,9 @@ function OverlayElement({ id, locked, warn, weightWarn, children }: OverlayEleme
   const settings = elementStates[id].value;
   if (!settings || (locked && !settings.enabled)) return null;
   const rect = preview ?? settings;
+  // A disabled tile remains movable in edit mode, but its saved size is restored only when it is
+  // enabled again; the placeholder itself stays deliberately compact.
+  const displayRect = settings.enabled ? rect : { ...rect, width: 160, height: 36 };
   const selected = selectedElementId.value === id;
   const className = [
     "overlay-element",
@@ -428,10 +431,10 @@ function OverlayElement({ id, locked, warn, weightWarn, children }: OverlayEleme
       class={className}
       data-element-id={id}
       style={{
-        left: `${rect.x}px`,
-        top: `${rect.y}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
+        left: `${displayRect.x}px`,
+        top: `${displayRect.y}px`,
+        width: `${displayRect.width}px`,
+        height: `${displayRect.height}px`,
       }}
       onPointerDown={(event) => {
         if (locked || event.button !== 0) return;
@@ -454,12 +457,17 @@ function OverlayElement({ id, locked, warn, weightWarn, children }: OverlayEleme
         setPreview(undefined);
       }}
     >
-      <div class="overlay-surface" style={`--element-background-alpha:${settings.opacity * 0.76}`}>
-        {children}
-      </div>
-      {!locked && !settings.enabled && <span class="hidden-indicator">Hidden</span>}
-      {!locked && <span class="element-title-badge">{OVERLAY_ELEMENT_LABELS[id]}</span>}
-      {!locked && selected && RESIZE_EDGES.map((edge) => (
+      {settings.enabled ? (
+        <>
+          <div class="overlay-surface" style={`--element-background-alpha:${settings.opacity * 0.76}`}>
+            {children}
+          </div>
+          {!locked && <span class="element-title-badge">{OVERLAY_ELEMENT_LABELS[id]}</span>}
+        </>
+      ) : (
+        <div class="disabled-element-placeholder">{OVERLAY_ELEMENT_LABELS[id]}</div>
+      )}
+      {!locked && settings.enabled && selected && RESIZE_EDGES.map((edge) => (
         <span
           key={edge}
           class={`resize-handle resize-${edge}`}

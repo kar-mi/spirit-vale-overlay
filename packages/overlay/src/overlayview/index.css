@@ -193,34 +193,37 @@
   box-shadow: 0 0 0 3px rgba(78, 52, 132, 0.45);
 }
 
-.overlay-root.editing .overlay-element.hidden-preview .overlay-surface::after {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: repeating-linear-gradient(
-    -45deg,
-    transparent 0 10px,
-    rgba(255, 213, 74, .9) 10px 12px,
-    transparent 12px 20px
-  );
-  content: "";
-  pointer-events: none;
+.overlay-root.editing .overlay-element.hidden-preview {
+  min-width: 160px;
+  min-height: 36px;
+  border: 2px dashed rgba(228, 72, 72, 0.95);
+  border-radius: 7px;
+  box-shadow: 0 0 0 3px rgba(228, 72, 72, 0.3);
 }
 
-.hidden-indicator {
-  position: absolute;
-  top: 34px;
-  right: 8px;
-  z-index: 4;
-  padding: 3px 6px;
-  border-radius: 999px;
-  background: rgba(18, 18, 24, .94);
-  color: rgba(255,255,255,.9);
-  font-size: 10px;
+.disabled-element-placeholder {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  padding: 0 10px;
+  overflow: hidden;
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 10px,
+      rgba(255, 213, 74, .9) 10px 12px,
+      transparent 12px 20px
+    ),
+    rgba(18, 18, 24, .94);
+  color: rgba(255,255,255,.85);
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: .05em;
-  text-transform: uppercase;
-  pointer-events: none;
+  letter-spacing: .03em;
+  text-overflow: ellipsis;
+  text-shadow: none;
+  white-space: nowrap;
 }
 
 .element-title-badge {
