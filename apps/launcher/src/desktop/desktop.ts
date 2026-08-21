@@ -193,6 +193,7 @@ const capture = new CaptureCoordinator({
   onGoldMapChange: () => { if (settings.resetGoldOnMapChange) xpTracker.resetCoins(); },
   minimapEnabled: () => overlayWindow.current?.getSettingsState().elements.minimap.enabled ?? true,
   getMinimapRarityFilter: () => overlayWindow.current?.getSettingsState().minimapRarityFilter ?? 2,
+  getMinimapLootChanceFilter: () => overlayWindow.current?.getSettingsState().minimapLootChanceFilter ?? 100,
   knownIdentities: [...actorIdentityCache.entries.values()],
   onIdentityLearned: (identity) => {
     actorIdentityCache = updateActorIdentityCache(actorIdentityCache, { ...identity, lastSeenAtMs: Date.now() });
@@ -361,6 +362,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       },
       setMinimapRarityFilter: async ({ rarity }) => {
         await overlayWindow.withWindow((overlay) => overlay.setMinimapRarityFilter(rarity));
+        return sharedSettingsState();
+      },
+      setMinimapLootChanceFilter: async ({ chance }) => {
+        await overlayWindow.withWindow((overlay) => overlay.setMinimapLootChanceFilter(chance));
         return sharedSettingsState();
       },
       windowAction: ({ action }) => {

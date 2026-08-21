@@ -338,6 +338,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     setRequiredStatuses,
     setPersonalDpsMode,
     setMinimapRarityFilter,
+    setMinimapLootChanceFilter,
     resetXpTracker: () => {
       options.xp.reset();
       publishCharacter();
@@ -428,6 +429,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       autoHideWhenUnfocused: settings.autoHideWhenUnfocused,
       keybindsRequireGameFocus: settings.keybindsRequireGameFocus,
       minimapRarityFilter: settings.minimapRarityFilter,
+      minimapLootChanceFilter: settings.minimapLootChanceFilter,
     };
   }
 
@@ -448,13 +450,22 @@ export async function createOverlayController(options: OverlayControllerOptions)
         ...(drop.spriteId === undefined ? {} : { spriteId: drop.spriteId }),
         ...(drop.rarity === undefined ? {} : { rarity: drop.rarity }),
         ...(drop.lootType === undefined ? {} : { lootType: drop.lootType }),
+        ...(drop.lootChance === undefined ? {} : { lootChance: drop.lootChance }),
       }])),
       rarityFilter: settings.minimapRarityFilter,
+      lootChanceFilter: settings.minimapLootChanceFilter,
     };
   }
 
   function setMinimapRarityFilter(rarity: number): OverlayMinimapState {
     settings = normalizeOverlaySettings({ ...settings, minimapRarityFilter: rarity }, displays);
+    persist();
+    publishMinimap(true);
+    return minimapState();
+  }
+
+  function setMinimapLootChanceFilter(chance: number): OverlayMinimapState {
+    settings = normalizeOverlaySettings({ ...settings, minimapLootChanceFilter: chance }, displays);
     persist();
     publishMinimap(true);
     return minimapState();

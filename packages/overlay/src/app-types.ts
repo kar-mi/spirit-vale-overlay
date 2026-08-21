@@ -12,10 +12,10 @@ export type OverlayElementId = (typeof OVERLAY_ELEMENT_IDS)[number];
 
 /** Short label describing each overlay element, shown in the settings toggle list and as an edit-mode badge on the element itself. */
 export const OVERLAY_ELEMENT_LABELS: Record<OverlayElementId, string> = {
-  dpsChart: "DPS chart", personalDps: "Personal DPS numbers", partyRanking: "Party DPS ranking",
-  health: "HP bar", mana: "MP bar", characterXp: "Character XP bar", jobXp: "Job XP bar",
-  weight: "Weight", xpTracker: "Character XP numbers", goldTracker: "Gold dropped", xpChart: "Character XP chart", buffs: "Buffs",
-  debuffs: "Debuffs", toggles: "Toggles (no timer)", lootToast: "Loot notifications", minimap: "Minimap",
+  dpsChart: "DPS chart", personalDps: "Personal DPSs", partyRanking: "Party DPS Meter",
+  health: "HP bar", mana: "MP bar", characterXp: "Character XP", jobXp: "Job XP",
+  weight: "Weight", xpTracker: "XP Tracker", goldTracker: "Gold Tracker", xpChart: "Character XP chart", buffs: "Buffs",
+  debuffs: "Debuffs", toggles: "Toggles", lootToast: "Loot notifications", minimap: "Minimap",
 };
 
 export const KEYBIND_ACTIONS = ["toggleLock", "resetSession", "openLiveDeathLog", "toggleOverlayVisible", "cycleMeterStatType", "resetXpTracker", "resetGoldTracker", "toggleMinimap"] as const;
@@ -186,6 +186,7 @@ export interface OverlayLootToastEvent {
   displayName?: string;
   rarity?: number;
   spriteId?: string;
+  lootChance?: number;
 }
 
 export interface OverlayMinimapLootDrop {
@@ -196,12 +197,14 @@ export interface OverlayMinimapLootDrop {
   spriteId?: string;
   rarity?: number;
   lootType?: number;
+  lootChance?: number;
 }
 
 export interface OverlayMinimapState {
   player?: { x: number; z: number; heading?: number };
   loot: OverlayMinimapLootDrop[];
   rarityFilter: number;
+  lootChanceFilter: number;
 }
 
 /** The subset consumed by the separate Settings window. */
@@ -221,6 +224,7 @@ export interface OverlaySettingsState {
   autoHideWhenUnfocused: boolean;
   keybindsRequireGameFocus: boolean;
   minimapRarityFilter: number;
+  minimapLootChanceFilter: number;
 }
 
 type OverlaySharedRequests = {
@@ -246,6 +250,7 @@ type OverlaySharedRequests = {
   resetXpTracker: { params: Record<string, never>; response: OverlayCharacterState };
   resetGoldTracker: { params: Record<string, never>; response: OverlayCharacterState };
   setMinimapRarityFilter: { params: { rarity: number }; response: OverlayMinimapState };
+  setMinimapLootChanceFilter: { params: { chance: number }; response: OverlayMinimapState };
 };
 
 export type OverlayRpc = {

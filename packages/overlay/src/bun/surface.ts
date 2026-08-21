@@ -89,6 +89,7 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
         resetXpTracker: () => controller.resetXpTracker(),
         resetGoldTracker: () => controller.resetGoldTracker(),
         setMinimapRarityFilter: ({ rarity }) => controller.setMinimapRarityFilter(rarity),
+        setMinimapLootChanceFilter: ({ chance }) => controller.setMinimapLootChanceFilter(chance),
       },
       messages: {
         dragPreview: (preview) => controller.relayDragPreview(preview),

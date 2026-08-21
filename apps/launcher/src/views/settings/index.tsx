@@ -55,6 +55,7 @@ function App() {
     setResetGoldOnMapChange: (resetGoldOnMapChange) => update(electroview.rpc?.request.setResetGoldOnMapChange({ resetGoldOnMapChange })),
     setPersonalDpsMode: (mode) => update(electroview.rpc?.request.setPersonalDpsMode({ mode })),
     setMinimapRarityFilter: (rarity) => update(electroview.rpc?.request.setMinimapRarityFilter({ rarity })),
+    setMinimapLootChanceFilter: (chance) => update(electroview.rpc?.request.setMinimapLootChanceFilter({ chance })),
     setRequiredStatuses: (category, statusIds) => update(electroview.rpc?.request.setOverlayRequiredStatuses({ category, statusIds })),
     setKeybindsRequireGameFocus: (enabled) => update(electroview.rpc?.request.setKeybindsRequireGameFocus({ enabled })),
     resetShortcuts: () => {
