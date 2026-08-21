@@ -92,6 +92,15 @@ describe("overlay settings", () => {
     expect(await loadOverlaySettings(settingsPath, displays)).toEqual(settings);
   });
 
+  test("round-trips each element's opacity", async () => {
+    const settingsPath = await createSettingsPath();
+    const settings = defaultOverlaySettings(displays);
+    settings.elements.partyRanking.opacity = 0.35;
+    await saveOverlaySettings(settings, settingsPath);
+
+    expect((await loadOverlaySettings(settingsPath, displays)).elements.partyRanking.opacity).toBe(0.35);
+  });
+
   test("adds default XP bars without replacing current schema-four customizations", () => {
     const settings = normalizeOverlaySettings({
       schemaVersion: 4,
