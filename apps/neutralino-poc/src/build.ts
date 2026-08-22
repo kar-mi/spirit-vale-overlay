@@ -13,14 +13,25 @@ await Promise.all([rm(resources, { recursive: true, force: true }), rm(extension
 await Promise.all([mkdir(views, { recursive: true }), mkdir(backend, { recursive: true }), mkdir(bin, { recursive: true })]);
 
 await build({
-  entrypoint: path.join(appRoot, "src/backend/index.ts"),
+  entrypoint: path.join(appRoot, "src/backend/desktop-index.ts"),
   outdir: backend,
   target: "bun",
-  alias: { "electrobun/bun": path.join(appRoot, "src/frontend/neutralino-bun-shim.ts") },
+  alias: {},
 });
 await Promise.all([
   buildView("launcherview", path.join(workspace, "apps/launcher/src/views/launcher")),
+  buildView("settingsview", path.join(workspace, "apps/launcher/src/views/settings")),
+  buildView("managesettingsview", path.join(workspace, "apps/launcher/src/views/manage-settings")),
+  buildView("sessionpickerview", path.join(workspace, "apps/launcher/src/views/session-picker")),
+  buildView("characterview", path.join(workspace, "apps/launcher/src/views/character")),
+  buildView("bosstimersview", path.join(workspace, "apps/launcher/src/views/boss-timers")),
+  buildView("mainview", path.join(workspace, "packages/combat/src/mainview")),
+  buildView("analysisdetailview", path.join(workspace, "packages/combat/src/analysisdetailview")),
+  buildView("deathlogview", path.join(workspace, "packages/combat/src/deathlogview")),
   buildView("overlayview", path.join(workspace, "packages/overlay/src/overlayview")),
+  buildView("rewardsview", path.join(workspace, "packages/rewards/src/rewardsview")),
+  buildView("catalogview", path.join(workspace, "packages/rewards/src/catalogview")),
+  buildView("buildexportview", path.join(workspace, "packages/build-export/src/buildexportview")),
 ]);
 
 const assets = path.join(views, "assets");
@@ -50,7 +61,7 @@ async function buildView(name: string, source: string): Promise<void> {
     entrypoint: path.join(source, "index.tsx"),
     outdir: destination,
     target: "browser",
-    alias: { "electrobun/view": path.join(appRoot, "src/frontend/electroview-shim.ts") },
+    alias: {},
   });
   await Promise.all([
     copyFile(path.join(source, "index.css"), path.join(destination, "index.css")),
@@ -66,7 +77,8 @@ async function buildView(name: string, source: string): Promise<void> {
 async function build(options: { entrypoint: string; outdir: string; target: "bun" | "browser"; alias: Record<string, string> }): Promise<void> {
   const result = await Bun.build({
     entrypoints: [options.entrypoint], outdir: options.outdir, target: options.target, format: "esm", minify: false, sourcemap: "external",
-    plugins: [{ name: "neutralino-poc-alias", setup(builder) {
+    ...(options.target === "bun" ? { naming: "index.[ext]" } : {}),
+    plugins: [{ name: "neutralino-runtime-alias", setup(builder) {
       for (const [specifier, replacement] of Object.entries(options.alias)) {
         builder.onResolve({ filter: new RegExp(`^${specifier.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`) }, () => ({ path: replacement }));
       }

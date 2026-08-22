@@ -2,7 +2,7 @@ import { render } from "preact";
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { signal } from "@preact/signals";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
@@ -43,10 +43,10 @@ type SkillSortKey = "sourceLabel" | "dps" | "damage" | "contribution" | "hits" |
 
 const state = signal<DpsAppState | undefined>(undefined);
 
-const rpc = Electroview.defineRPC<DpsAppRpc>({
+const rpc = DesktopView.defineRPC<DpsAppRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 void ensureInitialWindowSize(electroview.rpc?.request, { width: DPS_WINDOW_MINIMUM_WIDTH, height: DPS_WINDOW_MINIMUM_HEIGHT });

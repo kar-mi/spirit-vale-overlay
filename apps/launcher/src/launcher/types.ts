@@ -1,4 +1,4 @@
-import type { RPCSchema } from "electrobun";
+import type { RPCSchema } from "@svoverlay/contracts/rpc";
 import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
 import type { UiScale } from "@svoverlay/desktop-platform/ui-scale";
 import type {

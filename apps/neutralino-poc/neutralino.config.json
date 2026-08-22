@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/neutralinojs/neutralinojs/main/schemas/neutralino.config.schema.json",
-  "applicationId": "dev.spiritvale.neutralino-poc",
+  "applicationId": "dev.spiritvale.overlay",
   "version": "0.9.8",
   "defaultMode": "window",
   "port": 0,
@@ -30,7 +30,7 @@
   ],
   "modes": {
     "window": {
-      "title": "Spirit Vale Overlay — Neutralino POC",
+      "title": "Spirit Vale Overlay",
       "width": 960,
       "height": 430,
       "minWidth": 900,
@@ -49,7 +49,7 @@
     "clientVersion": "6.9.0",
     "resourcesPath": "resources",
     "extensionsPath": "extensions",
-    "binaryName": "spirit-vale-neutralino-poc",
+    "binaryName": "spirit-vale-overlay",
     "distributionPath": "dist"
   }
 }

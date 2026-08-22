@@ -1,4 +1,4 @@
-import type { RPCSchema } from "electrobun";
+import type { RPCSchema } from "@svoverlay/contracts/rpc";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 
 export type CharacterRpc = {

@@ -1,7 +1,7 @@
 import { batch, computed, signal, type Signal } from "@preact/signals";
 import { render, type ComponentChildren } from "preact";
 import { useCallback, useState } from "preact/hooks";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { formatDps, formatDuration } from "@svoverlay/ui-kit/format";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { InteractiveChart } from "@svoverlay/ui-kit/interactive-chart";
@@ -169,7 +169,7 @@ function applyControl(next: OverlayControlState): void {
   });
 }
 
-const rpc = Electroview.defineRPC<OverlayRpc>({
+const rpc = DesktopView.defineRPC<OverlayRpc>({
   handlers: { requests: {}, messages: {
     controlChanged: (next) => { applyControl(repairRendererPayload(next)); },
     characterChanged: (next) => { characterState.value = repairRendererPayload(next); },
@@ -182,7 +182,7 @@ const rpc = Electroview.defineRPC<OverlayRpc>({
     lootDropped: (next) => { pushLootToast(repairRendererPayload(next)); },
   } },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => {
   const repaired = repairRendererPayload(next);
   batch(() => {

@@ -1,6 +1,5 @@
-import { hideWindowFromTaskbar, setWindowClickThrough } from "@svoverlay/desktop-platform/win32";
 import { DisposableStore, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
-import { BrowserView, BrowserWindow } from "electrobun/bun";
+import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
 
 import type { OverlayRpc } from "../app-types.ts";
 import { displayKey, type OverlayDisplay } from "../display-layout.ts";
@@ -99,8 +98,8 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
     rpc,
   });
   window.setAlwaysOnTop(true);
-  hideWindowFromTaskbar(window.ptr);
-  setWindowClickThrough(window.ptr, controller.locked);
+  window.hideFromTaskbar();
+  window.setClickThrough(controller.locked);
   if (controller.overlayVisible) window.showInactive();
   lifecycle.add(onceWindowEvent(window, "close", () => {
     closed = true;
@@ -111,7 +110,7 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
 
   const sink: OverlaySurfaceSink = {
     display: key,
-    setClickThrough: (locked) => { if (!closed) setWindowClickThrough(window.ptr, locked); },
+    setClickThrough: (locked) => { if (!closed) window.setClickThrough(locked); },
     setVisible: (visible) => {
       if (closed) return;
       if (visible) window.showInactive();

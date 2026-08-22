@@ -1,4 +1,4 @@
-import { BrowserView, BrowserWindow } from "electrobun/bun";
+import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
 import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";

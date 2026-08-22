@@ -1,5 +1,5 @@
 import path from "node:path";
-import Electrobun, { BrowserView, BrowserWindow, Screen, Tray, Utils } from "electrobun/bun";
+import DesktopRuntime, { BrowserView, BrowserWindow, Screen, Tray, Utils } from "@svoverlay/desktop-runtime";
 import { applyRoundedCorners, makeProcessDpiAware, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/spirit-vale-tools-capture/capture";
@@ -51,7 +51,7 @@ import { HumanReadableErrorLog } from "./human-readable-error-log.ts";
 makeProcessDpiAware();
 
 const localRoot = resolveLocalRoot();
-const appVersion = (await Electrobun.Updater.getLocalInfo()).version;
+const appVersion = (await DesktopRuntime.Updater.getLocalInfo()).version;
 const storagePaths = resolveDesktopStoragePaths({
   root: localRoot,
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,

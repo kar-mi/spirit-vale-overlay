@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { useRef } from "preact/hooks";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-chrome";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
@@ -22,10 +22,10 @@ const TOOLS: Array<{ tool: ToolWindow; title: string; description: string }> = [
 ];
 
 const state = signal<LauncherState | undefined>(undefined);
-const rpc = Electroview.defineRPC<LauncherRpc>({
+const rpc = DesktopView.defineRPC<LauncherRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 
 void ensureInitialWindowSize(electroview.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });

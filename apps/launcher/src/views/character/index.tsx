@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { useRef, useState } from "preact/hooks";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-chrome";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
@@ -25,8 +25,8 @@ interface BuildSection { label: string; value: string; tone?: "active" | "muted"
 interface BuildItem { slot: string; name: string; refine: number; sections: BuildSection[]; }
 
 const state = signal<CharacterViewState | undefined>(undefined);
-const rpc = Electroview.defineRPC<CharacterRpc>({ handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } } });
-const electroview = new Electroview({ rpc });
+const rpc = DesktopView.defineRPC<CharacterRpc>({ handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } } });
+const electroview = new DesktopView({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 const CHARACTER_DEFAULT_WIDTH = 920;

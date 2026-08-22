@@ -1,7 +1,7 @@
 import { Fragment, render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
@@ -17,10 +17,10 @@ const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
 const state = signal<RewardsCatalogState | undefined>(undefined);
 
-const rpc = Electroview.defineRPC<RewardsCatalogRpc>({
+const rpc = DesktopView.defineRPC<RewardsCatalogRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 

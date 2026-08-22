@@ -39,7 +39,7 @@ export function getDisplays(): NativeDisplay[] {
 export async function configureOverlayWindow(pid: number, clickThrough: boolean): Promise<boolean> {
   let stableChecks = 0;
   for (let attempt = 0; attempt < 60; attempt += 1) {
-    const handle = findWindow(pid);
+    const handle = findWindowHandle(pid);
     if (handle) {
       hideWindowFromTaskbar(handle);
       const applied = setWindowClickThrough(handle, clickThrough);
@@ -59,7 +59,7 @@ export function setOverlayWindowVisible(
   bounds?: { x: number; y: number; width: number; height: number },
 ): boolean {
   if (process.platform !== "win32") return false;
-  const handle = findWindow(pid);
+  const handle = findWindowHandle(pid);
   if (!handle) return false;
   try {
     const user32 = dlopen("user32", {
@@ -127,7 +127,7 @@ export function overlayExtendedStylesReady(styles: number, clickThrough: boolean
   return taskbarReady && passThroughReady;
 }
 
-function findWindow(targetPid: number): Pointer | undefined {
+export function findWindowHandle(targetPid: number): Pointer | undefined {
   const user32 = dlopen("user32", {
     EnumWindows: { args: [FFIType.function, FFIType.i64_fast], returns: FFIType.bool },
     GetWindowThreadProcessId: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.u32 },

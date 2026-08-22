@@ -1,7 +1,7 @@
 import { render } from "preact";
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
@@ -75,10 +75,10 @@ const percentFormat = new Intl.NumberFormat(undefined, { style: "percent", maxim
 
 const state = signal<CombatAnalysisDetailState | undefined>(undefined);
 
-const rpc = Electroview.defineRPC<CombatAnalysisDetailRpc>({
+const rpc = DesktopView.defineRPC<CombatAnalysisDetailRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 

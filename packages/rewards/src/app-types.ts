@@ -1,4 +1,4 @@
-import type { RPCSchema } from "electrobun";
+import type { RPCSchema } from "@svoverlay/contracts/rpc";
 import type { RewardLogStatus } from "@kar-mi/spirit-vale-tools-rewards";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { MaximizableWindowChromeRequests } from "@svoverlay/contracts/window-rpc";

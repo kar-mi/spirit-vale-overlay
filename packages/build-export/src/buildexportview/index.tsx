@@ -1,6 +1,6 @@
 import { render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
@@ -14,10 +14,10 @@ const MINIMUM_WIDTH = 760;
 const MINIMUM_HEIGHT = 560;
 let setStateExternal: ((next: BuildExportState) => void) | undefined;
 
-const rpc = Electroview.defineRPC<BuildExportRpc>({
+const rpc = DesktopView.defineRPC<BuildExportRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => setStateExternal?.(repairRendererPayload(next)) } },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 void ensureInitialWindowSize(electroview.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 
 const GROUP_LABELS: Record<string, string> = { equipment: "Equipment", cards: "Cards", artifacts: "Artifacts", gems: "Gems", grimoires: "Grimoires", skills: "Skills", substats: "Substats", classes: "Classes" };

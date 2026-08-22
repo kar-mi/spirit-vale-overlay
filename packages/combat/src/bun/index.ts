@@ -1,7 +1,7 @@
 import path from "node:path";
 import { stat } from "node:fs/promises";
 
-import { BrowserView, BrowserWindow, Utils } from "electrobun/bun";
+import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
 import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 

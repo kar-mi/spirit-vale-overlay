@@ -11,7 +11,7 @@ export type ClientPacket =
   | { kind: "window-event"; event: string; data?: unknown };
 
 export type ServerPacket =
-  | { kind: "ready"; windowId: string; role: "launcher" | "overlay" }
+  | { kind: "ready"; windowId: string; role: "launcher" | "overlay" | "window" }
   | { kind: "rpc"; packet: RpcPacket }
   | { kind: "window-command"; id: number; method: string; params?: unknown }
   | { kind: "fatal"; message: string };

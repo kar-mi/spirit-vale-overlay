@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { useRef, useState } from "preact/hooks";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-chrome";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
@@ -35,10 +35,10 @@ const ALL_REGIONS = "";
 
 const state = signal<BossTimerWindowState | undefined>(undefined);
 const nowMs = signal(Date.now());
-const rpc = Electroview.defineRPC<BossTimerRpc>({
+const rpc = DesktopView.defineRPC<BossTimerRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 void ensureInitialWindowSize(electroview.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 setInterval(() => { nowMs.value = Date.now(); }, TICK_MS);

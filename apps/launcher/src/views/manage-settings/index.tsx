@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { useEffect, useRef } from "preact/hooks";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
@@ -14,10 +14,10 @@ const MINIMUM_HEIGHT = 340;
 
 const state = signal<ManageSettingsState | undefined>(undefined);
 const resetPromptOpen = signal(false);
-const rpc = Electroview.defineRPC<ManageSettingsRpc>({
+const rpc = DesktopView.defineRPC<ManageSettingsRpc>({
   handlers: { requests: {}, messages: {} },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 void ensureInitialWindowSize(electroview.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 

@@ -1,14 +1,7 @@
 import type { RpcPacket } from "./protocol.ts";
+import type { DesktopRPCSchema } from "@svoverlay/contracts/rpc";
 
-export interface RPCSchema {
-  requests: Record<string, { params: unknown; response: unknown }>;
-  messages: Record<string, unknown>;
-}
-
-export interface CombinedSchema {
-  bun: RPCSchema;
-  webview: RPCSchema;
-}
+export type CombinedSchema = DesktopRPCSchema;
 
 type Side = "bun" | "webview";
 type Other<S extends Side> = S extends "bun" ? "webview" : "bun";
@@ -21,6 +14,14 @@ type RequestProxy<S extends CombinedSchema, K extends Side> = {
 };
 type SendProxy<S extends CombinedSchema, K extends Side> = {
   [M in keyof Messages<S, Other<K>>]: (payload: Messages<S, Other<K>>[M]) => void;
+};
+type RequestHandlers<S extends CombinedSchema, K extends Side> = {
+  [M in keyof Requests<S, K>]: (
+    params: Requests<S, K>[M] extends { params: infer P } ? P : never,
+  ) => unknown;
+};
+type MessageHandlers<S extends CombinedSchema, K extends Side> = {
+  [M in keyof Messages<S, K>]: (payload: Messages<S, K>[M]) => void;
 };
 
 export interface RpcInstance<S extends CombinedSchema, K extends Side> {
@@ -41,8 +42,8 @@ export function defineRpc<Schema extends CombinedSchema, LocalSide extends Side>
   config: {
     maxRequestTime?: number;
     handlers: {
-      requests?: Record<string, (params: never) => unknown>;
-      messages?: Record<string, (payload: never) => void>;
+      requests?: Partial<RequestHandlers<Schema, LocalSide>>;
+      messages?: Partial<MessageHandlers<Schema, LocalSide>>;
     };
   },
 ) {
@@ -81,17 +82,18 @@ export function defineRpc<Schema extends CombinedSchema, LocalSide extends Side>
       return;
     }
     if (packet.type === "message") {
-      config.handlers.messages?.[packet.id]?.(packet.payload as never);
+      const handler = (config.handlers.messages as Record<string, ((payload: unknown) => void) | undefined> | undefined)?.[packet.id];
+      handler?.(packet.payload);
       return;
     }
     if (packet.type === "request") {
-      const handler = config.handlers.requests?.[packet.method];
+      const handler = (config.handlers.requests as Record<string, ((params: unknown) => unknown) | undefined> | undefined)?.[packet.method];
       if (!handler) {
         transport?.send({ type: "response", id: packet.id, success: false, error: `No handler for ${packet.method}` });
         return;
       }
       try {
-        transport?.send({ type: "response", id: packet.id, success: true, payload: await handler(packet.params as never) });
+        transport?.send({ type: "response", id: packet.id, success: true, payload: await handler(packet.params) });
       } catch (error) {
         transport?.send({ type: "response", id: packet.id, success: false, error: error instanceof Error ? error.message : String(error) });
       }

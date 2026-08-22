@@ -14,7 +14,7 @@ import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { publishSafely } from "@svoverlay/desktop-platform/window-publish";
 import { createPassThroughShortcutListener, type PassThroughShortcutListener } from "@svoverlay/desktop-platform/pass-through-shortcuts";
 import { getForegroundProcess } from "@svoverlay/desktop-platform/win32";
-import { Screen } from "electrobun/bun";
+import { Screen } from "@svoverlay/desktop-runtime";
 
 import type {
   BossTimerState,

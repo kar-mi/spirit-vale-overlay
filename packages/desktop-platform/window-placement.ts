@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { BrowserWindow, Screen } from "electrobun/bun";
+import { BrowserWindow, Screen } from "@svoverlay/desktop-runtime";
 
 import { SafeSaveQueue } from "./safe-save.ts";
 import { scaledSize, unscaledSize } from "./ui-scale-window.ts";

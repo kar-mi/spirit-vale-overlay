@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { useState } from "preact/hooks";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
@@ -9,10 +9,10 @@ import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import type { SessionPickerItem, SessionPickerRpc, SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
 
 const state = signal<SessionPickerState | undefined>(undefined);
-const rpc = Electroview.defineRPC<SessionPickerRpc>({
+const rpc = DesktopView.defineRPC<SessionPickerRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { const repaired = repairRendererPayload(next); state.value = repaired; document.title = repaired.title; } } },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => { const repaired = repairRendererPayload(next); state.value = repaired; document.title = repaired.title; });
 
 const SESSION_PICKER_DEFAULT_WIDTH = 640;

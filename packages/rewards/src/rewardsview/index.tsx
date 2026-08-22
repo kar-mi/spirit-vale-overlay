@@ -1,7 +1,7 @@
 import { Fragment, render } from "preact";
 import { useCallback, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
@@ -38,10 +38,10 @@ const timestampFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "short",
 
 const state = signal<RewardsAppState | undefined>(undefined);
 
-const rpc = Electroview.defineRPC<RewardsAppRpc>({
+const rpc = DesktopView.defineRPC<RewardsAppRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 

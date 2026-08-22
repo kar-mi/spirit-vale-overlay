@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { useState } from "preact/hooks";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
@@ -18,10 +18,10 @@ import { shortcutFromKeyboardEvent } from "./shortcut-from-keyboard-event.ts";
 
 const state = signal<SharedSettingsState | undefined>(undefined);
 const recordingAction = signal<KeybindAction | undefined>(undefined);
-const rpc = Electroview.defineRPC<LauncherSettingsRpc>({
+const rpc = DesktopView.defineRPC<LauncherSettingsRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 const SETTINGS_DEFAULT_WIDTH = 798;

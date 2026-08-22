@@ -1,5 +1,5 @@
 import { app, events, init, os, window as neutralinoWindow } from "@neutralinojs/lib";
-import type { ElectrobunRPCSchema, RPCSchema } from "electrobun";
+import type { DesktopRPCSchema } from "@svoverlay/contracts/rpc";
 
 import type { BackendReady, ClientPacket, RpcPacket, ServerPacket } from "../shared/protocol.ts";
 import { backendConnectionFromSearch } from "../shared/backend-connection.ts";
@@ -38,8 +38,8 @@ class PocTransport {
       socket.send(JSON.stringify({ kind: "hello", ticket: connection.ticket, processId } satisfies ClientPacket));
     });
     socket.addEventListener("message", (event) => void this.receive(String(event.data)));
-    socket.addEventListener("close", () => this.fail("The Neutralino POC backend disconnected."));
-    socket.addEventListener("error", () => this.fail("The Neutralino POC backend connection failed."));
+    socket.addEventListener("close", () => this.fail("The desktop backend disconnected."));
+    socket.addEventListener("error", () => this.fail("The desktop backend connection failed."));
   }
 
   private async receive(serialized: string): Promise<void> {
@@ -73,7 +73,7 @@ class PocTransport {
 
 const transport = new PocTransport();
 
-export class Electroview<T extends { setTransport(transport: PocTransport): void }> {
+export class DesktopView<T extends { setTransport(transport: PocTransport): void }> {
   readonly rpc: T;
 
   constructor(config: { rpc: T }) {
@@ -81,7 +81,7 @@ export class Electroview<T extends { setTransport(transport: PocTransport): void
     this.rpc.setTransport(transport);
   }
 
-  static defineRPC<Schema extends ElectrobunRPCSchema>(config: Parameters<typeof defineRpc<Schema, "webview">>[1]) {
+  static defineRPC<Schema extends DesktopRPCSchema>(config: Parameters<typeof defineRpc<Schema, "webview">>[1]) {
     const rpc = defineRpc<Schema, "webview">("webview", config as never) as RpcInstance<Schema, "webview">;
     const request = new Proxy(rpc.request as object, {
       get(target, property, receiver) {
@@ -114,7 +114,7 @@ async function backendConnection(): Promise<BackendReady> {
 }
 
 async function registerWindowEvents(socket: WebSocket): Promise<void> {
-  for (const eventName of ["windowClose", "windowFocus", "windowBlur", "windowMinimize", "windowRestore", "windowMaximize"]) {
+  for (const eventName of ["windowClose", "windowFocus", "windowBlur", "windowMinimize", "windowRestore", "windowMaximize", "windowMove", "windowResize"]) {
     await events.on(eventName, (event) => {
       socket.send(JSON.stringify({ kind: "window-event", event: eventName, data: event.detail } satisfies ClientPacket));
     });
@@ -131,6 +131,8 @@ async function executeWindowCommand(socket: WebSocket, id: number, method: strin
       case "focus": result = await neutralinoWindow.focus(); break;
       case "close": result = await app.exit(); break;
       case "minimize": result = await neutralinoWindow.minimize(); break;
+      case "maximize": result = await neutralinoWindow.maximize(); break;
+      case "unmaximize": result = await neutralinoWindow.unmaximize(); break;
       case "setAlwaysOnTop": result = await neutralinoWindow.setAlwaysOnTop(Boolean(value?.["enabled"])); break;
       case "setBounds": {
         await neutralinoWindow.move(Number(value?.["x"]), Number(value?.["y"]));
@@ -148,6 +150,7 @@ async function executeWindowCommand(socket: WebSocket, id: number, method: strin
         String(value?.["url"]),
         value?.["options"] as Parameters<typeof neutralinoWindow.create>[1],
       ); break;
+      case "executeJavascript": result = globalThis.eval(String(value?.["script"])); break;
       default: throw new Error(`Unknown window command: ${method}`);
     }
     socket.send(JSON.stringify({ kind: "window-result", id, result } satisfies ClientPacket));
@@ -160,5 +163,4 @@ async function executeWindowCommand(socket: WebSocket, id: number, method: strin
   }
 }
 
-export type { RPCSchema };
-export default { Electroview };
+export default { DesktopView };

@@ -1,7 +1,7 @@
 import { render } from "preact";
 import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
@@ -15,10 +15,10 @@ const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", ma
 const state = signal<CombatDeathLogState | undefined>(undefined);
 type DeathLogTab = "summary" | "list";
 
-const rpc = Electroview.defineRPC<CombatDeathLogRpc>({
+const rpc = DesktopView.defineRPC<CombatDeathLogRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
+const electroview = new DesktopView({ rpc });
 void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 const DEATH_LOG_DEFAULT_WIDTH = 900;

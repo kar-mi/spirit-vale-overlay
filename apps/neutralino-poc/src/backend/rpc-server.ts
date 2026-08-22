@@ -4,7 +4,8 @@ import type { ServerWebSocket } from "bun";
 
 export interface Session {
   readonly id: string;
-  readonly role: "launcher" | "overlay";
+  readonly role: "launcher" | "overlay" | "window";
+  readonly windowId: string;
   readonly display?: string;
   readonly processId?: number;
   send(packet: ServerPacket): void;
@@ -12,7 +13,7 @@ export interface Session {
   transport(): Transport;
 }
 
-interface Ticket { role: Session["role"]; display?: string; expiresAt: number }
+interface Ticket { role: Session["role"]; windowId: string; display?: string; expiresAt: number }
 interface SocketData { session?: SessionImpl }
 
 class SessionImpl implements Session {
@@ -23,6 +24,7 @@ class SessionImpl implements Session {
   constructor(
     readonly id: string,
     readonly role: Session["role"],
+    readonly windowId: string,
     readonly display: string | undefined,
     readonly processId: number | undefined,
     private readonly socket: ServerWebSocket<SocketData>,
@@ -88,7 +90,7 @@ export class PocRpcServer {
             const processId = Number.isInteger(packet.processId) && Number(packet.processId) > 0
               ? Number(packet.processId)
               : undefined;
-            const session = new SessionImpl(crypto.randomUUID(), ticket.role, ticket.display, processId, socket);
+            const session = new SessionImpl(crypto.randomUUID(), ticket.role, ticket.windowId, ticket.display, processId, socket);
             socket.data.session = session;
             this.sessions.set(session.id, session);
             session.send({ kind: "ready", windowId: session.id, role: session.role });
@@ -112,7 +114,13 @@ export class PocRpcServer {
   get port(): number { return this.server.port ?? 0; }
   issue(role: Ticket["role"], display?: string): string {
     const ticket = crypto.randomUUID();
-    this.tickets.set(ticket, { role, display, expiresAt: Date.now() + 60_000 });
+    const windowId = role === "overlay" && display ? `overlay:${display}` : role;
+    this.tickets.set(ticket, { role, windowId, display, expiresAt: Date.now() + 60_000 });
+    return ticket;
+  }
+  issueWindow(windowId: string): string {
+    const ticket = crypto.randomUUID();
+    this.tickets.set(ticket, { role: windowId === "launcher" ? "launcher" : "window", windowId, expiresAt: Date.now() + 60_000 });
     return ticket;
   }
   stop(): void {

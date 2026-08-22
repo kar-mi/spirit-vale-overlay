@@ -8,6 +8,11 @@
     "module": "ESNext",
     "moduleDetection": "force",
     "moduleResolution": "bundler",
+    "paths": {
+      "@svoverlay/contracts/rpc": ["./packages/contracts/rpc.ts"],
+      "@svoverlay/desktop-runtime": ["./apps/neutralino-poc/src/frontend/neutralino-bun-shim.ts"],
+      "@svoverlay/desktop-runtime/view": ["./apps/neutralino-poc/src/frontend/electroview-shim.ts"]
+    },
     "noEmit": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,

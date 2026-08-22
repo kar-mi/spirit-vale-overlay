@@ -1,4 +1,4 @@
-import type { RPCSchema } from "electrobun";
+import type { RPCSchema } from "@svoverlay/contracts/rpc";
 import type { SpiritValeLocation } from "./location.ts";
 
 export interface SessionPickerItem {
