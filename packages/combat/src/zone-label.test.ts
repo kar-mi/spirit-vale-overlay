@@ -7,6 +7,7 @@ test("formats known and unknown map IDs", () => {
   expect(formatZone({ kind: "map", mapId: 48 })).toBe("The Echoing Spire");
   expect(formatZone({ kind: "map", mapId: 999 })).toBe("Zone 999");
   expect(formatZone({ kind: "eternalTower", floor: 12 })).toBe("Eternal Tower - Floor 12");
+  expect(formatZone({ kind: "eternalTower" })).toBe("Eternal Tower");
 });
 
 test("summarizes a session from its latest distinct zone", () => {

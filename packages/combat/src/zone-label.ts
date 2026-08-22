@@ -24,9 +24,8 @@ const MAP_NAMES: Readonly<Record<number, string>> = {
 };
 
 export function formatZone(location: SpiritValeLocation): string {
-  return location.kind === "eternalTower"
-    ? `Eternal Tower - Floor ${location.floor}`
-    : MAP_NAMES[location.mapId] ?? `Zone ${location.mapId}`;
+  if (location.kind !== "eternalTower") return MAP_NAMES[location.mapId] ?? `Zone ${location.mapId}`;
+  return location.floor === undefined ? "Eternal Tower" : `Eternal Tower - Floor ${location.floor}`;
 }
 
 export function formatZoneSummary(locations: readonly SpiritValeLocation[]): string | undefined {

@@ -7,6 +7,7 @@ import {
   locationFromLogData,
   readCombatLocations,
   TOWER_FLOOR_EVENT_SOURCE_PREFIX,
+  TOWER_FLOOR_UNKNOWN_SUFFIX,
   ZONE_EVENT_SOURCE_PREFIX,
 } from "./zone-log.ts";
 
@@ -45,6 +46,8 @@ test("accepts only a valid zone marker", () => {
     .toEqual({ kind: "map", mapId: 17 });
   expect(locationFromLogData({ kind: "activation", sourceId: `${TOWER_FLOOR_EVENT_SOURCE_PREFIX}8` }))
     .toEqual({ kind: "eternalTower", floor: 8 });
+  expect(locationFromLogData({ kind: "activation", sourceId: `${TOWER_FLOOR_EVENT_SOURCE_PREFIX}${TOWER_FLOOR_UNKNOWN_SUFFIX}` }))
+    .toEqual({ kind: "eternalTower" });
   expect(locationFromLogData({ kind: "activation", sourceId: `${ZONE_EVENT_SOURCE_PREFIX}-1` })).toBeUndefined();
   expect(locationFromLogData({ kind: "damage", sourceId: `${ZONE_EVENT_SOURCE_PREFIX}17` })).toBeUndefined();
 });
