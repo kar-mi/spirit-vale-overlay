@@ -8,14 +8,14 @@
     "build:stable": "electrobun build --env=stable"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-capture": "1.8.0",
-    "@kar-mi/spirit-vale-tools-character": "0.4.2",
-    "@kar-mi/spirit-vale-tools-combat": "3.3.1",
-    "@kar-mi/spirit-vale-tools-items": "0.1.6",
+    "@kar-mi/spirit-vale-tools-capture": "2.0.0",
+    "@kar-mi/spirit-vale-tools-character": "0.4.3",
+    "@kar-mi/spirit-vale-tools-combat": "3.3.2",
+    "@kar-mi/spirit-vale-tools-items": "0.1.8",
     "@kar-mi/spirit-vale-tools-logging": "0.8.0",
     "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
-    "@kar-mi/spirit-vale-tools-rewards": "1.2.0",
-    "@kar-mi/spirit-vale-tools-skills": "0.2.0",
+    "@kar-mi/spirit-vale-tools-rewards": "1.2.1",
+    "@kar-mi/spirit-vale-tools-skills": "0.2.1",
     "@kar-mi/spirit-vale-tools-sqlite": "0.1.5",
     "@preact/signals": "^2.9.4",
     "@svoverlay/build-export": "workspace:*",
@@ -25,9 +25,7 @@
     "@svoverlay/overlay": "workspace:*",
     "@svoverlay/rewards": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*",
-    "preact": "^10.29.7"
-  },
-  "devDependencies": {
+    "preact": "^10.29.7",
     "electrobun": "1.18.1"
   }
 }

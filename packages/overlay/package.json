@@ -11,11 +11,12 @@
     "./rarity": "./src/rarity.ts"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-character": "0.4.2",
-    "@kar-mi/spirit-vale-tools-combat": "3.3.1",
+    "@kar-mi/spirit-vale-tools-character": "0.4.3",
+    "@kar-mi/spirit-vale-tools-combat": "3.3.2",
     "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
-    "@kar-mi/spirit-vale-tools-rewards": "1.2.0",
-    "@kar-mi/spirit-vale-tools-statuses": "0.2.2",
+    "@kar-mi/spirit-vale-tools-rewards": "1.2.1",
+    "@kar-mi/spirit-vale-tools-statuses": "0.2.3",
+    "@kar-mi/spirit-vale-tools-skills": "0.2.1",
     "@preact/signals": "^2.9.4",
     "@svoverlay/combat": "workspace:*",
     "@svoverlay/desktop-platform": "workspace:*",
@@ -23,8 +24,5 @@
     "@svoverlay/ui-kit": "workspace:*",
     "electrobun": "1.18.1",
     "preact": "^10.29.7"
-  },
-  "devDependencies": {
-    "@kar-mi/spirit-vale-tools-skills": "0.2.0"
   }
 }
