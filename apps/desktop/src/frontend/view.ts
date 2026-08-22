@@ -15,6 +15,7 @@ class DesktopTransport {
   constructor() {
     init();
     void this.connect();
+    void settleInitialWindowSize();
   }
 
   send(packet: RpcPacket): void {
@@ -113,6 +114,17 @@ export class DesktopView<T extends { setTransport(transport: DesktopTransport): 
     }) as typeof rpc.request;
     return { ...rpc, request, proxy: { ...rpc.proxy, request } } as RpcInstance<Schema, "webview">;
   }
+}
+
+async function settleInitialWindowSize(): Promise<void> {
+  // WebView2's internal control bounds can initialize slightly out of sync with the
+  // actual native window size, leaving the initial render wrong until any resize forces
+  // a relayout. Nudge the size once, right after load, to force that relayout up front.
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  const size = await neutralinoWindow.getSize().catch(() => undefined);
+  if (size?.width == null || size.height == null) return;
+  await neutralinoWindow.setSize({ width: size.width, height: size.height + 1 }).catch(() => {});
+  await neutralinoWindow.setSize({ width: size.width, height: size.height }).catch(() => {});
 }
 
 async function backendConnection(): Promise<BackendReady> {
