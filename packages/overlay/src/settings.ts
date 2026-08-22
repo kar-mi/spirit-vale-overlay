@@ -1,7 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
-import { loadJsonSettings } from "@svoverlay/desktop-platform/json-settings";
+import { loadJsonSettings, writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
 
 import {
   KEYBIND_ACTIONS,
@@ -115,8 +114,7 @@ export async function loadOverlaySettings(
 
 export async function saveOverlaySettings(settings: OverlaySettings, settingsPath?: string): Promise<void> {
   const target = await resolveSettingsPath(settingsPath);
-  await mkdir(path.dirname(target), { recursive: true });
-  await writeFile(target, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  await writeJsonFileAtomic(target, settings);
 }
 
 /**

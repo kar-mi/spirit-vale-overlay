@@ -1,5 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { writeJsonFileAtomic } from "./json-settings.ts";
 import { isSpiritValeLocation, type SpiritValeLocation } from "./location.ts";
 
 interface CachedSessionSummary {
@@ -48,10 +49,7 @@ export async function loadSessionSummaryCache(cachePath: string): Promise<Sessio
     },
     async save() {
       const file: SummaryCacheFile = { schemaVersion: 3, entries };
-      await mkdir(path.dirname(cachePath), { recursive: true });
-      const temporary = `${cachePath}.${crypto.randomUUID()}.tmp`;
-      await writeFile(temporary, JSON.stringify(file), "utf8");
-      await rename(temporary, cachePath);
+      await writeJsonFileAtomic(cachePath, file, { pretty: false, uniqueTemp: true });
     },
   };
 }

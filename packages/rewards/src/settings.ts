@@ -1,8 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
 import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
-import { loadJsonSettings } from "@svoverlay/desktop-platform/json-settings";
+import { loadJsonSettings, writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
 import type { RewardsAppView } from "./app-types.ts";
 
 export interface RewardsAppSettings {
@@ -39,8 +38,7 @@ export async function loadRewardsSettings(settingsPath = defaultSettingsPath): P
 }
 
 export async function saveRewardsSettings(settings: RewardsAppSettings, settingsPath = defaultSettingsPath): Promise<void> {
-  await mkdir(path.dirname(settingsPath), { recursive: true });
-  await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  await writeJsonFileAtomic(settingsPath, settings);
 }
 
 function validFrame(value: unknown): value is RewardsAppSettings["frame"] {

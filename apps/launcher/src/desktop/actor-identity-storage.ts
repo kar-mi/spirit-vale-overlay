@@ -1,6 +1,7 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
+import { writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
 
 const defaultFile = path.join(resolveLocalStorageRoot(), "data", "actor-identities.json");
 
@@ -62,10 +63,7 @@ export async function saveActorIdentityCache(cache: ActorIdentityCache, file = d
     cacheVersion: 1,
     entries: [...cache.entries.values()].map(sanitizeEntry),
   };
-  const temporary = `${file}.tmp`;
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(temporary, `${JSON.stringify(safe, null, 2)}\n`, "utf8");
-  await rename(temporary, file);
+  await writeJsonFileAtomic(file, safe);
 }
 
 /**

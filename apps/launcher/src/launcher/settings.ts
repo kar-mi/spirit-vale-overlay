@@ -1,9 +1,8 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { normalizeUiScale, type UiScale } from "@svoverlay/desktop-platform/ui-scale";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
-import { loadJsonSettings } from "@svoverlay/desktop-platform/json-settings";
+import { loadJsonSettings, writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
 
 export interface LauncherSettings {
   captureAdapter: "auto" | string;
@@ -46,8 +45,7 @@ export async function loadLauncherSettings(file = defaultSettingsFile()): Promis
 }
 
 export async function saveLauncherSettings(settings: LauncherSettings, file = defaultSettingsFile()): Promise<void> {
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  await writeJsonFileAtomic(file, settings);
 }
 
 function defaultSettingsFile(): string {
