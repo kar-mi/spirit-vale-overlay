@@ -73,6 +73,16 @@ function App() {
         {next?.update && <UpdateNotification version={next.update.version} />}
 
         <div class="tool-grid" aria-label="Spirit Vale tools">
+          {next?.appVersion.includes("neutralino-poc") && (
+            <button
+              class="tool-button"
+              type="button"
+              onClick={() => void electroview.rpc?.request.openTool({ tool: "overlay" })}
+            >
+              <strong>Enable Overlay POC</strong>
+              <span>Start the transparent Neutralino overlay windows</span>
+            </button>
+          )}
           {TOOLS.map(({ tool, title, description }) => (
             <button
               key={tool}

@@ -122,6 +122,7 @@ export interface OverlayControllerOptions {
   onLiveLogPathChanged?: (path: string | undefined) => void;
   onSettingsStateChanged?: (state: OverlaySettingsState) => void;
   onSurfacesChanged?: () => void | Promise<void>;
+  isAppProcess?: (processId: number) => boolean;
 }
 
 export interface OverlaySurfaceSink {
@@ -665,8 +666,14 @@ export async function createOverlayController(options: OverlayControllerOptions)
     applyFocusVisibility(reconcileAutoHide(
       { visible: overlayVisible, manualHideEngaged, autoHidden },
       enabled,
-      classifyForegroundProcess(getForegroundProcess(), process.pid),
+      classifyForeground(),
     ));
+  }
+
+  function classifyForeground() {
+    const foreground = getForegroundProcess();
+    if (foreground && options.isAppProcess?.(foreground.pid)) return "app" as const;
+    return classifyForegroundProcess(foreground, process.pid);
   }
 
   function applyFocusVisibility(next: FocusVisibilityState): void {
@@ -699,7 +706,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
   function handleShortcut(action: KeybindAction | "lockOnEscape"): void {
     if (shuttingDown || shortcutsSuspended) return;
     if (action !== "lockOnEscape" && settings.keybindsRequireGameFocus) {
-      const foreground = classifyForegroundProcess(getForegroundProcess(), process.pid);
+      const foreground = classifyForeground();
       if (!permitsGameKeybind(foreground)) return;
     }
     if (action === "lockOnEscape") {

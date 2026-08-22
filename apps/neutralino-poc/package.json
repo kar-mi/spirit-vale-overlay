@@ -1,0 +1,26 @@
+{
+  "name": "@svoverlay/neutralino-poc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare": "bun run src/build.ts",
+    "update": "neu update",
+    "dev": "bun run prepare && neu build && bun run src/dev.ts",
+    "build": "bun run prepare && neu build --release",
+    "package": "bun run build && bun run src/package-portable.ts",
+    "test": "bun test src"
+  },
+  "dependencies": {
+    "@kar-mi/spirit-vale-tools-capture": "1.9.0",
+    "@neutralinojs/lib": "6.9.0",
+    "@svoverlay/contracts": "workspace:*",
+    "@svoverlay/desktop-platform": "workspace:*",
+    "@svoverlay/overlay": "workspace:*",
+    "@svoverlay/ui-kit": "workspace:*",
+    "electrobun": "1.18.1",
+    "preact": "^10.29.7"
+  },
+  "devDependencies": {
+    "@neutralinojs/neu": "11.7.2"
+  }
+}
