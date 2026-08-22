@@ -12,11 +12,13 @@ import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import {
   bossDueAtMs,
   bossEligibleAtMs,
+  bossRegionLabel,
   bossRegionsPresent,
   bossTimerPhase,
   bossTimerRegion,
+  formatBossClock,
+  formatBossCountdown,
   isOwnBossKill,
-  UNKNOWN_BOSS_REGION,
 } from "@svoverlay/contracts/boss-timers";
 import type { BossTimerPhase } from "@svoverlay/contracts/boss-timers";
 import {
@@ -56,7 +58,6 @@ const LOOT_TOAST_LIFETIME_MS = 3_000;
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 const MIN_ELEMENT_WIDTH = 160;
 const MIN_ELEMENT_HEIGHT = 100;
 const MIN_BAR_HEIGHT = 24;
@@ -1140,10 +1141,6 @@ function BossTimersElement(
   );
 }
 
-function bossRegionLabel(region: string): string {
-  return region === UNKNOWN_BOSS_REGION ? UNKNOWN_BOSS_REGION : region.toUpperCase();
-}
-
 /** The most urgent phase a region is holding, so a tab marks itself while it is not being shown. */
 function bossRegionAlert(
   timers: readonly BossTimer[],
@@ -1203,28 +1200,19 @@ function bossTimerStatus(
   if (phase === "waiting") {
     return {
       status: `in ${formatBossCountdown(bossEligibleAtMs(timer) - nowMs)}`,
-      description: `can spawn from ${clockTime(bossEligibleAtMs(timer))}`,
+      description: `can spawn from ${formatBossClock(bossEligibleAtMs(timer))}`,
     };
   }
   if (phase === "window") {
     return {
       status: `spawnable ${formatBossCountdown(bossDueAtMs(timer) - nowMs)}`,
-      description: `eligible to spawn now, guaranteed by ${clockTime(bossDueAtMs(timer))}`,
+      description: `eligible to spawn now, guaranteed by ${formatBossClock(bossDueAtMs(timer))}`,
     };
   }
   return {
     status: "spawned",
-    description: `must have spawned by now (window closed at ${clockTime(bossDueAtMs(timer))})`,
+    description: `must have spawned by now (window closed at ${formatBossClock(bossDueAtMs(timer))})`,
   };
-}
-
-/** Boss countdowns always render as m:ss (up to 90:00), clamped so a stale tick never shows negative. */
-function formatBossCountdown(remainingMs: number): string {
-  return formatDuration(Math.max(0, remainingMs));
-}
-
-function clockTime(atMs: number): string {
-  return timeFormat.format(atMs);
 }
 
 interface RadarDot extends OverlayMinimapLootDrop {

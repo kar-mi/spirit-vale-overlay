@@ -845,6 +845,10 @@ export class CaptureCoordinator {
       handled = this.consumeGravestone(packet) || handled;
       if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
         this.loggedMobIdentities.clear();
+        // Object ids are scoped to the connection; a re-authentication makes every earlier entry
+        // stale, so clearing here (rather than only on a full stop) keeps this bounded across a
+        // long session's worth of channel/map changes.
+        this.reportedGravestones.clear();
       }
       const identities = this.actors.consume(packet);
       if (this.minimapEnabled() && this.positions.consume(packet).length > 0) this.scheduleMinimapPublish();

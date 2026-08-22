@@ -16,8 +16,14 @@
 
 /** Strings the marker shows, in payload order. */
 const GRAVESTONE_STRINGS = 3;
-/** Nothing the marker displays is longer than this; a larger length means the offset is wrong. */
-const MAX_STRING_BYTES = 64;
+/**
+ * Nothing the marker displays is longer than this; a larger length means the offset is wrong.
+ *
+ * Set well above any plausible display name so a long and/or multi-byte (e.g. CJK) killer name
+ * cannot make a real gravestone fail to decode — that failure is silent, so erring high here costs
+ * only a slightly wider scan window, not a stranded timer.
+ */
+const MAX_STRING_BYTES = 256;
 /**
  * How stale a gravestone's death time may be and still be believed. The marker outlives the boss's
  * 90-minute cycle, so this only rejects a reading that cannot be a time of death at all.

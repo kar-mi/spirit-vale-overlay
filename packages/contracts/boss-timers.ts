@@ -8,6 +8,8 @@
  * death re-anchors that timer to the new time of death.
  */
 
+import { formatDuration } from "@svoverlay/ui-kit/format";
+
 /** How long after dying a boss is ineligible to spawn. */
 export const BOSS_ELIGIBLE_AFTER_MS = 60 * 60_000;
 /** Length of the spawn window that starts once the boss becomes eligible. */
@@ -95,6 +97,29 @@ export const UNKNOWN_BOSS_REGION = "?";
 /** The region a timer is filed under, including the placeholder for one never observed. */
 export function bossTimerRegion(timer: Pick<BossTimer, "region">): string {
   return timer.region ?? UNKNOWN_BOSS_REGION;
+}
+
+/**
+ * Region as shown to the player: a known region uppercased, e.g. `na` to `NA`.
+ *
+ * `unknownLabel` lets a surface spell out the placeholder differently — a compact tile keeps the
+ * bare {@link UNKNOWN_BOSS_REGION} glyph, a fuller view can afford to say "Unknown" — without
+ * duplicating the uppercasing rule itself.
+ */
+export function bossRegionLabel(region: string, unknownLabel: string = UNKNOWN_BOSS_REGION): string {
+  return region === UNKNOWN_BOSS_REGION ? unknownLabel : region.toUpperCase();
+}
+
+/** Boss countdowns always render as m:ss (up to 90:00), clamped so a stale tick never shows negative. */
+export function formatBossCountdown(remainingMs: number): string {
+  return formatDuration(Math.max(0, remainingMs));
+}
+
+const bossClockFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+
+/** An absolute time as shown on a boss timer, e.g. `4:05 PM`. */
+export function formatBossClock(atMs: number): string {
+  return bossClockFormat.format(atMs);
 }
 
 /** Regions holding at least one timer, in the order regions are offered to the player. */
