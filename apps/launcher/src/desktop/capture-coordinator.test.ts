@@ -1923,15 +1923,7 @@ function gravestonePacket(
   mobId: string,
   connectionId?: string,
 ): TestPacket {
-  const header = Buffer.alloc(36);
-  const died = Buffer.alloc(8);
-  died.writeDoubleLE(diedAtMs / 1_000, 0);
-  const strings = [killedBy, bossName, mobId].map((text) => {
-    const bytes = Buffer.from(text, "utf8");
-    // Zigzag varint length, small enough here to always be one byte.
-    return Buffer.concat([Buffer.from([bytes.length << 1]), bytes]);
-  });
-  const payload = Buffer.concat([header, died, ...strings]);
+  const payload = Buffer.alloc(0);
   return {
     tick,
     packetId: 5,
@@ -1939,6 +1931,18 @@ function gravestonePacket(
     objectId,
     raw: payload,
     payload,
+    spawnSyncEntries: [{
+      componentIndex: 0,
+      networkBehaviourType: "BossGraveStone",
+      index: 0,
+      name: "_killInfo",
+      fields: [
+        { name: "KillTime", codec: "float64", value: diedAtMs / 1_000 },
+        { name: "KillerName", codec: "stringUtf8Packed", value: killedBy },
+        { name: "BossName", codec: "stringUtf8Packed", value: bossName },
+        { name: "BossId", codec: "stringUtf8Packed", value: mobId },
+      ],
+    }],
     ...(connectionId === undefined ? {} : { connectionId }),
   };
 }
