@@ -328,7 +328,7 @@ export class CaptureCoordinator {
    */
   private consumeGravestone(packet: CapturedFishNetPacket): boolean {
     if (packet.packetName !== "objectSpawn" || packet.objectId === undefined) return false;
-    const gravestone = decodeBossGravestone(packet.payload, Date.now());
+    const gravestone = decodeBossGravestone(packet);
     if (!gravestone) return false;
     const fingerprint = [
       gravestone.mobId,
