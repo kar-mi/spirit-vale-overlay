@@ -34,7 +34,7 @@ import type {
 } from "@kar-mi/spirit-vale-tools-logging";
 import { FishNetLootDropTracker, FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
 import type { FishNetLootDrop, FishNetLootDropEvent } from "@kar-mi/spirit-vale-tools-rewards";
-import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
+import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, TOWER_FLOOR_UNKNOWN_SUFFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
 import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
@@ -1109,7 +1109,7 @@ export class CaptureCoordinator {
 
   private effectiveLocation(): SpiritValeLocation | undefined {
     const tower = this.tower.current();
-    if (tower.inTower && tower.floor !== undefined) return { kind: "eternalTower", floor: tower.floor };
+    if (tower.inTower) return { ...(tower.floor === undefined ? {} : { floor: tower.floor }), kind: "eternalTower" };
     return this.lastObservedMapId === undefined ? undefined : { kind: "map", mapId: this.lastObservedMapId };
   }
 
@@ -1121,10 +1121,10 @@ export class CaptureCoordinator {
       actorId: 0,
       sourceId: location.kind === "map"
         ? `${ZONE_EVENT_SOURCE_PREFIX}${location.mapId}`
-        : `${TOWER_FLOOR_EVENT_SOURCE_PREFIX}${location.floor}`,
+        : `${TOWER_FLOOR_EVENT_SOURCE_PREFIX}${location.floor ?? TOWER_FLOOR_UNKNOWN_SUFFIX}`,
       sourceLabel: location.kind === "map"
         ? `Zone ${location.mapId}`
-        : `Eternal Tower - Floor ${location.floor}`,
+        : location.floor === undefined ? "Eternal Tower" : `Eternal Tower - Floor ${location.floor}`,
     });
   }
 
