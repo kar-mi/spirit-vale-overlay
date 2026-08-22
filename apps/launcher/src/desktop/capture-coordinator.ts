@@ -15,7 +15,7 @@ import type {
 import { FishNetInspectRoster, resolveCharacterHealingTraits } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterSnapshot, CharacterViewState, InspectedCharacter } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
-import { FishNetEternalTowerTracker } from "@kar-mi/spirit-vale-tools-capture";
+import { decodeBossGravestone, FishNetEternalTowerTracker } from "@kar-mi/spirit-vale-tools-capture";
 import type { CapturedFishNetPacket, CapturedLiteNetLibPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
 import {
   activateLogSession,
@@ -38,7 +38,6 @@ import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, TOWER_FLOOR_UNKNOWN_SUFFIX, ZONE_EVENT
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
 import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
-import { decodeBossGravestone } from "./boss-gravestone.ts";
 import type { BossGravestoneObservation } from "./boss-timer-coordinator.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
 import { RewardEventAttributor } from "./reward-event-attributor.ts";
@@ -329,7 +328,7 @@ export class CaptureCoordinator {
    */
   private consumeGravestone(packet: CapturedFishNetPacket): boolean {
     if (packet.packetName !== "objectSpawn" || packet.objectId === undefined) return false;
-    const gravestone = decodeBossGravestone(packet.payload, Date.now());
+    const gravestone = decodeBossGravestone(packet);
     if (!gravestone) return false;
     const fingerprint = [
       gravestone.mobId,
