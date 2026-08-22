@@ -18,7 +18,6 @@
     "@svoverlay/desktop-platform": "workspace:*",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*",
-    "electrobun": "1.18.1",
     "preact": "^10.29.7"
   }
 }

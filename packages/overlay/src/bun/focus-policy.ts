@@ -13,20 +13,21 @@ const GAME_PROCESS_NAME = "spiritvale.exe";
 export function classifyForegroundProcess(
   foreground: ForegroundProcess | undefined,
   ownPid: number,
+  isAppProcess?: (processId: number) => boolean,
 ): ForegroundKind {
   if (!foreground) return "unknown";
-  if (foreground.pid === ownPid) return "app";
+  if (foreground.pid === ownPid || isAppProcess?.(foreground.pid)) return "app";
   if (!foreground.exeName) return "unknown";
   return foreground.exeName.toLowerCase() === GAME_PROCESS_NAME ? "game" : "other";
+}
+
+export function autoHideEnabledForMode(configured: boolean, locked: boolean): boolean {
+  return configured && locked;
 }
 
 export function visibilityForForeground(kind: ForegroundKind): boolean | undefined {
   if (kind === "unknown") return undefined;
   return kind === "game" || kind === "app";
-}
-
-export function permitsGameKeybind(kind: ForegroundKind): boolean {
-  return kind === "game";
 }
 
 export function manuallySetVisibility(visible: boolean): FocusVisibilityState {

@@ -1,0 +1,8 @@
+/.tmp/
+/.neutralino-backend-owner.json
+/neutralino-backend.log
+/backend/
+/bin/
+/dist/
+/extensions/
+/resources/

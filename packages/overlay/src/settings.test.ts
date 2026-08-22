@@ -276,40 +276,34 @@ describe("overlay settings", () => {
     expect(defaultOverlaySettings(displays).requiredStatuses).toEqual({ buffs: [], toggles: [] });
   });
 
-  test("defaults auto-hide to on and require-focus to off", () => {
+  test("defaults auto-hide to on", () => {
     const settings = defaultOverlaySettings(displays);
     expect(settings.autoHideWhenUnfocused).toBe(true);
-    expect(settings.keybindsRequireGameFocus).toBe(false);
   });
 
-  test("normalizes focus-aware settings without replacing schema-four customizations", () => {
+  test("normalizes auto-hide without replacing schema-four customizations", () => {
     const settings = normalizeOverlaySettings({
       schemaVersion: 4,
       locked: true,
       autoHideWhenUnfocused: true,
-      keybindsRequireGameFocus: true,
     }, displays);
 
     expect(settings.locked).toBe(true);
     expect(settings.autoHideWhenUnfocused).toBe(true);
-    expect(settings.keybindsRequireGameFocus).toBe(true);
     expect(normalizeOverlaySettings({
       schemaVersion: 5,
       autoHideWhenUnfocused: "yes",
-      keybindsRequireGameFocus: 1,
-    }, displays)).toMatchObject({ autoHideWhenUnfocused: true, keybindsRequireGameFocus: false });
+    }, displays)).toMatchObject({ autoHideWhenUnfocused: true });
   });
 
-  test("round-trips focus-aware settings", async () => {
+  test("round-trips auto-hide settings", async () => {
     const settingsPath = await createSettingsPath();
     const settings = defaultOverlaySettings(displays);
     settings.autoHideWhenUnfocused = true;
-    settings.keybindsRequireGameFocus = true;
     await saveOverlaySettings(settings, settingsPath);
 
     expect(await loadOverlaySettings(settingsPath, displays)).toMatchObject({
       autoHideWhenUnfocused: true,
-      keybindsRequireGameFocus: true,
     });
   });
 

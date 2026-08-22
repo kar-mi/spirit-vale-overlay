@@ -1,0 +1,55 @@
+{
+  "$schema": "https://raw.githubusercontent.com/neutralinojs/neutralinojs/main/schemas/neutralino.config.schema.json",
+  "applicationId": "dev.spiritvale.overlay",
+  "version": "0.9.8",
+  "defaultMode": "window",
+  "port": 0,
+  "enableServer": true,
+  "enableNativeAPI": true,
+  "enableExtensions": true,
+  "tokenSecurity": "one-time",
+  "url": "/views/launcherview/index.html",
+  "documentRoot": "/resources/",
+  "nativeAllowList": [
+    "app.*",
+    "computer.*",
+    "events.*",
+    "extensions.*",
+    "os.execCommand",
+    "os.open",
+    "os.openFile",
+    "os.setTray",
+    "os.showMessageBox",
+    "window.*"
+  ],
+  "extensions": [
+    {
+      "id": "dev.spiritvale.backend",
+      "commandWindows": "${NL_PATH}/extensions/bin/bun.exe ${NL_PATH}/extensions/backend/index.js"
+    }
+  ],
+  "modes": {
+    "window": {
+      "title": "Spirit Vale Overlay",
+      "width": 960,
+      "height": 430,
+      "minWidth": 900,
+      "minHeight": 430,
+      "borderless": true,
+      "resizable": true,
+      "exitProcessOnClose": true,
+      "injectGlobals": true,
+      "injectClientLibrary": false,
+      "useLogicalPixels": false,
+      "icon": "/resources/views/assets/app-icon.png"
+    }
+  },
+  "cli": {
+    "binaryVersion": "6.9.0",
+    "clientVersion": "6.9.0",
+    "resourcesPath": "resources",
+    "extensionsPath": "extensions",
+    "binaryName": "spirit-vale-overlay",
+    "distributionPath": "dist"
+  }
+}

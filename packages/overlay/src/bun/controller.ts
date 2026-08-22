@@ -14,7 +14,7 @@ import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { publishSafely } from "@svoverlay/desktop-platform/window-publish";
 import { createPassThroughShortcutListener, type PassThroughShortcutListener } from "@svoverlay/desktop-platform/pass-through-shortcuts";
 import { getForegroundProcess } from "@svoverlay/desktop-platform/win32";
-import { Screen } from "electrobun/bun";
+import { Screen } from "@svoverlay/desktop-runtime";
 
 import type {
   BossTimerState,
@@ -59,9 +59,9 @@ import {
   type OverlaySettings,
 } from "../settings.ts";
 import {
+  autoHideEnabledForMode,
   classifyForegroundProcess,
   manuallySetVisibility,
-  permitsGameKeybind,
   reconcileAutoHide,
   type FocusVisibilityState,
 } from "./focus-policy.ts";
@@ -122,6 +122,7 @@ export interface OverlayControllerOptions {
   onLiveLogPathChanged?: (path: string | undefined) => void;
   onSettingsStateChanged?: (state: OverlaySettingsState) => void;
   onSurfacesChanged?: () => void | Promise<void>;
+  isAppProcess?: (processId: number) => boolean;
 }
 
 export interface OverlaySurfaceSink {
@@ -274,7 +275,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     relayDragPreview,
     setOverlayVisible: setOverlayVisibleManually,
     setAutoHideWhenUnfocused,
-    setKeybindsRequireGameFocus,
     setShortcut,
     resetShortcutsToDefaults,
     setShortcutCapture,
@@ -368,7 +368,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
       requiredStatuses: control.requiredStatuses,
       personalDpsMode: control.personalDpsMode,
       autoHideWhenUnfocused: settings.autoHideWhenUnfocused,
-      keybindsRequireGameFocus: settings.keybindsRequireGameFocus,
       minimapRarityFilter: settings.minimapRarityFilter,
       minimapLootChanceFilter: settings.minimapLootChanceFilter,
     };
@@ -493,6 +492,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function updateLocked(locked: boolean): void {
     settings.locked = locked;
+    reconcileFocusVisibility(autoHideEnabledForMode(settings.autoHideWhenUnfocused, locked));
     scheduleClickThroughUpdate();
     persist();
     publishControl();
@@ -642,22 +642,14 @@ export async function createOverlayController(options: OverlayControllerOptions)
     const previousVisibility = overlayVisible;
     settings = { ...settings, autoHideWhenUnfocused: enabled };
     persist();
-    reconcileFocusVisibility(enabled);
+    reconcileFocusVisibility(autoHideEnabledForMode(enabled, settings.locked));
     // A visibility transition publishes both control and launcher settings state itself.
     if (overlayVisible === previousVisibility) publishControl();
     return controlState();
   }
 
-  function setKeybindsRequireGameFocus(enabled: boolean): OverlayControlState {
-    if (settings.keybindsRequireGameFocus === enabled) return controlState();
-    settings = { ...settings, keybindsRequireGameFocus: enabled };
-    persist();
-    publishControl();
-    return controlState();
-  }
-
   function checkAutoHide(): void {
-    if (shuttingDown || !settings.autoHideWhenUnfocused || manualHideEngaged) return;
+    if (shuttingDown || !autoHideEnabledForMode(settings.autoHideWhenUnfocused, settings.locked) || manualHideEngaged) return;
     reconcileFocusVisibility(true);
   }
 
@@ -665,8 +657,13 @@ export async function createOverlayController(options: OverlayControllerOptions)
     applyFocusVisibility(reconcileAutoHide(
       { visible: overlayVisible, manualHideEngaged, autoHidden },
       enabled,
-      classifyForegroundProcess(getForegroundProcess(), process.pid),
+      classifyForeground(),
     ));
+  }
+
+  function classifyForeground() {
+    const foreground = getForegroundProcess();
+    return classifyForegroundProcess(foreground, process.pid, options.isAppProcess);
   }
 
   function applyFocusVisibility(next: FocusVisibilityState): void {
@@ -698,10 +695,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function handleShortcut(action: KeybindAction | "lockOnEscape"): void {
     if (shuttingDown || shortcutsSuspended) return;
-    if (action !== "lockOnEscape" && settings.keybindsRequireGameFocus) {
-      const foreground = classifyForegroundProcess(getForegroundProcess(), process.pid);
-      if (!permitsGameKeybind(foreground)) return;
-    }
     if (action === "lockOnEscape") {
       if (!settings.locked) updateLocked(true);
     } else if (action === "toggleLock") updateLocked(!settings.locked);

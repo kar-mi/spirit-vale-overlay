@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
 
-import { BrowserView, BrowserWindow, Utils } from "electrobun/bun";
+import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
 import { listLogSessions } from "@kar-mi/spirit-vale-tools-logging";
 import type { LogStream } from "@kar-mi/spirit-vale-tools-logging";
 import { applyRoundedCorners, setWindowIcon } from "./win32.ts";

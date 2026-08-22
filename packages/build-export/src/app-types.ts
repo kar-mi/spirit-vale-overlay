@@ -1,4 +1,4 @@
-import type { RPCSchema } from "electrobun";
+import type { RPCSchema } from "@svoverlay/contracts/rpc";
 import type { WindowChromeRequests } from "@svoverlay/contracts/window-rpc";
 
 export type BuildExportStatus = "waiting" | "ready";

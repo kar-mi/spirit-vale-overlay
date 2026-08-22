@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { BrowserView, BrowserWindow } from "electrobun/bun";
+import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
 import { mountRoundedWindow, publishSafely } from "@svoverlay/desktop-platform/window-publish";
 import {
   inspectRewardsReplaySummary,

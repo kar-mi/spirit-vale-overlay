@@ -1,7 +1,7 @@
 import { Fragment, render } from "preact";
 import { useCallback, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
@@ -38,23 +38,23 @@ const timestampFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "short",
 
 const state = signal<RewardsAppState | undefined>(undefined);
 
-const rpc = Electroview.defineRPC<RewardsAppRpc>({
+const rpc = DesktopView.defineRPC<RewardsAppRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
+const desktopView = new DesktopView({ rpc });
 
-void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 const REWARDS_DEFAULT_WIDTH = 620;
 const REWARDS_DEFAULT_HEIGHT = 520;
-void ensureInitialWindowSize(electroview.rpc?.request, { width: REWARDS_DEFAULT_WIDTH, height: REWARDS_DEFAULT_HEIGHT });
+void ensureInitialWindowSize(desktopView.rpc?.request, { width: REWARDS_DEFAULT_WIDTH, height: REWARDS_DEFAULT_HEIGHT });
 
 function setView(view: RewardsAppView): void {
-  void electroview.rpc?.request.setView({ view });
+  void desktopView.rpc?.request.setView({ view });
 }
 
 function returnToLive(): void {
-  void electroview.rpc?.request.setMode({ mode: "live" });
+  void desktopView.rpc?.request.setMode({ mode: "live" });
 }
 
 function formatDecimal(value: string): string {
@@ -113,20 +113,20 @@ function App() {
         appTag="Rewards"
         minWidth={620}
         minHeight={520}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: REWARDS_DEFAULT_WIDTH, height: REWARDS_DEFAULT_HEIGHT }}
-        setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-        toggleMaximize={async () => (await electroview.rpc?.request.toggleMaximize({}))?.maximized ?? false}
-        onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-        onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+        getFrame={async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: REWARDS_DEFAULT_WIDTH, height: REWARDS_DEFAULT_HEIGHT }}
+        setFrame={(frame) => void desktopView.rpc?.request.setWindowFrame(frame)}
+        toggleMaximize={async () => (await desktopView.rpc?.request.toggleMaximize({}))?.maximized ?? false}
+        onMinimize={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}
+        onClose={() => void desktopView.rpc?.request.windowAction({ action: "close" })}
         extraControls={
           <>
-          <SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />
+          <SettingsButton onClick={() => void desktopView.rpc?.request.openSettings({})} />
           <button
             class={next.pinned ? "icon-button active" : "icon-button"}
             type="button"
             aria-label="Toggle always on top"
             title="Always on top"
-            onClick={() => void electroview.rpc?.request.setPinned({ pinned: !next.pinned })}
+            onClick={() => void desktopView.rpc?.request.setPinned({ pinned: !next.pinned })}
           >
             {next.pinned ? "◆" : "◇"}
           </button>
@@ -143,9 +143,9 @@ function App() {
           </div>
           <StatusDot tone={STATUS_TONE[next.status]} detail={next.statusDetail} />
           <div class="toolbar-actions">
-            <button class="btn" type="button" onClick={() => void electroview.rpc?.request.openCatalog({})}>Catalog</button>
-            <button class={next.mode === "replay" ? "btn active" : "btn"} type="button" onClick={() => void electroview.rpc?.request.openReplayPicker({})}>Replay</button>
-            <button class="btn" type="button" disabled={next.mode === "replay" || next.resetting} onClick={() => void electroview.rpc?.request.resetSession({})}>Reset</button>
+            <button class="btn" type="button" onClick={() => void desktopView.rpc?.request.openCatalog({})}>Catalog</button>
+            <button class={next.mode === "replay" ? "btn active" : "btn"} type="button" onClick={() => void desktopView.rpc?.request.openReplayPicker({})}>Replay</button>
+            <button class="btn" type="button" disabled={next.mode === "replay" || next.resetting} onClick={() => void desktopView.rpc?.request.resetSession({})}>Reset</button>
           </div>
         </nav>
 
@@ -298,8 +298,8 @@ function XpTrackerSection({ xp, gold }: { xp: RewardsAppState["xp"]; gold: Rewar
         </table>
       </div>
       <div class="xp-tracker-actions">
-        <button class="btn" type="button" onClick={() => void electroview.rpc?.request.resetXpTracker({})}>Reset all-time XP</button>
-        <button class="btn" type="button" onClick={() => void electroview.rpc?.request.resetGoldTracker({})}>Reset all-time gold</button>
+        <button class="btn" type="button" onClick={() => void desktopView.rpc?.request.resetXpTracker({})}>Reset all-time XP</button>
+        <button class="btn" type="button" onClick={() => void desktopView.rpc?.request.resetGoldTracker({})}>Reset all-time gold</button>
       </div>
       <InteractiveChart
         extent={trendExtent(samples)}

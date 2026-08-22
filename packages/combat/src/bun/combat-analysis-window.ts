@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { BrowserView, BrowserWindow } from "electrobun/bun";
+import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
 import { loadDpsReplay } from "@kar-mi/spirit-vale-tools-combat";
 import type { CombatHistoryStore, FishNetDpsActorRow, FishNetDpsEncounterSnapshot, FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
 import { formatDuration } from "@svoverlay/ui-kit/format";

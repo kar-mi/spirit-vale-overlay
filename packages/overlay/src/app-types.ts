@@ -1,4 +1,4 @@
-import type { RPCSchema } from "electrobun";
+import type { RPCSchema } from "@svoverlay/contracts/rpc";
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterWeight } from "@kar-mi/spirit-vale-tools-character";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
@@ -182,7 +182,6 @@ export interface OverlaySettingsState {
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
   personalDpsMode: PersonalDpsMode;
   autoHideWhenUnfocused: boolean;
-  keybindsRequireGameFocus: boolean;
   minimapRarityFilter: number;
   minimapLootChanceFilter: number;
 }

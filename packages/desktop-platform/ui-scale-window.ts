@@ -1,4 +1,4 @@
-import type { BrowserWindow } from "electrobun/bun";
+import type { BrowserWindow } from "@svoverlay/desktop-runtime";
 
 import {
   getUiScale,

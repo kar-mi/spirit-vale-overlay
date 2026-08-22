@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { useRef, useState } from "preact/hooks";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-chrome";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
@@ -35,12 +35,12 @@ const ALL_REGIONS = "";
 
 const state = signal<BossTimerWindowState | undefined>(undefined);
 const nowMs = signal(Date.now());
-const rpc = Electroview.defineRPC<BossTimerRpc>({
+const rpc = DesktopView.defineRPC<BossTimerRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
-void ensureInitialWindowSize(electroview.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
+const desktopView = new DesktopView({ rpc });
+void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+void ensureInitialWindowSize(desktopView.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 setInterval(() => { nowMs.value = Date.now(); }, TICK_MS);
 
 function apply(pending: Promise<BossTimerWindowState> | undefined): void {
@@ -55,8 +55,8 @@ function App() {
       titlebar: node,
       minWidth: MINIMUM_WIDTH,
       minHeight: MINIMUM_HEIGHT,
-      getFrame: async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT },
-      setFrame: (frame) => void electroview.rpc?.request.setWindowFrame(frame),
+      getFrame: async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT },
+      setFrame: (frame) => void desktopView.rpc?.request.setWindowFrame(frame),
     });
   };
 
@@ -80,9 +80,9 @@ function App() {
           </span>
         </div>
         <div class="window-controls">
-          <button class="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => void electroview.rpc?.request.openSettings({})}>⚙</button>
-          <button class="icon-button" type="button" aria-label="Minimize" onClick={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}>−</button>
-          <button class="icon-button close-button" type="button" aria-label="Close" onClick={() => void electroview.rpc?.request.windowAction({ action: "close" })}>×</button>
+          <button class="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => void desktopView.rpc?.request.openSettings({})}>⚙</button>
+          <button class="icon-button" type="button" aria-label="Minimize" onClick={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}>−</button>
+          <button class="icon-button close-button" type="button" aria-label="Close" onClick={() => void desktopView.rpc?.request.windowAction({ action: "close" })}>×</button>
         </div>
       </header>
       <div class="content">
@@ -185,7 +185,7 @@ function TimerRow(
           class="btn"
           type="button"
           title={`Remove the ${timer.bossName} timer`}
-          onClick={() => apply(electroview.rpc?.request.removeTimer({ id: timer.id }))}
+          onClick={() => apply(desktopView.rpc?.request.removeTimer({ id: timer.id }))}
         >
           Remove
         </button>
@@ -248,7 +248,7 @@ function LogGravestone({ state: next }: { state: BossTimerWindowState }) {
             disabled={!valid}
             onClick={() => {
               if (!valid) return;
-              apply(electroview.rpc?.request.addTimer({
+              apply(desktopView.rpc?.request.addTimer({
                 mobId,
                 channel,
                 ...(region === undefined ? {} : { region }),

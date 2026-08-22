@@ -32,13 +32,13 @@ jobs:
         run: bun run typecheck
       - name: Test
         run: bun test
-      # Cache Electrobun's downloaded Windows binaries between clean installs.
-      - name: Cache electrobun core binaries
+      - name: Cache Neutralino binaries
         uses: actions/cache@v4
         with:
-          path: node_modules/.bun/electrobun@*/node_modules/electrobun/dist-win-x64
-          key: electrobun-core-win-x64-${{ hashFiles('bun.lock') }}
-          restore-keys: electrobun-core-win-x64-
+          path: apps/desktop/bin
+          key: neutralino-${{ hashFiles('apps/desktop/neutralino.config.json') }}
+      - name: Download Neutralino binaries
+        run: bun run --filter @svoverlay/desktop update
       - name: Build Windows desktop app
         shell: pwsh
         run: |
@@ -54,5 +54,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: spiritvale-win-x64
-          path: apps/launcher/dist/electrobun
+          path: apps/desktop/dist/spirit-vale-overlay
           if-no-files-found: error

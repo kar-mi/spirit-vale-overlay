@@ -2,11 +2,6 @@
   "name": "@svoverlay/launcher",
   "private": true,
   "type": "module",
-  "scripts": {
-    "dev": "electrobun dev",
-    "build": "electrobun build",
-    "build:stable": "electrobun build --env=stable"
-  },
   "dependencies": {
     "@kar-mi/spirit-vale-tools-capture": "1.9.0",
     "@kar-mi/spirit-vale-tools-character": "0.4.2",
@@ -25,7 +20,6 @@
     "@svoverlay/overlay": "workspace:*",
     "@svoverlay/rewards": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*",
-    "preact": "^10.29.7",
-    "electrobun": "1.18.1"
+    "preact": "^10.29.7"
   }
 }

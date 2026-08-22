@@ -2,7 +2,7 @@ import { render } from "preact";
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { signal } from "@preact/signals";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
@@ -43,22 +43,22 @@ type SkillSortKey = "sourceLabel" | "dps" | "damage" | "contribution" | "hits" |
 
 const state = signal<DpsAppState | undefined>(undefined);
 
-const rpc = Electroview.defineRPC<DpsAppRpc>({
+const rpc = DesktopView.defineRPC<DpsAppRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
+const desktopView = new DesktopView({ rpc });
 
-void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
-void ensureInitialWindowSize(electroview.rpc?.request, { width: DPS_WINDOW_MINIMUM_WIDTH, height: DPS_WINDOW_MINIMUM_HEIGHT });
+void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+void ensureInitialWindowSize(desktopView.rpc?.request, { width: DPS_WINDOW_MINIMUM_WIDTH, height: DPS_WINDOW_MINIMUM_HEIGHT });
 
 function setTab(tab: DpsAppTab): void {
   if (state.value) state.value = { ...state.value, tab };
-  void electroview.rpc?.request.setTab({ tab });
+  void desktopView.rpc?.request.setTab({ tab });
 }
 
 function setScreen(screen: CombatLogScreen): void {
   if (state.value) state.value = { ...state.value, screen };
-  void electroview.rpc?.request.setScreen({ screen });
+  void desktopView.rpc?.request.setScreen({ screen });
 }
 
 function activateRow(event: JSX.TargetedKeyboardEvent<HTMLTableRowElement>, activate: () => void): void {
@@ -69,7 +69,7 @@ function activateRow(event: JSX.TargetedKeyboardEvent<HTMLTableRowElement>, acti
 
 function setStatType(statType: StatType): void {
   if (state.value) state.value = { ...state.value, statType };
-  void electroview.rpc?.request.setStatType({ statType });
+  void desktopView.rpc?.request.setStatType({ statType });
 }
 
 function formatPercent(value: number): string {
@@ -124,16 +124,16 @@ function App() {
         appTag="DPS"
         minWidth={DPS_WINDOW_MINIMUM_WIDTH}
         minHeight={DPS_WINDOW_MINIMUM_HEIGHT}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? {
+        getFrame={async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? {
           x: 0,
           y: 0,
           width: DPS_WINDOW_DEFAULT_WIDTH,
           height: DPS_WINDOW_DEFAULT_HEIGHT,
         }}
-        setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-        onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-        onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
-        extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
+        setFrame={(frame) => void desktopView.rpc?.request.setWindowFrame(frame)}
+        onMinimize={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}
+        onClose={() => void desktopView.rpc?.request.windowAction({ action: "close" })}
+        extraControls={<SettingsButton onClick={() => void desktopView.rpc?.request.openSettings({})} />}
       />
 
       <nav class="seg log-tabs" role="tablist" aria-label="Combat log source">
@@ -146,8 +146,8 @@ function App() {
         <StatTypeSelect value={next.statType} onChange={setStatType} />
         <div class="command-bar-actions">
           {next.location !== undefined && <span class="zone-pill" title={`Current zone: ${formatZone(next.location)}`}>{formatZone(next.location)}</span>}
-          <button class="btn" type="button" disabled={!next.liveDeathLogAvailable} onClick={() => void electroview.rpc?.request.openActiveDeathLog({})}>Death log</button>
-          <button class="btn" type="button" disabled={next.resetting} onClick={() => void electroview.rpc?.request.resetSession({})}>Reset</button>
+          <button class="btn" type="button" disabled={!next.liveDeathLogAvailable} onClick={() => void desktopView.rpc?.request.openActiveDeathLog({})}>Death log</button>
+          <button class="btn" type="button" disabled={next.resetting} onClick={() => void desktopView.rpc?.request.resetSession({})}>Reset</button>
         </div>
       </section>
 
@@ -189,7 +189,7 @@ function App() {
                   <SortableHeader sortKey="mobsHit" sort={actorSort} onSort={sortActorsBy}>Mobs hit</SortableHeader>
                 </tr></thead>
                 <tbody>{sortedActors.map((actor) => {
-                  const activate = () => void electroview.rpc?.request.openPlayerDetails({
+                  const activate = () => void desktopView.rpc?.request.openPlayerDetails({
                     source: "live",
                     actorId: actor.actorIds[0]!,
                     selectedEnemyIds: [],
@@ -229,7 +229,7 @@ function App() {
             ariaLabel="Personal damage actor"
             value={next.personalActorId === undefined ? "auto" : String(next.personalActorId)}
             onChange={(value) => {
-              void electroview.rpc?.request.setPersonalActor({ actorId: value === "auto" ? null : Number(value) });
+              void desktopView.rpc?.request.setPersonalActor({ actorId: value === "auto" ? null : Number(value) });
             }}
             options={[
               { value: "auto", label: "Automatic (name or local actions)" },
@@ -279,18 +279,18 @@ function App() {
       </section> : next.past.view === "selector"
         ? <PastSessionPanel
             state={next.past.picker}
-            onRefresh={() => void electroview.rpc?.request.refreshPastSessions({})}
-            onOpenSession={(id) => void electroview.rpc?.request.openPastSession({ id })}
-            onChooseFile={() => void electroview.rpc?.request.choosePastFile({})}
-            onOpenLogFolder={() => void electroview.rpc?.request.openPastLogFolder({})}
+            onRefresh={() => void desktopView.rpc?.request.refreshPastSessions({})}
+            onOpenSession={(id) => void desktopView.rpc?.request.openPastSession({ id })}
+            onChooseFile={() => void desktopView.rpc?.request.choosePastFile({})}
+            onOpenLogFolder={() => void desktopView.rpc?.request.openPastLogFolder({})}
           />
         : <PastAnalysisPanel
             state={next.past.analysis}
-            onBack={() => void electroview.rpc?.request.backToPastSessions({})}
-            onSelectEncounter={(id) => void electroview.rpc?.request.selectPastEncounter({ id })}
-            onSetStatType={(statType) => void electroview.rpc?.request.setPastStatType({ statType })}
-            onOpenDeathLog={() => void electroview.rpc?.request.openActiveDeathLog({})}
-            onOpenPlayerDetails={(rowId, selectedEnemyIds) => void electroview.rpc?.request.openPlayerDetails({
+            onBack={() => void desktopView.rpc?.request.backToPastSessions({})}
+            onSelectEncounter={(id) => void desktopView.rpc?.request.selectPastEncounter({ id })}
+            onSetStatType={(statType) => void desktopView.rpc?.request.setPastStatType({ statType })}
+            onOpenDeathLog={() => void desktopView.rpc?.request.openActiveDeathLog({})}
+            onOpenPlayerDetails={(rowId, selectedEnemyIds) => void desktopView.rpc?.request.openPlayerDetails({
               source: "past",
               rowId,
               selectedEnemyIds,

@@ -6,6 +6,7 @@
   "exports": {
     "./boss-timers": "./boss-timers.ts",
     "./meter": "./meter.ts",
+    "./rpc": "./rpc.ts",
     "./window-rpc": "./window-rpc.ts"
   },
   "dependencies": {

@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  autoHideEnabledForMode,
   classifyForegroundProcess,
   manuallySetVisibility,
-  permitsGameKeybind,
   reconcileAutoHide,
   visibilityForForeground,
 } from "./focus-policy.ts";
@@ -18,6 +18,17 @@ describe("overlay focus policy", () => {
     expect(classifyForegroundProcess({ pid: 7 }, 7)).toBe("app");
   });
 
+  test("recognizes a Neutralino child window as part of this app", () => {
+    expect(classifyForegroundProcess({ pid: 19 }, 7, (pid) => pid === 19)).toBe("app");
+    expect(classifyForegroundProcess({ pid: 20, exeName: "spirit-vale-overlay-win_x64.exe" }, 7, (pid) => pid === 19)).toBe("other");
+  });
+
+  test("enables auto-hide only while the overlay is locked", () => {
+    expect(autoHideEnabledForMode(true, true)).toBe(true);
+    expect(autoHideEnabledForMode(true, false)).toBe(false);
+    expect(autoHideEnabledForMode(false, true)).toBe(false);
+  });
+
   test("distinguishes unrelated and unknown foreground processes", () => {
     expect(classifyForegroundProcess({ pid: 42, exeName: "explorer.exe" }, 7)).toBe("other");
     expect(classifyForegroundProcess({ pid: 42 }, 7)).toBe("unknown");
@@ -29,13 +40,6 @@ describe("overlay focus policy", () => {
     expect(visibilityForForeground("app")).toBe(true);
     expect(visibilityForForeground("other")).toBe(false);
     expect(visibilityForForeground("unknown")).toBeUndefined();
-  });
-
-  test("permits game-only keybinds for the game and nothing else", () => {
-    expect(permitsGameKeybind("game")).toBe(true);
-    expect(permitsGameKeybind("app")).toBe(false);
-    expect(permitsGameKeybind("other")).toBe(false);
-    expect(permitsGameKeybind("unknown")).toBe(false);
   });
 
   test("manual hide takes priority until the user shows the overlay", () => {

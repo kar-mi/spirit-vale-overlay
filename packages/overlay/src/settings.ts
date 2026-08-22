@@ -41,7 +41,6 @@ export interface OverlaySettings {
   personalDpsMode: PersonalDpsMode;
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
   autoHideWhenUnfocused: boolean;
-  keybindsRequireGameFocus: boolean;
   minimapRarityFilter: number;
   minimapLootChanceFilter: number;
 }
@@ -155,7 +154,6 @@ export function normalizeOverlaySettings(
     autoHideWhenUnfocused: typeof source.autoHideWhenUnfocused === "boolean"
       ? source.autoHideWhenUnfocused
       : DEFAULT_AUTO_HIDE_WHEN_UNFOCUSED,
-    keybindsRequireGameFocus: source.keybindsRequireGameFocus === true,
     minimapRarityFilter: normalizeRarityFilter(source.minimapRarityFilter),
     minimapLootChanceFilter: normalizeLootChanceFilter(source.minimapLootChanceFilter),
   };

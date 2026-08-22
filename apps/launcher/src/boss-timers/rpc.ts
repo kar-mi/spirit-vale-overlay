@@ -1,4 +1,4 @@
-import type { RPCSchema } from "electrobun";
+import type { RPCSchema } from "@svoverlay/contracts/rpc";
 import type { BossCatalogOption, BossTimer } from "@svoverlay/contracts/boss-timers";
 
 export interface BossTimerWindowState {

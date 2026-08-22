@@ -1,7 +1,7 @@
 import { Fragment, render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
@@ -17,16 +17,16 @@ const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
 const state = signal<RewardsCatalogState | undefined>(undefined);
 
-const rpc = Electroview.defineRPC<RewardsCatalogRpc>({
+const rpc = DesktopView.defineRPC<RewardsCatalogRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new Electroview({ rpc });
+const desktopView = new DesktopView({ rpc });
 
-void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 const CATALOG_DEFAULT_WIDTH = 520;
 const CATALOG_DEFAULT_HEIGHT = 420;
-void ensureInitialWindowSize(electroview.rpc?.request, { width: CATALOG_DEFAULT_WIDTH, height: CATALOG_DEFAULT_HEIGHT });
+void ensureInitialWindowSize(desktopView.rpc?.request, { width: CATALOG_DEFAULT_WIDTH, height: CATALOG_DEFAULT_HEIGHT });
 
 function formatChance(value: number): string {
   return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(value)}%`;
@@ -66,12 +66,12 @@ function App() {
         appTag="Mob Catalog"
         minWidth={520}
         minHeight={420}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: CATALOG_DEFAULT_WIDTH, height: CATALOG_DEFAULT_HEIGHT }}
-        setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-        toggleMaximize={async () => (await electroview.rpc?.request.toggleMaximize({}))?.maximized ?? false}
-        onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-        onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
-        extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
+        getFrame={async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: CATALOG_DEFAULT_WIDTH, height: CATALOG_DEFAULT_HEIGHT }}
+        setFrame={(frame) => void desktopView.rpc?.request.setWindowFrame(frame)}
+        toggleMaximize={async () => (await desktopView.rpc?.request.toggleMaximize({}))?.maximized ?? false}
+        onMinimize={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}
+        onClose={() => void desktopView.rpc?.request.windowAction({ action: "close" })}
+        extraControls={<SettingsButton onClick={() => void desktopView.rpc?.request.openSettings({})} />}
       />
       <main>
         <div class="catalog-head">
@@ -89,7 +89,7 @@ function App() {
             placeholder="Search mob name or ID…"
             autocomplete="off"
             defaultValue={next.query}
-            onInput={(event) => void electroview.rpc?.request.setQuery({ query: (event.target as HTMLInputElement).value })}
+            onInput={(event) => void desktopView.rpc?.request.setQuery({ query: (event.target as HTMLInputElement).value })}
           />
         </label>
         <div class="catalog-list">

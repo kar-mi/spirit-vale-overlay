@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { useEffect, useRef } from "preact/hooks";
-import { Electroview } from "electrobun/view";
+import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
@@ -14,12 +14,12 @@ const MINIMUM_HEIGHT = 340;
 
 const state = signal<ManageSettingsState | undefined>(undefined);
 const resetPromptOpen = signal(false);
-const rpc = Electroview.defineRPC<ManageSettingsRpc>({
+const rpc = DesktopView.defineRPC<ManageSettingsRpc>({
   handlers: { requests: {}, messages: {} },
 });
-const electroview = new Electroview({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
-void ensureInitialWindowSize(electroview.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
+const desktopView = new DesktopView({ rpc });
+void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+void ensureInitialWindowSize(desktopView.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 
 function App() {
   const next = state.value;
@@ -30,10 +30,10 @@ function App() {
         appTag="Manage Settings"
         minWidth={MINIMUM_WIDTH}
         minHeight={MINIMUM_HEIGHT}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }}
-        setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-        onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-        onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+        getFrame={async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }}
+        setFrame={(frame) => void desktopView.rpc?.request.setWindowFrame(frame)}
+        onMinimize={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}
+        onClose={() => void desktopView.rpc?.request.windowAction({ action: "close" })}
       />
       <main>
         <div class="manage-settings-intro">
@@ -41,10 +41,10 @@ function App() {
           <p class="data-folder-path" title={next?.dataFolder}>{next ? `Settings folder: ${next.dataFolder}` : "Loading…"}</p>
         </div>
         <div class="manage-settings-actions">
-          <button class="btn" type="button" onClick={() => void electroview.rpc?.request.importSettings({})}>
+          <button class="btn" type="button" onClick={() => void desktopView.rpc?.request.importSettings({})}>
             Import Settings…
           </button>
-          <button class="btn" type="button" onClick={() => void electroview.rpc?.request.openDataFolder({})}>
+          <button class="btn" type="button" onClick={() => void desktopView.rpc?.request.openDataFolder({})}>
             Open Settings Folder
           </button>
           <button class="btn" type="button" onClick={() => { resetPromptOpen.value = true; }}>
@@ -66,7 +66,7 @@ function ResetSettingsPrompt() {
     <form class="modal-card reset-modal" role="dialog" aria-modal="true" aria-labelledby="reset-title" onSubmit={(event) => {
       event.preventDefault();
       resetPromptOpen.value = false;
-      void electroview.rpc?.request.resetSettings({});
+      void desktopView.rpc?.request.resetSettings({});
     }} onKeyDown={(event) => {
       if (event.key === "Escape") cancel();
     }}>
