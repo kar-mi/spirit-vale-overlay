@@ -7,7 +7,7 @@ interface TestSchema extends CombinedSchema {
   webview: { requests: Record<string, never>; messages: { changed: number } };
 }
 
-describe("Neutralino POC RPC", () => {
+describe("Neutralino desktop RPC", () => {
   test("correlates requests and delivers messages", async () => {
     const pair = transportPair();
     let changed = 0;

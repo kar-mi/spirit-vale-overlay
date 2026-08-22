@@ -3,7 +3,7 @@ import path from "node:path";
 import type { CombinedSchema, RpcInstance } from "../shared/rpc.ts";
 import { defineRpc } from "../shared/rpc.ts";
 import { backendConnectionUrl } from "../shared/backend-connection.ts";
-import { PocRpcServer, type Session } from "../backend/rpc-server.ts";
+import { DesktopRpcServer, type Session } from "../backend/rpc-server.ts";
 import { NeutralinoClient } from "../backend/neutralino-client.ts";
 import {
   configureOverlayWindow,
@@ -34,7 +34,7 @@ class RuntimeEvents {
 
 const events = new RuntimeEvents();
 let native: NeutralinoClient | undefined;
-let server: PocRpcServer | undefined;
+let server: DesktopRpcServer | undefined;
 let launcherSession: Session | undefined;
 let announceTimer: ReturnType<typeof setInterval> | undefined;
 let appVersion = "0.0.0";
@@ -48,7 +48,7 @@ const trays = new Set<Tray>();
 export async function initializeNeutralinoRuntime(options: { version: string }): Promise<void> {
   appVersion = options.version;
   native = await NeutralinoClient.fromStdin();
-  server = new PocRpcServer();
+  server = new DesktopRpcServer();
   server.onSession = attachSession;
   server.onClose = detachSession;
   server.onWindowEvent = receiveWindowEvent;
@@ -64,7 +64,7 @@ export async function initializeNeutralinoRuntime(options: { version: string }):
 async function announceLauncher(): Promise<void> {
   if (!native || !server || launcherSession || shuttingDown) return;
   const ticket = server.issueWindow("launcher");
-  await native.call("app.broadcast", { event: "neutralinoPocBackendReady", data: { port: server.port, ticket } });
+  await native.call("app.broadcast", { event: "desktopBackendReady", data: { port: server.port, ticket } });
 }
 
 function attachSession(session: Session): void {

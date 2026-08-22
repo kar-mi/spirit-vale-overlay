@@ -18,12 +18,12 @@ type DeathLogTab = "summary" | "list";
 const rpc = DesktopView.defineRPC<CombatDeathLogRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new DesktopView({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+const desktopView = new DesktopView({ rpc });
+void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 const DEATH_LOG_DEFAULT_WIDTH = 900;
 const DEATH_LOG_DEFAULT_HEIGHT = 680;
-void ensureInitialWindowSize(electroview.rpc?.request, { width: 680, height: 500 });
+void ensureInitialWindowSize(desktopView.rpc?.request, { width: 680, height: 500 });
 
 function App() {
   const next = state.value;
@@ -40,11 +40,11 @@ function App() {
       appTag="Death log"
       minWidth={680}
       minHeight={500}
-      getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEATH_LOG_DEFAULT_WIDTH, height: DEATH_LOG_DEFAULT_HEIGHT }}
-      setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-      onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-      onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
-      extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
+      getFrame={async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEATH_LOG_DEFAULT_WIDTH, height: DEATH_LOG_DEFAULT_HEIGHT }}
+      setFrame={(frame) => void desktopView.rpc?.request.setWindowFrame(frame)}
+      onMinimize={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}
+      onClose={() => void desktopView.rpc?.request.windowAction({ action: "close" })}
+      extraControls={<SettingsButton onClick={() => void desktopView.rpc?.request.openSettings({})} />}
     />
     <section class="death-log-content">
       <section class="toolbar">
@@ -70,7 +70,7 @@ function App() {
           </div>
           <div class="table-scroll death-list-scroll">
             <table class="data-table death-table" aria-label="Player deaths"><thead><tr><th>Player</th><th>Damage</th><th>Hits</th></tr></thead>
-              <tbody>{visibleDeaths.map((death) => <tr key={death.id} class={death.id === selected?.id ? "selected" : undefined} onClick={() => void electroview.rpc?.request.selectDeath({ id: death.id })}>
+              <tbody>{visibleDeaths.map((death) => <tr key={death.id} class={death.id === selected?.id ? "selected" : undefined} onClick={() => void desktopView.rpc?.request.selectDeath({ id: death.id })}>
                 <th scope="row">{death.victimName}</th><td>{compactFormat.format(death.totalDamage)}</td><td>{numberFormat.format(death.hits.length)}</td>
               </tr>)}</tbody>
             </table>

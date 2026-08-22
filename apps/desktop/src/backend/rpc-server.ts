@@ -60,7 +60,7 @@ class SessionImpl implements Session {
   }
 }
 
-export class PocRpcServer {
+export class DesktopRpcServer {
   private readonly tickets = new Map<string, Ticket>();
   private readonly sessions = new Map<string, SessionImpl>();
   private readonly server: ReturnType<typeof Bun.serve<SocketData>>;

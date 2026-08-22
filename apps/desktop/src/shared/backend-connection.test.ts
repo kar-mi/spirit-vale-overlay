@@ -8,7 +8,7 @@ describe("Neutralino child backend connection URL", () => {
     const url = backendConnectionUrl("/views/overlayview/index.html", connection);
 
     expect(url).not.toMatch(/[&%]/);
-    expect(url).toStartWith("/views/overlayview/index.html?pocBackend=");
+    expect(url).toStartWith("/views/overlayview/index.html?desktopBackend=");
     expect(url.split("=")[1]).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(backendConnectionFromSearch(new URL(url, "http://localhost").search)).toEqual(connection);
   });

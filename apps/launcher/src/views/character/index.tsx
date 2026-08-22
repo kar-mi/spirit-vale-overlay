@@ -26,12 +26,12 @@ interface BuildItem { slot: string; name: string; refine: number; sections: Buil
 
 const state = signal<CharacterViewState | undefined>(undefined);
 const rpc = DesktopView.defineRPC<CharacterRpc>({ handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } } });
-const electroview = new DesktopView({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+const desktopView = new DesktopView({ rpc });
+void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 const CHARACTER_DEFAULT_WIDTH = 920;
 const CHARACTER_DEFAULT_HEIGHT = 720;
-void ensureInitialWindowSize(electroview.rpc?.request, { width: 680, height: 520 });
+void ensureInitialWindowSize(desktopView.rpc?.request, { width: 680, height: 520 });
 
 function App() {
   const [tab, setTab] = useState<Tab>("basic");
@@ -40,8 +40,8 @@ function App() {
     if (!node || chromeRef.current) return;
     chromeRef.current = initWindowChrome({
       titlebar: node, minWidth: 680, minHeight: 520,
-      getFrame: async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: CHARACTER_DEFAULT_WIDTH, height: CHARACTER_DEFAULT_HEIGHT },
-      setFrame: (frame) => void electroview.rpc?.request.setWindowFrame(frame),
+      getFrame: async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: CHARACTER_DEFAULT_WIDTH, height: CHARACTER_DEFAULT_HEIGHT },
+      setFrame: (frame) => void desktopView.rpc?.request.setWindowFrame(frame),
     });
   };
 
@@ -57,9 +57,9 @@ function App() {
           <span class="brand-tag">{next?.status === "live" ? "Live" : next?.status === "cached" ? "Last known" : "Waiting"}</span>
         </div>
         <div class="window-controls">
-          <button class="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => void electroview.rpc?.request.openSettings({})}>⚙</button>
-          <button class="icon-button" type="button" aria-label="Minimize" onClick={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}>−</button>
-          <button class="icon-button close-button" type="button" aria-label="Close" onClick={() => void electroview.rpc?.request.windowAction({ action: "close" })}>×</button>
+          <button class="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => void desktopView.rpc?.request.openSettings({})}>⚙</button>
+          <button class="icon-button" type="button" aria-label="Minimize" onClick={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}>−</button>
+          <button class="icon-button close-button" type="button" aria-label="Close" onClick={() => void desktopView.rpc?.request.windowAction({ action: "close" })}>×</button>
         </div>
       </header>
       <div class="content">

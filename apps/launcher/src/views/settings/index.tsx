@@ -21,12 +21,12 @@ const recordingAction = signal<KeybindAction | undefined>(undefined);
 const rpc = DesktopView.defineRPC<LauncherSettingsRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new DesktopView({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+const desktopView = new DesktopView({ rpc });
+void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 const SETTINGS_DEFAULT_WIDTH = 798;
 const SETTINGS_DEFAULT_HEIGHT = 680;
-void ensureInitialWindowSize(electroview.rpc?.request, { width: 560, height: 420 });
+void ensureInitialWindowSize(desktopView.rpc?.request, { width: 560, height: 420 });
 
 function App() {
   const [busy, setBusy] = useState(false);
@@ -40,27 +40,27 @@ function App() {
   };
 
   const actions: SettingsActions = {
-    setUiScale: (uiScale) => update(electroview.rpc?.request.setUiScale({ uiScale })),
-    setMinimizeToTray: (minimizeToTray) => update(electroview.rpc?.request.setMinimizeToTray({ minimizeToTray })),
-    setCaptureAdapter: (value) => update(electroview.rpc?.request.setCaptureAdapter({ deviceName: value === "auto" ? null : value })),
-    refreshCaptureDevices: () => update(electroview.rpc?.request.refreshCaptureDevices({})),
-    openNpcapDownload: () => { void electroview.rpc?.request.openNpcapDownload({}); },
-    setOverlayLocked: (locked) => update(electroview.rpc?.request.setOverlayLocked({ locked })),
-    setOverlayVisible: (visible) => update(electroview.rpc?.request.setOverlayVisible({ visible })),
-    setAutoHideWhenUnfocused: (enabled) => update(electroview.rpc?.request.setAutoHideWhenUnfocused({ enabled })),
-    setOverlayHomeDisplay: (display) => update(electroview.rpc?.request.setOverlayHomeDisplay({ display })),
-    setOverlayElementEnabled: (id, enabled) => update(electroview.rpc?.request.setOverlayElementEnabled({ id, enabled })),
-    setOverlayElementDisplay: (id, display) => update(electroview.rpc?.request.setOverlayElementDisplay({ id, display })),
-    setResetMeterOnMapChange: (resetMeterOnMapChange) => update(electroview.rpc?.request.setResetMeterOnMapChange({ resetMeterOnMapChange })),
-    setResetGoldOnMapChange: (resetGoldOnMapChange) => update(electroview.rpc?.request.setResetGoldOnMapChange({ resetGoldOnMapChange })),
-    setPersonalDpsMode: (mode) => update(electroview.rpc?.request.setPersonalDpsMode({ mode })),
-    setMinimapRarityFilter: (rarity) => update(electroview.rpc?.request.setMinimapRarityFilter({ rarity })),
-    setMinimapLootChanceFilter: (chance) => update(electroview.rpc?.request.setMinimapLootChanceFilter({ chance })),
-    setRequiredStatuses: (category, statusIds) => update(electroview.rpc?.request.setOverlayRequiredStatuses({ category, statusIds })),
-    setKeybindsRequireGameFocus: (enabled) => update(electroview.rpc?.request.setKeybindsRequireGameFocus({ enabled })),
+    setUiScale: (uiScale) => update(desktopView.rpc?.request.setUiScale({ uiScale })),
+    setMinimizeToTray: (minimizeToTray) => update(desktopView.rpc?.request.setMinimizeToTray({ minimizeToTray })),
+    setCaptureAdapter: (value) => update(desktopView.rpc?.request.setCaptureAdapter({ deviceName: value === "auto" ? null : value })),
+    refreshCaptureDevices: () => update(desktopView.rpc?.request.refreshCaptureDevices({})),
+    openNpcapDownload: () => { void desktopView.rpc?.request.openNpcapDownload({}); },
+    setOverlayLocked: (locked) => update(desktopView.rpc?.request.setOverlayLocked({ locked })),
+    setOverlayVisible: (visible) => update(desktopView.rpc?.request.setOverlayVisible({ visible })),
+    setAutoHideWhenUnfocused: (enabled) => update(desktopView.rpc?.request.setAutoHideWhenUnfocused({ enabled })),
+    setOverlayHomeDisplay: (display) => update(desktopView.rpc?.request.setOverlayHomeDisplay({ display })),
+    setOverlayElementEnabled: (id, enabled) => update(desktopView.rpc?.request.setOverlayElementEnabled({ id, enabled })),
+    setOverlayElementDisplay: (id, display) => update(desktopView.rpc?.request.setOverlayElementDisplay({ id, display })),
+    setResetMeterOnMapChange: (resetMeterOnMapChange) => update(desktopView.rpc?.request.setResetMeterOnMapChange({ resetMeterOnMapChange })),
+    setResetGoldOnMapChange: (resetGoldOnMapChange) => update(desktopView.rpc?.request.setResetGoldOnMapChange({ resetGoldOnMapChange })),
+    setPersonalDpsMode: (mode) => update(desktopView.rpc?.request.setPersonalDpsMode({ mode })),
+    setMinimapRarityFilter: (rarity) => update(desktopView.rpc?.request.setMinimapRarityFilter({ rarity })),
+    setMinimapLootChanceFilter: (chance) => update(desktopView.rpc?.request.setMinimapLootChanceFilter({ chance })),
+    setRequiredStatuses: (category, statusIds) => update(desktopView.rpc?.request.setOverlayRequiredStatuses({ category, statusIds })),
+    setKeybindsRequireGameFocus: (enabled) => update(desktopView.rpc?.request.setKeybindsRequireGameFocus({ enabled })),
     resetShortcuts: () => {
       recordingAction.value = undefined;
-      update(electroview.rpc?.request.resetShortcutsToDefaults({}));
+      update(desktopView.rpc?.request.resetShortcutsToDefaults({}));
     },
     beginShortcutCapture: (action) => { void beginShortcutCapture(action); },
     captureShortcut: (action, event) => { void captureShortcut(action, event); },
@@ -81,10 +81,10 @@ function App() {
       appTag="Settings"
       minWidth={560}
       minHeight={420}
-      getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 110, y: 110, width: SETTINGS_DEFAULT_WIDTH, height: SETTINGS_DEFAULT_HEIGHT }}
-      setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-      onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-      onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
+      getFrame={async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 110, y: 110, width: SETTINGS_DEFAULT_WIDTH, height: SETTINGS_DEFAULT_HEIGHT }}
+      setFrame={(frame) => void desktopView.rpc?.request.setWindowFrame(frame)}
+      onMinimize={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}
+      onClose={() => void desktopView.rpc?.request.windowAction({ action: "close" })}
     />
     <section class="settings-content">
       {(next.launcher.storageWarning || next.overlay.shortcutErrors.openLiveDeathLog) && <div class="banner is-warn" aria-live="polite">{next.launcher.storageWarning ?? next.overlay.shortcutErrors.openLiveDeathLog}</div>}
@@ -94,7 +94,7 @@ function App() {
 }
 
 function beginShortcutCapture(action: KeybindAction): Promise<void> {
-  return electroview.rpc?.request.setShortcutCapture({ active: true }).then((next) => {
+  return desktopView.rpc?.request.setShortcutCapture({ active: true }).then((next) => {
     state.value = repairRendererPayload(next);
     recordingAction.value = action;
   }) ?? Promise.resolve();
@@ -105,12 +105,12 @@ function captureShortcut(action: KeybindAction, event: KeyboardEvent): Promise<v
   event.preventDefault();
   if (event.key === "Escape" && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) {
     recordingAction.value = undefined;
-    return electroview.rpc?.request.setShortcutCapture({ active: false }).then((next) => { state.value = repairRendererPayload(next); }) ?? Promise.resolve();
+    return desktopView.rpc?.request.setShortcutCapture({ active: false }).then((next) => { state.value = repairRendererPayload(next); }) ?? Promise.resolve();
   }
   const shortcut = shortcutFromKeyboardEvent(event);
   if (!shortcut) return Promise.resolve();
   recordingAction.value = undefined;
-  return electroview.rpc?.request.setShortcut({ action, shortcut }).then((next) => { state.value = repairRendererPayload(next); }) ?? Promise.resolve();
+  return desktopView.rpc?.request.setShortcut({ action, shortcut }).then((next) => { state.value = repairRendererPayload(next); }) ?? Promise.resolve();
 }
 
 render(<App />, document.getElementById("root")!);

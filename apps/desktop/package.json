@@ -1,5 +1,5 @@
 {
-  "name": "@svoverlay/neutralino-poc",
+  "name": "@svoverlay/desktop",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,7 +17,6 @@
     "@svoverlay/desktop-platform": "workspace:*",
     "@svoverlay/overlay": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*",
-    "electrobun": "1.18.1",
     "preact": "^10.29.7"
   },
   "devDependencies": {

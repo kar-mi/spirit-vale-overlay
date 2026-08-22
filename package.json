@@ -9,14 +9,11 @@
     "tooling/*"
   ],
   "scripts": {
-    "build": "bun run --filter @svoverlay/launcher build",
-    "build:stable": "bun run --filter @svoverlay/launcher build -- --env=stable",
-    "build:neutralino-poc": "bun run --filter @svoverlay/neutralino-poc build",
+    "build": "bun run --filter @svoverlay/desktop build",
+    "build:stable": "bun run --filter @svoverlay/desktop build",
     "check": "bun run typecheck && bun test",
-    "dev": "bun run --filter @svoverlay/launcher dev",
-    "dev:neutralino-poc": "bun run --filter @svoverlay/neutralino-poc dev",
-    "package:neutralino-poc": "bun run --filter @svoverlay/neutralino-poc package",
-    "package:portable": "bun run tooling/release/package-portable.ts",
+    "dev": "bun run --filter @svoverlay/desktop dev",
+    "package:portable": "bun run --filter @svoverlay/desktop package",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "verify:portable": "bun run tooling/release/verify-portable.ts"

@@ -1,5 +1,5 @@
 /* Spirit Vale shared theme — Material 3, dark scheme, green seed.
-   Copied into each app's view folder by electrobun build.copy and linked
+   Copied into each desktop view folder by the Neutralino build and linked
    BEFORE the app stylesheet. App CSS supplies layout and app-specific
    components built on these tokens only — no raw hex outside this file. */
 

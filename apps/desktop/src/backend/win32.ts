@@ -31,7 +31,7 @@ export function getDisplays(): NativeDisplay[] {
     try { user32.symbols.EnumDisplayMonitors(null, null, callback.ptr, 0); } finally { callback.close(); }
     return displays.length ? displays : [fallbackDisplay()];
   } catch (error) {
-    console.warn("[neutralino-poc] could not enumerate displays:", error);
+    console.warn("[neutralino] could not enumerate displays:", error);
     return [fallbackDisplay()];
   }
 }

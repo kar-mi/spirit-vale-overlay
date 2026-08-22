@@ -1,6 +1,6 @@
 import type { BackendReady } from "./protocol.ts";
 
-const CONNECTION_PARAMETER = "pocBackend";
+const CONNECTION_PARAMETER = "desktopBackend";
 
 export function backendConnectionUrl(path: string, connection: BackendReady): string {
   const payload = btoa(JSON.stringify(connection))

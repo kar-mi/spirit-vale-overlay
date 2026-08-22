@@ -45,7 +45,7 @@ export class NeutralinoClient {
 
   call<T = unknown>(method: string, data: Record<string, unknown> = {}): Promise<T> {
     if (this.socket.readyState !== WebSocket.OPEN) return Promise.reject(new Error("Neutralino extension socket is not open."));
-    const id = `poc-${++this.nextId}`;
+    const id = `desktop-${++this.nextId}`;
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
       this.socket.send(JSON.stringify({ id, method, accessToken: this.accessToken, data }));

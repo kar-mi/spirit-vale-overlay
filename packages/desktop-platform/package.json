@@ -24,7 +24,6 @@
   "dependencies": {
     "@kar-mi/spirit-vale-tools-logging": "0.8.0",
     "@svoverlay/contracts": "workspace:*",
-    "@svoverlay/ui-kit": "workspace:*",
-    "electrobun": "1.18.1"
+    "@svoverlay/ui-kit": "workspace:*"
   }
 }

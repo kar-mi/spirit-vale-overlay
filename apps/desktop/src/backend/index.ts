@@ -2,7 +2,7 @@ import { appendFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
 import { configurePortableEnvironment } from "../../../launcher/src/desktop/portable-environment.ts";
-import { initializeNeutralinoRuntime } from "../frontend/neutralino-bun-shim.ts";
+import { initializeNeutralinoRuntime } from "../frontend/runtime.ts";
 import { claimBackendOwner, releaseBackendOwner } from "./backend-owner.ts";
 
 const neutralinoRoot = path.resolve(import.meta.dir, "../..");

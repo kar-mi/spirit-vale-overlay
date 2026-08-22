@@ -131,7 +131,7 @@ function sendDragPreview(preview: OverlayDragPreview): void {
   if (dragPreviewFrame) return;
   dragPreviewFrame = requestAnimationFrame(() => {
     dragPreviewFrame = 0;
-    if (pendingDragPreview) electroview.rpc?.send.dragPreview(pendingDragPreview);
+    if (pendingDragPreview) desktopView.rpc?.send.dragPreview(pendingDragPreview);
     pendingDragPreview = undefined;
   });
 }
@@ -140,7 +140,7 @@ function endDragPreview(): void {
   if (dragPreviewFrame) cancelAnimationFrame(dragPreviewFrame);
   dragPreviewFrame = 0;
   pendingDragPreview = undefined;
-  electroview.rpc?.send.dragPreviewEnded({});
+  desktopView.rpc?.send.dragPreviewEnded({});
 }
 
 function applyControl(next: OverlayControlState): void {
@@ -182,8 +182,8 @@ const rpc = DesktopView.defineRPC<OverlayRpc>({
     lootDropped: (next) => { pushLootToast(repairRendererPayload(next)); },
   } },
 });
-const electroview = new DesktopView({ rpc });
-void electroview.rpc?.request.getState({}).then((next) => {
+const desktopView = new DesktopView({ rpc });
+void desktopView.rpc?.request.getState({}).then((next) => {
   const repaired = repairRendererPayload(next);
   batch(() => {
     applyControl(repaired.control);
@@ -392,7 +392,7 @@ function OverlayElement({ id, locked, warn, weightWarn, bossAlert, children }: O
     setPreview(finalRect);
     if (!wasResize) selectedElementId.value = id;
     const request = wasResize
-      ? electroview.rpc?.request.setElementBounds({ id, ...finalRect })
+      ? desktopView.rpc?.request.setElementBounds({ id, ...finalRect })
       : dropRequest(id, finalRect);
     if (!request) {
       if (!wasResize) endDragPreview();
@@ -533,7 +533,7 @@ function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | 
           step="0.05"
           value={settings.opacity}
           onInput={(event) => {
-            const request = electroview.rpc?.request.setElementOpacity({
+            const request = desktopView.rpc?.request.setElementOpacity({
               id: selectedId,
               opacity: event.currentTarget.valueAsNumber,
             });
@@ -580,7 +580,7 @@ function relayDrag(id: OverlayElementId, rect: ElementRect): void {
 }
 
 function dropRequest(id: OverlayElementId, rect: ElementRect): Promise<OverlayControlState> | undefined {
-  const requests = electroview.rpc?.request;
+  const requests = desktopView.rpc?.request;
   const chrome = chromeState.value;
   if (!requests) return undefined;
   if (!chrome?.surface || chrome.displayLayout.length < 2) {
@@ -744,7 +744,7 @@ function XpTrackerElement({ locked }: { locked: boolean }) {
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => {
-            void electroview.rpc?.request.resetXpTracker({}).then((nextState) => { characterState.value = nextState; });
+            void desktopView.rpc?.request.resetXpTracker({}).then((nextState) => { characterState.value = nextState; });
           }}
         >
           Reset
@@ -771,7 +771,7 @@ function GoldTrackerElement({ locked }: { locked: boolean }) {
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => {
-            void electroview.rpc?.request.resetGoldTracker({}).then((nextState) => { characterState.value = nextState; });
+            void desktopView.rpc?.request.resetGoldTracker({}).then((nextState) => { characterState.value = nextState; });
           }}
         >
           Reset
@@ -1219,11 +1219,11 @@ function overlayClassIcon(archetype: number | undefined): string {
 }
 
 function setLocked(locked: boolean): Promise<void> {
-  return electroview.rpc?.request.setLocked({ locked }).then((next) => applyControl(next)) ?? Promise.resolve();
+  return desktopView.rpc?.request.setLocked({ locked }).then((next) => applyControl(next)) ?? Promise.resolve();
 }
 
 function setElementEnabled(id: OverlayElementId, enabled: boolean): Promise<void> {
-  return electroview.rpc?.request.setElementEnabled({ id, enabled }).then((next) => applyControl(next)) ?? Promise.resolve();
+  return desktopView.rpc?.request.setElementEnabled({ id, enabled }).then((next) => applyControl(next)) ?? Promise.resolve();
 }
 
 

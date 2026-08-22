@@ -3,7 +3,6 @@
   "include": [
     "apps/*/src/**/*.ts",
     "apps/*/src/**/*.tsx",
-    "apps/*/electrobun.config.ts",
     "packages/*/**/*.ts",
     "packages/*/**/*.tsx",
     "tooling/**/*.ts"

@@ -78,13 +78,13 @@ const state = signal<CombatAnalysisDetailState | undefined>(undefined);
 const rpc = DesktopView.defineRPC<CombatAnalysisDetailRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new DesktopView({ rpc });
+const desktopView = new DesktopView({ rpc });
 
-void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 const ANALYSIS_DETAIL_DEFAULT_WIDTH = 880;
 const ANALYSIS_DETAIL_DEFAULT_HEIGHT = 720;
-void ensureInitialWindowSize(electroview.rpc?.request, { width: 620, height: 500 });
+void ensureInitialWindowSize(desktopView.rpc?.request, { width: 620, height: 500 });
 
 function App() {
   const [metric, setMetric] = useState<DamageChartMetric>("dps");
@@ -148,11 +148,11 @@ function App() {
         appTag="Player detail"
         minWidth={620}
         minHeight={500}
-        getFrame={async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: ANALYSIS_DETAIL_DEFAULT_WIDTH, height: ANALYSIS_DETAIL_DEFAULT_HEIGHT }}
-        setFrame={(frame) => void electroview.rpc?.request.setWindowFrame(frame)}
-        onMinimize={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}
-      onClose={() => void electroview.rpc?.request.windowAction({ action: "close" })}
-      extraControls={<SettingsButton onClick={() => void electroview.rpc?.request.openSettings({})} />}
+        getFrame={async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: ANALYSIS_DETAIL_DEFAULT_WIDTH, height: ANALYSIS_DETAIL_DEFAULT_HEIGHT }}
+        setFrame={(frame) => void desktopView.rpc?.request.setWindowFrame(frame)}
+        onMinimize={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}
+      onClose={() => void desktopView.rpc?.request.windowAction({ action: "close" })}
+      extraControls={<SettingsButton onClick={() => void desktopView.rpc?.request.openSettings({})} />}
       />
       <section class="detail-content">
         <section class="toolbar">

@@ -7,7 +7,7 @@ import { defineRpc, type RpcInstance } from "../shared/rpc.ts";
 
 type Handler = (packet: RpcPacket) => void;
 
-class PocTransport {
+class DesktopTransport {
   private socket?: WebSocket;
   private handler?: Handler;
   private readonly queued: RpcPacket[] = [];
@@ -71,9 +71,9 @@ class PocTransport {
   }
 }
 
-const transport = new PocTransport();
+const transport = new DesktopTransport();
 
-export class DesktopView<T extends { setTransport(transport: PocTransport): void }> {
+export class DesktopView<T extends { setTransport(transport: DesktopTransport): void }> {
   readonly rpc: T;
 
   constructor(config: { rpc: T }) {
@@ -109,7 +109,7 @@ async function backendConnection(): Promise<BackendReady> {
   if (connection) return connection;
 
   return new Promise((resolve) => {
-    void events.on("neutralinoPocBackendReady", (event) => resolve(event.detail as BackendReady));
+    void events.on("desktopBackendReady", (event) => resolve(event.detail as BackendReady));
   });
 }
 

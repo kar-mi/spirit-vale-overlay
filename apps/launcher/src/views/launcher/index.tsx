@@ -25,10 +25,10 @@ const state = signal<LauncherState | undefined>(undefined);
 const rpc = DesktopView.defineRPC<LauncherRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
-const electroview = new DesktopView({ rpc });
+const desktopView = new DesktopView({ rpc });
 
-void ensureInitialWindowSize(electroview.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
-void electroview.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+void ensureInitialWindowSize(desktopView.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
+void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
 function App() {
   const chromeRef = useRef<WindowChrome | undefined>(undefined);
@@ -38,8 +38,8 @@ function App() {
       titlebar: node,
       minWidth: MINIMUM_WIDTH,
       minHeight: MINIMUM_HEIGHT,
-      getFrame: async () => (await electroview.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT },
-      setFrame: (frame) => void electroview.rpc?.request.setWindowFrame(frame),
+      getFrame: async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT },
+      setFrame: (frame) => void desktopView.rpc?.request.setWindowFrame(frame),
     });
   };
 
@@ -56,9 +56,9 @@ function App() {
           <span class="brand-tag">Tools</span>
         </div>
         <div class="window-controls">
-          <button class="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => void electroview.rpc?.request.openSettings({})}>⚙</button>
-          <button class="icon-button" type="button" aria-label="Minimize" title="Minimize" onClick={() => void electroview.rpc?.request.windowAction({ action: "minimize" })}>−</button>
-          <button class="icon-button close-button" type="button" aria-label="Close" title="Close" onClick={() => void electroview.rpc?.request.windowAction({ action: "close" })}>×</button>
+          <button class="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => void desktopView.rpc?.request.openSettings({})}>⚙</button>
+          <button class="icon-button" type="button" aria-label="Minimize" title="Minimize" onClick={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}>−</button>
+          <button class="icon-button close-button" type="button" aria-label="Close" title="Close" onClick={() => void desktopView.rpc?.request.windowAction({ action: "close" })}>×</button>
         </div>
       </header>
 
@@ -73,22 +73,12 @@ function App() {
         {next?.update && <UpdateNotification version={next.update.version} />}
 
         <div class="tool-grid" aria-label="Spirit Vale tools">
-          {next?.appVersion.includes("neutralino-poc") && (
-            <button
-              class="tool-button"
-              type="button"
-              onClick={() => void electroview.rpc?.request.openTool({ tool: "overlay" })}
-            >
-              <strong>Enable Overlay POC</strong>
-              <span>Start the transparent Neutralino overlay windows</span>
-            </button>
-          )}
           {TOOLS.map(({ tool, title, description }) => (
             <button
               key={tool}
               class="tool-button"
               type="button"
-              onClick={() => void electroview.rpc?.request.openTool({ tool })}
+              onClick={() => void desktopView.rpc?.request.openTool({ tool })}
             >
               <strong>{title}</strong>
               <span>{description}</span>
@@ -97,7 +87,7 @@ function App() {
           <button
             class="tool-button"
             type="button"
-            onClick={() => void electroview.rpc?.request.manageSettings({})}
+            onClick={() => void desktopView.rpc?.request.manageSettings({})}
           >
             <strong>Manage Settings</strong>
             <span>Import, locate, or reset your settings</span>
@@ -135,9 +125,9 @@ function UpdateNotification({ version }: { version: string }) {
     <div class="update-notification" aria-live="polite">
       <div><strong>Update available</strong><p>{`Version ${version} is available on GitHub.`}</p></div>
       <div class="update-actions">
-        <button class="update-button" type="button" onClick={() => void electroview.rpc?.request.openUpdateRelease({})}>View download</button>
-        <button class="update-skip-button" type="button" onClick={() => void electroview.rpc?.request.skipUpdateVersion({})}>Skip version</button>
-        <button class="update-dismiss-button" type="button" aria-label="Dismiss update notification" title="Dismiss" onClick={() => void electroview.rpc?.request.dismissUpdateNotification({})}>×</button>
+        <button class="update-button" type="button" onClick={() => void desktopView.rpc?.request.openUpdateRelease({})}>View download</button>
+        <button class="update-skip-button" type="button" onClick={() => void desktopView.rpc?.request.skipUpdateVersion({})}>Skip version</button>
+        <button class="update-dismiss-button" type="button" aria-label="Dismiss update notification" title="Dismiss" onClick={() => void desktopView.rpc?.request.dismissUpdateNotification({})}>×</button>
       </div>
     </div>
   );

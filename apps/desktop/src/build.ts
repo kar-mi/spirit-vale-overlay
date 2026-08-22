@@ -13,7 +13,7 @@ await Promise.all([rm(resources, { recursive: true, force: true }), rm(extension
 await Promise.all([mkdir(views, { recursive: true }), mkdir(backend, { recursive: true }), mkdir(bin, { recursive: true })]);
 
 await build({
-  entrypoint: path.join(appRoot, "src/backend/desktop-index.ts"),
+  entrypoint: path.join(appRoot, "src/backend/index.ts"),
   outdir: backend,
   target: "bun",
   alias: {},
@@ -52,7 +52,7 @@ if (process.platform === "win32") {
   ], { stdout: "inherit", stderr: "inherit" });
   if (await helper.exited !== 0) throw new Error("Could not build the pass-through hotkey helper.");
 }
-console.log(`Neutralino POC prepared in ${appRoot}`);
+console.log(`Neutralino desktop app prepared in ${appRoot}`);
 
 async function buildView(name: string, source: string): Promise<void> {
   const destination = path.join(views, name);
