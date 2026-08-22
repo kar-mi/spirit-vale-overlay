@@ -19,13 +19,13 @@ test.skipIf(process.platform !== "win32")("portable shortcut resolves after its 
   const original = path.join(root, "original");
   const copied = path.join(root, "copied");
   try {
-    await mkdir(path.join(original, "bin"), { recursive: true });
-    await writeFile(path.join(original, "bin", "launcher.exe"), "probe");
+    await mkdir(original, { recursive: true });
+    await writeFile(path.join(original, "SpiritValeOverlay.exe"), "probe");
     const build = Bun.spawnSync([
       "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
       path.join(import.meta.dir, "build-portable-shortcut.ps1"),
       "-OutputPath", path.join(original, "Spirit Vale Overlay.lnk"),
-      "-TargetPath", path.join(original, "bin", "launcher.exe"),
+      "-TargetPath", path.join(original, "SpiritValeOverlay.exe"),
     ]);
     expect(build.exitCode).toBe(0);
     await cp(original, copied, { recursive: true });
@@ -38,7 +38,7 @@ test.skipIf(process.platform !== "win32")("portable shortcut resolves after its 
       + "$link = $folder.ParseName('Spirit Vale Overlay.lnk').GetLink; $link.Resolve(1); $link.Path",
     ]);
     expect(resolve.exitCode).toBe(0);
-    const expectedTarget = await realpath(path.join(copied, "bin", "launcher.exe"));
+    const expectedTarget = await realpath(path.join(copied, "SpiritValeOverlay.exe"));
     expect(new TextDecoder().decode(resolve.stdout).trim().toLowerCase())
       .toBe(expectedTarget.toLowerCase());
   } finally {

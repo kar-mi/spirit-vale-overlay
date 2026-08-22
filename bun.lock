@@ -5,7 +5,7 @@
     "": {
       "name": "spirit-vale-overlay",
       "devDependencies": {
-        "@types/bun": "1.3.14",
+        "@types/bun": "1.4.0",
         "resedit": "3.0.2",
         "typescript": "7.0.2",
       },
@@ -13,7 +13,7 @@
     "apps/desktop": {
       "name": "@svoverlay/desktop",
       "dependencies": {
-        "@kar-mi/spirit-vale-tools-capture": "1.9.0",
+        "@kar-mi/spirit-vale-tools-capture": "2.1.0",
         "@neutralinojs/lib": "6.9.0",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
@@ -23,22 +23,20 @@
       },
       "devDependencies": {
         "@neutralinojs/neu": "11.7.2",
-        "pe-library": "^2.0.1",
-        "resedit": "^3.0.2",
       },
     },
     "apps/launcher": {
       "name": "@svoverlay/launcher",
       "dependencies": {
-        "@kar-mi/spirit-vale-tools-capture": "1.9.0",
+        "@kar-mi/spirit-vale-tools-capture": "2.1.0",
         "@kar-mi/spirit-vale-tools-character": "0.4.2",
-        "@kar-mi/spirit-vale-tools-combat": "3.3.1",
+        "@kar-mi/spirit-vale-tools-combat": "3.3.3",
         "@kar-mi/spirit-vale-tools-items": "0.1.7",
         "@kar-mi/spirit-vale-tools-logging": "0.8.0",
         "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
-        "@kar-mi/spirit-vale-tools-rewards": "1.2.1",
+        "@kar-mi/spirit-vale-tools-rewards": "1.2.2",
         "@kar-mi/spirit-vale-tools-skills": "0.2.1",
-        "@kar-mi/spirit-vale-tools-sqlite": "0.1.5",
+        "@kar-mi/spirit-vale-tools-sqlite": "0.2.0",
         "@preact/signals": "^2.9.4",
         "@svoverlay/build-export": "workspace:*",
         "@svoverlay/combat": "workspace:*",
@@ -54,7 +52,7 @@
       "name": "@svoverlay/build-export",
       "dependencies": {
         "@kar-mi/spirit-vale-tools-character": "0.4.3",
-        "@kar-mi/spirit-vale-tools-combat": "3.3.2",
+        "@kar-mi/spirit-vale-tools-combat": "3.3.3",
         "@preact/signals": "^2.9.4",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
@@ -66,9 +64,9 @@
       "name": "@svoverlay/combat",
       "dependencies": {
         "@kar-mi/spirit-vale-tools-character": "0.4.3",
-        "@kar-mi/spirit-vale-tools-combat": "3.3.2",
+        "@kar-mi/spirit-vale-tools-combat": "3.3.3",
         "@kar-mi/spirit-vale-tools-logging": "0.8.0",
-        "@kar-mi/spirit-vale-tools-sqlite": "0.1.5",
+        "@kar-mi/spirit-vale-tools-sqlite": "0.2.0",
         "@preact/signals": "^2.9.4",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
@@ -79,7 +77,7 @@
     "packages/contracts": {
       "name": "@svoverlay/contracts",
       "dependencies": {
-        "@kar-mi/spirit-vale-tools-combat": "3.3.2",
+        "@kar-mi/spirit-vale-tools-combat": "3.3.3",
         "@svoverlay/ui-kit": "workspace:*",
       },
     },
@@ -95,9 +93,9 @@
       "name": "@svoverlay/overlay",
       "dependencies": {
         "@kar-mi/spirit-vale-tools-character": "0.4.3",
-        "@kar-mi/spirit-vale-tools-combat": "3.3.2",
+        "@kar-mi/spirit-vale-tools-combat": "3.3.3",
         "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
-        "@kar-mi/spirit-vale-tools-rewards": "1.2.1",
+        "@kar-mi/spirit-vale-tools-rewards": "1.2.2",
         "@kar-mi/spirit-vale-tools-skills": "0.2.1",
         "@kar-mi/spirit-vale-tools-statuses": "0.2.3",
         "@preact/signals": "^2.9.4",
@@ -112,8 +110,8 @@
       "name": "@svoverlay/rewards",
       "dependencies": {
         "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
-        "@kar-mi/spirit-vale-tools-rewards": "1.2.1",
-        "@kar-mi/spirit-vale-tools-sqlite": "0.1.5",
+        "@kar-mi/spirit-vale-tools-rewards": "1.2.2",
+        "@kar-mi/spirit-vale-tools-sqlite": "0.2.0",
         "@preact/signals": "^2.9.4",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
@@ -132,11 +130,11 @@
   "packages": {
     "@electron/asar": ["@electron/asar@3.4.1", "", { "dependencies": { "commander": "^5.0.0", "glob": "^7.1.6", "minimatch": "^3.0.4" }, "bin": { "asar": "bin/asar.js" } }, "sha512-i4/rNPRS84t0vSRa2HorerGRXWyF4vThfHesw0dmcWHp+cspK743UanA0suA5Q5y8kzY2y6YKrvbIUn69BCAiA=="],
 
-    "@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@1.9.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/1.9.0/1b34c926647a1c584a25f59cbfbdc42c8143fa2e", {}, "sha512-tGFnyCPFR3OPXBNykPqCJ2fdffPGU58XIb2r/8ZRSRUMJvVAabtu/90f4dUJQA3dhN+NeNI2ONrulBnWkRCIpA=="],
+    "@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.1.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/2.1.0/f476efc8f556cbb2e390a515f4bd92d8b4b2ca22", {}, "sha512-7S9JMCNOEZfMiyWBe00xOsod6qhVXy6MMtXXqYN0a3jqUqJzktE9VQMhRneEP71FwOk17U9BkUkxk45978BgKw=="],
 
     "@kar-mi/spirit-vale-tools-character": ["@kar-mi/spirit-vale-tools-character@0.4.3", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-character/0.4.3/35733ad368460babf4265ebfda293d9aaccfec36", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.0.0", "@kar-mi/spirit-vale-tools-items": "^0.1.8", "@kar-mi/spirit-vale-tools-skills": "^0.2.1" } }, "sha512-JBjM5paX3rHvqse8onuKGKWE/wYIvczzgUb27v7fIy0XsBLcgfEDx5zDyKDy/1X9eLx6vBsJHdFCF9iaf+HaOQ=="],
 
-    "@kar-mi/spirit-vale-tools-combat": ["@kar-mi/spirit-vale-tools-combat@3.3.2", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-combat/3.3.2/15aacbb36581ef31cbf8cd8c1882e74336a50599", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.0.0", "@kar-mi/spirit-vale-tools-logging": "^0.8.0", "@kar-mi/spirit-vale-tools-metrics": "^0.2.0", "@kar-mi/spirit-vale-tools-skills": "^0.2.1", "@kar-mi/spirit-vale-tools-sqlite": "^0.1.5", "@kar-mi/spirit-vale-tools-statuses": "^0.2.3" } }, "sha512-uxFGw+PQWRiBs9FkOxPM2GXW6vCufQOOJLD+fno9jh6Q7EFjE8A0eVibOQsP+JnMXGQqWLVQHaWlASGP/szAQg=="],
+    "@kar-mi/spirit-vale-tools-combat": ["@kar-mi/spirit-vale-tools-combat@3.3.3", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-combat/3.3.3/c44fdd98c0ff339505d3cd1ec7a53fc2859d9038", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.1.0", "@kar-mi/spirit-vale-tools-logging": "^0.8.0", "@kar-mi/spirit-vale-tools-metrics": "^0.2.0", "@kar-mi/spirit-vale-tools-skills": "^0.2.1", "@kar-mi/spirit-vale-tools-sqlite": "^0.2.0", "@kar-mi/spirit-vale-tools-statuses": "^0.2.3" } }, "sha512-/seLW97CQTPYjblDTgj1MDFPBq2Kq/1pN5MzuovhGTTAnT+WMaaWBKZW++M7Q/lUVSqj8ZLAdNRJlHFd6+cOyg=="],
 
     "@kar-mi/spirit-vale-tools-items": ["@kar-mi/spirit-vale-tools-items@0.1.7", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-items/0.1.7/b9e11f35ad6a1018e3e5fee57bdc2cd15403b2a3", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^1.0.0" } }, "sha512-ICGpX+zgPlkNbulV4g5UTyawk3OL7xzTyZsanGqlEWKpzoXhnJPDsrCAe0pYdKwqEnjBdTkCAMoMZeP4Aew6LA=="],
 
@@ -144,11 +142,11 @@
 
     "@kar-mi/spirit-vale-tools-metrics": ["@kar-mi/spirit-vale-tools-metrics@0.2.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-metrics/0.2.0/5e2693d2f40bd03436dce85b46787f9e9fe7919f", {}, "sha512-ukG1liXb0Vt7DwykgUIfYtFPav4v2jKaKrmsx787debvBHLUmSMM0AisOmz/7T+7gxvSIUb52CBDijKzGNa1Uw=="],
 
-    "@kar-mi/spirit-vale-tools-rewards": ["@kar-mi/spirit-vale-tools-rewards@1.2.1", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-rewards/1.2.1/4cf33aa8c819751268d7d6a41fded508aa169e6d", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.0.0", "@kar-mi/spirit-vale-tools-combat": "^3.3.2", "@kar-mi/spirit-vale-tools-items": "^0.1.8", "@kar-mi/spirit-vale-tools-logging": "^0.8.0", "@kar-mi/spirit-vale-tools-sqlite": "^0.1.5" } }, "sha512-fksNwVLGYeqpRrnZ4YgbJWYm3NciQfjF73YBgHjKJSXj3DSKPJI2g3vqBTzpTICa6GHyHlx5HZ9lhHLNPMyuwA=="],
+    "@kar-mi/spirit-vale-tools-rewards": ["@kar-mi/spirit-vale-tools-rewards@1.2.2", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-rewards/1.2.2/3933add8fa8fc876eaae2f6eb39390a5652f31c8", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.1.0", "@kar-mi/spirit-vale-tools-combat": "^3.3.3", "@kar-mi/spirit-vale-tools-items": "^0.1.8", "@kar-mi/spirit-vale-tools-logging": "^0.8.0", "@kar-mi/spirit-vale-tools-sqlite": "^0.2.0" } }, "sha512-tCG6Wtn6U77p0xTIcZzbG8v63sFRNTk83o0cgHL2WFdGTbtB5+wNh3NV5UnN7hqGh4MzLgIofbHRiUqiv/I5yg=="],
 
     "@kar-mi/spirit-vale-tools-skills": ["@kar-mi/spirit-vale-tools-skills@0.2.1", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-skills/0.2.1/8c11f1670c92e9a8933aee241680f4595948a555", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.0.0" } }, "sha512-VY4i8PRsNWLJ9AtgymDcSkW5b9IdhJexf8hFYZGhI/j1TvoM8rxL2MFK+ka6aN4gZ5aMv2qm9EXGoDMuZsFPWw=="],
 
-    "@kar-mi/spirit-vale-tools-sqlite": ["@kar-mi/spirit-vale-tools-sqlite@0.1.5", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-sqlite/0.1.5/3dd2411aaff15fda4161a9e3096e2f369c796863", { "dependencies": { "@kar-mi/spirit-vale-tools-logging": "^0.8.0" } }, "sha512-EMrO5xHlsJtyV9G9VNMTlmJdUSyvbs2xwdwqfd4lSOIfVrmGepytDx9+TMUPCXZlmWxnwqwPKldgh17A42tLbA=="],
+    "@kar-mi/spirit-vale-tools-sqlite": ["@kar-mi/spirit-vale-tools-sqlite@0.2.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-sqlite/0.2.0/eb1ad2bf9f860bd2d457573b0d7bfcdcf68c3927", { "dependencies": { "@kar-mi/spirit-vale-tools-logging": "^0.8.0" } }, "sha512-DV5yWUD4IvIPV8IZ3Ais3+jHjYbwLnoqlMG2yqOsH4ni0wPnN1pLudEafBS1ApizdSQK5+P8rfx7Q8/04hwK4Q=="],
 
     "@kar-mi/spirit-vale-tools-statuses": ["@kar-mi/spirit-vale-tools-statuses@0.2.3", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-statuses/0.2.3/db7025ba92648d8c31a5e8be4340b029ba0943ad", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.0.0" } }, "sha512-/L1Qem5WOKpKbvWyCGqNzl+VM1GKyfo4Lmup6QkY0Xi1L7cHY+Tue5p+WE5Ms6y6O0UxyAneaotInSxessgNTA=="],
 
@@ -182,7 +180,7 @@
 
     "@svoverlay/ui-kit": ["@svoverlay/ui-kit@workspace:packages/ui-kit"],
 
-    "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
+    "@types/bun": ["@types/bun@1.4.0", "", { "dependencies": { "bun-types": "1.4.0" } }, "sha512-K+lZULY23vRgK/CfTjFIV+tyifaNdSMlPh9j+6mQ/cLfpOznLyAuzgV/JQysyECpkBQLVMSyvjlr2fBUSA9wFQ=="],
 
     "@types/node": ["@types/node@26.2.0", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-5IviulTZeRNp2vAJ514cc/HUlY5nZ9fCbq9DMyC52BrhFZACo3nI0R7qBxhQmo/d27NFe96ur/b7Wwxklda+kg=="],
 
@@ -238,7 +236,7 @@
 
     "bufferutil": ["bufferutil@4.1.0", "", { "dependencies": { "node-gyp-build": "^4.3.0" } }, "sha512-ZMANVnAixE6AWWnPzlW2KpUrxhm9woycYvPOo67jWHyFowASTEd9s+QN1EIMsSDtwhIxN4sWE1jotpuDUIgyIw=="],
 
-    "bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
+    "bun-types": ["bun-types@1.4.0", "", { "dependencies": { "@types/node": "*" } }, "sha512-iIKw23BspnQQYd3prITOBxeUsxBHnwzX6YJfGMuNOZzeNcMmVqzIIVGRm1l69ogaPQmb4wB6BN8mA5bE9YuC5Q=="],
 
     "chalk": ["chalk@4.1.2", "", { "dependencies": { "ansi-styles": "^4.1.0", "supports-color": "^7.1.0" } }, "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA=="],
 
@@ -378,7 +376,7 @@
 
     "uuid": ["uuid@14.0.2", "", { "bin": { "uuid": "dist-node/bin/uuid" } }, "sha512-xZe/16rV4aa+HGSOCiY2YeLT1OybRLrrkL/Rqaq7p7GMVXjFh+6wN4oMYgjFmnSnhY8t6Xpdl2l9qmnHYuMHwQ=="],
 
-    "w-json": ["w-json@1.3.11", "", {}, "sha512-Xa8vTinB5XBIYZlcN8YyHpE625pBU6k+lvCetTQM+FKxRtLJxAY9zUVZbRqCqkMeEGbQpKvGUzwh4wZKGem+ag=="],
+    "w-json": ["w-json@1.3.10", "", {}, "sha512-XadVyw0xE+oZ5FGApXsdswv96rOhStzKqL53uSe5UaTadABGkWIg1+DTx8kiZ/VqTZTBneoL0l65RcPe4W3ecw=="],
 
     "websocket": ["websocket@1.0.35", "", { "dependencies": { "bufferutil": "^4.0.1", "debug": "^2.2.0", "es5-ext": "^0.10.63", "typedarray-to-buffer": "^3.1.5", "utf-8-validate": "^5.0.2", "yaeti": "^0.0.6" } }, "sha512-/REy6amwPZl44DDzvRCkaI1q1bIiQB0mEFQLUrhz3z2EK91cp3n72rAjUlrTP0zV22HJIUOVHQGPxhFRjxjt+Q=="],
 
@@ -398,19 +396,11 @@
 
     "@electron/asar/commander": ["commander@5.1.0", "", {}, "sha512-P0CysNDQ7rtVw4QIQtm+MRxV66vKFSvlsQvGYXZWR3qFU0jlMKHZZZgw8e+8DSah4UDKMqnknRDQz+xuQXQ/Zg=="],
 
-    "@kar-mi/spirit-vale-tools-character/@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.0.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/2.0.0/f37248ffab0cc271b79bc27b1b4dbb546f94d68c", {}, "sha512-JjVN19MoOznSKqWf/7SSAIQUcCO7dAhKhdyZpUM/Whctz82PIIWEtLrqx92M6HHB5K7m0WttgpAPKbF4kzBSQA=="],
-
     "@kar-mi/spirit-vale-tools-character/@kar-mi/spirit-vale-tools-items": ["@kar-mi/spirit-vale-tools-items@0.1.8", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-items/0.1.8/3160343c06acb521813b8d406c4ba4e0b6c3bc3d", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.0.0" } }, "sha512-ERZDnLAjSoFwpJX14nOp1cn6181IqXkFkAXagEXKr0D5nHa+/88GMkpv5J0dF0sGKwATYC8NZpmdoCcevLVy+Q=="],
 
-    "@kar-mi/spirit-vale-tools-combat/@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.0.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/2.0.0/f37248ffab0cc271b79bc27b1b4dbb546f94d68c", {}, "sha512-JjVN19MoOznSKqWf/7SSAIQUcCO7dAhKhdyZpUM/Whctz82PIIWEtLrqx92M6HHB5K7m0WttgpAPKbF4kzBSQA=="],
-
-    "@kar-mi/spirit-vale-tools-rewards/@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.0.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/2.0.0/f37248ffab0cc271b79bc27b1b4dbb546f94d68c", {}, "sha512-JjVN19MoOznSKqWf/7SSAIQUcCO7dAhKhdyZpUM/Whctz82PIIWEtLrqx92M6HHB5K7m0WttgpAPKbF4kzBSQA=="],
+    "@kar-mi/spirit-vale-tools-items/@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@1.9.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/1.9.0/1b34c926647a1c584a25f59cbfbdc42c8143fa2e", {}, "sha512-tGFnyCPFR3OPXBNykPqCJ2fdffPGU58XIb2r/8ZRSRUMJvVAabtu/90f4dUJQA3dhN+NeNI2ONrulBnWkRCIpA=="],
 
     "@kar-mi/spirit-vale-tools-rewards/@kar-mi/spirit-vale-tools-items": ["@kar-mi/spirit-vale-tools-items@0.1.8", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-items/0.1.8/3160343c06acb521813b8d406c4ba4e0b6c3bc3d", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.0.0" } }, "sha512-ERZDnLAjSoFwpJX14nOp1cn6181IqXkFkAXagEXKr0D5nHa+/88GMkpv5J0dF0sGKwATYC8NZpmdoCcevLVy+Q=="],
-
-    "@kar-mi/spirit-vale-tools-skills/@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.0.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/2.0.0/f37248ffab0cc271b79bc27b1b4dbb546f94d68c", {}, "sha512-JjVN19MoOznSKqWf/7SSAIQUcCO7dAhKhdyZpUM/Whctz82PIIWEtLrqx92M6HHB5K7m0WttgpAPKbF4kzBSQA=="],
-
-    "@kar-mi/spirit-vale-tools-statuses/@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.0.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/2.0.0/f37248ffab0cc271b79bc27b1b4dbb546f94d68c", {}, "sha512-JjVN19MoOznSKqWf/7SSAIQUcCO7dAhKhdyZpUM/Whctz82PIIWEtLrqx92M6HHB5K7m0WttgpAPKbF4kzBSQA=="],
 
     "@neutralinojs/neu/pe-library": ["pe-library@1.0.1", "", {}, "sha512-nh39Mo1eGWmZS7y+mK/dQIqg7S1lp38DpRxkyoHf0ZcUs/HDc+yyTjuOtTvSMZHmfSLuSQaX945u05Y2Q6UWZg=="],
 
@@ -418,18 +408,16 @@
 
     "@svoverlay/launcher/@kar-mi/spirit-vale-tools-character": ["@kar-mi/spirit-vale-tools-character@0.4.2", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-character/0.4.2/c23ac89cd7ea4b1dc441c1c829f793f1ed8e2c64", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^1.8.0", "@kar-mi/spirit-vale-tools-items": "^0.1.6", "@kar-mi/spirit-vale-tools-skills": "^0.2.0" } }, "sha512-8FEjMWE+1iFMnAXCR0LNhqkm+8Dg0zKPyl/EEDXXJiYRa7ZQU4V+EqE4j42/I6Ox2DSZdTliAZ19ANGwGJZHNA=="],
 
-    "@svoverlay/launcher/@kar-mi/spirit-vale-tools-combat": ["@kar-mi/spirit-vale-tools-combat@3.3.1", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-combat/3.3.1/e0d023d3696c2a8328d2bd0a3ef7726ad3fc5030", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^1.8.0", "@kar-mi/spirit-vale-tools-logging": "^0.8.0", "@kar-mi/spirit-vale-tools-metrics": "^0.2.0", "@kar-mi/spirit-vale-tools-skills": "^0.2.0", "@kar-mi/spirit-vale-tools-sqlite": "^0.1.5", "@kar-mi/spirit-vale-tools-statuses": "^0.2.2" } }, "sha512-xse9A/zlMHwnuhbPOFPs5HOEJL45oc34Owmk4mq7xgsIdqd8/ygnMnQX7ODXslWuUCXWLTq/7vbgOCaW4l+stw=="],
-
     "postject/commander": ["commander@9.5.0", "", {}, "sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ=="],
 
-    "r-json/w-json": ["w-json@1.3.10", "", {}, "sha512-XadVyw0xE+oZ5FGApXsdswv96rOhStzKqL53uSe5UaTadABGkWIg1+DTx8kiZ/VqTZTBneoL0l65RcPe4W3ecw=="],
-
     "websocket/debug": ["debug@2.6.9", "", { "dependencies": { "ms": "2.0.0" } }, "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA=="],
+
+    "@svoverlay/launcher/@kar-mi/spirit-vale-tools-character/@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@1.9.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/1.9.0/1b34c926647a1c584a25f59cbfbdc42c8143fa2e", {}, "sha512-tGFnyCPFR3OPXBNykPqCJ2fdffPGU58XIb2r/8ZRSRUMJvVAabtu/90f4dUJQA3dhN+NeNI2ONrulBnWkRCIpA=="],
 
     "@svoverlay/launcher/@kar-mi/spirit-vale-tools-character/@kar-mi/spirit-vale-tools-items": ["@kar-mi/spirit-vale-tools-items@0.1.8", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-items/0.1.8/3160343c06acb521813b8d406c4ba4e0b6c3bc3d", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.0.0" } }, "sha512-ERZDnLAjSoFwpJX14nOp1cn6181IqXkFkAXagEXKr0D5nHa+/88GMkpv5J0dF0sGKwATYC8NZpmdoCcevLVy+Q=="],
 
     "websocket/debug/ms": ["ms@2.0.0", "", {}, "sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A=="],
 
-    "@svoverlay/launcher/@kar-mi/spirit-vale-tools-character/@kar-mi/spirit-vale-tools-items/@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.0.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/2.0.0/f37248ffab0cc271b79bc27b1b4dbb546f94d68c", {}, "sha512-JjVN19MoOznSKqWf/7SSAIQUcCO7dAhKhdyZpUM/Whctz82PIIWEtLrqx92M6HHB5K7m0WttgpAPKbF4kzBSQA=="],
+    "@svoverlay/launcher/@kar-mi/spirit-vale-tools-character/@kar-mi/spirit-vale-tools-items/@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.1.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/2.1.0/f476efc8f556cbb2e390a515f4bd92d8b4b2ca22", {}, "sha512-7S9JMCNOEZfMiyWBe00xOsod6qhVXy6MMtXXqYN0a3jqUqJzktE9VQMhRneEP71FwOk17U9BkUkxk45978BgKw=="],
   }
 }

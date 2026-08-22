@@ -53,7 +53,6 @@ export async function createReadModelService(
   const timer = model
     ? setInterval(() => void indexActiveSession(), options.indexIntervalMs ?? INDEX_INTERVAL_MS)
     : undefined;
-  timer?.unref?.();
 
   async function indexActiveSession(): Promise<void> {
     if (closed || !model || consumers === 0) return;

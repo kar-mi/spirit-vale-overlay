@@ -11,7 +11,7 @@
     "test": "bun test src"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-capture": "1.9.0",
+    "@kar-mi/spirit-vale-tools-capture": "2.1.0",
     "@neutralinojs/lib": "6.9.0",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/desktop-platform": "workspace:*",
@@ -20,8 +20,6 @@
     "preact": "^10.29.7"
   },
   "devDependencies": {
-    "@neutralinojs/neu": "11.7.2",
-    "pe-library": "^2.0.1",
-    "resedit": "^3.0.2"
+    "@neutralinojs/neu": "11.7.2"
   }
 }

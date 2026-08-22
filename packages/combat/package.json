@@ -12,9 +12,9 @@
   "dependencies": {
     "@preact/signals": "^2.9.4",
     "@kar-mi/spirit-vale-tools-character": "0.4.3",
-    "@kar-mi/spirit-vale-tools-combat": "3.3.2",
+    "@kar-mi/spirit-vale-tools-combat": "3.3.3",
     "@kar-mi/spirit-vale-tools-logging": "0.8.0",
-    "@kar-mi/spirit-vale-tools-sqlite": "0.1.5",
+    "@kar-mi/spirit-vale-tools-sqlite": "0.2.0",
     "@svoverlay/desktop-platform": "workspace:*",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*",
