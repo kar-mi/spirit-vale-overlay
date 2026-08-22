@@ -83,6 +83,7 @@ export class DesktopView<T extends { setTransport(transport: DesktopTransport): 
 
   static defineRPC<Schema extends DesktopRPCSchema>(config: Parameters<typeof defineRpc<Schema, "webview">>[1]) {
     const rpc = defineRpc<Schema, "webview">("webview", config as never) as RpcInstance<Schema, "webview">;
+    let lastFrame: { x: number; y: number; width: number; height: number } | undefined;
     const request = new Proxy(rpc.request as object, {
       get(target, property, receiver) {
         if (property === "windowAction") return async ({ action }: { action: "minimize" | "close" }) => {
@@ -91,11 +92,21 @@ export class DesktopView<T extends { setTransport(transport: DesktopTransport): 
         };
         if (property === "getWindowFrame") return async () => {
           const [position, size] = await Promise.all([neutralinoWindow.getPosition(), neutralinoWindow.getSize()]);
-          return { ...position, ...size };
+          const frame = { x: position.x!, y: position.y!, width: size.width!, height: size.height! };
+          lastFrame = frame;
+          return frame;
         };
         if (property === "setWindowFrame") return async (frame: { x: number; y: number; width: number; height: number }) => {
-          await neutralinoWindow.move(frame.x, frame.y);
-          await neutralinoWindow.setSize({ width: frame.width, height: frame.height });
+          // Only touch move()/setSize() when their inputs actually changed: calling
+          // setSize() on every drag frame (even with unchanged dimensions) triggers a
+          // WebView2 repaint glitch on Windows that leaves an artifact at the top edge.
+          if (!lastFrame || frame.x !== lastFrame.x || frame.y !== lastFrame.y) {
+            await neutralinoWindow.move(frame.x, frame.y);
+          }
+          if (!lastFrame || frame.width !== lastFrame.width || frame.height !== lastFrame.height) {
+            await neutralinoWindow.setSize({ width: frame.width, height: frame.height });
+          }
+          lastFrame = frame;
         };
         return Reflect.get(target, property, receiver);
       },
@@ -135,8 +146,13 @@ async function executeWindowCommand(socket: WebSocket, id: number, method: strin
       case "unmaximize": result = await neutralinoWindow.unmaximize(); break;
       case "setAlwaysOnTop": result = await neutralinoWindow.setAlwaysOnTop(Boolean(value?.["enabled"])); break;
       case "setBounds": {
-        await neutralinoWindow.move(Number(value?.["x"]), Number(value?.["y"]));
-        result = await neutralinoWindow.setSize({ width: Number(value?.["width"]), height: Number(value?.["height"]) });
+        const x = Number(value?.["x"]);
+        const y = Number(value?.["y"]);
+        const width = Number(value?.["width"]);
+        const height = Number(value?.["height"]);
+        const [position, size] = await Promise.all([neutralinoWindow.getPosition(), neutralinoWindow.getSize()]);
+        if (x !== position.x || y !== position.y) await neutralinoWindow.move(x, y);
+        if (width !== size.width || height !== size.height) result = await neutralinoWindow.setSize({ width, height });
         break;
       }
       case "getBounds": {
