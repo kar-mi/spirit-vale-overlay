@@ -45,6 +45,13 @@ const windows = new Map<string, BrowserWindow>();
 const pendingWindows = new Set<BrowserWindow>();
 const trays = new Set<Tray>();
 
+export function isDesktopWindowProcess(processId: number): boolean {
+  for (const session of sessions.values()) {
+    if (session.processId === processId) return true;
+  }
+  return false;
+}
+
 export async function initializeNeutralinoRuntime(options: { version: string }): Promise<void> {
   appVersion = options.version;
   native = await NeutralinoClient.fromStdin();

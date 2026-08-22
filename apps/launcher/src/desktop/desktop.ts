@@ -1,5 +1,5 @@
 import path from "node:path";
-import DesktopRuntime, { BrowserView, BrowserWindow, Screen, Tray, Utils } from "@svoverlay/desktop-runtime";
+import DesktopRuntime, { BrowserView, BrowserWindow, Screen, Tray, Utils, isDesktopWindowProcess } from "@svoverlay/desktop-runtime";
 import { applyRoundedCorners, makeProcessDpiAware, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/spirit-vale-tools-capture/capture";
@@ -161,6 +161,7 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
   settingsPath: storagePaths.overlaySettingsPath,
   // No `placements` here: each overlay surface is pinned to a whole display, so there is no user-moved frame to remember.
   lockOnCreate: true,
+  isAppProcess: isDesktopWindowProcess,
   onReset: () => capture.resetSession(),
   onOpenLiveDeathLog: openLiveDeathLog,
   onLiveLogPathChanged: (nextPath) => {

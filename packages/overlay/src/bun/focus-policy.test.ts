@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  autoHideEnabledForMode,
   classifyForegroundProcess,
   manuallySetVisibility,
   permitsGameKeybind,
@@ -16,6 +17,17 @@ describe("overlay focus policy", () => {
 
   test("recognizes this app by pid without requiring an image name", () => {
     expect(classifyForegroundProcess({ pid: 7 }, 7)).toBe("app");
+  });
+
+  test("recognizes a Neutralino child window as part of this app", () => {
+    expect(classifyForegroundProcess({ pid: 19 }, 7, (pid) => pid === 19)).toBe("app");
+    expect(classifyForegroundProcess({ pid: 20, exeName: "spirit-vale-overlay-win_x64.exe" }, 7, (pid) => pid === 19)).toBe("other");
+  });
+
+  test("enables auto-hide only while the overlay is locked", () => {
+    expect(autoHideEnabledForMode(true, true)).toBe(true);
+    expect(autoHideEnabledForMode(true, false)).toBe(false);
+    expect(autoHideEnabledForMode(false, true)).toBe(false);
   });
 
   test("distinguishes unrelated and unknown foreground processes", () => {

@@ -59,6 +59,7 @@ import {
   type OverlaySettings,
 } from "../settings.ts";
 import {
+  autoHideEnabledForMode,
   classifyForegroundProcess,
   manuallySetVisibility,
   permitsGameKeybind,
@@ -494,6 +495,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function updateLocked(locked: boolean): void {
     settings.locked = locked;
+    reconcileFocusVisibility(autoHideEnabledForMode(settings.autoHideWhenUnfocused, locked));
     scheduleClickThroughUpdate();
     persist();
     publishControl();
@@ -643,7 +645,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     const previousVisibility = overlayVisible;
     settings = { ...settings, autoHideWhenUnfocused: enabled };
     persist();
-    reconcileFocusVisibility(enabled);
+    reconcileFocusVisibility(autoHideEnabledForMode(enabled, settings.locked));
     // A visibility transition publishes both control and launcher settings state itself.
     if (overlayVisible === previousVisibility) publishControl();
     return controlState();
@@ -658,7 +660,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
   }
 
   function checkAutoHide(): void {
-    if (shuttingDown || !settings.autoHideWhenUnfocused || manualHideEngaged) return;
+    if (shuttingDown || !autoHideEnabledForMode(settings.autoHideWhenUnfocused, settings.locked) || manualHideEngaged) return;
     reconcileFocusVisibility(true);
   }
 
@@ -672,8 +674,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function classifyForeground() {
     const foreground = getForegroundProcess();
-    if (foreground && options.isAppProcess?.(foreground.pid)) return "app" as const;
-    return classifyForegroundProcess(foreground, process.pid);
+    return classifyForegroundProcess(foreground, process.pid, options.isAppProcess);
   }
 
   function applyFocusVisibility(next: FocusVisibilityState): void {
