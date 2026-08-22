@@ -1,6 +1,5 @@
 import type { RPCSchema } from "electrobun";
 
-/** Typed renderer contracts for the combat UI windows. */
 
 import type {
   FishNetDpsActorRow,
@@ -17,10 +16,6 @@ import type { SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 export type { StatType } from "@svoverlay/ui-kit/stat-type-select";
 import type { StatType } from "@svoverlay/ui-kit/stat-type-select";
 
-/**
- * The tanked and healing meters render with the same detail as the DPS meter, and upstream builds
- * all three through one reducer, so these are that package's row types rather than parallel copies.
- */
 export type MeterTimelinePoint = FishNetDpsTimelinePoint;
 export type { MeterActorRow } from "@svoverlay/contracts/meter";
 export type MeterEncounterSnapshot = FishNetDpsEncounterSnapshot;
@@ -47,7 +42,6 @@ export interface DpsAppState {
   tankedSnapshot?: MeterEncounterSnapshot;
   healSnapshot?: MeterEncounterSnapshot;
   resetting: boolean;
-  /** Most recently captured physical map or Eternal Tower floor. */
   location?: SpiritValeLocation;
   liveDeathLogAvailable: boolean;
   past:
@@ -102,9 +96,7 @@ export interface CombatAnalysisState {
   snapshot?: FishNetDpsEncounterSnapshot;
   tankedSnapshot?: MeterEncounterSnapshot;
   healSnapshot?: MeterEncounterSnapshot;
-  /** Enemies fought during the selected encounter, for the enemy filter control. */
   enemies: EnemyOption[];
-  /** Per-enemy damage for each exact rendered actor row. */
   actorEnemyBreakdown: Record<string, EnemyDamageRow[]>;
 }
 
@@ -113,14 +105,11 @@ export interface CombatAnalysisDetailState {
   encounterLabel: string;
   encounterDurationMs: number;
   statType: StatType;
-  /** Enemy filter inherited from the analysis overview when this player was opened. */
   selectedEnemyIds: number[];
   player: FishNetDpsActorRow;
   tankedPlayer?: MeterActorRow;
   healPlayer?: MeterActorRow;
-  /** Enemies this player damaged during the encounter, for the enemy filter control. */
   enemies: EnemyOption[];
-  /** This player's skill breakdown scoped to a single enemy, keyed by targetId. */
   skillsByEnemy: Record<number, FishNetDpsSkillRow[]>;
 }
 

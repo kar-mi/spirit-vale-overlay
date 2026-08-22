@@ -11,12 +11,10 @@ const WINDOWS_1252_CHARACTERS = new Map<number, number>([
   [0x9c, 0x0153], [0x9e, 0x017e], [0x9f, 0x0178],
 ]);
 
-/** Reproduces the corruption: UTF-8 bytes rendered as if they were Windows-1252. */
 function mojibake(value: string): string {
   return Array.from(new TextEncoder().encode(value), (byte) => String.fromCharCode(WINDOWS_1252_CHARACTERS.get(byte) ?? byte)).join("");
 }
 
-/** The variant where the renderer maps raw bytes into the halfwidth-forms block. */
 function halfwidthMojibake(value: string): string {
   return Array.from(new TextEncoder().encode(value), (byte) => (byte < 0x80 ? String.fromCharCode(byte) : String.fromCharCode(0xff00 + byte))).join("");
 }

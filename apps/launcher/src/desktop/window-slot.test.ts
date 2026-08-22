@@ -64,8 +64,6 @@ describe("window slot", () => {
     await slot.open();
     expect(windows).toHaveLength(2);
 
-    // A second notification for the first window (Electrobun fires the native close event on a
-    // programmatic close too) must not evict the replacement.
     closers[0]?.();
     await slot.open();
     expect(windows).toHaveLength(2);
@@ -81,11 +79,8 @@ describe("window slot", () => {
     });
 
     await slot.open();
-    // Closed behind the slot's back: no onClosed, and the native handle is gone.
     windows[0]!.destroyed = true;
 
-    // Must not reject, and must leave a usable window behind. A newly built window is displayed by
-    // its own construction, so the slot does not show it — only a reused one gets show()/activate().
     await slot.open();
     expect(windows).toHaveLength(2);
 

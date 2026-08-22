@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import type { CharacterEquipment, CharacterSnapshot, CharacterSubstat } from "@kar-mi/spirit-vale-tools-character";
 import { snapshotToBuild } from "./snapshot-to-build.ts";
 
-/** StatType codes used below, from the pinned snapshot: Dex 3, Luk 5, Def 11, Crit 15, AtkMult 69. */
 const DEX = 3;
 const CRIT = 15;
 const ATK_MULT = 69;
@@ -95,7 +94,6 @@ describe("cards", () => {
   });
 
   test("pads to the item's socket count so the planner renders every slot", () => {
-    // Flintlock Pistol has two card slots.
     const { build } = snapshotToBuild(character({ equipment: [weapon({ cards: [] })] }));
     expect(build.eq.mainhand?.cards).toEqual([null, null]);
   });
@@ -121,7 +119,6 @@ describe("substats", () => {
   });
 
   test("moves the chaos roll to the last slot and leaves the others in place", () => {
-    // Without this the chaos roll lands in slot 2 and the planner treats it as a normal roll.
     const { build } = snapshotToBuild(character({
       equipment: [weapon({
         chaosType: 4,
@@ -161,7 +158,6 @@ describe("substats", () => {
     const { build } = snapshotToBuild(character({
       equipment: [weapon({ substats: [substat(CRIT, 100, { qualifier: "FanFire" })] })],
     }));
-    // The qualifier is part of the pool key, so an unscoped Crit entry must not match it.
     expect(build.eq.mainhand?.subs[0]).toBeNull();
     expect(build.eq.mainhand?.subs).toHaveLength(6);
   });
@@ -225,7 +221,6 @@ describe("skills", () => {
         { id: "ShrapnelShot", displayName: "Shrapnel", level: 5, effects: [] },
       ],
     }));
-    // ShrapnelShot -> "shrapnel" is editorial and not derivable from the game id.
     expect(build.skills).toEqual({ "fan-fire": 5, shrapnel: 5 });
   });
 
@@ -263,7 +258,6 @@ describe("weapon swap sets", () => {
   test("maps a Gunslinger's stored loadouts to the planner's three sets", () => {
     const { build } = snapshotToBuild(character({ loadouts, activeLoadout: "Heavy" }));
     expect(build.wload?.[0]).toEqual({ mainhand: null, offhand: null });
-    // Full item objects, not bare ids: the planner drops anything without an `id` property.
     expect(build.wload?.[1]?.mainhand).toMatchObject({ id: "Flintlock Pistol", refine: 7 });
     expect(build.wload?.[2]?.mainhand).toMatchObject({ id: "Launcher" });
     expect(build.wset).toBe(2);
@@ -302,7 +296,7 @@ describe("build envelope", () => {
       attributes: { STR: -5, VIT: 0, AGI: 500, DEX: 1, INT: 1, LUK: 1 },
     }));
     expect(build.lv).toBe(150);
-    expect(build.job).toBe(70); // Gunslinger's maxJobLevel
+    expect(build.job).toBe(70);
     expect(build.attr).toMatchObject({ STR: 1, VIT: 1, AGI: 99 });
   });
 

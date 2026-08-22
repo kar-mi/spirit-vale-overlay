@@ -1,4 +1,3 @@
-/** Keep inherited enemy selections that are available in the selected player's detail data. */
 export function validSelectedEnemyIds(
   selectedEnemyIds: readonly number[],
   availableEnemyIds: ReadonlySet<number>,

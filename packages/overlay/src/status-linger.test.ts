@@ -15,8 +15,6 @@ function timed(statusId: string, expiresAtMs: number): FishNetActiveStatus {
 test("holds a toggle the server dropped and re-applied within the window", () => {
   const linger = new OverlayStatusLinger();
   linger.apply([toggle("Might")], 0);
-  // The server churns group boons: an explicit remove, then the same status back a fraction of a
-  // second later. Without the hold that gap renders as a blink.
   expect(linger.apply([], 400).map((status) => status.statusId)).toEqual(["Might"]);
   expect(linger.apply([toggle("Might")], 800).map((status) => status.statusId)).toEqual(["Might"]);
 });
@@ -32,8 +30,6 @@ test("lets a toggle go once it has been absent for the whole window", () => {
 test("times the hold from the absence, not from the last sighting", () => {
   const linger = new OverlayStatusLinger();
   linger.apply([toggle("Might")], 0);
-  // The overlay projects when the tracker changes, so a quiet stretch can sit between the last
-  // projection and the removal. That gap must not count against the hold.
   const quietGapMs = STATUS_LINGER_MS * 5;
   expect(linger.apply([], quietGapMs)).toHaveLength(1);
   expect(linger.apply([], quietGapMs + STATUS_LINGER_MS)).toHaveLength(1);
@@ -42,11 +38,9 @@ test("times the hold from the absence, not from the last sighting", () => {
 test("reports the deadline of a held chip, since no event will announce it", () => {
   const linger = new OverlayStatusLinger();
   linger.apply([toggle("Might")], 0);
-  // Nothing is absent yet, so there is nothing to wake for.
   expect(linger.nextDeadlineMs()).toBeUndefined();
   linger.apply([], 400);
   expect(linger.nextDeadlineMs()).toBe(400 + STATUS_LINGER_MS);
-  // Coming back clears the deadline again.
   linger.apply([toggle("Might")], 500);
   expect(linger.nextDeadlineMs()).toBeUndefined();
 });

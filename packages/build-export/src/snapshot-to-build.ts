@@ -1,15 +1,3 @@
-/**
- * `CharacterSnapshot` (what the game sent) -> v:2 build (what spiritvalers.com loads).
- *
- * Two rules govern everything here:
- *
- * 1. Nothing is invented. An id the snapshot catalog does not know is counted and reported, never
- *    guessed at and never written into the build. A build that silently contains a wrong item is
- *    worse than one that honestly says it dropped two cards.
- * 2. Positions are preserved. The planner's card and substat arrays are positional, and the chaos
- *    substat is identified purely by sitting in the last slot, so packing an array shifts a chaos
- *    roll into a normal slot where it will never be floored correctly.
- */
 
 import type { CharacterEquipment, CharacterSnapshot, CharacterSubstat } from "@kar-mi/spirit-vale-tools-character";
 
@@ -24,7 +12,6 @@ import { ARTIFACT_ITEM, chaosSlotIndex, maxSubstats, scaleRoll } from "./substat
 export const EXPORT_APP = "spirit-vale-overlay";
 export const EXPORT_SOURCE_VERSION = 1;
 
-/** Everything the catalog could not resolve, grouped so the UI can say what was lost and where. */
 export interface UnresolvedItems {
   equipment: string[];
   cards: string[];
@@ -39,14 +26,11 @@ export interface UnresolvedItems {
 export interface TranslateResult {
   build: V2Build;
   unresolved: UnresolvedItems;
-  /** Total unresolved entries; 0 means the character translated cleanly. */
   missing: number;
-  /** Human-readable remarks about choices the translation had to make. */
   notes: string[];
 }
 
 export interface TranslateOptions {
-  /** Overrides the build name, which otherwise takes the character's name. */
   name?: string;
   catalog?: BuildExportCatalog;
   now?: Date;
@@ -93,12 +77,7 @@ export function snapshotToBuild(snapshot: CharacterSnapshot, options: TranslateO
   return { build, unresolved, missing: countUnresolved(unresolved), notes };
 }
 
-// ------------------------------------------------------------------ class ----
 
-/**
- * `archetypes` is the character's advancement chain. The last playable entry is the job it is now;
- * the first is the base path it took to get there.
- */
 function resolveClass(
   snapshot: CharacterSnapshot,
   catalog: BuildExportCatalog,
@@ -119,12 +98,7 @@ function translateAttributes(attributes: CharacterSnapshot["attributes"]): V2Att
   return attr;
 }
 
-// ------------------------------------------------------------------- gear ----
 
-/**
- * `equipment` is what the character is wearing. A payload can carry an empty worn list alongside a
- * populated active loadout, so fall back rather than exporting a naked character, and say so.
- */
 function pickActiveGear(snapshot: CharacterSnapshot, notes: string[]): CharacterEquipment[] {
   if (snapshot.equipment.length) return [...snapshot.equipment];
   const active = snapshot.loadouts?.find((set) => set.length);
@@ -155,7 +129,6 @@ function translateEquipment(
   return eq;
 }
 
-/** One worn item -> a planner slot entry. Shared by worn gear and the weapon-swap sets. */
 function translateEquipmentEntry(
   worn: CharacterEquipment,
   item: SnapshotEquipment,
@@ -170,10 +143,6 @@ function translateEquipmentEntry(
   };
 }
 
-/**
- * `cardsBySlot` keeps empty sockets; `cards` is the densified list kept for compatibility. Prefer
- * the positional one so a card in socket 3 does not move to socket 1.
- */
 function translateCards(
   worn: CharacterEquipment,
   cardSlots: number,
@@ -207,8 +176,6 @@ function translateArtifacts(
       unresolved.artifacts.push(`${slotId}: ${artifact.itemId}`);
       continue;
     }
-    // Gems are unique account-wide and socket into at most one piece, so the planner models one
-    // gem per artifact. Anything beyond the first socket is reported rather than dropped quietly.
     let gem: string | null = null;
     let gemRefine = 0;
     const [first, ...extra] = artifact.gems;
@@ -233,7 +200,6 @@ function translateArtifacts(
   return arti;
 }
 
-/** Grimoires are labelled `Grimoire N` by the decoder, which is how an empty slot 1 stays empty. */
 function translateGrimoires(
   snapshot: CharacterSnapshot,
   catalog: BuildExportCatalog,
@@ -253,14 +219,6 @@ function translateGrimoires(
   return grim;
 }
 
-/**
- * `{type, roll, qualifier}` -> `{stat, base, q}`, keeping wire positions.
- *
- * The chaos substat is the last one the game sent, and the planner expects it in the last slot of
- * a full-width array. Those are different indices whenever the item is not fully rolled, so the
- * chaos entry is relocated and every other roll stays exactly where the game put it. Gated on
- * `chaosType`, which is -1 when the item has no chaos substat at all.
- */
 function translateSubstats(
   substats: readonly CharacterSubstat[],
   item: SnapshotEquipment,
@@ -295,17 +253,7 @@ function translateSubstats(
   return subs;
 }
 
-// ------------------------------------------------------------------ skills ----
 
-/**
- * Skill ids resolve through `gameId` — the `SkillConfig` id the game puts on the wire. The site's
- * own key is a slug of the DISPLAY name and is not derivable from the game id
- * (`IncreasedManaRegen` -> `increased-recovery`), so this join is the only correct one.
- *
- * Anything left over is a skill the class tree does not contain — grimoire-granted skills, monster
- * skills, the auto-attack pseudo-skill — and is reported rather than written into a build the
- * planner would reject.
- */
 function translateSkills(
   snapshot: CharacterSnapshot,
   classData: SnapshotClass | undefined,
@@ -326,11 +274,6 @@ function translateSkills(
   return skills;
 }
 
-/**
- * A character's points sit on its own tree and on the base tree it advanced from, so the lookup
- * spans both. Walking every class that lists this one as advanced covers the relationship without
- * hardcoding the advancement map.
- */
 function skillRoutes(classData: SnapshotClass | undefined, catalog: BuildExportCatalog): Record<string, string> {
   const routes: Record<string, string> = {};
   const consider = (entry: SnapshotClass | undefined) => {
@@ -347,17 +290,9 @@ function skillRoutes(classData: SnapshotClass | undefined, catalog: BuildExportC
   return routes;
 }
 
-// ------------------------------------------------------- weapon swap sets ----
 
-/** The planner models weapon swapping for Gunslinger only; slot C is the heavy-weapon set. */
 const WEAPON_SET_CLASS = "Gunslinger";
 
-/**
- * The three stored loadouts are WEAPON-swap sets, not gear sets: on a live Gunslinger the worn
- * list held all ten items while the stored loadouts held one weapon each. Mapping them to gear
- * stages invents stages containing a single weapon and no armour, so only the two weapon slots
- * are read.
- */
 function translateWeaponSets(
   snapshot: CharacterSnapshot,
   cls: string,
@@ -391,7 +326,6 @@ function translateWeaponSets(
   return { wload, wset: active === -1 ? 0 : active };
 }
 
-// -------------------------------------------------------------------- misc ----
 
 export function emptyUnresolved(): UnresolvedItems {
   return { equipment: [], cards: [], artifacts: [], gems: [], grimoires: [], skills: [], substats: [], classes: [] };

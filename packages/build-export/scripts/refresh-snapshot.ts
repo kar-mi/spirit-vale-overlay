@@ -1,35 +1,3 @@
-/**
- * Regenerates `src/catalog/snapshot.json` — the pinned catalog snapshot the build exporter
- * translates against. Run it after a game patch that adds skills, classes or equipment:
- *
- *   bun run --filter @svoverlay/build-export refresh-snapshot
- *   bun run --filter @svoverlay/build-export refresh-snapshot -- --site-dir ../spiritvale-deploy
- *
- * WHY A SNAPSHOT AND NOT A RUNTIME FETCH
- * The overlay is otherwise fully offline with bundled catalogs, so a network dependency at export
- * time would be the only one in the app and would fail in exactly the situation a player is most
- * likely to hit (alt-tabbed, offline, or the site down).
- *
- * WHY THESE FIELDS AND NOTHING ELSE
- * The v:2 build format is defined by spiritvalers.com, not by the game, so translation needs the
- * site's identifier scheme. Almost all of it is already derivable from the game export that
- * `@kar-mi/spirit-vale-tools-items` ships, so this snapshot deliberately carries ONLY the parts
- * that are not:
- *
- *   - skill route slugs. 68 of 258 are editorial rather than mechanical
- *     (`IncreasedManaRegen` -> `increased-recovery`), so they cannot be derived from the game id.
- *   - class slugs and their advancement graph.
- *   - the StatType number -> site stat-key vocabulary.
- *   - per-item card-slot counts and equipment slot (the slot picks the substat pool).
- *   - substat pool values.
- *   - id membership lists, so an unrecognised item is reported rather than written into a build
- *     the planner would silently reject.
- *
- * Item names, descriptions, stat blocks, drop tables and icons are NOT copied. That keeps the file
- * small (~48 KB against ~508 KB for the raw catalogs), keeps it stable across patches that only
- * touch item numbers, and keeps it inside the Interoperability Snapshot grant in the site's
- * LICENSE, which permits vendoring this derived subset but not the catalogs themselves.
- */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -77,8 +45,6 @@ const snapshot: BuildExportSnapshot = {
   generatedAt: new Date().toISOString(),
   gameBuild: gameInfo.build ?? "",
   gameLabel: gameInfo.label ?? "",
-  // Provenance only, and never a local path: this file is committed, and `--site-dir` is
-  // somebody's checkout. `gameBuild`/`generatedAt` are what actually identify the pull.
   source: siteDir ? "local site checkout" : origin,
   equipment: Object.fromEntries(worn.map((item) => [item.id, {
     slot: item.slot,

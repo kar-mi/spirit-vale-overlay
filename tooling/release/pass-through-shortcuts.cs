@@ -4,9 +4,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-// A deliberately narrow global-input observer. It never suppresses or injects
-// keyboard input: matched actions are posted to a writer thread after the hook
-// has continued Windows' normal input chain.
 internal static class Program
 {
     private const int WH_KEYBOARD_LL = 13, WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101,

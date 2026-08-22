@@ -11,11 +11,6 @@ export interface PassThroughShortcutListener<Action extends string> {
   close(): void;
 }
 
-/**
- * Owns the native helper rather than a JavaScript keyboard hook. The helper's
- * hook procedure immediately calls CallNextHookEx; matching actions arrive
- * asynchronously over stdout after the foreground app has received the key.
- */
 export function createPassThroughShortcutListener<Action extends string>(
   bindings: readonly ShortcutBinding<Action>[],
   onShortcut: (action: Action) => void,

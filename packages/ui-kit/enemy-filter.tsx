@@ -11,7 +11,6 @@ export interface EnemyFilterControlProps {
   onChange(selected: Set<number>): void;
 }
 
-/** Searchable multi-select of enemies, used to scope combat summaries to specific targets. */
 export function EnemyFilterControl({ enemies, selected, onChange }: EnemyFilterControlProps) {
   return (
     <CheckboxMultiSelect

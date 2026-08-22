@@ -10,7 +10,6 @@ export interface FocusVisibilityState {
 
 const GAME_PROCESS_NAME = "spiritvale.exe";
 
-/** Classifies one foreground-process snapshot for both overlay visibility and shortcut gating. */
 export function classifyForegroundProcess(
   foreground: ForegroundProcess | undefined,
   ownPid: number,
@@ -21,7 +20,6 @@ export function classifyForegroundProcess(
   return foreground.exeName.toLowerCase() === GAME_PROCESS_NAME ? "game" : "other";
 }
 
-/** Unknown focus preserves current visibility rather than unexpectedly hiding the overlay. */
 export function visibilityForForeground(kind: ForegroundKind): boolean | undefined {
   if (kind === "unknown") return undefined;
   return kind === "game" || kind === "app";
@@ -35,7 +33,6 @@ export function manuallySetVisibility(visible: boolean): FocusVisibilityState {
   return { visible, manualHideEngaged: !visible, autoHidden: false };
 }
 
-/** Reconciles effective visibility while preserving a user's explicit hide. */
 export function reconcileAutoHide(
   state: FocusVisibilityState,
   enabled: boolean,

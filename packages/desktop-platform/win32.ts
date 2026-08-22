@@ -1,9 +1,7 @@
-/* Bun-process helpers for the custom frameless windows (Windows only).
-   Ported from the proven setup in ffxiv_gear_setup/src/desktop/index.ts. */
+// Windows helpers for frameless desktop windows.
 
 import { dlopen, FFIType, JSCallback, ptr, type Pointer } from "bun:ffi";
 
-/** Encodes a JS string as a null-terminated UTF-16LE buffer for Win32 "W" APIs. */
 function toWideString(value: string): Uint16Array {
   const buffer = new Uint16Array(value.length + 1);
   for (let index = 0; index < value.length; index += 1) buffer[index] = value.charCodeAt(index);
@@ -11,17 +9,6 @@ function toWideString(value: string): Uint16Array {
   return buffer;
 }
 
-/**
- * Enable per-monitor DPI awareness before any window is created.
- * bun.exe ships without a DPI-aware manifest, so without this call Windows
- * renders the WebView at 96 DPI and then upscales the result — causing blur.
- *
- * Prefers Per-Monitor-V2 awareness (user32's SetProcessDpiAwarenessContext),
- * which is what WebView2 expects. The older Per-Monitor v1 API (shcore's
- * SetProcessDpiAwareness) does not fully suppress DPI virtualization for
- * WebView2 content on scaled displays, leaving a faint render-then-upscale
- * blur even though "DPI awareness" is technically on.
- */
 export function makeProcessDpiAware(): void {
   if (process.platform !== "win32") return;
   try {
@@ -46,12 +33,6 @@ export function makeProcessDpiAware(): void {
   }
 }
 
-/**
- * Ask DWM for rounded window corners. Best-effort: Windows may ignore the
- * hint for frameless windows, in which case the window stays square. Do not
- * round the inner shell in CSS — a rounded shell over a square native window
- * produces a double-corner artifact.
- */
 export function applyRoundedCorners(windowPtr: unknown): void {
   if (process.platform !== "win32") return;
   const handle = windowPtr as Pointer | null | undefined;
@@ -77,11 +58,6 @@ export function applyRoundedCorners(windowPtr: unknown): void {
   }
 }
 
-/**
- * Removes a utility overlay from the Windows taskbar and Alt+Tab switcher.
- * Settings and other interactive windows should keep their normal app-window
- * style so they remain easy to find and manage.
- */
 export function hideWindowFromTaskbar(windowPtr: unknown): boolean {
   if (process.platform !== "win32") return false;
   const handle = windowPtr as Pointer | null | undefined;
@@ -122,10 +98,6 @@ export function hideWindowFromTaskbar(windowPtr: unknown): boolean {
   }
 }
 
-/**
- * Toggle native hit testing for a transparent overlay window. Layered style is
- * retained when unlocking so WebView2 does not briefly recreate its surface.
- */
 export function setWindowClickThrough(windowPtr: unknown, enabled: boolean): boolean {
   if (process.platform !== "win32") return false;
   const handle = windowPtr as Pointer | null | undefined;
@@ -148,9 +120,7 @@ export function setWindowClickThrough(windowPtr: unknown, enabled: boolean): boo
     const WS_EX_TRANSPARENT = 0x00000020;
     const WS_EX_LAYERED = 0x00080000;
     const WS_EX_NOACTIVATE = 0x08000000;
-    // A BrowserWindow can emit its close event while a queued shortcut callback is
-    // still draining. Do not pass a retired HWND to the style-changing APIs: they
-    // are native calls and an invalid handle can take down the host process.
+    // Native style calls require a live window handle.
     if (!user32.symbols.IsWindow(handle)) return false;
     const current = Number(user32.symbols.GetWindowLongPtrW(handle, GWL_EXSTYLE));
     const wasLayered = (current & WS_EX_LAYERED) !== 0;
@@ -195,7 +165,6 @@ function openProcessImageKernel32() {
   });
 }
 
-/** Resolves a process id to its executable filename (without path), or undefined when inaccessible. */
 function getProcessExeName(
   kernel32: ReturnType<typeof openProcessImageKernel32>,
   pid: number,
@@ -225,16 +194,13 @@ function openForegroundProcessLibraries() {
   };
 }
 
-/** These symbols back a poll loop, so resolve them only on the first foreground-process query. */
 let foregroundProcessLibraries: ReturnType<typeof openForegroundProcessLibraries> | undefined;
 
 export interface ForegroundProcess {
   pid: number;
-  /** Missing when Windows identifies the process but does not allow its image path to be queried. */
   exeName?: string;
 }
 
-/** Returns the process owning the current foreground window, or undefined when it cannot be identified. */
 export function getForegroundProcess(): ForegroundProcess | undefined {
   if (process.platform !== "win32") return undefined;
   try {
@@ -276,14 +242,6 @@ function openWindowRectLibraries() {
 
 let windowRectLibraries: ReturnType<typeof openWindowRectLibraries> | undefined;
 
-/**
- * Bounds of the first visible top-level window belonging to a process, matched by executable name.
- *
- * There is no direct "find window by process name" Win32 call, so this enumerates every top-level
- * window and resolves each one's owning process image path the same way {@link getForegroundProcess}
- * does, stopping at the first visible match. Re-resolve on demand rather than polling — the minimap
- * only needs this once per toggle-open, not continuously.
- */
 export function getWindowRectForProcess(exeName: string): WindowRect | undefined {
   if (process.platform !== "win32") return undefined;
   try {
@@ -321,11 +279,6 @@ export function getWindowRectForProcess(exeName: string): WindowRect | undefined
   }
 }
 
-/**
- * Sets a window's taskbar/Alt+Tab/thumbnail-preview icon via WM_SETICON.
- * Electrobun's BrowserWindow has no icon option, so without this call every
- * window falls back to whatever default icon Windows picks.
- */
 export function setWindowIcon(windowPtr: unknown, iconPath: string): void {
   if (process.platform !== "win32") return;
   const handle = windowPtr as Pointer | null | undefined;

@@ -58,8 +58,6 @@ const storagePaths = resolveDesktopStoragePaths({
 });
 const logDirectory = storagePaths.logDirectory;
 const errorLog = new HumanReadableErrorLog(localRoot);
-// One read model for the whole process: a disposable SQLite cache over the canonical JSON Lines
-// logs, so tool windows can page history from disk instead of each rebuilding it in memory.
 const readModel = await createReadModelService({ logDirectory });
 const xpTracker = createXpTrackerCoordinator({ logDirectory });
 let bossTimerStorageWarning: string | undefined;
@@ -117,8 +115,7 @@ const launcherSettingsPersistence = new SafeSaveQueue<typeof settings>({
 let characterCache: CharacterSnapshotCache = { characters: [] };
 const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
   label: "character snapshot",
-  // `updateCharacterCache` returns a fresh cache that nothing mutates afterwards, so the queue does
-  // not need its own copy.
+  // `updateCharacterCache` returns a fresh cache that nothing mutates afterwards, so the queue does not need its own copy.
   clone: false,
   save: (value) => saveCharacterCache(value, storagePaths.characterStatePath),
   onWarning: (warning) => { characterStorageWarning = warning; updateStorageWarning(); },
@@ -135,8 +132,6 @@ const inspectedCharacterRoster = new DurableInspectedCharacterRoster(inspectedCh
 let actorIdentityCache: ActorIdentityCache = await loadActorIdentityCache(storagePaths.actorIdentitiesPath);
 const actorIdentityPersistence = new SafeSaveQueue<ActorIdentityCache>({
   label: "actor identities",
-  // Likewise fresh per update, and this one is scheduled in bursts over a map of up to 15,000
-  // entries, so copying it per call is exactly the cost worth avoiding.
   clone: false,
   save: (value) => saveActorIdentityCache(value, storagePaths.actorIdentitiesPath),
   onWarning: (warning) => { actorIdentityStorageWarning = warning; updateStorageWarning(); },
@@ -164,8 +159,7 @@ const overlayWindow = new WindowSlot((onClosed) => createOverlayWindow({
   xp: xpTracker,
   bossTimers,
   settingsPath: storagePaths.overlaySettingsPath,
-  // No `placements` here: each overlay surface is pinned to a whole display, so there is no
-  // user-moved frame to remember.
+  // No `placements` here: each overlay surface is pinned to a whole display, so there is no user-moved frame to remember.
   lockOnCreate: true,
   onReset: () => capture.resetSession(),
   onOpenLiveDeathLog: openLiveDeathLog,
@@ -215,8 +209,6 @@ const capture = new CaptureCoordinator({
 characterCache = await loadCharacterCache(storagePaths.characterStatePath);
 capture.setCachedCharacter(activeCharacterSnapshot(characterCache));
 const unsubscribeCharacterPersistence = capture.subscribeCharacter((state) => {
-  // Taken from any snapshot, live or cached: the marker only has to name who is being played, and
-  // a cached one still does that while capture is warming up.
   bossTimers.setPlayerName(state.snapshot?.name);
   if (!state.snapshot || state.snapshot.source !== "live") return;
   characterCache = updateCharacterCache(characterCache, state.snapshot);
@@ -461,13 +453,6 @@ void overlayWindow.open().catch((error) => {
   console.error(`[overlay] startup failed: ${error instanceof Error ? error.message : String(error)}`);
 });
 
-/**
- * Totals the log directory once at launch, for the launcher's storage line.
- *
- * Measured once rather than polled: nothing prunes these logs so the figure only grows, and the
- * launcher shows when it was taken. Off the startup path because it walks the tree, though on a
- * ~950MB directory that is milliseconds.
- */
 async function measureLogUsage(): Promise<void> {
   const usage = await measureLogStorage(logDirectory);
   if (!usage) return;
@@ -588,9 +573,6 @@ async function importSettingsAndClose(): Promise<void> {
     return;
   }
   try {
-    // Close every window before writing anything: the overlay controller (and any other open
-    // window's controller) only reloads settings at startup, so leaving it open here would let its
-    // stale in-memory copy get flushed back over the files we're about to import.
     await closeAllWindowsAndFlush();
     await applyImport(plan.oldPaths, storagePaths, readDisplays());
     await Utils.showMessageBox({
@@ -612,8 +594,6 @@ function openSettingsDataFolder(): void {
 
 async function resetSettingsAndClose(): Promise<void> {
   try {
-    // Same reasoning as importSettingsAndClose: close windows first so no controller's stale
-    // in-memory settings get flushed back over the defaults we're about to write.
     await closeAllWindowsAndFlush();
     await resetAllSettings(storagePaths, readDisplays());
     await Utils.showMessageBox({
@@ -732,8 +712,7 @@ function openSettings(): void {
     if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
   }));
   lifecycle.add(onceWindowEvent(nextWindow, "close", () => {
-    // Do not leave global shortcuts disabled if the settings window closes while
-    // its keybinding picker is armed.
+    // Do not leave global shortcuts disabled if the settings window closes while its keybinding picker is armed.
     void overlayWindow.withWindow((overlay) => overlay.setShortcutCapture(false));
     lifecycle.dispose();
     if (settingsWindow === nextWindow) {
@@ -785,10 +764,6 @@ function setResetGoldOnMapChange(resetGoldOnMapChange: boolean): LauncherState {
   return launcherState;
 }
 
-/**
- * Mirrors the overlay's keybinds onto the launcher so it can show them as a hint. The overlay
- * republishes its settings state several times a second, so this only pushes on a real change.
- */
 function rememberOverlayShortcuts(shortcuts: Record<KeybindAction, string>): void {
   const current = launcherState.overlayShortcuts;
   if (current && KEYBIND_ACTIONS.every((action) => current[action] === shortcuts[action])) return;
@@ -827,9 +802,6 @@ async function sharedSettingsState() {
 function bossTimerWindowState(): BossTimerWindowState {
   const { timers, currentRegion, playerName } = bossTimers.getState();
   const currentInstanceId = bossTimers.currentInstanceId();
-  // Whatever has been seen, so a gravestone can still be filed under a region the player is not
-  // currently standing in. Ordered the way the game lists regions, so the form's default is the
-  // first real region rather than whichever sorts first alphabetically.
   const knownRegions = [...new Set([
     ...(currentRegion === undefined ? [] : [currentRegion]),
     ...timers.flatMap((timer) => timer.region === undefined ? [] : [timer.region]),
@@ -861,13 +833,6 @@ function updateStorageWarning(): void {
   publish();
 }
 
-/**
- * Closes every window and flushes each controller's own settled state to disk. Extracted from
- * {@link shutdown} so the manage-settings import/reset flows can run this *before* writing files
- * of their own: the overlay controller (and any other window's controller) only reloads its
- * settings at startup, so if it's still open when we write a fresh settings file directly, closing
- * it afterward re-persists its stale in-memory copy and clobbers what we just wrote.
- */
 async function closeAllWindowsAndFlush(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;

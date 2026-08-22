@@ -12,7 +12,6 @@ import {
   type ActorIdentityCacheEntry,
 } from "./actor-identity-storage.ts";
 
-/** Entries in map order, which is least-recently-seen first. */
 function listed(cache: ActorIdentityCache): ActorIdentityCacheEntry[] {
   return [...cache.entries.values()];
 }
@@ -53,8 +52,6 @@ describe("actor identity cache storage", () => {
       });
       await saveActorIdentityCache(cache, file);
 
-      // Least-recently-seen first, and the round trip has to preserve that ordering because the
-      // age prune and the size cap both rely on it.
       const restored = await loadActorIdentityCache(file);
       expect(listed(restored)).toEqual([
         { uid: "uid-1", displayName: "Fictional Ranger", archetype: 26, lastSeenAtMs: 1_000 },
@@ -92,8 +89,6 @@ describe("actor identity cache storage", () => {
       uid: "uid-1", displayName: "Ranger", lastSeenAtMs: 1_000,
     });
     const next = updateActorIdentityCache(cache, { uid: "uid-2", displayName: "Scout", lastSeenAtMs: 2_000 });
-    // Same object: the save queue is configured not to snapshot, and copying up to 15,000 entries
-    // per learned identity is exactly the zoning stutter this avoids.
     expect(next).toBe(cache);
     expect(listed(cache).map(({ uid }) => uid)).toEqual(["uid-1", "uid-2"]);
   });

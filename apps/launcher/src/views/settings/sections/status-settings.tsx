@@ -4,7 +4,6 @@ import { REQUIRED_STATUS_CATEGORIES, requiredStatusOptions } from "@svoverlay/ov
 import type { SettingsSection, SettingsSectionContext } from "../settings-section.ts";
 
 const REQUIRED_STATUS_LABELS: Record<RequiredStatusCategory, string> = { buffs: "Buffs", toggles: "Toggles" };
-/** Status sprites are copied into a single shared assets folder for every view. */
 const REQUIRED_STATUS_OPTIONS = Object.fromEntries(REQUIRED_STATUS_CATEGORIES.map((category) => [
   category,
   requiredStatusOptions(category).map((option) => ({

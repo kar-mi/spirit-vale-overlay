@@ -11,7 +11,6 @@ interface StoredInspectedCharacter {
   snapshot: string;
 }
 
-/** Durable, latest-per-IGN roster of players captured through the inspect RPC. */
 export class InspectedCharacterStore {
   private readonly database: Database;
 
@@ -83,8 +82,6 @@ export class InspectedCharacterStore {
 
 function decodeRow(row: StoredInspectedCharacter): InspectedCharacter[] {
   try {
-    // An inspect remains useful after a game update. Local-character caches intentionally reject
-    // a mismatched build fingerprint, but this roster is a historical record for the planner.
     const snapshot = normalizeCharacterSnapshot(JSON.parse(row.snapshot), { requireCurrentBuildFingerprint: false });
     return snapshot ? [{ snapshot, inspectedAt: row.inspectedAt }] : [];
   } catch {

@@ -25,15 +25,12 @@ import {
 
 import type { BossTimerRpc, BossTimerWindowState } from "../../boss-timers/rpc.ts";
 
-/** How far back a manual entry may reach: past 90 minutes the boss has already spawned. */
 const MAX_MANUAL_DEATH_MINUTES_AGO = 89;
 const DEFAULT_WIDTH = 860;
 const DEFAULT_HEIGHT = 660;
 const MINIMUM_WIDTH = 620;
 const MINIMUM_HEIGHT = 420;
-/** Every timer counts in whole seconds, so redrawing faster than that shows nothing new. */
 const TICK_MS = 1_000;
-/** Sentinel for the region filter's "everything" option; regions themselves are never empty. */
 const ALL_REGIONS = "";
 
 const state = signal<BossTimerWindowState | undefined>(undefined);
@@ -100,13 +97,6 @@ function App() {
   );
 }
 
-/**
- * Every timer at once, filtered rather than paged through.
- *
- * The overlay tile can only show one region at a time and only as many rows as it is tall, which is
- * the right trade for something sitting over the game. This is the other half of that: the full set,
- * searchable, so a hunter working several regions can see where everything stands in one place.
- */
 function TimerTable({ state: next, nowMs }: { state: BossTimerWindowState; nowMs: number }) {
   const [search, setSearch] = useState("");
   const [region, setRegion] = useState<string>(ALL_REGIONS);
@@ -182,9 +172,7 @@ function TimerRow(
       </td>
       <td class="timer-where">
         <span class="timer-place">{`${regionLabel(bossTimerRegion(timer))} · Ch ${timer.channel ?? "?"}`}</span>
-        {/* The machine is recorded but is not part of the timer's identity, so it sits underneath
-            rather than beside: a changing instance under a stable region stays visible without
-            competing with the part that decides which rotation this is. */}
+        {/* The machine is diagnostic context, not part of the timer identity. */}
         {timer.instanceId !== undefined && <span class="timer-instance">{timer.instanceId}</span>}
       </td>
       <td class="timer-killer">{timer.killedBy ?? "—"}</td>
@@ -206,7 +194,6 @@ function TimerRow(
   );
 }
 
-/** Records a gravestone the player saw but capture never received. */
 function LogGravestone({ state: next }: { state: BossTimerWindowState }) {
   const [pickedMobId, setPickedMobId] = useState<string>();
   const [pickedRegion, setPickedRegion] = useState<string>();
@@ -216,8 +203,7 @@ function LogGravestone({ state: next }: { state: BossTimerWindowState }) {
   const bossOptions = next.options.map((boss) => ({ value: boss.mobId, label: `${boss.displayName} (Lv ${boss.level})` }));
   const regionOptions = next.knownRegions.map((candidate) => ({ value: candidate, label: regionLabel(candidate) }));
   const mobId = pickedMobId ?? next.options[0]?.mobId;
-  // Whatever the select shows has to be what gets filed, or the entry lands somewhere the player
-  // was never told about.
+  // Whatever the select shows has to be what gets filed, or the entry lands somewhere the player was never told about.
   const region = pickedRegion ?? next.currentRegion ?? next.knownRegions[0];
   const channel = parseBounded(channelText, 1, MAX_BOSS_CHANNEL);
   const minutesAgo = parseBounded(minutesAgoText, 0, MAX_MANUAL_DEATH_MINUTES_AGO);
@@ -282,7 +268,6 @@ function LogGravestone({ state: next }: { state: BossTimerWindowState }) {
   );
 }
 
-/** Everything about a timer a person might reasonably type into the search box. */
 function searchTextOf(timer: BossTimer): string {
   return [
     timer.bossName,
@@ -310,7 +295,6 @@ function clockText(timer: BossTimer, phase: BossTimerPhase): string {
   return `window closed ${formatBossClock(bossDueAtMs(timer))}`;
 }
 
-/** The value as an integer within [minimum, maximum], or undefined when it isn't one. */
 function parseBounded(text: string, minimum: number, maximum: number): number | undefined {
   if (!/^\d+$/.test(text.trim())) return undefined;
   const value = Number(text.trim());

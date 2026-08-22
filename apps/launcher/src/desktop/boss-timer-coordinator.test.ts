@@ -38,10 +38,7 @@ describe("boss timer coordinator", () => {
     const nowMs = 10_000_000;
     await withCoordinator({ now: () => nowMs }, async ({ coordinator }) => {
       coordinator.recordGravestone({ mobId: "Wraith", bossName: "Wraith King", channel: 3, instanceId: "na3-12", diedAtMs: nowMs - 60_000 });
-      // Same boss and channel, different region: a separate rotation, so a separate timer.
       coordinator.recordGravestone({ mobId: "Wraith", bossName: "Wraith King", channel: 3, instanceId: "eu2-6", diedAtMs: nowMs - 30_000 });
-      // A different root inside the same region is the same rotation, so this re-anchors NA rather
-      // than opening a third timer — the machine is recorded but is not part of the identity.
       coordinator.recordGravestone({ mobId: "Wraith", bossName: "Wraith King", channel: 3, instanceId: "na4-7", diedAtMs: nowMs });
 
       const { timers } = coordinator.getState();
@@ -68,14 +65,11 @@ describe("boss timer coordinator", () => {
   test("re-anchors on a second death even well inside the respawn hour", async () => {
     const nowMs = 10_000_000;
     await withCoordinator({ now: () => nowMs }, async ({ coordinator }) => {
-      // Killing a boss spawned from a summoning item overwrites the natural timer, so a death only
-      // minutes after the last one is real data rather than an impossible repeat.
       coordinator.recordGravestone({ mobId: "Wraith", bossName: "Wraith King", channel: 3, diedAtMs: nowMs - 4 * 60_000 });
       coordinator.recordGravestone({ mobId: "Wraith", bossName: "Wraith King", channel: 3, diedAtMs: nowMs });
 
       const { timers } = coordinator.getState();
       expect(timers).toHaveLength(1);
-      // The later kill wins: waiting from it is right, and a stale timer would fire early.
       expect(timers[0]!.diedAtMs).toBe(nowMs);
     });
   });
@@ -93,8 +87,6 @@ describe("boss timer coordinator", () => {
   });
 
   test("a manual gravestone entry backdates the timer by the recorded time of death", async () => {
-    // Died 20 minutes ago: the timer must have 40 of its 60 minutes left, i.e. the reset rule
-    // "60 minutes less the difference between now and the recorded time of death".
     const nowMs = 10_000_000;
     const diedAtMs = nowMs - 20 * 60_000;
     await withCoordinator({ now: () => nowMs }, async ({ coordinator }) => {
@@ -111,7 +103,6 @@ describe("boss timer coordinator", () => {
   test("ignores a boss killed outside the world-boss channels", async () => {
     const nowMs = 10_000_000;
     await withCoordinator({ now: () => nowMs }, async ({ coordinator }) => {
-      // Same catalog boss, dying the same way, but summoned by a player on a high channel.
       coordinator.recordGravestone({ mobId: "Wraith", bossName: "Wraith King", channel: 7, diedAtMs: nowMs });
       coordinator.recordGravestone({ mobId: "Wraith", bossName: "Wraith King", channel: 4, diedAtMs: nowMs });
       expect(coordinator.getState().timers).toHaveLength(0);
@@ -182,12 +173,10 @@ describe("boss timer coordinator", () => {
     await withCoordinator({ now: () => nowMs }, async ({ coordinator }) => {
       coordinator.recordGravestone({ mobId: "Wraith", bossName: "Wraith King", channel: 3, diedAtMs: nowMs });
 
-      // 100 minutes later: expired (past 90) but still lingering on screen.
       nowMs += 100 * 60_000;
       coordinator.recordGravestone({ mobId: "Snake Naga", bossName: "Naga", channel: 3, diedAtMs: nowMs });
       expect(coordinator.getState().timers).toHaveLength(2);
 
-      // 110 minutes: past the 105-minute removal point, so the next change sweeps it away.
       nowMs += 10 * 60_000;
       coordinator.recordGravestone({ mobId: "Hare", bossName: "Vorpal Hare", channel: 3, diedAtMs: nowMs });
       const { timers } = coordinator.getState();
@@ -248,9 +237,6 @@ describe("boss timer coordinator", () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-boss-timers-fold-"));
     const storagePath = path.join(directory, "boss-timers.json");
     try {
-      // Written before NA's second server family was folded in, so the same rotation is stored
-      // twice under `sun` and `na`. Both normalize onto `na`, and file order says nothing about
-      // which death came first — taking the older one would call the boss spawnable 40 minutes early.
       const diedAtMs = Date.now() - 10 * 60_000;
       await writeFile(storagePath, JSON.stringify({
         cacheVersion: 1,
@@ -273,8 +259,6 @@ describe("boss timer coordinator", () => {
   test("a located sighting replaces the placeholder left by an unlocated one", async () => {
     const nowMs = 10_000_000;
     await withCoordinator({ now: () => nowMs }, async ({ coordinator }) => {
-      // The same gravestone twice: once in the seconds before the channel list arrived, then again
-      // once capture knew where we were. One death, so one timer — the corrected one.
       const diedAtMs = nowMs - 5 * 60_000;
       coordinator.recordGravestone({ mobId: "Wraith", bossName: "Wraith King", diedAtMs });
       expect(coordinator.getState().timers).toHaveLength(1);
@@ -295,9 +279,6 @@ describe("boss timer coordinator", () => {
   test("ignores a placeless sighting of a death already filed under a channel", async () => {
     const nowMs = 10_000_000;
     await withCoordinator({ now: () => nowMs }, async ({ coordinator }) => {
-      // Reconnecting respawns nearby markers before the channel list lands, so a gravestone already
-      // filed correctly is seen again with nothing to place it by. It must not raise a second,
-      // placeless timer beside the one that already has the answer.
       const diedAtMs = nowMs - 5 * 60_000;
       coordinator.recordGravestone({
         mobId: "Wraith",
@@ -317,7 +298,6 @@ describe("boss timer coordinator", () => {
   test("keeps an unlocated timer that records a different death", async () => {
     const nowMs = 10_000_000;
     await withCoordinator({ now: () => nowMs }, async ({ coordinator }) => {
-      // Same boss, different times of death: two real rotations, one of which we could not place.
       coordinator.recordGravestone({ mobId: "Wraith", bossName: "Wraith King", diedAtMs: nowMs - 20 * 60_000 });
       coordinator.recordGravestone({
         mobId: "Wraith",
@@ -342,7 +322,6 @@ describe("boss timer coordinator", () => {
       expect(coordinator.currentInstanceId()).toBe("sun1-4");
       expect(notified).toBe(1);
 
-      // Nothing moved, so nothing is announced; the same reading arrives on every channel list.
       coordinator.setCurrentInstance("sun1-4");
       expect(notified).toBe(1);
 
@@ -363,11 +342,9 @@ describe("boss timer coordinator", () => {
       expect(coordinator.getState().playerName).toBe("Nabooru");
       expect(notified).toBe(1);
 
-      // Character state republishes constantly; only an actual change is worth announcing.
       coordinator.setPlayerName("Nabooru");
       expect(notified).toBe(1);
 
-      // Blank is the same as unknown, so a snapshot without a name does not mark every timer.
       coordinator.setPlayerName("   ");
       expect(coordinator.getState().playerName).toBeUndefined();
       expect(notified).toBe(2);

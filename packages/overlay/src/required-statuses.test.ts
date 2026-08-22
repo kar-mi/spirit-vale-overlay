@@ -25,8 +25,6 @@ describe("required status options", () => {
 
     expect(buffs.length).toBeGreaterThan(0);
     expect(toggles.length).toBeGreaterThan(0);
-    // Statuses without shipped artwork are dropped from the overlay, so arming one would leave a
-    // warning the user could never clear.
     for (const option of [...buffs, ...toggles]) expect(option.spriteId).toBeTruthy();
 
     const toggleIds = new Set(toggles.map((option) => option.statusId));
@@ -34,8 +32,6 @@ describe("required status options", () => {
   });
 
   test("every offered status has artwork the overlay can actually render", () => {
-    // A cell whose icon fails to load is dropped from the tile, which would leave an armed warning
-    // permanently unclearable. This is what keeps e.g. SummonMount out of the curated summon list.
     const withoutArtwork = [...requiredStatusOptions("buffs"), ...requiredStatusOptions("toggles")]
       .filter((option) => !existsSync(path.join(STATUS_ICON_DIRECTORY, `${option.spriteId}.webp`)))
       .map((option) => `${option.statusId} (${option.spriteId})`);
@@ -50,8 +46,6 @@ describe("required status options", () => {
   });
 
   test("curated summon rows still match the skill catalog", () => {
-    // The rows are inlined to keep the skill catalog out of the renderer bundle, so an upstream
-    // rename or retirement has to fail here rather than drift silently.
     for (const option of SUMMON_OPTIONS) {
       expect(resolveFishNetSkill(option.statusId)).toMatchObject({
         displayName: option.displayName,

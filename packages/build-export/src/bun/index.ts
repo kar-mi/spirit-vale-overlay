@@ -22,18 +22,12 @@ export interface InspectedCharacterEntry {
 }
 
 export interface BuildExportWindowOptions {
-  /**
-   * The local player's character. Deliberately a provider rather than a fixed source: the
-   * translation does not care whose character it is.
-   */
   getCharacter: () => CharacterSnapshot | undefined;
   subscribeCharacter: (listener: () => void) => () => void;
-  /** Players seen via the inspect RPC, most recently inspected first. */
   getInspected?: () => InspectedCharacterEntry[];
   subscribeInspected?: (listener: () => void) => () => void;
   deleteInspected?: (name: string) => void;
   clearInspected?: () => void;
-  /** Overridable so a local site checkout can be targeted during development. */
   origin?: string;
   placements?: WindowPlacementStore;
   onClosed?: () => void;
@@ -51,7 +45,6 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
   let selectedId = "self";
   let searchQuery = "";
 
-  /** Your character first, then inspected players most-recent first. */
   const allSources = (): BuildExportSource[] => {
     const list: BuildExportSource[] = [];
     const own = options.getCharacter();

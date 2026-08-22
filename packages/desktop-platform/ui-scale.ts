@@ -11,7 +11,6 @@ export function getUiScale(): UiScale { return currentUiScale; }
 export function scaledSize(value: number, scale = currentUiScale): number { return Math.ceil(value * scale); }
 export function unscaledSize(value: number, scale = currentUiScale): number { return Math.ceil(value / scale); }
 
-/** Updates the shared scale value. Bun window integration lives in ui-scale-window.ts. */
 export function setUiScaleValue(value: unknown): { next: UiScale; previous: UiScale } {
   const next = normalizeUiScale(value);
   const previous = currentUiScale;

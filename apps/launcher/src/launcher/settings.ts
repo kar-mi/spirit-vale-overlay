@@ -8,9 +8,7 @@ export interface LauncherSettings {
   captureAdapter: "auto" | string;
   uiScale: UiScale;
   minimizeToTray: boolean;
-  /** Rotates the capture session whenever the game re-authenticates (a map or channel change). */
   resetMeterOnMapChange: boolean;
-  /** Resets the all-time gold tracker whenever the game re-authenticates (a map or channel change). */
   resetGoldOnMapChange: boolean;
   skippedUpdateVersion?: string;
 }

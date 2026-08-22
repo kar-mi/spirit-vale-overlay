@@ -32,8 +32,6 @@
   justify-items: center;
   gap: 8px;
   transform: translateX(-50%);
-  /* The hint can span a large part of the top edge; let tiles beneath its transparent area keep
-     receiving drag gestures, while the actual controls remain clickable below. */
   pointer-events: none;
 }
 
@@ -80,9 +78,6 @@
   background: rgba(150, 108, 22, 0.94);
 }
 
-/* A tile mid-drag on another monitor. Deliberately an outline rather than a copy of the tile: it
-   reads as "this is where it will land" and costs one cheap paint per frame, while the real tile
-   stays under the cursor on the surface that owns the gesture. */
 .drag-ghost {
   position: absolute;
   z-index: 6;
@@ -111,9 +106,6 @@
   min-height: 100px;
   overflow: visible;
   border-radius: 12px;
-  /* Hard-bounds each tile's layout and style invalidation so one tile updating cannot pull work
-     into the other thirteen. Paint containment goes on .overlay-surface instead: it would clip the
-     edit-mode handles, badge and opacity slider, which deliberately sit outside the tile. */
   contain: layout style;
 }
 .overlay-surface {
@@ -123,8 +115,6 @@
   overflow: hidden;
   border-radius: inherit;
   background: rgb(10 12 18 / var(--element-background-alpha, .76));
-  /* The surface already clips its children, so paint containment costs nothing visually; the
-     element's own box-shadow (the missing-status glow) is not clipped by its own containment. */
   contain: layout style paint;
 }
 
@@ -152,31 +142,18 @@
   border-radius: 8px;
 }
 
-/* An armed status is missing. Drawn inset on the surface so it neither shifts the tile's box nor
-   competes with the dashed edit-mode border below. */
 .overlay-element.missing-statuses .overlay-surface {
-  /* Tints the panel rather than painting flat red, and reuses the tile's own opacity so the
-     warning still honours the user's transparency slider. */
   background: rgb(62 14 14 / var(--element-background-alpha, .76));
   box-shadow: inset 0 0 0 4px rgba(228, 72, 72, 0.95), 0 0 16px rgba(228, 72, 72, 0.45);
 }
 
-/* The character is nearing maximum carry weight. Same inset ring as the missing-status warning
-   above, in caution yellow. */
 .overlay-element.weight-caution .overlay-surface {
   box-shadow: inset 0 0 0 4px rgba(255, 213, 74, 0.9), 0 0 14px rgba(255, 213, 74, 0.4);
 }
 
-/* Past the danger share the ring turns red and flashes. The steady ring below keeps the tile
-   marked between pulses; the flash itself is an overlay animating only opacity, for the same
-   compositor reasons as the expiring-buff pulse (see .status-cell.expiring). Hung off the element
-   rather than the surface, whose overflow and paint containment would clip the glow. */
 .overlay-element.weight-danger .overlay-surface {
   box-shadow: inset 0 0 0 4px rgba(228, 72, 72, 0.55);
 }
-/* Shared with the boss tile, whose ring pulses the same way when a timer crosses the spawnable or
-   overdue mark — there the pulse lasts only a minute past the crossing, and the lasting state
-   lives on the rows inside the tile. */
 .overlay-element.weight-danger::after,
 .overlay-element.boss-alert-window::after,
 .overlay-element.boss-alert-expired::after {
@@ -188,11 +165,9 @@
   box-shadow: 0 0 16px rgba(228, 72, 72, 0.75);
   content: "";
   pointer-events: none;
-  /* Promoted only while it is actually animating, never blanket-applied to every tile. */
   will-change: opacity;
   animation: warning-pulse .6s ease-in-out infinite alternate;
 }
-/* Only the spawnable alert differs: amber rather than the shared overdue red. */
 .overlay-element.boss-alert-window::after {
   border-color: rgba(255, 213, 74, 0.95);
   box-shadow: 0 0 16px rgba(255, 213, 74, 0.55);
@@ -469,9 +444,6 @@
   font-size: clamp(10px, 20cqh, 16px);
   font-variant-numeric: tabular-nums;
 }
-/* Scales a full-width fill rather than animating `width`: HP and MP move constantly in combat, and
-   a width transition runs layout and paint on every frame of every change. `transform` is
-   compositor-only. `--resource-fill` is a unitless 0-1 ratio for the same reason. */
 .resource-value::before {
   position: absolute;
   inset: 0 0 0 0;
@@ -584,22 +556,10 @@
   text-shadow: 0 1px 2px rgba(0,0,0,.9);
 }
 
-/* A long buff is about to run out. Pulses the frame and its countdown so the cell reads as urgent
-   without moving, since the tile is often parked at the edge of vision.
-
-   The glow lives on an overlaid pseudo-element carrying the final border and shadow, and only its
-   opacity animates. Animating border-color/box-shadow directly would repaint the cell on every
-   frame for as long as any buff is expiring — i.e. mid-fight — and force DWM to recomposite that
-   region over the game each time. Opacity runs on the compositor with no repaint at all.
-
-   The keyframes are shared with the weight tile's danger flash and the boss tile's alert pulses,
-   which flash for the same reason. */
 @keyframes warning-pulse {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-/* Hung off the cell rather than the frame, because the frame clips its own children to hide the
-   icon overflow and would swallow the glow. */
 .status-cell.expiring::after {
   position: absolute;
   z-index: 3;
@@ -610,7 +570,6 @@
   box-shadow: 0 0 8px rgba(228, 72, 72, .75);
   content: "";
   pointer-events: none;
-  /* Promoted only while it is actually animating, never blanket-applied to every tile. */
   will-change: opacity;
   animation: warning-pulse .6s ease-in-out infinite alternate;
 }
@@ -635,10 +594,6 @@
   color: rgba(255,255,255,.5);
   font-size: 11px;
 }
-/* Region strip, shown only when timers span more than one region. Deliberately spare: the tile is
-   small and every row the strip costs is a boss the player cannot see. It is a readout rather than
-   a control — the overlay window is click-through while locked, so the region is changed with the
-   cycle keybind, and the Boss Timers window is where the full set is browsed. */
 .boss-timer-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -660,7 +615,6 @@
   background: rgba(255,255,255,.14);
   color: white;
 }
-/* An unselected region still says whether it needs attention, so nothing hides behind a tab. */
 .boss-timer-tab.boss-window { border-color: rgba(255, 213, 74, .7); color: rgb(255, 213, 74); }
 .boss-timer-tab.boss-expired { border-color: rgba(255, 138, 138, .7); color: rgb(255, 138, 138); }
 
@@ -671,12 +625,7 @@
   gap: 8px;
   font-variant-numeric: tabular-nums;
 }
-/* A kill the character being played is credited with. Never allowed to shrink or clip.
-   The window's timer list carries the same mark. */
 .boss-own-kill { flex: none; color: rgb(126, 217, 126); }
-/* A flex row rather than one truncating box: the boss's name is what gives way when the tile is
-   narrow, and the own-kill mark stays put. Ellipsising the mark away would drop the only part of
-   the row a player is scanning for. */
 .boss-timer-name {
   display: flex;
   min-width: 0;
@@ -697,9 +646,7 @@
   white-space: nowrap;
 }
 .boss-timer-status { color: rgba(255,255,255,.78); white-space: nowrap; }
-/* The spawn window is open: the boss can appear at any moment. */
 .boss-timer-row.boss-window .boss-timer-status { color: rgb(255, 213, 74); font-weight: 700; }
-/* The window has closed, so the boss is up somewhere on that channel. */
 .boss-timer-row.boss-expired .boss-timer-status { color: rgb(255, 138, 138); font-weight: 700; }
 
 @media (prefers-reduced-motion: reduce) {

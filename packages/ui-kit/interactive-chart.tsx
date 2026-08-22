@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
-// Kept imperative (direct SVG/DOM manipulation behind refs) rather than
-// declarative JSX: this is tightly-coupled, per-frame drawing plus
-// drag-to-zoom / hover / keyboard-nav interaction, and rewriting it
-// declaratively would risk regressions for no real benefit.
 
 export interface ChartRange {
   start: number;
@@ -32,22 +28,15 @@ interface RenderedChart {
 }
 
 export interface InteractiveChartProps {
-  /** The full range of available data, used to frame the initial view and clamp zoom. `undefined` shows the empty state. */
   extent: ChartRange | undefined;
-  /** Called whenever the chart needs to redraw (mount, resize, zoom change, or `extent`/other identity changes) for the currently visible range and plot width in pixels. */
   computeRender: (range: ChartRange, plotWidthPx: number) => ChartRenderResult;
-  /** Cumulative-style (step) line vs a smooth rate line. */
   stepped: boolean;
   emptyLabel: string;
   ariaLabel: string;
-  /** Resets any active zoom when this value changes (e.g. a new session, or a tracker reset). */
   resetKey: string;
-  /** Enables hover/keyboard highlighting and drag-to-zoom. */
   interactive?: boolean;
-  /** Number of evenly spaced labels on the x axis. */
   xAxisTickCount?: number;
   formatAxisTime?: (value: number, range: ChartRange) => string;
-  /** Formats the highlighted point's time. Defaults to a localized date and time. */
   formatTooltipTime?: (value: number, range: ChartRange) => string;
 }
 

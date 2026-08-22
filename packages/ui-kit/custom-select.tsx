@@ -15,9 +15,6 @@ export interface CustomSelectProps {
   id?: string;
 }
 
-/** Themed replacement for a native <select> — the OS-drawn arrow/popup on a real <select>
- * can't be fully re-themed with CSS, so this renders the toggle and option list as ordinary
- * elements styled like the rest of the app (see .custom-select* in theme.css). */
 export function CustomSelect({ value, options, onChange, disabled, ariaLabel, id }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);

@@ -205,9 +205,6 @@ describe("central capture coordinator", () => {
       });
       await coordinator.stop();
 
-      // Polling a follower subscribes it to the shared stream source, which holds watchers and a
-      // fallback timer until every subscriber lets go. Closing keeps this test from leaving them
-      // behind for the rest of the run.
       const combatFollower = new DpsSessionLogFollower(directory);
       const rewardsFollower = new RewardSessionLogFollower(directory);
       const combat = await combatFollower.poll();
@@ -615,8 +612,6 @@ describe("central capture coordinator", () => {
       capture.packet(mapPacket(2, 17, "tower-a"));
       capture.packet(towerRunPacket(3, 1, "tower-a"));
       await Bun.sleep(550);
-      // A channel or map change re-authenticates on a NEW connection, which the tower tracker
-      // cannot recognize as its own — the floor has to be cleared here or it outlives the run.
       capture.packet(authenticatedPacket(4, "tower-b"));
       capture.packet(mapPacket(5, 29, "tower-b"));
       await Bun.sleep(50);
@@ -650,8 +645,6 @@ describe("central capture coordinator", () => {
       await Bun.sleep(550);
       const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
-      // Leaving the tower on a connection whose map is not known yet arms the settle timer with no
-      // location to commit. The manual reset must still rotate rather than resolve as a no-op.
       capture.packet(authenticatedPacket(4, "tower-b"));
       capture.packet(towerClearPacket(5, "tower-b"));
       await Bun.sleep(50);
@@ -681,8 +674,6 @@ describe("central capture coordinator", () => {
       capture.packet(authenticatedPacket(1, "tower-a"));
       capture.packet(mapPacket(2, 17, "tower-a"));
       capture.packet(towerRunPacket(3, 1, "tower-a"));
-      // Stopping inside the settle window flushes the floor into the log, but the player never saw
-      // a map change — resetting their all-time gold on the way out would be pure data loss.
       await coordinator.stop();
 
       const pointer = await readCurrentLogStream("combat", directory);
@@ -882,8 +873,6 @@ describe("central capture coordinator", () => {
       capture.packet(authenticatedPacket(25, "conn-c"));
       capture.packet(characterPinPacket(26, 303, "conn-c"));
 
-      // A map can assign a new physical player object without sending an initial resource sync.
-      // Keep the previous complete pair until this object emits its first delta.
       expect(coordinator.characterState().records).toMatchObject({
         currentHealth: 700,
         maxHealth: 1_000,
@@ -998,8 +987,6 @@ describe("central capture coordinator", () => {
       const newRewardsRecords = records(await readFile(secondRewards!.path, "utf8"));
       expect(newRewardsRecords[0]).toMatchObject({ type: "rewards.lifecycle", data: { state: "started" } });
 
-      // The reward baseline carried across the boundary: the next XP update computes a gain
-      // relative to it instead of silently reseeding with no event.
       capture.packet(experiencePacket(4, 10, 2n));
       await coordinator.stop();
       const rewardsAfter = records(await readFile(secondRewards!.path, "utf8")) as Array<{ type: string; data: { reward?: string } }>;
@@ -1046,17 +1033,14 @@ describe("central capture coordinator", () => {
       await coordinator.start();
       const loginSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
-      // Logging in is an authentication too, and must not rotate the session it just opened.
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       await settleRotation();
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(loginSessionId);
 
-      // A duplicate of that same authentication is rejected before it can reach the reset.
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       await settleRotation();
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(loginSessionId);
 
-      // A map change opens a new connection; a channel switch re-authenticates on the same one.
       capture.packet(authenticatedPacket(50, "conn-b"));
       const mapChangeSessionId = await waitForSessionChange(directory, loginSessionId);
       expect(mapChangeSessionId).toBeDefined();
@@ -1083,12 +1067,9 @@ describe("central capture coordinator", () => {
       });
       await coordinator.start();
 
-      // Starting capture mid-session sees ordinary traffic but cannot recover the authentication
-      // that established this existing connection.
       capture.packet(mapPacket(1_000, 29, "conn-a"));
       const attachedSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
-      // The first authentication capture sees is therefore the first real map change, not login.
       capture.packet(authenticatedPacket(50, "conn-b"));
       capture.packet(mapPacket(55, 48, "conn-b"));
       expect(await waitForSessionChange(directory, attachedSessionId)).toBeDefined();
@@ -1198,7 +1179,6 @@ describe("central capture coordinator", () => {
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(firstSessionId);
       expect(await readdir(path.join(directory, "combat"))).toHaveLength(1);
 
-      // The getter is read per transition, so toggling the setting needs no restart.
       resetOnMapChange = true;
       capture.packet(authenticatedPacket(25, "conn-c"));
       expect(await waitForSessionChange(directory, firstSessionId)).toBeDefined();
@@ -1222,17 +1202,14 @@ describe("central capture coordinator", () => {
       });
       await coordinator.start();
 
-      // Logging in is an authentication too, and must not fire the gold reset.
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       await settleRotation();
       expect(goldResets).toBe(0);
 
-      // A duplicate of that same authentication is rejected before it can reach the reset.
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       await settleRotation();
       expect(goldResets).toBe(0);
 
-      // A real map change fires the gold reset even though resetOnMapChange (session rotation) is off.
       capture.packet(authenticatedPacket(50, "conn-b"));
       await settleRotation();
       expect(goldResets).toBe(1);
@@ -1286,9 +1263,6 @@ describe("central capture coordinator", () => {
       const firstSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
       expect(firstSessionId).toBeDefined();
 
-      // Streams activate in "combat", "rewards" order; forcing the rewards pointer write to fail
-      // (by occupying its target path with a directory) exercises the case where "combat" has
-      // already switched over before the rotation as a whole fails.
       const rewardsPointerPath = path.join(directory, "current", "rewards.json");
       await rm(rewardsPointerPath, { force: true });
       await mkdir(rewardsPointerPath);
@@ -1298,7 +1272,6 @@ describe("central capture coordinator", () => {
       const combatAfter = await readCurrentLogStream("combat", directory);
       expect(combatAfter?.sessionId).toBe(firstSessionId);
 
-      // The old session is still the live one: further packets keep landing in its combat log.
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(identityPacket(2, 10, "Alpha", "test-connection"));
       await coordinator.stop();
@@ -1324,7 +1297,6 @@ describe("central capture coordinator", () => {
       await resetPromise;
 
       expect(coordinator.state()).toMatchObject({ captureStatus: "stopped" });
-      // The rotated session was itself fully closed by stop(), not left dangling as "active".
       expect(await readCurrentLogStream("combat", directory)).toBeDefined();
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -1351,12 +1323,6 @@ describe("central capture coordinator", () => {
     }
   });
 
-  /**
-   * The handoff buffer only runs while a session rotation is in flight, which on a fast machine is
-   * over before the next packet arrives � so these drive packets across the whole rotation rather
-   * than trying to hit the window with one shot. A regression here previously reached CI as a
-   * TypeError, because nothing local ever executed the path.
-   */
   describe("session handoff buffer", () => {
     test("buffers packets arriving mid-rotation and replays them once it completes", async () => {
       const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-handoff-buffer-"));
@@ -1383,8 +1349,6 @@ describe("central capture coordinator", () => {
         expect(buffered.every((record) => record.reason === "capture-session-handoff")).toBe(true);
         expect(sentTicks).toContain(buffered[0]!.tick as number);
 
-        // Buffering must defer a packet, not discard it: every buffered tick is admitted again
-        // once the rotation drains the buffer.
         const acceptedTicks = new Set(admissions.filter((record) => record.decision === "accepted").map((record) => record.tick));
         for (const record of buffered) expect(acceptedTicks.has(record.tick)).toBe(true);
       } finally {
@@ -1405,8 +1369,6 @@ describe("central capture coordinator", () => {
         await coordinator.start();
         capture.packet(authenticatedPacket(1_000, "conn-a"));
 
-        // One packet larger than the 16MB budget overflows the buffer on its own. The same branch
-        // guards the 4096-packet cap, which is impractical to reach through a real rotation window.
         const oversized = Buffer.alloc(16 * 1024 * 1024 + 1);
         let rejection: unknown;
         const rotation = coordinator.resetSession().catch((error: unknown) => { rejection = error; });
@@ -1472,14 +1434,11 @@ describe("central capture coordinator", () => {
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(channelListPacket(2, 0, "na3-12"));
       expect(coordinator.currentServerInstance()).toBe("na3-12");
-      // A channel switch re-authenticates on a new connection; neither reading may stick, since the
-      // new connection can be a different channel and even a different region entirely.
       capture.packet(authenticatedPacket(3, "second-connection"));
       expect(coordinator.currentServerInstance()).toBeUndefined();
       const diedAtMs = Math.floor((Date.now() - 10 * 60_000) / 1_000) * 1_000;
       capture.packet(gravestonePacket(4, 700, diedAtMs, "Testerson", "Naga", "Snake Naga", "second-connection"));
 
-      // Reported with nothing to place it by, rather than with the old connection's channel.
       expect(sightings).toEqual([
         { mobId: "Snake Naga", bossName: "Naga", killedBy: "Testerson", diedAtMs },
       ]);
@@ -1512,7 +1471,6 @@ describe("central capture coordinator", () => {
       capture.packet(channelListPacket(2, 1, "na3-12"));
       const diedAtMs = Math.floor((Date.now() - 40 * 60_000) / 1_000) * 1_000;
       capture.packet(gravestonePacket(3, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie"));
-      // Walking back past the same marker re-spawns it into view; it must not be reported twice.
       capture.packet(gravestonePacket(4, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie"));
 
       expect(kills).toEqual([{
@@ -1521,7 +1479,6 @@ describe("central capture coordinator", () => {
         killedBy: "Testerson",
         channel: 2,
         instanceId: "na3-12",
-        // The server's own time of death, not the moment the marker came into view.
         diedAtMs,
       }]);
       await coordinator.stop();
@@ -1550,22 +1507,17 @@ describe("central capture coordinator", () => {
       await coordinator.start();
 
       capture.packet(authenticatedPacket(1, "test-connection"));
-      // Loading in beside a marker is exactly when the channel is still unknown, so the first
-      // sighting can only say which boss died and when.
       const diedAtMs = Math.floor((Date.now() - 40 * 60_000) / 1_000) * 1_000;
       capture.packet(gravestonePacket(2, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie"));
       expect(kills).toEqual([
         { mobId: "Sunflora Pixie", bossName: "Lady Fey", killedBy: "Testerson", diedAtMs },
       ]);
 
-      // Once the channel list lands, walking past the marker again files it properly rather than
-      // being swallowed as a repeat of the sighting that knew less.
       capture.packet(channelListPacket(3, 1, "na3-12"));
       capture.packet(gravestonePacket(4, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie"));
       expect(kills).toHaveLength(2);
       expect(kills[1]).toMatchObject({ mobId: "Sunflora Pixie", channel: 2, instanceId: "na3-12", diedAtMs });
 
-      // With the reading settled, further sightings are repeats again.
       capture.packet(gravestonePacket(5, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie"));
       expect(kills).toHaveLength(2);
       await coordinator.stop();
@@ -1588,7 +1540,6 @@ describe("central capture coordinator", () => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(channelListPacket(2, 0, "na3-12"));
-      // The channel list repeats on the same instance; only a real move is worth announcing.
       capture.packet(channelListPacket(3, 2, "na3-12"));
       capture.packet(authenticatedPacket(4, "eu-connection"));
       capture.packet(channelListPacket(5, 0, "eu2-6", "eu-connection"));
@@ -1617,12 +1568,10 @@ describe("central capture coordinator", () => {
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(channelListPacket(2, 2, "na3-12"));
       capture.packet(gravestonePacket(3, 300, naDiedAtMs, "Testerson", "Wraith King", "Wraith"));
-      // Hopping to EU re-authenticates, then a fresh channel list names the new instance.
       capture.packet(authenticatedPacket(4, "eu-connection"));
       capture.packet(channelListPacket(5, 0, "eu2-6", "eu-connection"));
       capture.packet(gravestonePacket(6, 310, euDiedAtMs, "Someone", "Wraith King", "Wraith", "eu-connection"));
 
-      // The same boss in two regions: two rotations, each stamped with where it was seen.
       expect(kills).toEqual([
         { mobId: "Wraith", bossName: "Wraith King", killedBy: "Testerson", channel: 3, instanceId: "na3-12", diedAtMs: naDiedAtMs },
         { mobId: "Wraith", bossName: "Wraith King", killedBy: "Someone", channel: 1, instanceId: "eu2-6", diedAtMs: euDiedAtMs },
@@ -1634,10 +1583,6 @@ describe("central capture coordinator", () => {
   });
 });
 
-/**
- * Fires a packet on every tick until `rotation` settles, so packets land throughout the handoff
- * window rather than depending on a single well-timed shot. Returns the ticks it sent.
- */
 async function sendAcross(rotation: Promise<unknown>, send: (tick: number) => void): Promise<number[]> {
   const ticks: number[] = [];
   let settled = false;
@@ -1687,11 +1632,6 @@ class FakeCapture extends EventEmitter {
     this.emit("stopped");
   }
 
-  /**
-   * `liteNetPacket` is not optional on a real captured packet, and the handoff buffer sizes packets
-   * from it. Synthesizing one here keeps the fake honest: a packet arriving mid-rotation is buffered
-   * rather than crashing on a field the fixture forgot to carry.
-   */
   packet(packet: TestPacket): void {
     const captured: CapturedFishNetPacket = {
       connectionId: "test-connection",
@@ -1716,11 +1656,6 @@ class FakeCapture extends EventEmitter {
 
 type TestPacket = Omit<CapturedFishNetPacket, "liteNetPacket" | "connectionId"> & { connectionId?: string };
 
-/**
- * A map-change rotation is started from the packet handler and cannot be awaited by the caller, so
- * both helpers give it room to run: one waits for the new session pointer, the other waits long
- * enough that a rotation which should not have happened would have shown up.
- */
 async function waitForSessionChange(directory: string, previousSessionId: string | undefined): Promise<string | undefined> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const pointer = await readCurrentLogStream("combat", directory);
@@ -1734,7 +1669,6 @@ async function settleRotation(): Promise<void> {
   for (let attempt = 0; attempt < 10; attempt += 1) await Bun.sleep(10);
 }
 
-/** The zone/tower-floor markers a combat log recorded, in order. */
 function loggedLocations(content: string): string[] {
   return (records(content) as Array<{ type: string; data?: { sourceId?: string } }>)
     .filter((record) => record.type === "combat.event")
@@ -1744,7 +1678,6 @@ function loggedLocations(content: string): string[] {
       && (sourceId.startsWith("__spiritvaleZone:") || sourceId.startsWith("__spiritvaleTowerFloor:")));
 }
 
-/** Every stream file opens with a self-describing header line, which is not a record. */
 function records(content: string): Array<{ type: string }> {
   return content.trim().split(/\r?\n/).filter(Boolean)
     .map((line) => JSON.parse(line) as unknown)
@@ -1886,10 +1819,6 @@ function ownedSpawnPacket(
 }
 
 
-/**
- * The channel list the game sends this client: the zero-based index of the current channel, and
- * the id of the server instance serving it. Shaped after real captures, e.g. `na3-12`.
- */
 function channelListPacket(
   tick: number,
   currentIndex: number,
@@ -1913,7 +1842,6 @@ function channelListPacket(
   };
 }
 
-/** The marker the server spawns where a boss died; see boss-gravestone.ts for the layout. */
 function gravestonePacket(
   tick: number,
   objectId: number,

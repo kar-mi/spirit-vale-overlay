@@ -1,9 +1,3 @@
-/**
- * Generated from the datamine's runtime Map.Id catalog.
- *
- * Keep structured locations in logs and state. This module turns them into presentation text so
- * the UI remains compatible with zones added by a later game build.
- */
 import type { SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
 const MAP_NAMES: Readonly<Record<number, string>> = {

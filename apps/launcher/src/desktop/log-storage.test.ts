@@ -27,8 +27,6 @@ describe("log storage measurement", () => {
   });
 
   test("is stable across repeated runs", async () => {
-    // The walk totals concurrently; accumulating into a shared counter across awaits would drop
-    // updates and make the same tree measure differently each time.
     await withDirectory(async (root) => {
       for (let index = 0; index < 40; index += 1) {
         for (const stream of ["combat", "rewards"]) {
@@ -47,8 +45,6 @@ describe("log storage measurement", () => {
   });
 
   test("descends past the two levels the log layout normally has", async () => {
-    // The walk is breadth-first so its concurrency limit applies to a flat list per level. Nesting
-    // deeper than <stream>/<id>.jsonl is what proves the levels chain rather than stopping at the first.
     await withDirectory(async (root) => {
       let directory = root;
       for (let depth = 0; depth < 6; depth += 1) {
@@ -80,11 +76,8 @@ describe("log storage measurement", () => {
       await mkdir(logs, { recursive: true });
       await writeFile(path.join(outside, "huge.bin"), "x".repeat(9_000));
       await writeFile(path.join(logs, "real.jsonl"), "x".repeat(100));
-      // Symlinks may require Windows developer mode; without one the assertion below still holds,
-      // it just stops being the interesting case.
-      try { await symlink(outside, path.join(logs, "linked"), "dir"); } catch { /* not available */ }
+      try { await symlink(outside, path.join(logs, "linked"), "dir"); } catch {  }
 
-      // The 9,000 bytes behind the link are not this directory's usage.
       expect(await measureLogStorage(logs)).toMatchObject({ bytes: 100, files: 1 });
     });
   });

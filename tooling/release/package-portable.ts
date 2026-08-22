@@ -29,9 +29,6 @@ const zipPath = path.join(releasesDirectory, `${artifactName}.zip`);
 const temporaryZipPath = path.join(releasesDirectory, `${artifactName}.tmp.zip`);
 const checksumPath = `${zipPath}.sha256`;
 
-// Electrobun bundles these helpers unconditionally. The portable release uses loose
-// resources (not ASAR) and is distributed through manual ZIP downloads, so neither
-// ASAR access nor the differential auto-updater is part of this distribution.
 const unusedElectrobunHelpers = [
   "bin/bspatch.exe",
   "bin/libasar.dll",

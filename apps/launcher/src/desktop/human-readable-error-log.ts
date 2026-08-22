@@ -7,11 +7,6 @@ export interface HumanReadableErrorEntry {
   details?: Readonly<Record<string, string | number | boolean | undefined>>;
 }
 
-/**
- * A small, independent fallback log for failures that may prevent the structured session logs
- * from being created or written. Error paths use a synchronous append so the explanation reaches
- * disk before capture teardown or application shutdown can begin.
- */
 export class HumanReadableErrorLog {
   readonly path: string;
 

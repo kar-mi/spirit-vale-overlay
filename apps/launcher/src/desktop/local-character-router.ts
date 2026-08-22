@@ -17,11 +17,6 @@ interface LocalCharacterRouterOptions {
   onError?: (packet: CapturedFishNetPacket, error: unknown) => void;
 }
 
-/**
- * Adapts physical FishNet connections and player objects into one logical local-character stream.
- * Map changes can replace either physical identity without sending a complete initial resource sync,
- * so the underlying tracker must not interpret those transport changes as a fresh character.
- */
 export class LocalCharacterRouter {
   private readonly tracker: CharacterTracker;
   private physicalPlayerObjectId?: number;
@@ -30,13 +25,11 @@ export class LocalCharacterRouter {
     this.tracker = options.tracker ?? new FishNetCharacterTracker();
   }
 
-  /** Character-save callbacks are character-scoped and may precede active-connection selection. */
   consumeBeforeAdmission(packet: CapturedFishNetPacket): boolean {
     if (!isCharacterCallback(packet)) return false;
     return this.consume(packet, false);
   }
 
-  /** Consumes object-bound data only after the coordinator admits its physical connection. */
   consumeAdmitted(packet: CapturedFishNetPacket): boolean {
     if (isCharacterCallback(packet) || packet.packetName === "authenticated") return false;
     return this.consume(packet, true);
@@ -68,8 +61,6 @@ export class LocalCharacterRouter {
 
   private consume(packet: CapturedFishNetPacket, normalizeConnection: boolean): boolean {
     try {
-      // Remote-player syncs retain their real object ids and remain buffered instead of updating
-      // local state. Accepted serverRpc packets identify the current physical local-player object.
       const localObjectPacket = packet.packetName === "serverRpc"
         || packet.objectId !== undefined && packet.objectId === this.physicalPlayerObjectId;
       const characterPacket = normalizeConnection

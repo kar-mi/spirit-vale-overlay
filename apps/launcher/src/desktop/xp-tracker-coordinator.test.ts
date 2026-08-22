@@ -16,8 +16,6 @@ describe("XP tracker coordinator", () => {
   test("tracks coins alongside XP from the rewards log", async () => {
     const root = await tempRoot();
     const sessionId = "s-gold";
-    // Watermark is set to wall-clock "now" at startup; use future timestamps so every
-    // synthetic kill counts.
     const t0 = Date.now() + 60_000;
     await writeRewardsSession(root, sessionId, [
       kill(1, 100, "500", t0),
@@ -33,7 +31,6 @@ describe("XP tracker coordinator", () => {
     expect(coins.perHour).toBe(5000);
     expect(coins.perSecond).toBeGreaterThan(0);
 
-    // XP is still tracked from the same records.
     expect(coordinator.getSnapshot().total).toBe(300);
 
     coordinator.shutdown();
@@ -54,16 +51,12 @@ describe("XP tracker coordinator", () => {
 
     coordinator.resetCoins();
     expect(coordinator.getCoinsSnapshot().total).toBe(0);
-    // XP total is untouched by a coins-only reset.
     expect(coordinator.getSnapshot().total).toBe(300);
 
     coordinator.shutdown();
   });
 
   test("keeps the gold timeline out of the snapshot, while XP keeps its own", async () => {
-    // Gold has no chart. Publishing its timeline would serialize an hour of one-second buckets on
-    // every overlay publish, and retain that again in the character-payload dedupe string, for data
-    // nothing reads. Invisible in the UI either way, so it is pinned here.
     const root = await tempRoot();
     const t0 = Date.now() + 60_000;
     await writeRewardsSession(root, "s-gold-timeline", [kill(1, 100, "500", t0)]);
@@ -95,7 +88,6 @@ describe("XP tracker coordinator", () => {
   });
 });
 
-/** Pumps the coordinator's async first poll until `condition` holds, with a hard timeout. */
 async function waitFor(condition: () => boolean, timeoutMs = 2_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!condition()) {
@@ -131,7 +123,6 @@ function kill(sequence: number, experience: number, coins: string, atMs: number)
   };
 }
 
-/** Same shape as a kill, but coins is not a decimal string — the tracker must skip it. */
 function malformedKill(sequence: number, atMs: number): Record<string, unknown> {
   return {
     schemaVersion: 1,

@@ -4,21 +4,17 @@ import { initWindowChrome } from "./window-chrome.ts";
 import type { WindowChrome, WindowFrame } from "./window-chrome.ts";
 
 export interface TitleBarProps {
-  /** Short subtitle after the "Spirit Vale" wordmark, e.g. "Market", "DPS Settings". */
   appTag: string;
   minWidth: number;
   minHeight: number;
   getFrame(): Promise<WindowFrame>;
   setFrame(frame: WindowFrame): unknown;
-  /** Omit for windows that must not maximize (e.g. the DPS overlay). */
   toggleMaximize?(): Promise<boolean>;
   onMinimize(): void;
   onClose(): void;
-  /** Extra icon buttons (settings, pin, catalog, ...) rendered before minimize/close. */
   extraControls?: ComponentChildren;
 }
 
-/** Frameless titlebar wired to {@link initWindowChrome}. Mount once per window. */
 export function TitleBar(props: TitleBarProps) {
   const chromeRef = useRef<WindowChrome | undefined>(undefined);
   const [maximized, setMaximized] = useState(false);

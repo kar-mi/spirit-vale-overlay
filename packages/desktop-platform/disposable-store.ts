@@ -1,6 +1,5 @@
 export type Dispose = () => void;
 
-/** Owns subscriptions and other resources that must be released as one lifecycle. */
 export class DisposableStore {
   private readonly disposers = new Set<Dispose>();
   private disposed = false;

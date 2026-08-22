@@ -32,9 +32,7 @@ jobs:
         run: bun run typecheck
       - name: Test
         run: bun test
-      # electrobun fetches its core binaries (bun.exe, bsdiff/bspatch, libNativeWrapper.dll) from a
-      # GitHub release the first time it builds, and a fresh node_modules means every run pays for
-      # that download. Restored after the install that recreates the directory it lives in.
+      # Cache Electrobun's downloaded Windows binaries between clean installs.
       - name: Cache electrobun core binaries
         uses: actions/cache@v4
         with:
@@ -44,8 +42,7 @@ jobs:
       - name: Build Windows desktop app
         shell: pwsh
         run: |
-          # A cache miss still has to download, and that download drops its socket often enough to
-          # fail an otherwise green run. Retry only the transport, never the build result.
+          # Retry transient binary-download failures, but never retry the build.
           foreach ($attempt in 1..3) {
             bun run build
             if ($LASTEXITCODE -eq 0) { exit 0 }

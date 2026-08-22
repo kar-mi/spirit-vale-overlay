@@ -2,7 +2,6 @@ export interface SettingsButtonProps {
   onClick(): void;
 }
 
-/** Standard title-bar control that opens the application-wide Settings window. */
 export function SettingsButton({ onClick }: SettingsButtonProps) {
   return (
     <button

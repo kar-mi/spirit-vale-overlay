@@ -73,7 +73,6 @@ describe("element display resolution", () => {
 
 describe("drop targets", () => {
   test("keeps a tile on the display showing most of it", () => {
-    // Straddling the bezel, 300 of 400px past the boundary.
     expect(displayForRect(displays, { x: 1820, y: 100, width: 400, height: 200 })).toBe(secondary);
     expect(displayForRect(displays, { x: 1620, y: 100, width: 400, height: 200 })).toBe(primary);
   });
@@ -84,7 +83,6 @@ describe("drop targets", () => {
   });
 
   test("falls back to the nearest display for a drop into a dead zone", () => {
-    // Below the primary display and left of the secondary: overlaps neither.
     expect(displayForRect(displays, { x: 200, y: 1400, width: 200, height: 120 })).toBe(primary);
   });
 

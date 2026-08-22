@@ -3,7 +3,6 @@ import type { RewardLogStatus } from "@kar-mi/spirit-vale-tools-rewards";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { MaximizableWindowChromeRequests } from "@svoverlay/contracts/window-rpc";
 
-/** Totals only: nothing charts gold, and its timeline is an hour of buckets nobody reads. */
 export type RateTotals = Omit<RateSnapshot, "timeline">;
 
 export type RewardsAppMode = "live" | "replay";
@@ -36,7 +35,6 @@ export interface RewardsUiSummary {
   displayName: string;
   level: number;
   kills: number;
-  /** Number of kills with an attributed reward; equal to kills in the UI projection. */
   attributedKills: number;
   experience: number;
   jobExperience: number;
@@ -71,9 +69,7 @@ export interface RewardsAppState {
   unmatched: number;
   unmatchedDrops: RewardsUiDrop[];
   unidentified: number;
-  /** The all-time XP tracker. Distinct from `totalExperience` above, which is this session's rewards. */
   xp: RateSnapshot;
-  /** The all-time gold tracker, alongside the all-time XP tracker above. */
   gold: RateTotals;
 }
 

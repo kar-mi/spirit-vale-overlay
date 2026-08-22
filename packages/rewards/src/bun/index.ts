@@ -37,17 +37,11 @@ import { managedSessionId } from "@svoverlay/desktop-platform/managed-session";
 import { chartBuckets, chartSample, CHART_POINTS, RECENT_KILL_LIMIT } from "../reward-chart.ts";
 import { attributedKills, attributedMobSummaries } from "../reward-display.ts";
 
-/** Backoff after a failed read. The follow loop is watcher-driven and has no interval otherwise. */
 const READ_RETRY_MS = 1_000;
 const catalog = loadBundledMobRewardCatalog();
 
-/** The desktop process's shared SQLite read model, when it is available. */
 export interface RewardsReadModelSource {
   model(): ReadModel | undefined;
-  /**
-   * Registers this window's interest so the service keeps the index warm, and returns a release
-   * function to call when the window closes. Optional so test doubles need not implement it.
-   */
   acquire?(): () => void;
   indexSession(
     sessionId: string,
@@ -56,7 +50,6 @@ export interface RewardsReadModelSource {
   ): Promise<{ ok: boolean }>;
 }
 
-/** The Rewards window's XP Tracker tab reads from (and can reset) a tracker owned centrally, shared with the overlay, so both stay in sync. */
 export interface XpTrackerSource {
   getSnapshot(): RateSnapshot;
   reset(): void;
@@ -67,7 +60,6 @@ export interface XpTrackerSource {
 
 export interface RewardsWindowOptions {
   logDirectory: string;
-  /** Replays are read from here when present; without it they fall back to a full in-memory load. */
   readModel?: RewardsReadModelSource;
   xp: XpTrackerSource;
   getCharacterState(): { snapshot?: { level: number; experience: number } };
@@ -266,7 +258,6 @@ function appState(): RewardsAppState {
     resetting,
     ...(replayFileName ? { replayFileName } : {}),
     replayWarnings,
-    // Already bounded to RECENT_KILL_LIMIT by the aggregator, newest first.
     kills: attributedKills(snapshot.recentKills).map((kill) => ({
       id: kill.id,
       ...(kill.recordedAt === undefined ? {} : { timestamp: kill.recordedAt }),
@@ -347,12 +338,6 @@ function openCatalog(): void {
   }));
 }
 
-/**
- * Follows the rewards log for as long as the window is open.
- *
- * The follower wakes on a filesystem event rather than on a timer, so an idle rewards window costs
- * nothing. `close()` settles a parked `next()`, which is what unwinds this on teardown.
- */
 async function followRewards(): Promise<void> {
   while (!shuttingDown) {
     try {
@@ -389,12 +374,6 @@ async function loadReplayPath(selectedPath: string): Promise<void> {
   publish();
 }
 
-/**
- * Reads a replay out of the shared read model, which indexes the log in one streaming pass and
- * returns only the bounded summary. Resolves to undefined when there is no read model, or when the
- * chosen file is not a managed session log (a file picked from anywhere on disk has no session id),
- * leaving the caller to fall back to the full in-memory load.
- */
 async function indexedReplay(selectedPath: string): Promise<RewardAggregateSnapshot | undefined> {
   const source = options.readModel;
   if (!source) return undefined;
@@ -411,11 +390,6 @@ async function indexedReplay(selectedPath: string): Promise<RewardAggregateSnaps
   return summary;
 }
 
-/**
- * Fallback for a log the read model cannot index: load the whole session, then keep only the
- * bounded projection of it the UI actually renders. Totals, per-mob summaries and unmatched counts
- * come straight from the full snapshot, so nothing is lost by bounding the kills and the chart.
- */
 async function fullReplay(selectedPath: string): Promise<RewardAggregateSnapshot> {
   const replay = await loadRewardReplay(selectedPath);
   replayWarnings = replay.invalidLines;
@@ -503,8 +477,6 @@ async function shutdown(): Promise<void> {
   catalogLifecycle?.dispose();
   catalogLifecycle = undefined;
   replayPicker.close();
-  // Releases this consumer's hold on the shared log source, which disposes its watchers and fallback
-  // timer once the last consumer lets go. It also unblocks the follow loop.
   follower.close();
   unsubscribeXp();
   unsubscribeCharacter();
@@ -520,15 +492,6 @@ async function shutdown(): Promise<void> {
   }
 }
 
-/**
- * Reports the close exactly once.
- *
- * This cannot live only in the `close` event handler: every close in this app is programmatic (the
- * title bar is custom, so there is no native chrome to click), and teardown disposes that listener
- * before calling `window.close()`. The event would then arrive with nothing listening, leaving the
- * caller's slot pointing at a destroyed window — the next open would fail with "Window no longer
- * exists". Teardown always runs, so it is the reliable place to report from.
- */
 function notifyClosed(): void {
   if (closedCallbackSent) return;
   closedCallbackSent = true;

@@ -16,7 +16,6 @@ export function normalizeSearchText(value: string): string {
 
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
 
-/** Byte count as a short human-readable size, e.g. `954 MB`. */
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return "—";
   let value = bytes;
@@ -30,10 +29,6 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(decimals)} ${BYTE_UNITS[unit]}`;
 }
 
-/**
- * A timestamp as a reader checks it: the time alone when it is from today, otherwise a date too.
- * Used for figures taken once rather than kept live, where "how old is this" is the question.
- */
 export function formatMeasuredAt(iso: string, now = new Date()): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "unknown";

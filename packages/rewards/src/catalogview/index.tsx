@@ -38,8 +38,6 @@ function App() {
   const [sort, setSort] = useState<TableSort<CatalogSortKey>>({ key: "level", direction: "ascending" });
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
 
-  // Only sync the field from server state when the user isn't actively typing
-  // in it — mirrors the original imperative guard against clobbering keystrokes.
   useEffect(() => {
     const input = queryRef.current;
     if (input && next && document.activeElement !== input) input.value = next.query;

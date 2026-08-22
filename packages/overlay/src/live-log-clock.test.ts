@@ -25,7 +25,6 @@ test("rotation continues the timeline where the previous session left off", () =
   expect(beforeRotation).toBe(60_250);
 
   clock.rotate();
-  // The replacement follower restarts near zero; it must land on the previous position.
   expect(clock.observe(0)).toBe(60_250);
   expect(clock.observe(1_000)).toBe(61_250);
   advance(500);
@@ -53,7 +52,6 @@ test("rotation keeps the clock running before the new session's first event", ()
   clock.observe(60_000);
   clock.rotate();
   advance(750);
-  // No event from the replacement session yet; buff timers still have a "now" to expire against.
   expect(clock.nowMs()).toBe(60_750);
   expect(clock.observe(0)).toBe(60_000);
   expect(clock.nowMs()).toBe(60_750);

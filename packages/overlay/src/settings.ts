@@ -33,26 +33,16 @@ export type { DisplayBounds, OverlayDisplay };
 
 export interface OverlaySettings {
   schemaVersion: 7;
-  /**
-   * Where new tiles land and where a tile whose monitor was unplugged falls back to. Empty means
-   * "use the primary display", which is also what an unrecognised key resolves to.
-   */
   homeDisplay: string;
   locked: boolean;
   shortcuts: Record<KeybindAction, string>;
   elements: Record<OverlayElementId, OverlayElementSettings>;
   meterStatType: StatType;
-  /** Whether the personal tile shows the whole-encounter average or the live recent-rate estimate. */
   personalDpsMode: PersonalDpsMode;
-  /** Statuses the user expects to keep up; the matching tile is highlighted while any is missing. */
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
-  /** Hide the overlay while neither the game nor one of this app's windows has OS focus. */
   autoHideWhenUnfocused: boolean;
-  /** Ignore configurable overlay shortcuts unless the game has OS focus. */
   keybindsRequireGameFocus: boolean;
-  /** Only ground loot at or above this rarity is shown on the minimap tile or raises a loot notification. */
   minimapRarityFilter: number;
-  /** Only ground loot at or below this drop chance (a 0-100 percentage) is shown on the minimap tile or raises a loot notification. */
   minimapLootChanceFilter: number;
 }
 
@@ -64,8 +54,6 @@ const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
   cycleMeterStatType: "Ctrl+Shift+5",
   resetXpTracker: "Ctrl+Shift+6",
   resetGoldTracker: "Ctrl+Shift+7",
-  // Defaults bypass `normalizeShortcut` on first load (see `normalizeShortcuts` below), so this is
-  // spelled in its own already-normalized form — the same "TAB" a saved/reloaded "Tab" would become.
   toggleMinimap: "TAB",
   cycleBossRegion: "Ctrl+Shift+8",
 };
@@ -73,7 +61,6 @@ const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
 const DEFAULT_LOCKED = true;
 const DEFAULT_AUTO_HIDE_WHEN_UNFOCUSED = true;
 
-/** Positions assume a ~1920x1200 display; they are clamped into whatever the home display really is. */
 const DEFAULT_ELEMENTS: Record<OverlayElementId, Omit<OverlayElementSettings, "display">> = {
   dpsChart: { enabled: false, opacity: 1, x: 405, y: 399, width: 258, height: 188 },
   personalDps: { enabled: false, opacity: 1, x: 405, y: 472, width: 160, height: 113 },
@@ -98,7 +85,6 @@ export function defaultOverlaySettings(displays: readonly OverlayDisplay[]): Ove
   return normalizeOverlaySettings({ schemaVersion: 7 }, displays);
 }
 
-/** Restore only keybindings, leaving every other overlay preference untouched. */
 export function resetOverlayShortcuts(settings: OverlaySettings): OverlaySettings {
   return { ...settings, shortcuts: { ...DEFAULT_SHORTCUTS } };
 }
@@ -117,10 +103,6 @@ export async function saveOverlaySettings(settings: OverlaySettings, settingsPat
   await writeJsonFileAtomic(target, settings);
 }
 
-/**
- * Schema four is accepted as a migration source: it carried no per-element display, so every
- * element is stamped with the resolved home display on the way through.
- */
 export function normalizeOverlaySettings(
   candidate: unknown,
   displays: readonly OverlayDisplay[],
@@ -143,8 +125,6 @@ export function normalizeOverlaySettings(
       ? sourceElements[id] as Record<string, unknown>
       : {};
     const assigned = typeof value.display === "string" ? value.display : "";
-    // An element on an unplugged monitor falls back to home rather than disappearing, and is
-    // then clamped into whatever that display's bounds are.
     const display = resolveElementDisplayKey(displays, assigned, homeDisplay);
     const bounds = resolveElementDisplay(displays, assigned, homeDisplay)?.bounds ?? fallbackBounds;
     const width = clampNumber(value.width, defaults.width, 160, Math.max(160, bounds.width));
@@ -181,7 +161,6 @@ export function normalizeOverlaySettings(
   };
 }
 
-/** Default rarity filter is "Rare" — snaps to the nearest known tier rather than an arbitrary numeric range. */
 const DEFAULT_RARITY_FILTER = 2;
 function normalizeRarityFilter(value: unknown): number {
   const number = typeof value === "number" && Number.isFinite(value) ? value : DEFAULT_RARITY_FILTER;
@@ -197,14 +176,12 @@ function normalizeRarityFilter(value: unknown): number {
   return closest;
 }
 
-/** Default drop-chance filter is 100 (no filtering) — every drop's chance is at or below 100%. */
 const DEFAULT_LOOT_CHANCE_FILTER = 100;
 function normalizeLootChanceFilter(value: unknown): number {
   const number = typeof value === "number" && Number.isFinite(value) ? value : DEFAULT_LOOT_CHANCE_FILTER;
   return Math.round(Math.max(0, Math.min(100, number)) * 100) / 100;
 }
 
-/** Human-readable choices for the Settings window's display pickers. */
 export function overlayDisplayOptions(displays: readonly OverlayDisplay[]): OverlayDisplayOption[] {
   return displays.map((display, index) => ({
     key: displayKey(display),
@@ -261,8 +238,6 @@ function normalizeShortcut(value: unknown, fallback: string): string {
   const tokens = value.split("+").map((token) => token.trim()).filter(Boolean);
   if (tokens.length === 0) return fallback;
   const key = tokens.at(-1)?.toUpperCase();
-  // Plain Escape is the always-on route out of edit mode. Keep it
-  // reserved so a configurable action can never prevent that recovery shortcut.
   if (!key || key === "ESCAPE" || !/^(F(?:[1-9]|1[0-9]|2[0-4])|[A-Z0-9]|SPACE|ENTER|TAB|BACKSPACE|DELETE|HOME|END|PAGEUP|PAGEDOWN|ARROWUP|ARROWDOWN|ARROWLEFT|ARROWRIGHT)$/.test(key)) {
     return fallback;
   }

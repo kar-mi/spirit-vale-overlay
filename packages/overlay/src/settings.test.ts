@@ -322,8 +322,6 @@ describe("overlay settings", () => {
       },
     }, displays);
 
-    // A toggle cannot be required of the buffs tile: it never appears there, so the warning
-    // could never be cleared.
     expect(settings.requiredStatuses.buffs).toEqual([someBuffId]);
     expect(settings.requiredStatuses.toggles).toEqual([someToggleId]);
   });
@@ -373,7 +371,6 @@ describe("overlay settings", () => {
     const settings = normalizeOverlaySettings({ schemaVersion: 5, homeDisplay: homeKey }, [...displays, wide]);
 
     expect(settings.homeDisplay).toBe(homeKey);
-    // Coordinates stay display-relative, so the wider home display no longer clamps them.
     expect(settings.elements.goldTracker).toMatchObject({ x: 501, y: 509, display: homeKey });
   });
 

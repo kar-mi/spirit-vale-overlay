@@ -26,7 +26,6 @@ describe("pool values", () => {
   });
 
   test("a stat on another slot's pool does not resolve", () => {
-    // Crit is on the Ranged weapon pool but not on the Chest pool.
     expect(poolValue(snapshot, chest, "Crit", "")).toBeNull();
   });
 
@@ -38,7 +37,7 @@ describe("pool values", () => {
 describe("roll scaling", () => {
   test("roll 100 is the full pool value and roll 0 the two-thirds floor", () => {
     expect(scaleRoll(snapshot, pistol, "Crit", "", 100)).toBe(10);
-    expect(scaleRoll(snapshot, pistol, "Crit", "", 0)).toBe(7); // round(10 * 2/3)
+    expect(scaleRoll(snapshot, pistol, "Crit", "", 0)).toBe(7);
   });
 
   test("attributes scale against a fixed value of 3 on any slot", () => {
@@ -52,12 +51,10 @@ describe("roll scaling", () => {
   });
 
   test("a stat absent from the pool scales to null instead of zero", () => {
-    // Zero would be written into the build as a real substat worth nothing.
     expect(scaleRoll(snapshot, chest, "Crit", "", 100)).toBeNull();
   });
 
   test("negative pool values round away from zero", () => {
-    // Math.round(-2.5) is -2, which would report a better roll than the game gives.
     const pool = { Test: [[{ stat: "CastTime", value: -10, q: "" }]] };
     const fake = { ...snapshot, pools: { ...snapshot.pools, ...pool } };
     const item = { slot: "Wand", cardSlots: 0, substatPool: "Test" };

@@ -13,7 +13,6 @@ describe("formatBytes", () => {
   });
 
   test("drops the decimal once the number is three digits", () => {
-    // The real case: a ~950MB log directory should read as "954 MB", not "953.8 MB".
     expect(formatBytes(1_000_142_336)).toBe("954 MB");
     expect(formatBytes(99 * 1024 * 1024)).toBe("99.0 MB");
   });
