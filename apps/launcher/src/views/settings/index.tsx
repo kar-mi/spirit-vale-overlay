@@ -57,7 +57,6 @@ function App() {
     setMinimapRarityFilter: (rarity) => update(desktopView.rpc?.request.setMinimapRarityFilter({ rarity })),
     setMinimapLootChanceFilter: (chance) => update(desktopView.rpc?.request.setMinimapLootChanceFilter({ chance })),
     setRequiredStatuses: (category, statusIds) => update(desktopView.rpc?.request.setOverlayRequiredStatuses({ category, statusIds })),
-    setKeybindsRequireGameFocus: (enabled) => update(desktopView.rpc?.request.setKeybindsRequireGameFocus({ enabled })),
     resetShortcuts: () => {
       recordingAction.value = undefined;
       update(desktopView.rpc?.request.resetShortcutsToDefaults({}));

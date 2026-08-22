@@ -182,7 +182,6 @@ export interface OverlaySettingsState {
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
   personalDpsMode: PersonalDpsMode;
   autoHideWhenUnfocused: boolean;
-  keybindsRequireGameFocus: boolean;
   minimapRarityFilter: number;
   minimapLootChanceFilter: number;
 }

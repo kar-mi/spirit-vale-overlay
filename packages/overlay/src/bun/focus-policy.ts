@@ -30,10 +30,6 @@ export function visibilityForForeground(kind: ForegroundKind): boolean | undefin
   return kind === "game" || kind === "app";
 }
 
-export function permitsGameKeybind(kind: ForegroundKind): boolean {
-  return kind === "game";
-}
-
 export function manuallySetVisibility(visible: boolean): FocusVisibilityState {
   return { visible, manualHideEngaged: !visible, autoHidden: false };
 }

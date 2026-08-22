@@ -4,7 +4,6 @@ import {
   autoHideEnabledForMode,
   classifyForegroundProcess,
   manuallySetVisibility,
-  permitsGameKeybind,
   reconcileAutoHide,
   visibilityForForeground,
 } from "./focus-policy.ts";
@@ -41,13 +40,6 @@ describe("overlay focus policy", () => {
     expect(visibilityForForeground("app")).toBe(true);
     expect(visibilityForForeground("other")).toBe(false);
     expect(visibilityForForeground("unknown")).toBeUndefined();
-  });
-
-  test("permits game-only keybinds for the game and nothing else", () => {
-    expect(permitsGameKeybind("game")).toBe(true);
-    expect(permitsGameKeybind("app")).toBe(false);
-    expect(permitsGameKeybind("other")).toBe(false);
-    expect(permitsGameKeybind("unknown")).toBe(false);
   });
 
   test("manual hide takes priority until the user shows the overlay", () => {

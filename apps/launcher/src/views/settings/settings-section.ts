@@ -35,7 +35,6 @@ export interface SettingsActions {
   setMinimapRarityFilter(value: number): void;
   setMinimapLootChanceFilter(value: number): void;
   setRequiredStatuses(category: RequiredStatusCategory, statusIds: string[]): void;
-  setKeybindsRequireGameFocus(value: boolean): void;
   resetShortcuts(): void;
   beginShortcutCapture(action: KeybindAction): void;
   captureShortcut(action: KeybindAction, event: KeyboardEvent): void;

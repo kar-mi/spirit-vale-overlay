@@ -114,7 +114,6 @@ export type LauncherSettingsRpc = {
     setOverlayHomeDisplay: { params: { display: string }; response: SharedSettingsState };
     setOverlayVisible: { params: { visible: boolean }; response: SharedSettingsState };
     setAutoHideWhenUnfocused: { params: { enabled: boolean }; response: SharedSettingsState };
-    setKeybindsRequireGameFocus: { params: { enabled: boolean }; response: SharedSettingsState };
     setShortcut: { params: { action: KeybindAction; shortcut: string }; response: SharedSettingsState };
     resetShortcutsToDefaults: { params: Record<string, never>; response: SharedSettingsState };
     setShortcutCapture: { params: { active: boolean }; response: SharedSettingsState };

@@ -18,11 +18,6 @@ export function buildKeybindSettingsSection({ state, busy, recordingAction, acti
     description: "Global pass-through shortcuts remain active while Spirit Vale Overlay is running; the foreground app receives the same key press.",
     items: [
       {
-        id: "keybind-focus",
-        searchText: "Only enable keybinds while Spirit Vale game focused Escape edit mode recovery",
-        content: <><label class="settings-check"><input type="checkbox" checked={overlay.keybindsRequireGameFocus} disabled={busy} onChange={(event) => actions.setKeybindsRequireGameFocus(event.currentTarget.checked)} /><span>Only enable keybinds while Spirit Vale is focused</span></label><p class="settings-hint">The fixed Escape shortcut for leaving overlay edit mode remains available as a recovery action.</p></>,
-      },
-      {
         id: "keybind-assignments",
         searchText: `Shortcut assignments reset defaults click select record key combination pass through ${Object.values(KEYBIND_LABELS).join(" ")}`,
         content: <><div class="settings-actions"><button class="btn" type="button" disabled={busy} onClick={actions.resetShortcuts}>Reset to defaults</button></div><section class="keybind-list" aria-label="Keybind assignments"><h2>Click to select</h2>{KEYBIND_ACTIONS.map((action) => <div class="keybind-row" key={action}>

@@ -62,7 +62,6 @@ import {
   autoHideEnabledForMode,
   classifyForegroundProcess,
   manuallySetVisibility,
-  permitsGameKeybind,
   reconcileAutoHide,
   type FocusVisibilityState,
 } from "./focus-policy.ts";
@@ -276,7 +275,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     relayDragPreview,
     setOverlayVisible: setOverlayVisibleManually,
     setAutoHideWhenUnfocused,
-    setKeybindsRequireGameFocus,
     setShortcut,
     resetShortcutsToDefaults,
     setShortcutCapture,
@@ -370,7 +368,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
       requiredStatuses: control.requiredStatuses,
       personalDpsMode: control.personalDpsMode,
       autoHideWhenUnfocused: settings.autoHideWhenUnfocused,
-      keybindsRequireGameFocus: settings.keybindsRequireGameFocus,
       minimapRarityFilter: settings.minimapRarityFilter,
       minimapLootChanceFilter: settings.minimapLootChanceFilter,
     };
@@ -651,14 +648,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     return controlState();
   }
 
-  function setKeybindsRequireGameFocus(enabled: boolean): OverlayControlState {
-    if (settings.keybindsRequireGameFocus === enabled) return controlState();
-    settings = { ...settings, keybindsRequireGameFocus: enabled };
-    persist();
-    publishControl();
-    return controlState();
-  }
-
   function checkAutoHide(): void {
     if (shuttingDown || !autoHideEnabledForMode(settings.autoHideWhenUnfocused, settings.locked) || manualHideEngaged) return;
     reconcileFocusVisibility(true);
@@ -706,10 +695,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function handleShortcut(action: KeybindAction | "lockOnEscape"): void {
     if (shuttingDown || shortcutsSuspended) return;
-    if (action !== "lockOnEscape" && settings.keybindsRequireGameFocus) {
-      const foreground = classifyForeground();
-      if (!permitsGameKeybind(foreground)) return;
-    }
     if (action === "lockOnEscape") {
       if (!settings.locked) updateLocked(true);
     } else if (action === "toggleLock") updateLocked(!settings.locked);
