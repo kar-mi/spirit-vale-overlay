@@ -16,11 +16,6 @@ import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "./window-lifecycle.ts";
 
 const MAX_RECENT_SESSIONS = 100;
-/**
- * Sessions inspected while filling the list. Empty sessions are skipped, so the scan has to reach
- * past MAX_RECENT_SESSIONS to still show that many — bounded so a directory full of empty sessions
- * cannot turn one refresh into an unbounded summarize pass.
- */
 const MAX_SCANNED_SESSIONS = MAX_RECENT_SESSIONS * 3;
 
 export interface SessionPickerOptions {

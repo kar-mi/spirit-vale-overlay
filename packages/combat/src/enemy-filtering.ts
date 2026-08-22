@@ -10,7 +10,6 @@ export interface FilteredActorRow {
   contribution: number;
 }
 
-/** Recomputes combat rows and party shares from damage dealt to the selected enemies. */
 export function applyEnemyFilter(
   next: CombatAnalysisState,
   rows: MeterActorRow[],

@@ -13,13 +13,6 @@ export interface DurableInspectedCharacterRosterOptions {
   onPersistenceError?: (error: unknown | undefined) => void;
 }
 
-/**
- * Cache-first inspected-character roster with best-effort durable persistence.
- *
- * Capture publications are the latency-sensitive path: Build Export must see a decoded inspect
- * before SQLite work begins. The database is therefore used only to hydrate this cache at startup
- * and to persist deltas after subscribers have been notified.
- */
 export class DurableInspectedCharacterRoster {
   private readonly entries = new Map<string, InspectedCharacter>();
   private readonly listeners = new Set<() => void>();
@@ -50,7 +43,6 @@ export class DurableInspectedCharacterRoster {
     return () => this.listeners.delete(listener);
   }
 
-  /** Merges a full capture-roster publication, but persists only entries that actually changed. */
   ingest(roster: readonly InspectedCharacter[]): void {
     let changed = false;
     for (const candidate of roster) {
@@ -65,7 +57,7 @@ export class DurableInspectedCharacterRoster {
       changed = true;
     }
 
-    // Preserve the old cache-only behavior: observers run before any synchronous SQLite call.
+    // Notify observers before synchronous SQLite work.
     if (changed) this.publish();
     this.flushPending();
   }
@@ -109,8 +101,6 @@ export class DurableInspectedCharacterRoster {
       }
     }
 
-    // A failed clear must be retried before newer entries are written, otherwise its eventual
-    // success could erase inspections captured after the user pressed Clear.
     if (!this.pendingClear) {
       for (const [key, name] of this.pendingDeletes) {
         try {

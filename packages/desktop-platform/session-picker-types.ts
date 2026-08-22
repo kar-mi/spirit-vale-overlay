@@ -5,7 +5,6 @@ export interface SessionPickerItem {
   id: string;
   createdAt: string;
   summary: string;
-  /** Distinct physical maps and tower floors visited by this combat session, oldest first. */
   locations?: SpiritValeLocation[];
   active: boolean;
   disabled: boolean;

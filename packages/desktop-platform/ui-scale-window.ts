@@ -12,7 +12,6 @@ export type { UiScale } from "./ui-scale.ts";
 
 const windows = new Set<BrowserWindow>();
 
-/** Registers a Bun-owned window for launcher-wide CSS scale and proportional resizing. */
 export function registerUiScaleWindow(window: BrowserWindow, options: { scaleInitialFrame?: boolean } = {}): Dispose {
   const lifecycle = new DisposableStore();
   windows.add(window);

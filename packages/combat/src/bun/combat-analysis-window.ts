@@ -58,20 +58,14 @@ export interface LivePlayerDetailRefresh {
 
 export interface CombatAnalysisControllerOptions {
   logDirectory?: string;
-  /** Managed session logs are read from here; anything else falls back to replaying the file. */
   readModel?: CombatReadModelSource;
   placements?: WindowPlacementStore;
   onOpenSettings?: () => void;
   onStateChanged?: (state: CombatAnalysisState) => void;
 }
 
-/**
- * Encounters offered per log. A guard against a pathological session rather than an expected limit;
- * when it bites, the *newest* are kept and the status says how many were left out.
- */
 const MAX_ENCOUNTERS = 500;
 
-/** Owns past-log analysis state plus the reusable live/past selected-player detail child. */
 export function createCombatAnalysisController(options: CombatAnalysisControllerOptions = {}): CombatAnalysisController {
   let detailWindow: BrowserWindow | undefined;
   let detailLifecycle: DisposableStore | undefined;
@@ -84,8 +78,6 @@ export function createCombatAnalysisController(options: CombatAnalysisController
   });
   let state: CombatAnalysisState = loadingState();
   let detailState: CombatAnalysisDetailState | undefined;
-  // Only the selected encounter is resident. Everything else is a list of ids and durations, and the
-  // encounter itself is re-read from the index whenever the selection changes.
   let encounters: IndexedEncounterSummary[] = [];
   let selected: IndexedEncounter | undefined;
   let store: CombatHistoryStore | undefined;
@@ -183,10 +175,6 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     }
   }
 
-  /**
-   * Indexes the log and lists its encounters, or replays it when it is not a managed session log.
-   * Returns the count of unparseable lines, which only the replay path can report.
-   */
   async function load(selectedPath: string): Promise<number> {
     const id = options.logDirectory === undefined
       ? undefined
@@ -202,9 +190,6 @@ export function createCombatAnalysisController(options: CombatAnalysisController
       }
     }
     const replay = await loadDpsReplay(selectedPath);
-    // Without an index the whole log is in memory anyway, so keep the rendered encounters rather
-    // than re-reading the file per selection. Tanked, healing and the enemy breakdown come from the
-    // index only, so those tabs stay empty for a log outside the managed directory.
     replayEncounters = replay.snapshots.map((snapshot) => ({
       snapshot,
       breakdown: { encounterId: snapshot.id, enemies: [], bySkill: new Map() },
@@ -221,7 +206,6 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     return replayEncounters.find((entry) => entry.snapshot.id === encounterId);
   }
 
-  /** Reads one encounter in and folds it into the published state. */
   function applySelection(encounterId: string): void {
     selected = loadEncounter(encounterId);
     if (!selected) {
@@ -281,10 +265,6 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     const dpsPlayer = snapshot.actors.find((actor) => actor.rowId === rowId);
     const tankedPlayer = tankedSnapshot?.actors.find((actor) => actor.rowId === rowId);
     const healPlayer = healSnapshot?.actors.find((actor) => actor.rowId === rowId);
-    // A player who never dealt damage (a dedicated healer/tank) has no row in the DPS
-    // snapshot — double-clicking them from the HPS/TPS tab must still open the detail
-    // window, using whichever row we do have for identity and a zero-value DPS row so
-    // the "damage" tab still renders instead of the window failing to open at all.
     const identity = dpsPlayer ?? tankedPlayer ?? healPlayer;
     if (!identity) return;
     const player = dpsPlayer ?? emptyDpsRow(identity, snapshot.durationMs);

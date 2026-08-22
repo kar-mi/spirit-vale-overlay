@@ -1,7 +1,4 @@
-/* Webview-side chrome for frameless windows: JS titlebar drag and 8-handle
-   edge/corner resizing via rAF-throttled setFrame calls.
-   Ported from the proven setup in ffxiv_gear_setup/src/ui/window/resize.ts.
-   Requires the .resize-handle rules from theme.css. */
+// Implements title-bar dragging and resize handles for frameless webviews.
 
 export interface WindowFrame {
   x: number;
@@ -11,16 +8,12 @@ export interface WindowFrame {
 }
 
 export interface WindowChromeOptions {
-  /** Drag surface. pointerdowns on buttons/inputs inside it are ignored. */
   titlebar: HTMLElement;
   minWidth: number;
   minHeight: number;
   getFrame(): Promise<WindowFrame>;
   setFrame(frame: WindowFrame): unknown;
-  /** Toggle maximize in the backend; resolves to the new maximized state.
-      Omit for windows that must not maximize (e.g. the DPS overlay). */
   toggleMaximize?(): Promise<boolean>;
-  /** Called whenever the maximized state changes (update button glyphs here). */
   onMaximizedChange?(maximized: boolean): void;
 }
 
@@ -93,7 +86,6 @@ export function initWindowChrome(options: WindowChromeOptions): WindowChrome {
     });
   }
 
-  /** Pointer-capture + rAF-throttled setFrame from screen-space deltas. */
   function trackPointer(
     event: PointerEvent,
     apply: (initial: WindowFrame, dx: number, dy: number, scale: number) => WindowFrame,

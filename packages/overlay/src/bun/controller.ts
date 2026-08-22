@@ -66,43 +66,14 @@ import {
   type FocusVisibilityState,
 } from "./focus-policy.ts";
 
-/**
- * Tail interval for the `SPIRIT_VALE_COMBAT_LOG` override only.
- *
- * The shipped path is watcher-driven and has no interval at all. `DpsLogFollower` tails one fixed
- * file and exposes no watcher, so that development aid keeps a clock of its own.
- */
 const LIVE_LOG_OVERRIDE_POLL_MS = 250;
 const METER_PUBLISH_MS = 1_000;
-/**
- * Ceiling on how long the overlay will sleep between time-driven passes.
- *
- * Every wake-up is scheduled from something concrete - a status expiry, a lingered chip's deadline,
- * the meter's publish cadence - so this only bounds the arithmetic; nothing normally waits this long.
- */
 const MAX_TICK_DELAY_MS = 30_000;
-/**
- * Floor on how often the status chips are republished.
- *
- * Batches now arrive as fast as the logger flushes - roughly twenty a second during a fight - where
- * the old poll capped this at four. The chips are a tile of icons, so drawing them at the log's rate
- * buys nothing, and the countdowns on them are ticked in the webview rather than by these messages.
- * A publish refused here is deferred to the scheduled wake, never dropped.
- */
 const STATUS_PUBLISH_MS = 250;
-/** A fixed escape hatch from edit mode; it is intentionally not configurable. */
 const ESCAPE_LOCK_SHORTCUT = "Escape";
-/**
- * Collapses repeated lock presses before changing native window styles. This keeps
- * the global-shortcut callback out of a close/create transition for an overlay
- * surface, where WebView2 and Win32 are both updating the same HWND.
- */
 const LOCK_STYLE_DEBOUNCE_MS = 50;
-/** How often the connected-monitor set is re-read. Electrobun exposes no display-changed event. */
 const DISPLAY_RECONCILE_MS = 5_000;
-/** How often focus is reconciled while auto-hide is enabled. */
 const AUTO_HIDE_POLL_MS = 400;
-/** Timeline buckets retained per encounter. Beyond this, adjacent buckets merge. */
 const TIMELINE_POINTS = 720;
 const EXPERIENCE_REQUIREMENTS = loadBundledMobRewardCatalog().experienceRequirements;
 const KEYBIND_LABELS: Record<KeybindAction, string> = {
@@ -117,13 +88,11 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   cycleBossRegion: "cycle boss region",
 };
 
-/** Raw tracker snapshot the capture pipeline publishes; matches `CaptureMinimapState` in the desktop app. */
 export interface OverlayMinimapSourceState {
   self: FishNetPosition | undefined;
   loot: FishNetLootDrop[];
 }
 
-/** The overlay's XP and gold tiles read from (and can reset) a tracker owned centrally, shared with the Rewards window, so both stay in sync. */
 export interface XpTrackerSource {
   getSnapshot(): RateSnapshot;
   getCoinsSnapshot(): RateTotals;
@@ -132,7 +101,6 @@ export interface XpTrackerSource {
   subscribe(listener: () => void): () => void;
 }
 
-/** The boss timers tile reads from the launcher-owned coordinator, so timers run with the overlay closed. */
 export interface BossTimerSource {
   getState(): BossTimerState;
   subscribe(listener: () => void): () => void;
@@ -143,9 +111,7 @@ export interface OverlayControllerOptions {
   getCharacterState: () => CharacterViewState;
   subscribeCharacter: (listener: (state: CharacterViewState) => void) => () => void;
   subscribeActiveStatuses: (listener: (statuses: readonly FishNetActiveStatus[]) => void) => () => void;
-  /** The local player's position and current ground loot, coalesced by the capture pipeline. */
   subscribeMinimap: (listener: (state: OverlayMinimapSourceState) => void) => () => void;
-  /** One notification per ground-loot spawn that already cleared the minimap's rarity filter. */
   subscribeLootToast: (listener: (event: OverlayLootToastEvent) => void) => () => void;
   xp: XpTrackerSource;
   bossTimers: BossTimerSource;
@@ -155,16 +121,9 @@ export interface OverlayControllerOptions {
   onOpenLiveDeathLog?: () => Promise<void> | void;
   onLiveLogPathChanged?: (path: string | undefined) => void;
   onSettingsStateChanged?: (state: OverlaySettingsState) => void;
-  /** Asks the owner to create/close windows so the live set matches `displaysNeedingSurface`. */
   onSurfacesChanged?: () => void | Promise<void>;
 }
 
-/**
- * One overlay surface's connection to the controller.
- *
- * Every surface sees the same character/status/meter data, but only the control state for the
- * elements assigned to its own display.
- */
 export interface OverlaySurfaceSink {
   readonly display: string;
   setClickThrough(locked: boolean): void;
@@ -181,21 +140,13 @@ export interface OverlaySurfaceSink {
 
 export type OverlayController = Awaited<ReturnType<typeof createOverlayController>>;
 
-/** The status chips before the wall-clock stamp the view ticks them from is attached. */
 type ProjectedStatusState = Omit<OverlayStatusState, "asOfMs">;
 
-/**
- * Everything the overlay does that is not a window: the log pipeline, the settings file, the
- * pass-through global shortcuts. Exactly one of these exists however many monitors have tiles on
- * them, so the log follower is read once and one keyboard listener serves every shortcut.
- */
 export async function createOverlayController(options: OverlayControllerOptions) {
   let displays = readDisplays();
   let settings = await loadOverlaySettings(options.settingsPath, displays);
   if (options.lockOnCreate) settings.locked = true;
   let characterState = options.getCharacterState();
-  // One service aggregates DPS, TPS and HPS from the same events, retaining bounded per-encounter
-  // buckets and the latest finished encounter rather than the session's hits.
   let meter = createLiveMeter();
   let activeStatusSnapshot: readonly FishNetActiveStatus[] = [];
   let activeStatusRevision = 0;
@@ -210,7 +161,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
   let manualHideEngaged = false;
   let autoHidden = false;
   const surfaces = new Map<string, OverlaySurfaceSink>();
-  /** Control state is projected per display, so the dedupe string has to be per surface too. */
   const lastControlJson = new Map<string, string>();
   const shortcutErrors = new Map<KeybindAction, string>();
   let shortcutsSuspended = false;
@@ -225,24 +175,12 @@ export async function createOverlayController(options: OverlayControllerOptions)
   let lastMinimapJson: string | undefined;
   let minimapSource: OverlayMinimapSourceState = { self: undefined, loot: [] };
   let lastBossTimersJson: string | undefined;
-  /** Region tab explicitly chosen, until the player moves to a different region. */
   let selectedBossRegion: string | undefined;
-  /** Last region the player was seen in, so only an actual move releases that choice. */
   let lastBossRegion: string | undefined;
-  /**
-   * Tracker revision the published status state was projected from.
-   *
-   * The projection walks every active status and the JSON compare below stringifies the result, and
-   * the display feed re-states statuses that are merely still active. Comparing revisions first
-   * skips both for the re-states, which is most of what arrives.
-   */
   let lastStatusRevision: number | undefined;
-  /** Wall clock of the last status publish, and whether one was deferred waiting on the floor. */
   let lastStatusPublishMs = Number.NEGATIVE_INFINITY;
   let statusPublishDeferred = false;
-  /** The one time-driven wake-up, scheduled from whatever is actually due. Absent while idle. */
   let tickTimer: ReturnType<typeof setTimeout> | undefined;
-  /** A pending native hit-testing change; settings state is updated immediately. */
   let lockStyleTimer: ReturnType<typeof setTimeout> | undefined;
 
   const persistence = new SafeSaveQueue<OverlaySettings>({
@@ -263,8 +201,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     for (const action of KEYBIND_ACTIONS) shortcutErrors.set(action, "Could not start pass-through shortcuts.");
   }
 
-  // Cheap enough at 0.2 Hz to be noise, and it is the only thing that stops a window being
-  // stranded on a monitor that has been unplugged.
   const displayTimer = setInterval(() => reconcileDisplays(), DISPLAY_RECONCILE_MS);
   displayTimer.unref?.();
   const autoHideTimer = setInterval(() => checkAutoHide(), AUTO_HIDE_POLL_MS);
@@ -272,8 +208,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
   const unsubscribeCharacter = options.subscribeCharacter((next) => {
     characterState = next;
     const personalName = detectedPersonalName(characterState);
-    // What the linger is holding belongs to whoever was being tracked; carrying it across a
-    // character switch would show their buffs on the new one.
     if (personalName !== lastPersonalName) statusLinger.reset();
     lastPersonalName = personalName;
     meter.setPersonalName(personalName);
@@ -310,14 +244,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     get displays() { return displays; },
     get locked() { return settings.locked; },
     get overlayVisible() { return overlayVisible; },
-    /**
-     * Display keys that should currently own a window.
-     *
-     * While unlocked, that is every connected monitor: the user needs somewhere to drop a tile
-     * they drag off the edge, and the scrim on each screen is what shows them the drop is allowed.
-     * Locking retires the windows that ended up with nothing on them, which is what lets a game on
-     * an empty monitor go back to independent flip.
-     */
     wantedSurfaces: () => settings.locked
       ? displaysNeedingSurface(settings.elements)
       : displays.map(displayKey),
@@ -370,8 +296,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     async shutdown(): Promise<void> {
       if (shuttingDown) return;
       shuttingDown = true;
-      // Releases this consumer's hold on the shared log source, which disposes its watchers and
-      // fallback timer once the last consumer lets go. It also unblocks the follow loop.
       liveLog.close();
       if (tickTimer !== undefined) clearTimeout(tickTimer);
       tickTimer = undefined;
@@ -411,7 +335,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     void options.onSurfacesChanged?.();
   }
 
-  /** Only the tiles on `display`; a surface never learns about another monitor's elements. */
   function controlState(display?: string): OverlayControlState {
     const layout = displays.map((candidate) => ({ display: displayKey(candidate), bounds: candidate.bounds }));
     return {
@@ -502,18 +425,12 @@ export async function createOverlayController(options: OverlayControllerOptions)
   }
 
   function overlayStatusState(nowMs: number): ProjectedStatusState {
-    // Statuses with no data-mine icon (a small upstream gap, e.g. SlowImmunity/BlindImmunity) are
-    // omitted entirely rather than shown as a text-initials placeholder.
-    // The server drops and re-adds a nearby player's group boons within a fraction of a second, so
-    // the toggles they land in are held briefly across that gap. Doing it here rather than per tile
-    // means the missing-status warnings below see the held set too and stop flashing in sympathy.
     const activeStatuses = statusLinger.apply(
       activeStatusSnapshot
         .filter((activeStatus) => activeStatus.expiresAtMs === undefined || activeStatus.expiresAtMs > nowMs)
         .filter((activeStatus) => activeStatus.spriteId !== undefined),
       nowMs,
     );
-    // This split is mirrored by the pickers in ../required-statuses.ts; keep both in sync.
     const buffs = activeStatuses.filter((activeStatus) => !activeStatus.isDebuff && activeStatus.expiresAtMs !== undefined);
     const toggles = activeStatuses.filter((activeStatus) => activeStatus.expiresAtMs === undefined);
     return {
@@ -527,12 +444,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     };
   }
 
-  /**
-   * Attaches the wall-clock reading the countdowns are ticked from.
-   *
-   * Kept out of {@link overlayStatusState} so the dedupe below compares the chips themselves - a
-   * stamp taken per call would differ every time and defeat it.
-   */
   function stampedStatusState(projected: ProjectedStatusState): OverlayStatusState {
     return { ...projected, asOfMs: Date.now() };
   }
@@ -553,14 +464,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     };
   }
 
-  /**
-   * The timers plus which region tab is open, reconciling the selection against where the player
-   * now is before answering.
-   *
-   * The selection lives here rather than in the webview so the cycle keybind — which only the bun
-   * process hears — and a click in edit mode drive one shared answer, and so every surface in a
-   * multi-monitor setup agrees on which region is showing.
-   */
   function bossTimerState(): BossTimerState {
     const published = options.bossTimers.getState();
     followCurrentBossRegion(published.currentRegion);
@@ -572,18 +475,12 @@ export async function createOverlayController(options: OverlayControllerOptions)
     return { ...published, ...(selected === undefined ? {} : { selectedRegion: selected }) };
   }
 
-  /**
-   * Releases an explicit tab choice once the player moves to a different region, so the tile
-   * follows them there. Staying put — or dropping to no region while a reconnection is in flight —
-   * leaves the choice alone, since neither means the player went anywhere.
-   */
   function followCurrentBossRegion(currentRegion: string | undefined): void {
     if (currentRegion === undefined || currentRegion === lastBossRegion) return;
     lastBossRegion = currentRegion;
     selectedBossRegion = undefined;
   }
 
-  /** Moves the boss tile to the next region tab, wrapping at the end. */
   function cycleBossRegion(): void {
     const published = options.bossTimers.getState();
     const regions = bossRegionsPresent(published.timers);
@@ -599,16 +496,10 @@ export async function createOverlayController(options: OverlayControllerOptions)
     scheduleClickThroughUpdate();
     persist();
     publishControl();
-    // Unlocking opens a surface on every monitor so tiles can be dragged between them; locking
-    // closes the ones that hold nothing.
+    // Unlocking opens a surface on every monitor so tiles can be dragged between them; locking closes the ones that hold nothing.
     void options.onSurfacesChanged?.();
   }
 
-  /**
-   * The shortcut can arrive while a surface is closing or while unlock is adding
-   * a surface for another monitor. Defer native style mutation to the next quiet
-   * turn and use the final state when applying it.
-   */
   function scheduleClickThroughUpdate(): void {
     if (lockStyleTimer !== undefined) clearTimeout(lockStyleTimer);
     lockStyleTimer = setTimeout(() => {
@@ -641,8 +532,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
   }
 
   function setElementDisplay(id: OverlayElementId, display: string): OverlayControlState {
-    // normalizeOverlaySettings re-clamps into the target display's bounds and rejects a key that
-    // is not currently connected, so an unknown display quietly stays where it is (on home).
     const next = updateElement(id, { display });
     void options.onSurfacesChanged?.();
     return next;
@@ -667,11 +556,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     return updateElement(id, rect);
   }
 
-  /**
-   * Where a tile dragged across a monitor boundary lands: the assignment and the new
-   * display-relative position are applied together, so the tile is never briefly clamped into the
-   * display it just left.
-   */
   function setElementPlacement(
     id: OverlayElementId,
     display: string,
@@ -707,8 +591,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
   }
 
   function setShortcut(action: KeybindAction, shortcut: string): OverlayControlState {
-    // The captured key has already been delivered to the settings view. Restore
-    // pass-through listening before applying it as a new binding.
     setShortcutCapture(false);
     const normalized = normalizeSingleShortcut(action, shortcut);
     const collidingAction = KEYBIND_ACTIONS.find((other) => other !== action && settings.shortcuts[other] === normalized);
@@ -738,7 +620,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     return controlState();
   }
 
-  /** Suspend every pass-through shortcut while the settings view is listening for a key. */
   function setShortcutCapture(active: boolean): void {
     if (active === shortcutsSuspended) return;
     shortcutsSuspended = active;
@@ -846,11 +727,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     }
   }
 
-  /**
-   * Forwards an in-flight drag to the *other* surfaces so they can draw a ghost where the tile
-   * would be if their window could see it. The originating surface is skipped: it is already
-   * drawing the real tile under the cursor, and echoing back would fight its local preview.
-   */
   function relayDragPreview(preview: OverlayDragPreview | undefined): void {
     if (shuttingDown) return;
     for (const surface of surfaces.values()) {
@@ -886,15 +762,9 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function publishStatuses(nowMs: number, force = false): void {
     if (shuttingDown) return;
-    // The display feed re-states statuses that are merely still active, so most of what reaches here
-    // leaves the chips identical. The tracker's revision settles that without walking the active set
-    // or stringifying the projection; the linger keeps its say while it is holding a chip, because
-    // its deadline moves on no revision at all.
     if (!force
       && activeStatusRevision === lastStatusRevision
       && statusLinger.nextDeadlineMs() === undefined) return;
-    // Holding the revision back is what makes this a deferral rather than a drop: the next pass
-    // still sees a revision it has not drawn, and the scheduled wake is what brings it back.
     if (!force && Date.now() - lastStatusPublishMs < STATUS_PUBLISH_MS) {
       statusPublishDeferred = true;
       return;
@@ -916,8 +786,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   function publishBossTimers(): void {
     if (shuttingDown) return;
-    // Timers change on the scale of kills, not frames: create, re-anchor, and eventual removal.
-    // The countdowns and phase transitions between those changes are ticked in the webview.
     const next = bossTimerState();
     const json = JSON.stringify(next);
     if (json === lastBossTimersJson) return;
@@ -950,14 +818,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     for (const surface of surfaces.values()) publishSafely(() => surface.sendMinimap(next));
   }
 
-  /**
-   * The combat log as this controller consumes it.
-   *
-   * The shipped path hands off to the session follower's watcher: `next()` settles when a filesystem
-   * event says there is something to read, so an idle overlay does no work at all. The
-   * `SPIRIT_VALE_COMBAT_LOG` override tails one fixed file through `DpsLogFollower`, which has no
-   * watcher and no shared source behind it, so that development aid keeps a clock of its own.
-   */
   interface LiveLogSource {
     next(): Promise<DpsLogBatch>;
     close(): void;
@@ -978,13 +838,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     };
   }
 
-  /**
-   * Consumes the log for as long as the overlay is open.
-   *
-   * The opening `next()` is what establishes the session path and the initial status; after that the
-   * loop is woken by the watcher rather than by a timer. `close()` settles a parked `next()`, so
-   * shutdown unwinds this rather than leaving it hanging.
-   */
   async function followLiveLog(): Promise<void> {
     while (!shuttingDown) {
       let batch: DpsLogBatch;
@@ -1004,18 +857,9 @@ export async function createOverlayController(options: OverlayControllerOptions)
   }
 
   function applyBatch(batch: DpsLogBatch): void {
-    // An unchanged batch carries no events, no session change and no truncation, so there is nothing
-    // to fold in and nothing that could have moved a projection. The watcher rarely produces one -
-    // `next()` settles on something to report - but a merged empty read still can.
     if (!batch.changed) return;
     options.onLiveLogPathChanged?.(batch.path ?? liveLogOverride);
     if (batch.reset) {
-      // Only the meter starts over: resetting the session is about the damage numbers. The status
-      // tracker deliberately survives, because it is the only record of what is currently active -
-      // the game states buffs on apply/refresh and never re-states them for a new log session, so
-      // rebuilding it here would blank the buff tiles until every buff happened to be recast.
-      // Statuses that genuinely stop applying still clear themselves: they time out via advance(),
-      // and a relog or zone change sends an actorIdentity "reset" the tracker already acts on.
       meter = createLiveMeter();
       logClock.rotate();
       publishCadence.reset();
@@ -1053,10 +897,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     scheduleTick();
   }
 
-  /**
-   * Runs the work that is driven by the clock rather than by the log: expiring statuses, dropping a
-   * held chip, closing an idle encounter, and refreshing the meter while its numbers are decaying.
-   */
   function tick(): void {
     if (shuttingDown) return;
     tickTimer = undefined;
@@ -1069,14 +909,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     scheduleTick();
   }
 
-  /**
-   * Arms the next time-driven pass, or leaves the overlay asleep when nothing is due.
-   *
-   * Everything else the overlay reacts to arrives as a filesystem event. What remains are three
-   * deadlines nothing will announce - a status lapsing, a lingered chip dropping, and the meter's
-   * own republish cadence while an encounter is open - so the wake-up is scheduled from those
-   * rather than from a fixed interval. With no encounter and no statuses there is no timer at all.
-   */
   function scheduleTick(): void {
     if (shuttingDown) return;
     if (tickTimer !== undefined) clearTimeout(tickTimer);
@@ -1098,8 +930,6 @@ export async function createOverlayController(options: OverlayControllerOptions)
     }
     // A publish the floor turned away is owed one as soon as the floor lifts.
     if (statusPublishDeferred) consider(lastStatusPublishMs + STATUS_PUBLISH_MS - Date.now());
-    // An open encounter is the one case that needs a steady beat: the DPS figures decay between
-    // events, and the idle gap that closes the encounter is measured in wall time.
     if (publishCadence.hasActiveMeter()) consider(METER_PUBLISH_MS);
     if (delayMs === undefined) return;
 

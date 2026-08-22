@@ -18,7 +18,6 @@ export interface CaptureAdapterOption {
   label: string;
 }
 
-/** Log directory usage as measured once at launch. Undefined until the walk finishes, or if it failed. */
 export interface LogStorageState {
   bytes: number;
   files: number;
@@ -42,7 +41,6 @@ export interface LauncherState {
   minimizeToTray: boolean;
   resetMeterOnMapChange: boolean;
   resetGoldOnMapChange: boolean;
-  /** Overlay keybinds, shown as a hint on the launcher. Absent until the overlay has started. */
   overlayShortcuts?: Record<KeybindAction, string>;
   update?: {
     version: string;

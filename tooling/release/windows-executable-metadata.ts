@@ -2,7 +2,6 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import * as ResEdit from "resedit";
 
-/** The English (United States) / Unicode string table every Windows shell reads by default. */
 const language = { lang: 1033, codepage: 1200 } as const;
 
 export const productName = "Spirit Vale Overlay";
@@ -10,13 +9,10 @@ export const companyName = "kar-mi";
 export const legalCopyright = "Copyright (C) 2026 kar-mi. Licensed under the GNU AGPL v3.";
 
 export interface WindowsExecutableMetadata {
-  /** Shown as the file's "Description" in Explorer and in the Task Manager process list. */
   fileDescription: string;
-  /** Marketing version as `major.minor.patch`; padded to the four-part Windows form. */
   version: string;
 }
 
-/** Windows wants four numeric parts, while package.json carries three (plus any prerelease tag). */
 export function toWindowsVersion(version: string): string {
   const parts = version.split(/[.+-]/, 4).map((part) => Number.parseInt(part, 10));
   const numbers = [0, 1, 2, 3].map((index) => {
@@ -26,17 +22,6 @@ export function toWindowsVersion(version: string): string {
   return numbers.join(".");
 }
 
-/**
- * Writes a complete version-resource block into a Windows executable.
- *
- * An unsigned EXE whose Explorer property sheet is blank is one of the strongest heuristic signals
- * antivirus engines score on. This helper is intentionally limited to unsigned project launchers;
- * signed third-party executables such as bun.exe must never pass through it. Some compilers emit a
- * `VS_VERSION_INFO` block whose string table is present but empty, so the values have to be written
- * into the language Windows actually resolves. Any other string table is dropped —
- * Windows reads the first translation it is offered, so a leftover empty one wins and shows blanks.
- * Executables with no block at all get a freshly created one.
- */
 export async function setWindowsExecutableMetadata(
   executablePath: string,
   metadata: WindowsExecutableMetadata,

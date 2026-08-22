@@ -5,7 +5,6 @@ import { useDismissable } from "./use-dismissable.ts";
 export interface CheckboxMultiSelectOption<T extends string | number> {
   value: T;
   label: string;
-  /** Optional leading icon, e.g. a status sprite. */
   iconSrc?: string;
 }
 
@@ -13,7 +12,6 @@ export interface CheckboxMultiSelectProps<T extends string | number> {
   options: readonly CheckboxMultiSelectOption<T>[];
   selected: ReadonlySet<T>;
   onChange(selected: Set<T>): void;
-  /** Text on the closed toggle, given the current selection. */
   summarize(selected: ReadonlySet<T>, options: readonly CheckboxMultiSelectOption<T>[]): string;
   searchPlaceholder: string;
   clearLabel: string;
@@ -21,7 +19,6 @@ export interface CheckboxMultiSelectProps<T extends string | number> {
   ariaLabel: string;
 }
 
-/** Searchable dropdown of checkboxes. Renders nothing when there is nothing to choose from. */
 export function CheckboxMultiSelect<T extends string | number>(
   { options, selected, onChange, summarize, searchPlaceholder, clearLabel, noMatchLabel, ariaLabel }:
     CheckboxMultiSelectProps<T>,

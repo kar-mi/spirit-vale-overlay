@@ -59,9 +59,6 @@ describe("character cache storage", () => {
   });
 
   test("round-trips grimoires, the action bar and stored loadouts", async () => {
-    // sanitizeSnapshot rebuilds the snapshot from an allowlist, so a top-level field that is not
-    // named there is dropped on persist. That shipped a cached character exporting zero grimoires
-    // and no weapon-swap sets, with nothing reported as unresolved because they were simply gone.
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-character-cache-"));
     const file = path.join(directory, "characters.json");
     try {

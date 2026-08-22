@@ -39,7 +39,6 @@ export function buildLivePlayerDetailState(
   };
 }
 
-/** Placeholder DPS row for a player visible only in healing or tanking data. */
 export function emptyDpsRow(identity: FishNetDpsActorRow | MeterActorRow, durationMs: number): FishNetDpsActorRow {
   return {
     rowId: identity.rowId,

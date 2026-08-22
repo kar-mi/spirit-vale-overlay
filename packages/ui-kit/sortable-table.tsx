@@ -22,7 +22,6 @@ export function nextTableSort<K extends string>(
   };
 }
 
-/** Returns a sorted copy while keeping unavailable values at the bottom in either direction. */
 export function sortTableRows<T, K extends string>(
   rows: readonly T[],
   sort: TableSort<K>,

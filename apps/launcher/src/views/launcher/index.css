@@ -81,8 +81,6 @@ html, body {
 .tool-button strong { color: var(--on-surface); font-size: 15px; }
 .tool-button span { color: var(--on-surface-variant); font-size: 12px; line-height: 1.4; }
 
-/* Pinned to the shell rather than placed in the content grid, so it stays in the window's bottom
-   corner regardless of how many banners the content above happens to be showing. */
 .log-storage {
   position: absolute;
   right: 18px;
@@ -95,7 +93,6 @@ html, body {
   pointer-events: none;
 }
 
-/* Pinned like .log-storage, in the opposite corner. */
 .overlay-hints {
   position: absolute;
   left: 18px;

@@ -6,11 +6,6 @@ import type { FishNetMobRewardEvent } from "@kar-mi/spirit-vale-tools-rewards";
 const RECENT_KILL_LIMIT = 100;
 const CHART_POINTS = 720;
 
-/**
- * The rewards window renders its trend chart from the aggregator's buckets and its totals from the
- * same snapshot, in the same panel. A bucketing that samples rather than sums makes the two
- * disagree — which is exactly what the removed `compactSnapshot` did past 720 kills.
- */
 describe("bounded reward aggregation", () => {
   test("chart stays bounded while its sums still equal the totals", () => {
     const service = new LiveRewardService({ recentKillLimit: RECENT_KILL_LIMIT, chartPoints: CHART_POINTS });
@@ -42,7 +37,6 @@ describe("bounded reward aggregation", () => {
 
     const { recentKills } = service.snapshot();
     expect(recentKills).toHaveLength(RECENT_KILL_LIMIT);
-    // Newest first, and every kill adjacent to the next — no gaps from stride sampling.
     expect(recentKills.map((entry) => entry.experience))
       .toEqual(Array.from({ length: RECENT_KILL_LIMIT }, (_, offset) => killCount - 1 - offset));
   });

@@ -313,7 +313,6 @@ function XpTrackerSection({ xp, gold }: { xp: RewardsAppState["xp"]; gold: Rewar
   );
 }
 
-/** The tracker's neutral buckets, re-keyed onto the `experience` field `buildRateTrend` reads. */
 function bucketsToTrendSamples(buckets: RateSnapshot["timeline"]): TrendSample[] {
   return buckets.map((bucket) => ({
     recordedAt: new Date(bucket.atMs).toISOString(),

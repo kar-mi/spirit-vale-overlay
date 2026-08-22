@@ -22,7 +22,6 @@ describe("planner handoff", () => {
   });
 
   test("encodes base64url with padding stripped, matching the site's decB", () => {
-    // decB is btoa(unescape(encodeURIComponent(json))) with + -> -, / -> _ and no padding.
     const fragment = encodeBuildFragment(build);
     expect(fragment).not.toContain("=");
     expect(fragment).not.toContain("+");

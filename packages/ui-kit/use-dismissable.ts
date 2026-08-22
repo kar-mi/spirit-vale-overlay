@@ -1,7 +1,6 @@
 import { useEffect } from "preact/hooks";
 import type { RefObject } from "preact";
 
-/** Closes an open panel when the user clicks/taps outside `rootRef` or presses Escape. */
 export function useDismissable(rootRef: RefObject<HTMLElement | null>, open: boolean, close: () => void): void {
   useEffect(() => {
     if (!open) return;

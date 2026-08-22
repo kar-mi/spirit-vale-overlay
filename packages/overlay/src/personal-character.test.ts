@@ -3,7 +3,6 @@ import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 
 import { detectedPersonalName, syncPersonalCharacter } from "./personal-character.ts";
 
-/** Stands in for the live meter, which accepts the detected name but never reads it back. */
 function meterStub(state?: CharacterViewState) {
   const meter = {
     personalName: "",

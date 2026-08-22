@@ -29,10 +29,6 @@ export interface OldSettingsPaths {
   windowPlacementsPath: string;
 }
 
-/**
- * A user can point the picker at either the app's `data` folder or its nested `data/settings`
- * folder directly — auto-detect which one was selected by checking for a `settings` subfolder.
- */
 function resolveOldSettingsPaths(selected: string): OldSettingsPaths {
   const nestedSettingsDirectory = path.join(selected, "settings");
   const settingsDirectory = existsSync(nestedSettingsDirectory) ? nestedSettingsDirectory : selected;
@@ -46,14 +42,6 @@ function resolveOldSettingsPaths(selected: string): OldSettingsPaths {
   };
 }
 
-/**
- * Read-only: resolves what an import from `selectedDirectory` would do, without touching disk.
- * Callers that hold long-lived windows with their own in-memory settings (the overlay controller
- * in particular reloads only at startup and re-persists its stale copy when its window closes)
- * must close those windows before calling {@link applyImport}, or the import gets silently
- * overwritten again right after it lands. Splitting resolve from apply lets a caller do that
- * teardown only once it knows there's actually something to import.
- */
 export function planImport(selectedDirectory: string, currentPaths: DesktopStoragePaths): ImportPlan {
   const resolvedSelected = path.resolve(selectedDirectory);
   const currentSettingsDirectory = path.resolve(path.dirname(currentPaths.launcherSettingsPath));
@@ -78,11 +66,6 @@ export function planImport(selectedDirectory: string, currentPaths: DesktopStora
   return { status: "ready", oldPaths };
 }
 
-/**
- * Performs the writes for a `"ready"` {@link ImportPlan}. Reuses each settings module's own
- * load/save pair, which already drops fields the current schema no longer has and fills in
- * defaults for anything the old file was missing.
- */
 export async function applyImport(
   oldPaths: OldSettingsPaths,
   currentPaths: DesktopStoragePaths,
@@ -108,7 +91,6 @@ export async function applyImport(
   }
 }
 
-/** Convenience wrapper combining {@link planImport} and {@link applyImport} in one call. */
 export async function importSettingsFrom(
   selectedDirectory: string,
   currentPaths: DesktopStoragePaths,
@@ -120,7 +102,6 @@ export async function importSettingsFrom(
   return "imported";
 }
 
-/** Overwrites every settings file with its defaults. */
 export async function resetAllSettings(paths: DesktopStoragePaths, displays: readonly OverlayDisplay[]): Promise<void> {
   await saveLauncherSettings(defaultLauncherSettings(), paths.launcherSettingsPath);
   await saveOverlaySettings(defaultOverlaySettings(displays), paths.overlaySettingsPath);

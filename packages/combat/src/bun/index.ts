@@ -32,32 +32,13 @@ import type { SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
 const MINIMUM_WIDTH = DPS_WINDOW_MINIMUM_WIDTH;
 const MINIMUM_HEIGHT = DPS_WINDOW_MINIMUM_HEIGHT;
-/**
- * Tail interval for the `SPIRIT_VALE_COMBAT_LOG` override only.
- *
- * The shipped path is watcher-driven. `DpsLogFollower` tails one fixed file and exposes no watcher,
- * so that development aid keeps a clock of its own.
- */
 const LIVE_LOG_OVERRIDE_POLL_MS = 1_000;
-/**
- * How often an open encounter is redrawn while no events are arriving.
- *
- * The DPS figures decay between hits and the idle gap that closes an encounter is measured in wall
- * time, so an open encounter needs a beat of its own. Nothing is scheduled once it closes.
- */
 const LIVE_METER_TICK_MS = 1_000;
 const MAX_RECENT_SESSIONS = 100;
-/**
- * Sessions inspected while filling the list. Empty sessions are skipped, so the scan has to reach
- * past MAX_RECENT_SESSIONS to still show that many — bounded so a directory full of empty sessions
- * cannot turn one refresh into an unbounded summarize pass.
- */
 const MAX_SCANNED_SESSIONS = MAX_RECENT_SESSIONS * 3;
-/** Timeline buckets retained per encounter. Beyond this, adjacent buckets merge. */
 const TIMELINE_POINTS = 720;
 export interface DpsWindowOptions {
   logDirectory: string;
-  /** Past analysis and the death log read managed session logs from here when it is available. */
   readModel?: CombatReadModelSource;
   getCharacterState: () => CharacterViewState;
   subscribeCharacter: (listener: (state: CharacterViewState) => void) => () => void;
@@ -78,15 +59,10 @@ let personalName = detectedPersonalName(initialCharacterState);
 let window: BrowserWindow;
 let status: DpsAppStatus = "waiting";
 let statusDetail = liveLogOverride ? `Looking for ${path.basename(liveLogOverride)}…` : "Looking for a combat session…";
-// Declared before the meter: createLiveMeter() reads it, and a `let` referenced before its
-// declaration throws rather than reading undefined.
 let manualPersonalActorId: number | undefined;
-// One service aggregates DPS, TPS and HPS from the same events. It retains bounded per-encounter
-// buckets and the latest finished encounter, never individual hits or the whole session.
 let liveMeter = createLiveMeter();
 const liveLog = createLiveLogSource();
 let liveMeterTimer: ReturnType<typeof setTimeout> | undefined;
-/** Wall clock of the last publish driven by the live log, which the floor below is measured from. */
 let lastLivePublishMs = Number.NEGATIVE_INFINITY;
 let publishing = false;
 let shuttingDown = false;
@@ -304,13 +280,6 @@ function publish(): void {
   }
 }
 
-/**
- * The combat log as this window consumes it.
- *
- * The shipped path hands off to the session follower's watcher, which only settles when there is
- * something to read. The `SPIRIT_VALE_COMBAT_LOG` override has no watcher behind it, so it keeps a
- * clock of its own.
- */
 interface LiveLogSource {
   next(): Promise<DpsLogBatch>;
   close(): void;
@@ -331,11 +300,6 @@ function createLiveLogSource(): LiveLogSource {
   };
 }
 
-/**
- * Consumes the log for as long as the window is open.
- *
- * `close()` settles a parked `next()`, so shutdown unwinds this rather than leaving it hanging.
- */
 async function followLiveLog(): Promise<void> {
   while (!shuttingDown) {
     let batch: DpsLogBatch;
@@ -353,8 +317,6 @@ async function followLiveLog(): Promise<void> {
 }
 
 function applyLiveLogBatch(batch: DpsLogBatch): void {
-  // An unchanged batch carries no events and no session change, so there is nothing to fold in and
-  // nothing that could have moved the meter.
   if (!batch.changed) return;
   currentLiveLogPath = batch.path ?? liveLogOverride ?? currentLiveLogPath;
   if (batch.reset) {
@@ -387,19 +349,11 @@ function applyLiveLogBatch(batch: DpsLogBatch): void {
       : batch.events.length > 0
         ? updateLiveStatus("capturing", `Reading ${fileName}`)
         : updateLiveStatus(latestRecord() ? "ready" : "waiting", `Watching ${fileName}`);
-  // A run of event batches restates the same "Reading …" line, so the status alone cannot be what
-  // decides this: the numbers behind it moved even when the line did not.
   if (!statusChanged && (batch.events.length > 0 || batch.reset)) publishLiveProgress();
   // Events carried the meter forward; whether it still needs a beat of its own is decided here.
   scheduleLiveMeterTick();
 }
 
-/**
- * Redraws an open encounter while the log is quiet, and arms the next such pass.
- *
- * Once the encounter closes there is nothing left that changes without an event, so no timer is
- * scheduled and an idle window costs nothing.
- */
 function tickLiveMeter(): void {
   liveMeterTimer = undefined;
   if (shuttingDown) return;
@@ -410,13 +364,6 @@ function tickLiveMeter(): void {
   scheduleLiveMeterTick();
 }
 
-/**
- * Publishes progress through the live log, at most once per tick interval.
- *
- * Batches arrive as fast as the logger flushes - roughly twenty a second during a fight - and each
- * publish sends the whole app state, snapshots included. The first event after a quiet stretch still
- * goes out at once; the rest are carried by the open encounter's own tick, so nothing is dropped.
- */
 function publishLiveProgress(): void {
   const now = Date.now();
   if (now - lastLivePublishMs < LIVE_METER_TICK_MS) return;
@@ -458,7 +405,6 @@ function createLiveMeter(): LiveCombatService {
   });
 }
 
-/** The encounter in progress, or the most recent one once it has ended. */
 function latestRecord(): CombatEncounterRecord | undefined {
   const state = liveMeter.getState(relativeNowMs());
   return state.current ?? state.latestFinished;
@@ -622,14 +568,6 @@ function pastPickerLoadingState(): SessionPickerState {
   };
 }
 
-/**
- * Records the live status line, republishing only when it actually reads differently.
- *
- * Most passes through here restate what is already on screen — "Watching combat.jsonl" for as long
- * as nothing happens — and publishing sends the whole app state, snapshots included, over RPC.
- *
- * @returns whether the line changed, so a caller can tell its own publish apart from this one.
- */
 function updateLiveStatus(nextStatus: DpsAppStatus, detail: string): boolean {
   if (status === nextStatus && statusDetail === detail) return false;
   status = nextStatus;
@@ -668,8 +606,6 @@ async function shutdown(): Promise<void> {
   analysis.close();
   unsubscribeCharacter();
   if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
-  // Releases this consumer's hold on the shared log source, which disposes its watchers and fallback
-  // timer once the last consumer lets go. It also unblocks the follow loop.
   liveLog.close();
   if (liveMeterTimer !== undefined) clearTimeout(liveMeterTimer);
   liveMeterTimer = undefined;
@@ -680,15 +616,6 @@ async function shutdown(): Promise<void> {
   }
 }
 
-/**
- * Reports the close exactly once.
- *
- * This cannot live only in the `close` event handler: every close in this app is programmatic (the
- * title bar is custom, so there is no native chrome to click), and teardown disposes that listener
- * before calling `window.close()`. The event would then arrive with nothing listening, leaving the
- * caller's slot pointing at a destroyed window — the next open would fail with "Window no longer
- * exists". Teardown always runs, so it is the reliable place to report from.
- */
 function notifyClosed(): void {
   if (closedCallbackSent) return;
   closedCallbackSent = true;

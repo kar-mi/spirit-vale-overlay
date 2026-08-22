@@ -23,7 +23,6 @@ export function resolvePortableRoot(
   return markerExists(path.join(root, portableMarkerName)) ? root : undefined;
 }
 
-/** Configure portable paths before Electrobun is imported and WebView2 is initialized. */
 export async function configurePortableEnvironment(options: PortableEnvironmentOptions = {}): Promise<string | undefined> {
   const executablePath = options.executablePath ?? process.execPath;
   const environment = options.environment ?? process.env;

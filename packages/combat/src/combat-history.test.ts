@@ -13,7 +13,6 @@ const SESSION = "20260101T000000000Z-0000abcd";
 const ORIGIN = Date.UTC(2026, 0, 1);
 const IDLE_GAP_MS = 30_000;
 
-/** One encounter per entry: each is a lone hit, spaced past the idle gap from the last. */
 function log(encounters: number): string {
   let sequence = 0;
   const line = (atMs: number, data: Record<string, unknown>, type = "combat.event"): string =>
@@ -63,8 +62,6 @@ describe("indexCombatSession", () => {
       expect(capped?.encounters).toHaveLength(3);
       expect(capped?.omitted).toBe(5);
 
-      // Encounters come back oldest first, so the retained three must be the last three of the full
-      // list — the view defaults its selection to the final entry, which has to be the most recent.
       expect(capped?.encounters.map((entry) => entry.encounterId))
         .toEqual(all!.encounters.slice(-3).map((entry) => entry.encounterId));
     } finally {
@@ -73,7 +70,6 @@ describe("indexCombatSession", () => {
   });
 
   test("pages past the keyset page size to see every encounter", async () => {
-    // More encounters than one page, so the enumeration has to follow the cursor.
     const context = await fixture(600);
     try {
       const indexed = await indexCombatSession(context.source, SESSION, 10_000);

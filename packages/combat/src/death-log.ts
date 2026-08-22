@@ -8,7 +8,6 @@ const MOB_IDENTITY_PREFIX = "__spiritvaleMobIdentity:";
 
 export interface DeathLogHit {
   id: string;
-  /** Milliseconds before the associated death; zero is the lethal hit. */
   beforeDeathMs: number;
   attackerActorId: number;
   sourceLabel: string;
@@ -46,7 +45,6 @@ interface TimedHit {
   atMs: number;
 }
 
-/** Reads player-death timelines directly from a combat JSONL replay. */
 export async function loadDeathLogReplay(filePath: string): Promise<DeathLogReplay> {
   const identities = new Map<number, string>();
   const mobIdentities = new Map<number, string>();
@@ -93,8 +91,6 @@ export async function loadDeathLogReplay(filePath: string): Promise<DeathLogRepl
       targetHits.push({ event, atMs });
       hitsByTarget.set(event.targetId, targetHits);
     }
-    // Team 0 is the player-damage team used by the DPS meter. A non-zero death is therefore
-    // an incoming/player-death candidate; the capture coordinator resolves its target when able.
     if (event.kind !== "death" || event.team === 0) continue;
     const windowStart = atMs - DEATH_LOOKBACK_MS;
     const victimHits = (hitsByTarget.get(event.targetId) ?? [])

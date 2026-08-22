@@ -54,7 +54,6 @@ const DIAGNOSTIC_POST_AUTH_MS = 10_000;
 const DIAGNOSTIC_PRE_AUTH_BYTE_LIMIT = 8 * 1024 * 1024;
 const DIAGNOSTIC_TRANSITION_BYTE_LIMIT = 32 * 1024 * 1024;
 const TOWER_LOCATION_SETTLE_MS = 500;
-/** Position/loot updates arrive on nearly every packet during movement; coalesced to this cadence. */
 const MINIMAP_PUBLISH_MS = 60;
 const TOWER_LOCATION_MAX_SETTLE_MS = 2_000;
 const STATUS_RPC_NAMES = new Set([
@@ -75,13 +74,11 @@ interface SessionSeed {
   location?: SpiritValeLocation;
 }
 
-/** The local player's position and the ground loot currently believed to be on the map. */
 export interface CaptureMinimapState {
   self: FishNetPosition | undefined;
   loot: FishNetLootDrop[];
 }
 
-/** A single ground-loot drop that just spawned, forwarded as a discrete notification event. */
 export interface CaptureLootToastEvent {
   objectId: number;
   displayName?: string;
@@ -101,50 +98,16 @@ export interface CaptureCoordinatorOptions {
   deviceName?: string;
   captureFactory?: () => PacketCapture;
   onStatus?: (state: CaptureCoordinatorState) => void;
-  /** Receives human-readable failures for the root-level fallback error log. */
   onError?: (report: CaptureErrorReport) => void;
-  /**
-   * Adds an internal "other" stream containing capture diagnostics and unclassified
-   * FishNet packets. Defaults to the SPIRIT_VALE_DIAGNOSTIC_LOGS environment variable.
-   */
   diagnosticLogging?: boolean;
-  /** Party-member identities learned in prior sessions, used to seed the actor directory. */
   knownIdentities?: readonly FishNetKnownIdentity[];
-  /** Invoked whenever a party member's identity is newly learned or changed, for persistence. */
   onIdentityLearned?: (identity: FishNetKnownIdentity) => void;
-  /**
-   * Read before every map/channel change to decide whether to rotate the capture session there.
-   * A live getter rather than a value so toggling the setting takes effect without a restart.
-   */
   resetOnMapChange?: () => boolean;
-  /**
-   * Invoked on every map/channel change (never the initial login), independent of
-   * `resetOnMapChange` — the gold reset is a separate, unrelated setting.
-   */
   onGoldMapChange?: () => void;
-  /**
-   * Read on every packet to decide whether to track/publish minimap position and loot data at all.
-   * Defaults to enabled. A live getter so users experiencing lag can turn it off without a restart.
-   */
   minimapEnabled?: () => boolean;
-  /**
-   * Read on every loot spawn to decide whether it clears the bar for a toast notification. Shares
-   * the minimap's own rarity filter rather than a separate setting. Defaults to showing everything.
-   */
   getMinimapRarityFilter?: () => number;
-  /**
-   * Read on every loot spawn to decide whether it clears the bar for a toast notification. Shares
-   * the minimap's own drop-chance filter rather than a separate setting. Defaults to showing
-   * everything.
-   */
   getMinimapLootChanceFilter?: () => number;
-  /** Invoked when the marker left where a world boss died comes into view, for the respawn timers. */
   onBossGravestone?: (gravestone: BossGravestoneObservation) => void;
-  /**
-   * Invoked whenever the server instance the player is on changes, including to undefined while a
-   * reconnection is in flight. Drives the region a manual timer defaults to and the region tab the
-   * overlay opens on.
-   */
   onServerInstance?: (instanceId: string | undefined) => void;
 }
 
@@ -157,26 +120,14 @@ export class CaptureCoordinator {
     healingTraitsResolver: (actorId: number) => {
       return actorId === this.character.physicalObjectId() ? this.localHealingTraits() : undefined;
     },
-    // Attributes a summon calibration recovered from an unnamed packet. Those carry no object id of
-    // their own, and CalibrateSummons_T is a targetRpc no other client receives, so the local
-    // character is the only possible recipient.
     localActorIdResolver: () => this.character.physicalObjectId(),
-    // Names each hit's target from the monster's spawn packet. The combat log carries no spawn
-    // packets, so a name not stamped onto the event here cannot be recovered when the log is
-    // replayed — which is why enemies that died without acting indexed as "Enemy <id>".
     monsterCatalog: mobDefinitionsById(),
   });
-  /**
-   * Live status state is deliberately independent of combat.jsonl. The display feed refreshes
-   * some permanent effects every second, and retaining that chatter on disk serves neither the
-   * overlay nor replay diagnostics.
-   */
   private readonly statusTracker = new FishNetStatusTracker();
   private readonly activeStatusListeners = new Set<(statuses: readonly FishNetActiveStatus[]) => void>();
   private activeStatusTimer?: ReturnType<typeof setTimeout>;
   private lastPublishedStatusRevision = -1;
   private lastPublishedStatusActorId: number | undefined;
-  /** One persisted sample per short display-feed status activation. */
   private readonly loggedShortDisplayStatuses = new Set<string>();
   private readonly rewards = new FishNetMobRewardTracker();
   private readonly tower = new FishNetEternalTowerTracker();
@@ -185,27 +136,17 @@ export class CaptureCoordinator {
   private readonly unresolvedCounts = new Map<string, number>();
   private unresolvedReportedAtMs = 0;
   private readonly mobs = new FishNetMobDirectory();
-  /** Assigned in the constructor: it needs `this.actors`, which is itself constructor-assigned. */
   private readonly positions: FishNetPositionTracker;
   private readonly loot = new FishNetLootDropTracker();
   private readonly minimapListeners = new Set<(state: CaptureMinimapState) => void>();
   private minimapTimer?: ReturnType<typeof setTimeout>;
   private lastPublishedMinimapJson?: string;
   private readonly lootToastListeners = new Set<(event: CaptureLootToastEvent) => void>();
-  /** Object ids already toasted this session, so a later `update` for the same drop does not repeat it. */
   private readonly toastedLootIds = new Set<number>();
   private readonly character = new LocalCharacterRouter({
     onHandled: () => this.syncLocalActorIdentity(),
     onError: (packet, error) => this.logCharacterWarning(packet, error),
   });
-  /**
-   * Characters seen by inspecting other players. Kept apart from `character` on purpose: that
-   * router owns the LOCAL player and merges every payload it accepts, so an inspected stranger
-   * routed through it would overwrite your own character.
-   */
-  // SQLite is the durable roster and no longer has the old 24-player ceiling. Keep this intake
-  // collector unbounded too, so its roster publication never drops an inspect before desktop
-  // persistence receives it.
   private readonly inspected = new FishNetInspectRoster(Number.POSITIVE_INFINITY);
   private session?: LogSession;
   private combatLog?: JsonLinesLogger;
@@ -224,7 +165,6 @@ export class CaptureCoordinator {
   private activeConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
   private sawAuthenticated = false;
-  /** Distinguishes a cold login from attaching capture to an already connected game session. */
   private sawAdmittedTrafficBeforeAuthentication = false;
   private diagnosticLiteNetBuffer: Array<{ capturedAtMs: number; bytes: number; data: JsonObject }> = [];
   private diagnosticLiteNetBufferBytes = 0;
@@ -240,36 +180,14 @@ export class CaptureCoordinator {
   private handoffFailure?: Error;
   private writeMonitor?: ReturnType<typeof setInterval>;
   private readonly loggedMobIdentities = new Map<number, string>();
-  /** Last effective location written to this session; traversal packets repeat per observer. */
   private lastLoggedLocation: SpiritValeLocation | undefined;
-  /** Latest physical map remains the destination when the authoritative tower snapshot clears. */
   private lastObservedMapId: number | undefined;
   private towerLocationTimer?: ReturnType<typeof setTimeout>;
   private towerLocationDeadlineMs?: number;
   private pendingTowerLocationTick = 0;
-  /**
-   * The in-game channel the local player is currently on.
-   *
-   * Cleared on every (re)authentication: both channel switches and map changes re-authenticate,
-   * and either may land on a different channel, so the old reading is stale until the new
-   * connection reports one of its own. Everything observed in between carries no channel rather
-   * than the wrong one.
-   */
   private currentChannel: number | undefined;
-  /** Server instance the channel list last reported, e.g. `na3-12`; the region is derived from it. */
   private currentInstanceId: string | undefined;
-  /**
-   * Gravestones already reported, keyed by object id, so re-approaching one does not re-report it.
-   *
-   * The fingerprint includes where we believed we were, not just which death the marker records.
-   * A marker noticed in the seconds before the channel list arrives is reported with no channel and
-   * no instance; keying on the death alone would make that first, least informed sighting the only
-   * one that ever counted, permanently stranding the timer in the "unknown" bucket. Including the
-   * location means the next sighting re-reports and corrects it, and repeats settle once the
-   * reading stops changing.
-   */
   private readonly reportedGravestones = new Map<number, string>();
-  /** Serializes stop() and resetSession() so their bodies never interleave. */
   private lifecycleChain: Promise<void> = Promise.resolve();
 
   constructor(private readonly options: CaptureCoordinatorOptions) {
@@ -297,35 +215,8 @@ export class CaptureCoordinator {
 
   characterState(): CharacterViewState { return this.character.state(); }
 
-  /** The server instance the player is currently on, e.g. `na3-12`. Undefined until one is seen. */
   currentServerInstance(): string | undefined { return this.currentInstanceId; }
 
-  /**
-   * Reports the marker the server spawns where a world boss died, and says whether this packet was
-   * one.
-   *
-   * This is the only thing that starts a timer automatically, and deliberately so. Watching for a
-   * boss's death event was tried and removed: the same catalog id spawns as a Summoner's or
-   * Necromancer's pet, and the only thing separating the two on the wire is the level, which fails
-   * silently whenever a pet's owner happens to be the boss's catalog level. A marker is proof —
-   * the server only leaves one where a world boss really died — so there is nothing to second-guess.
-   *
-   * It is also strictly better informed. A death event dates a kill at the moment we noticed it and
-   * only if we were watching; a gravestone carries the server's own time of death, stands afterwards,
-   * and re-announces itself whenever a player comes near, so it dates a kill nobody here saw. Every
-   * case a death event could have caught is one where the player was standing at the very spot the
-   * marker then appeared.
-   *
-   * The channel rule still applies, because a boss raised from a summoning item leaves a marker too
-   * and only resets the rotation on a channel that runs one.
-   *
-   * The same gravestone re-spawns into view every time the player approaches it, so a sighting is
-   * dropped when it would say exactly what the last one did — the same death seen from the same
-   * place. A sighting that has something new to say is reported: a marker noticed in the seconds
-   * before the channel list arrives can only name the death, and passing it again once capture
-   * knows where we are is what files the timer properly. The coordinator, not this, decides what
-   * happens to the placeless one it already recorded.
-   */
   private consumeGravestone(packet: CapturedFishNetPacket): boolean {
     if (packet.packetName !== "objectSpawn" || packet.objectId === undefined) return false;
     const gravestone = decodeBossGravestone(packet);
@@ -358,28 +249,18 @@ export class CaptureCoordinator {
     return this.character.subscribe(listener);
   }
 
-  /**
-   * Subscribes the overlay to the local player's authoritative live status snapshot. The callback
-   * is invoked immediately so opening/reopening the overlay does not wait for another refresh.
-   */
   subscribeActiveStatuses(listener: (statuses: readonly FishNetActiveStatus[]) => void): () => void {
     this.activeStatusListeners.add(listener);
     listener(this.activeStatuses());
     return () => this.activeStatusListeners.delete(listener);
   }
 
-  /**
-   * Subscribes to the local player's position and the ground loot currently on the map, coalesced
-   * onto {@link MINIMAP_PUBLISH_MS} rather than published per packet. The callback is invoked
-   * immediately so opening the minimap does not wait for the next change.
-   */
   subscribeMinimap(listener: (state: CaptureMinimapState) => void): () => void {
     this.minimapListeners.add(listener);
     listener(this.minimapState());
     return () => this.minimapListeners.delete(listener);
   }
 
-  /** Notified once per ground-loot spawn that clears the minimap's rarity filter. No initial replay. */
   subscribeLootToast(listener: (event: CaptureLootToastEvent) => void): () => void {
     this.lootToastListeners.add(listener);
     return () => this.lootToastListeners.delete(listener);
@@ -454,9 +335,6 @@ export class CaptureCoordinator {
     if (this.stopping) return;
     this.stopping = true;
     try {
-      // A pending tower transition is flushed so its zone still reaches the log, but a failed flush
-      // must not abort the teardown below: leaving timers, monitors and the log session open would
-      // also leave `stopping` latched, which makes every later stop() a no-op.
       try {
         await this.commitTowerLocationTransition(false, false);
       } catch (error) {
@@ -527,20 +405,7 @@ export class CaptureCoordinator {
     this.setStatus("stopped", "Capture stopped");
   }
 
-  /**
-   * Rotates the shared capture session: combat and rewards both start writing to a fresh log
-   * session together, while actor/mob identities, reward baselines, and connection state carry
-   * over so attribution keeps working immediately after the boundary. Callers that overlap the
-   * in-flight rotation coalesce into it; a failed rotation leaves the previous session untouched.
-   *
-   * The handoff buffer is drained only once the rotation has fully settled and this guard is
-   * released, so a map change that arrived mid-rotation rotates again on replay rather than being
-   * swallowed by the rotation it happened to overlap.
-   */
   async resetSession(): Promise<void> {
-    // The commit rotates only when it resolved a location. When it could not — a tower run cleared
-    // before the replacement map is known — the manual reset still has to rotate, or the user's
-    // Reset silently does nothing.
     if (this.towerLocationTimer !== undefined && await this.commitTowerLocationTransition(true)) return;
     return this.rotateSession();
   }
@@ -548,8 +413,6 @@ export class CaptureCoordinator {
   private async rotateSession(seed?: SessionSeed): Promise<void> {
     if (this.resettingSession) return this.resettingSession;
     if (this.stopping) throw new Error("cannot reset the capture session while it is stopping");
-    // Establish the boundary before the asynchronous session creation begins. New-connection
-    // identity packets must be replayed into the replacement log, not written to the old one.
     this.handoff = true;
     this.handoffFailure = undefined;
     const run = this.lifecycleChain.catch(() => {}).then(() => this.performResetSession(seed)).catch((error) => {
@@ -570,9 +433,6 @@ export class CaptureCoordinator {
     const streams: LogStream[] = ["combat", "rewards"];
     if (this.diagnosticLogging) streams.push("other");
     const seedIdentities = seed?.identities ?? this.actors.snapshot();
-    // A manual reset stays on the current connection, so its current location remains valid. An
-    // authentication-triggered rotation passes an explicit seed and must wait for that incoming
-    // connection's traversal packet instead.
     const seedLocation = seed === undefined ? this.lastLoggedLocation : seed.location;
 
     const nextSession = await createLogSession({
@@ -585,9 +445,6 @@ export class CaptureCoordinator {
     });
 
     try {
-      // Switch every stream's pointer onto the replacement session first, while the previous
-      // session is still fully intact, so a failure here can be rolled back cleanly without
-      // having touched anything the old session depends on.
       const previousPointers = new Map<LogStream, CurrentLogStream | undefined>();
       for (const stream of streams) {
         previousPointers.set(stream, await readCurrentLogStream(stream, this.options.logDirectory));
@@ -607,8 +464,6 @@ export class CaptureCoordinator {
         throw error;
       }
 
-      // Pointers are now fully switched; finalize the old session and swap the coordinator's own
-      // references. None of this can meaningfully fail (JsonLinesLogger.log is fire-and-forget).
       const previousSession = this.session;
       const rewardEvents = this.rewardAttributor.consume(
         this.rewards.flushSessionBoundary(),
@@ -623,8 +478,6 @@ export class CaptureCoordinator {
       this.rewardsLog?.log("rewards.lifecycle", { state: "stopped" });
       this.otherLog?.log("capture.lifecycle", { state: "stopped" });
 
-      // Combat activations do not carry meaning across a session boundary; actor/mob identities
-      // and the reward baseline are preserved above.
       this.combat.reset();
       this.loggedShortDisplayStatuses.clear();
       this.lastLoggedLocation = undefined;
@@ -644,8 +497,6 @@ export class CaptureCoordinator {
       this.rewardsLog.log("rewards.lifecycle", { state: "started" });
       this.otherLog?.log("capture.lifecycle", { state: "started" });
 
-      // A completed rotation is an observable durability boundary: callers may immediately
-      // follow the newly activated pointers and expect the seeded records to be readable.
       await nextSession.flush();
 
       try {
@@ -718,8 +569,6 @@ export class CaptureCoordinator {
         );
       }
     } else {
-      // A later transition back to waiting represents a new game exit/detection problem and
-      // deserves one new entry. Repeated waiting updates remain suppressed.
       this.missingGameReported = false;
       if (this.hasReceivedCaptureData && !this.receivedDataForCurrentGame && !this.waitingForDataReported) {
         this.waitingForDataReported = true;
@@ -791,11 +640,6 @@ export class CaptureCoordinator {
       this.waitingForDataReported = false;
       this.refreshCaptureDetail();
     }
-    // Character-save callbacks are connection-independent; object-bound character data is routed
-    // only after the same active-connection admission used by every other capture domain.
-    // Inspect replies are a separate stream: the same CharacterData for a DIFFERENT player. Routed
-    // before admission for the same reason character callbacks are — the reply can arrive on a
-    // connection the active-connection gate would reject, and it belongs to no unit object.
     const inspectHandled = this.inspected.consume(packet);
     let characterHandled = this.character.consumeBeforeAdmission(packet);
     if (!this.admitPacket(packet)) return;
@@ -807,10 +651,6 @@ export class CaptureCoordinator {
     this.trackChannel(packet);
     const admittedCharacterHandled = this.character.consumeAdmitted(packet);
     characterHandled ||= admittedCharacterHandled || inspectHandled;
-    // The tracker only self-resets when the authentication arrives on the connection it was last
-    // updated from, which a channel or map change never does — it authenticates on a NEW connection.
-    // Without an explicit reset the stale floor outlives the run and every zone on the new connection
-    // would be logged as that floor.
     const towerReset = packet.packetName === "authenticated" ? this.tower.reset() : false;
     if (packet.packetName === "authenticated") {
       this.lastObservedMapId = undefined;
@@ -834,8 +674,6 @@ export class CaptureCoordinator {
       });
     }
     const loggedZone = this.logZone(packet);
-    // Actor IDs and zones belong to the incoming connection. The replacement log receives both
-    // from its buffered packets after the handoff completes, rather than inheriting stale state.
     const transitionSeed = packet.packetName === "authenticated" ? {} : undefined;
     let handled = characterHandled || loggedZone || towerChanged;
     let combatEvents: FishNetCombatEvent[] = [];
@@ -844,9 +682,6 @@ export class CaptureCoordinator {
       handled = this.consumeGravestone(packet) || handled;
       if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
         this.loggedMobIdentities.clear();
-        // Object ids are scoped to the connection; a re-authentication makes every earlier entry
-        // stale, so clearing here (rather than only on a full stop) keeps this bounded across a
-        // long session's worth of channel/map changes.
         this.reportedGravestones.clear();
       }
       const identities = this.actors.consume(packet);
@@ -867,8 +702,6 @@ export class CaptureCoordinator {
           identities.push(...this.actors.observePlayerActor(event.actorId, event.tick));
         }
         if (event.kind === "death" && event.team !== 0) {
-          // The target is the player who died. Resolve and persist its identity before the
-          // death event so replay analysis can identify every victim, not only attackers.
           identities.push(...this.actors.observePlayerActor(event.targetId, event.tick));
         }
       }
@@ -878,9 +711,6 @@ export class CaptureCoordinator {
       this.scheduleActiveStatusExpiry();
       for (const event of events) {
         if (event.kind !== "summon" || !event.recovered) continue;
-        // Recovery only fires when the capture could not name the packet at all, which means this
-        // connection is losing summon traffic wholesale. Keep the rate visible rather than letting a
-        // heuristic quietly paper over it.
         this.combatLog?.log("combat.warning", {
           message: `recovered an unnamed summon calibration (${event.skillId} ×${event.stacks}) at tick ${event.tick}`,
         });
@@ -921,44 +751,19 @@ export class CaptureCoordinator {
     if (transitionSeed) this.resetOnMapChange(transitionSeed);
   }
 
-  /**
-   * Rotates the session, and/or resets the all-time gold tracker, on a map or channel change, when
-   * the respective setting asks for it. The game sends no dedicated packet for either: both
-   * re-authenticate, which is also what makes the actor directory clear itself. Only admitted packets
-   * reach here, so a stale connection's trailing authentication and a duplicate of the same
-   * authentication cannot rotate or reset anything.
-   *
-   * A first authentication with no earlier admitted traffic is the login itself rather than a
-   * transition, and is skipped so opening the app never rotates an empty session. When capture
-   * attaches to a game already in progress, ordinary traffic arrives without that historical login;
-   * its first observed authentication is therefore a real map/channel change and must rotate.
-   */
   private resetOnMapChange(seed: SessionSeed): void {
     const initialLogin = !this.sawAuthenticated && !this.sawAdmittedTrafficBeforeAuthentication;
     this.sawAuthenticated = true;
     if (initialLogin) return;
     this.options.onGoldMapChange?.();
     if (!this.options.resetOnMapChange?.()) return;
-    // Failures are already surfaced through onError by resetSession itself, and leave the current
-    // session intact — there is nothing further to do with the rejection here.
     void this.rotateSession(seed).catch(() => {});
   }
 
-  /**
-   * Counts packets the decoder could not attribute, and reports a per-window summary.
-   *
-   * Both counters are silent killers: an rpcLink whose registration was never seen carries no object
-   * id or method name, and an `ambiguous` packet carries no method name, so either way the packet is
-   * simply dropped by every domain tracker. A session where clone tracking or damage attribution
-   * "just stops working" looks identical in the combat log to one where the game sent nothing —
-   * these counts are what tell the two apart.
-   */
   private countUnresolvedPacket(packet: CapturedFishNetPacket): void {
     if (packet.packetName === "rpcLink" && packet.linkResolved === false) {
       this.unresolvedCounts.set("rpcLink:unregistered", (this.unresolvedCounts.get("rpcLink:unregistered") ?? 0) + 1);
     } else if (packet.rpcResolution === "recovered") {
-      // Not a loss — a quarantined registration that survived corroboration. Counted so the
-      // promotion rate stays visible next to the losses it is offsetting.
       this.unresolvedCounts.set("rpcLink:recovered", (this.unresolvedCounts.get("rpcLink:recovered") ?? 0) + 1);
     } else if (packet.rpcResolution === "ambiguous") {
       const key = `ambiguous:${packet.packetName}:hash=${packet.rpcHash}:component=${packet.networkBehaviourIndex}`;
@@ -997,7 +802,6 @@ export class CaptureCoordinator {
     return snapshot ? resolveCharacterHealingTraits(snapshot) : undefined;
   }
 
-  /** Only local-player combat may create reward candidates; team 0 includes every nearby player. */
   private shouldTrackRewardPacket(events: readonly FishNetCombatEvent[]): boolean {
     const combat = events.filter((event) => event.kind === "damage" || event.kind === "death");
     if (combat.length === 0) return true;
@@ -1023,8 +827,6 @@ export class CaptureCoordinator {
     const characterName = this.character.current()?.name;
     if (characterName === undefined) return false;
     const attributed = this.actors.getAttribution(actorId)?.displayName;
-    // The CharacterData name and the spawn/VisualData name are separate wire sources, so they
-    // must be compared through the shared identity key rather than raw equality.
     return attributed !== undefined && normalizeName(attributed) === normalizeName(characterName);
   }
 
@@ -1034,9 +836,6 @@ export class CaptureCoordinator {
     const fingerprint = `${mob.mobId}\u0000${mob.level}\u0000${mob.displayName}`;
     if (this.loggedMobIdentities.get(actorId) === fingerprint) return;
     this.loggedMobIdentities.set(actorId, fingerprint);
-    // Combat-log sanitization permits only known record types. An activation is inert to the
-    // DPS meter, so carry the catalog mapping in a reserved activation source that replays can
-    // recognize without introducing a new unsanitized log record type.
     this.combatLog?.log("combat.event", jsonObject({
       kind: "activation",
       tick,
@@ -1047,22 +846,6 @@ export class CaptureCoordinator {
     }));
   }
 
-  /**
-   * Learns the local player's channel and server instance, for stamping onto boss kills.
-   *
-   * `ChannelList_T` is the only source. It is sent to this client alone, names the current channel
-   * outright, and carries the instance id (`na3-12`) the region is derived from. It also arrives on
-   * its own: the game sends one within a few seconds of every authentication, so no menu needs to
-   * be opened, and a channel switch re-authenticates and therefore produces a fresh one.
-   *
-   * `SyncInstanceState` looked like a continuous second source and is not: a full session's capture
-   * contained not one of them, so relying on it only made the channel look better covered than it
-   * was. Both readings are cleared on (re)authentication, leaving a few seconds where a kill is
-   * recorded with no channel rather than the previous connection's.
-   *
-   * `currentIndex` is zero-based, converted once here so every consumer downstream sees the channel
-   * number the game itself displays.
-   */
   private trackChannel(packet: CapturedFishNetPacket): void {
     if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
       this.currentChannel = undefined;
@@ -1077,18 +860,12 @@ export class CaptureCoordinator {
     this.setServerInstance(typeof instanceId === "string" && instanceId.length > 0 ? instanceId : undefined);
   }
 
-  /** Records the server instance, announcing it only when the reading actually moved. */
   private setServerInstance(instanceId: string | undefined): void {
     if (instanceId === this.currentInstanceId) return;
     this.currentInstanceId = instanceId;
     this.options.onServerInstance?.(instanceId);
   }
 
-  /**
-   * Map traversal and instance-state RPCs carry the numeric map ID but produce no combat event.
-   * Store it as an inert activation so the existing combat log follower transports it without
-   * changing the upstream log protocol or creating a damage encounter.
-   */
   private logZone(packet: CapturedFishNetPacket): boolean {
     const mapId = this.observePhysicalMap(packet);
     if (mapId === undefined) return false;
@@ -1127,12 +904,6 @@ export class CaptureCoordinator {
     });
   }
 
-  /**
-   * Debounces the commit so an exit-entry-floor burst produces one transition, but never past the
-   * deadline set by the first pending change: every non-tower packet is buffered while the timer is
-   * armed, so a stream of tower updates closer together than the settle window would otherwise grow
-   * the handoff buffer until it trips its bound and stops the capture outright.
-   */
   private scheduleTowerLocationCommit(): void {
     this.towerLocationDeadlineMs ??= Date.now() + TOWER_LOCATION_MAX_SETTLE_MS;
     const delay = Math.max(0, Math.min(TOWER_LOCATION_SETTLE_MS, this.towerLocationDeadlineMs - Date.now()));
@@ -1150,13 +921,6 @@ export class CaptureCoordinator {
     this.towerLocationTimer = undefined;
   }
 
-  /**
-   * Closes the settle window, and reports whether it rotated the session.
-   *
-   * `allowSideEffects` is false only for the flush performed while stopping: the transition is still
-   * logged, but neither the session rotation nor the all-time gold reset may fire, because from the
-   * user's side nothing changed — the app is shutting down.
-   */
   private async commitTowerLocationTransition(forceRotation = false, allowSideEffects = true): Promise<boolean> {
     if (this.towerLocationTimer === undefined) return false;
     this.clearTowerLocationTimer();
@@ -1188,7 +952,6 @@ export class CaptureCoordinator {
     return actorId === undefined ? [] : this.statusTracker.getActiveStatuses(actorId, nowMs);
   }
 
-  /** Publishes only when the status reducer or local-player actor changed. */
   private publishActiveStatuses(force = false): void {
     const nowMs = Date.now();
     const statuses = this.activeStatuses(nowMs);
@@ -1222,12 +985,6 @@ export class CaptureCoordinator {
     return this.options.minimapEnabled?.() ?? true;
   }
 
-  /**
-   * A drop's name and rarity usually arrive inside its own spawn packet, but are not guaranteed to
-   * — the game can send them as a follow-up `update` once the item is named. Both kinds are
-   * considered here, and `toastedLootIds` keeps a drop from raising a second toast once the later
-   * update arrives.
-   */
   private emitLootToasts(events: readonly FishNetLootDropEvent[]): void {
     if (this.lootToastListeners.size === 0) return;
     const threshold = this.options.getMinimapRarityFilter?.() ?? 0;
@@ -1284,10 +1041,6 @@ export class CaptureCoordinator {
     return true;
   }
 
-  /**
-   * Routes only the active game-server connection. Map changes open a new connection whose
-   * trailing authenticated/disconnect packets from the old one must not wipe fresh actor state.
-   */
   private admitPacket(packet: CapturedFishNetPacket): boolean {
     const connectionId = packet.connectionId;
     const activeBefore = this.activeConnectionId;
@@ -1333,12 +1086,6 @@ export class CaptureCoordinator {
     }));
   }
 
-  /**
-   * Retains a small amount of LiteNet traffic so an authenticated packet can flush the wire-level
-   * lead-in to a map transition, then records a bounded post-authentication window. This sits below
-   * FishNet decoding and connection admission, which lets a diagnostic session distinguish a server
-   * omission from a decoder or routing loss without making raw traffic logging permanently unbounded.
-   */
   private captureLiteNetDiagnostic(packet: CapturedLiteNetLibPacket): void {
     const capturedAtMs = packet.udpPacket.capturedAt.getTime();
     const bytes = packet.packet.raw.length;
@@ -1452,14 +1199,6 @@ export class CaptureCoordinator {
     }
   }
 
-  /**
-   * A write failure alone does not end the session. The logger reports its first error once and
-   * keeps attempting later batches, so a transient fault (an AV scanner holding the file, brief
-   * disk contention) recovers on its own; tearing capture down there would turn a hiccup into a
-   * lost session. The status warning is raised immediately, and a monitor then watches for the one
-   * condition that is not recoverable: the bounded buffer filling up and records being dropped, at
-   * which point the log has stopped being a faithful record and capture is stopped.
-   */
   private logWriteFailure(failure: LogWriteFailure): void {
     console.error("[spiritvale-logging]", `${failure.stream}: ${failure.error.message}`);
     this.reportError("Capture logs could not be written", failure.error.message, {
@@ -1536,7 +1275,6 @@ function isTowerStatePacket(packet: CapturedFishNetPacket): boolean {
   return packet.rpcName === "ETUpdateRun" || packet.rpcName === "ETAdvanceFloor";
 }
 
-/** A zero-based channel index field as the one-based channel number the game displays. */
 function channelFromIndex(packet: CapturedFishNetPacket, fieldName: string): number | undefined {
   const index = packet.decodedFields?.find((field) => field.name === fieldName)?.value;
   if (typeof index !== "number" || !Number.isSafeInteger(index) || index < 0) return undefined;
@@ -1558,9 +1296,6 @@ function fishNetPacketDiagnostic(packet: CapturedFishNetPacket): JsonObject {
     decodedFields: packet.decodedFields,
     syncName: packet.syncName,
     broadcastName: packet.broadcastName,
-    // TEMP DEBUG (heal-tracking investigation): raw bytes so a resolved-but-incomplete Recover_C
-    // can be inspected byte-for-byte instead of guessing why `amount` failed to decode. Remove once
-    // the rpcLink payload-length issue is understood.
     linkId: packet.linkId,
     linkResolved: packet.linkResolved,
     registeredObjectId: packet.registeredObjectId,

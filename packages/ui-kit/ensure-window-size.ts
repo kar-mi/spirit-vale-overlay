@@ -7,14 +7,6 @@ export interface WindowFrameRequests {
   setWindowFrame(frame: WindowFrame): Promise<unknown>;
 }
 
-/**
- * The native frame handed to `new BrowserWindow` isn't scaled for `devicePixelRatio`, so on a
- * scaled display the page renders larger than the window until something resizes it. Call once on
- * load with the window's minimum content size; it force-resizes only if the native frame is too
- * small to hold that minimum at the current DPI scale.  Do not use a preferred/default size here:
- * users may have deliberately resized a persisted window below that size. The check is performed
- * once per window session, so a renderer reload cannot resize an already-open window again.
- */
 export async function ensureInitialWindowSize(
   requests: WindowFrameRequests | undefined,
   minimumSize: { width: number; height: number },

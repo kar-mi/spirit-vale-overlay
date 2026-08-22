@@ -27,9 +27,6 @@ if (Bun.env["ELECTROBUN_OS"] === "win") {
   const version = packageJson.version;
   if (!version) throw new Error("package.json must define a version before embedding Windows metadata.");
 
-  // launcher.exe is unsigned upstream, so branding it does not invalidate a publisher signature.
-  // Never rewrite bun.exe: Bun's upstream Authenticode signature is part of the portable release's
-  // trust chain and any PE resource edit invalidates it.
   const executables = [
     { path: path.join(appDirectory, "bin", "launcher.exe"), fileDescription: `${productName} Launcher` },
   ];
@@ -40,8 +37,6 @@ if (Bun.env["ELECTROBUN_OS"] === "win") {
     }
   }
 
-  // The icon and the version block live in the same resource directory, so they cannot be written
-  // concurrently to the same file: each pass rewrites the whole executable from its own snapshot.
   for (const executable of executables) {
     await replaceWindowsExecutableIcon(executable.path, iconPath);
     await setWindowsExecutableMetadata(executable.path, {

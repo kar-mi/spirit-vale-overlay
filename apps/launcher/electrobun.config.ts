@@ -10,24 +10,10 @@ const packageJson = JSON.parse(
 ) as PackageJson;
 if (!packageJson.version) throw new Error("package.json must define a version before building Electrobun.");
 
-/**
- * Electrobun's `copy` config is a plain `{ [sourcePath]: destPath }` map, so copying the
- * same `theme.css` into every view's own folder needs a textually distinct source key per
- * view even though every one resolves to the same file — otherwise the object literal would
- * silently collapse duplicate keys and most views would end up without a theme.css.
- */
 function themeCssSource(variant: number): string {
   return `../../packages/ui-kit/${"./".repeat(variant)}theme.css`;
 }
 
-/**
- * Enumerates a directory into Electrobun's per-file `copy` map.
- *
- * `copy` takes one entry per file, but the status icons are keyed off the bundled status and skill
- * catalogs, so any hand-written list goes stale the moment those move. A silently missing icon is
- * especially unhelpful here: `StatusCell` drops a cell whose artwork fails to load, so the buff
- * simply never appears rather than showing a broken frame.
- */
 function directoryCopy(sourceDirectory: string, destinationDirectory: string): Record<string, string> {
   const entries = readdirSync(new URL(`${sourceDirectory}/`, import.meta.url));
   return Object.fromEntries(entries.map((name) => [
@@ -78,9 +64,6 @@ export default {
       "assets/class_icons/class-warrior.webp": "views/assets/class-icons/class-warrior.webp",
       "assets/class_icons/class-weaver.webp": "views/assets/class-icons/class-weaver.webp",
       "assets/class_icons/class-wizard.webp": "views/assets/class-icons/class-wizard.webp",
-      // Status *and* skill artwork share this folder: a summon or toggle is tracked under its skill
-      // id, so the tracker resolves its sprite from the skill catalog, and the renderer resolves
-      // every sprite id from one base path.
       ...directoryCopy("assets/status-icons", "views/assets/status-icons"),
       "src/views/launcher/index.html": "views/launcherview/index.html",
       "src/views/launcher/index.css": "views/launcherview/index.css",

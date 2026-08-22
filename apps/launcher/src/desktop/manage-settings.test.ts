@@ -48,7 +48,6 @@ describe("importSettingsFrom", () => {
     const currentRoot = await createRoot();
     const oldRoot = await createRoot();
     const currentPaths = resolveDesktopStoragePaths({ root: currentRoot });
-    // oldRoot itself holds the JSON files directly, with no "settings" subfolder underneath it.
     await mkdir(oldRoot, { recursive: true });
     await writeFile(path.join(oldRoot, "launcher.json"), JSON.stringify({
       ...defaultLauncherSettings(),
@@ -101,8 +100,6 @@ describe("importSettingsFrom", () => {
     const oldSettingsDir = path.join(oldRoot, "data", "settings");
     await mkdir(oldSettingsDir, { recursive: true });
 
-    // captureAdapter is known; skippedUpdateVersion is missing (should default to undefined);
-    // totallyMadeUpField no longer exists in the schema and must be dropped.
     await writeFile(path.join(oldSettingsDir, "launcher.json"), JSON.stringify({
       captureAdapter: "Old Adapter",
       uiScale: 1,

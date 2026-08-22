@@ -101,7 +101,6 @@ function App() {
   );
 }
 
-/** The two overlay keybinds worth knowing without opening Settings. */
 function OverlayHints({ shortcuts }: { shortcuts: NonNullable<LauncherState["overlayShortcuts"]> }) {
   return (
     <footer class="overlay-hints">
@@ -111,10 +110,6 @@ function OverlayHints({ shortcuts }: { shortcuts: NonNullable<LauncherState["ove
   );
 }
 
-/**
- * Disk used by the log directory. Taken once at launch, so it is stamped with when it was measured
- * rather than presented as a live figure.
- */
 function LogStorage({ usage }: { usage: NonNullable<LauncherState["logStorage"]> }) {
   return (
     <footer class="log-storage" title={`${usage.files.toLocaleString()} files in the logs folder`}>

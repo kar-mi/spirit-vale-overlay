@@ -70,6 +70,7 @@ export async function saveCharacterCache(cache: CharacterSnapshotCache, file = d
 }
 
 export function sanitizeCharacterSnapshot(snapshot: CharacterSnapshot): CharacterSnapshot {
+  // New top-level snapshot fields must be added to this allowlist.
   const safe: CharacterSnapshot = {
     schemaVersion: 1,
     buildFingerprint: snapshot.buildFingerprint,
@@ -85,9 +86,6 @@ export function sanitizeCharacterSnapshot(snapshot: CharacterSnapshot): Characte
     equipment: structuredClone(snapshot.equipment),
     artifacts: structuredClone(snapshot.artifacts),
     skills: structuredClone(snapshot.skills),
-    // Positional/derived fields must be listed explicitly: this allowlist rebuild is why a cached
-    // character silently exported with zero grimoires and no weapon-swap sets. Nested additions
-    // ride the structuredClone above; new TOP-LEVEL ones do not.
     ...(snapshot.grimoires === undefined ? {} : { grimoires: structuredClone(snapshot.grimoires) }),
     ...(snapshot.assignedSkills === undefined ? {} : { assignedSkills: structuredClone(snapshot.assignedSkills) }),
     ...(snapshot.loadouts === undefined ? {} : { loadouts: structuredClone(snapshot.loadouts) }),

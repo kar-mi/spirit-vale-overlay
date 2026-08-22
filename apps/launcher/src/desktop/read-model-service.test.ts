@@ -18,7 +18,6 @@ async function workspace(): Promise<{ logDirectory: string; cleanup: () => Promi
   return { logDirectory, cleanup: () => rm(logDirectory, { recursive: true, force: true }) };
 }
 
-/** Points the shared "current stream" file at a session, the way an active capture would. */
 async function setCurrent(logDirectory: string, sessionId: string): Promise<void> {
   await mkdir(path.join(logDirectory, "current"), { recursive: true });
   await writeFile(
@@ -33,7 +32,6 @@ async function setCurrent(logDirectory: string, sessionId: string): Promise<void
   );
 }
 
-/** Appends one valid combat record, giving the indexer something to make progress over. */
 async function appendRecord(logDirectory: string, sessionId: string): Promise<void> {
   const file = path.join(logDirectory, "combat", `${sessionId}.jsonl`);
   sequence += 1;
@@ -49,7 +47,6 @@ async function appendRecord(logDirectory: string, sessionId: string): Promise<vo
 }
 let sequence = 0;
 
-/** Long enough for several ticks of the 10 ms test interval, plus the pass they queue. */
 function settle(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 120));
 }
@@ -60,11 +57,6 @@ function indexedStreams(service: ReadModelService): number {
   return model.database.query<{ count: number }, []>("select count(*) as count from indexed_streams").get()?.count ?? 0;
 }
 
-/**
- * When a pass last wrote progress, which is rewritten on every pass whether or not it read anything.
- * Unlike the byte offset, this moves for a pass that found no new records — so a value that stays
- * put is evidence the pass was skipped rather than that it ran and found nothing.
- */
 function lastIndexedAt(service: ReadModelService): string {
   const model = service.model();
   if (!model) return "";
@@ -73,7 +65,6 @@ function lastIndexedAt(service: ReadModelService): string {
     .get()?.latest ?? "";
 }
 
-/** How far the periodic pass has read, which only advances when a pass actually runs. */
 function offset(service: ReadModelService): number {
   const model = service.model();
   if (!model) return 0;
@@ -89,10 +80,8 @@ describe("read model service", () => {
       await setCurrent(context.logDirectory, SESSION);
       const service = await createReadModelService({ logDirectory: context.logDirectory });
       try {
-        // The live log can still grow, so its trailing encounter must stay open however it is asked.
         expect(await service.indexSession(SESSION, "combat", { finalize: true }))
           .toMatchObject({ finalized: false });
-        // A different session is finished and may be closed out.
         expect(await service.indexSession(OTHER, "combat", { finalize: true }))
           .toMatchObject({ finalized: true });
       } finally {
@@ -101,9 +90,6 @@ describe("read model service", () => {
     } finally {
       await context.cleanup();
     }
-    // This is the first test in the file to touch bun:sqlite, so it eats that native module's
-    // one-time load cost. Across a full-suite run that load races dozens of other files doing the
-    // same thing, which can push it past the default 5s budget with no code on the hot path stuck.
   }, 20_000);
 
   test("serialises concurrent passes instead of interleaving them", async () => {
@@ -116,7 +102,6 @@ describe("read model service", () => {
           service.indexSession(SESSION, "combat"),
           service.indexSession(OTHER, "combat"),
         ]);
-        // All complete; the point is that none throws or corrupts the shared database by overlapping.
         for (const result of results) expect(result.ok).toBe(true);
       } finally {
         await service.close();
@@ -126,10 +111,6 @@ describe("read model service", () => {
     }
   });
 
-  // The tick runs every 5s for as long as a window holds the read model, so an open-but-quiet
-  // session must not cost a write per tick. The skip itself lives in the indexer, which stats the
-  // source and returns before reading or writing when the recorded offset already covers it; this
-  // pins the property the app depends on rather than the layer that provides it.
   test("does not rewrite progress while the active stream is quiet", async () => {
     const context = await workspace();
     try {
@@ -142,12 +123,9 @@ describe("read model service", () => {
         const indexedAt = lastIndexedAt(service);
         expect(indexedAt).not.toBe("");
 
-        // A window left up outside combat must not pay a write per tick to rediscover that the log
-        // has not moved.
         await settle();
         expect(lastIndexedAt(service)).toBe(indexedAt);
 
-        // Growth resumes the passes.
         await appendRecord(context.logDirectory, SESSION);
         await settle();
         expect(lastIndexedAt(service)).not.toBe(indexedAt);
@@ -167,7 +145,6 @@ describe("read model service", () => {
       await appendRecord(context.logDirectory, SESSION);
       const service = await createReadModelService({ logDirectory: context.logDirectory, indexIntervalMs: 10 });
       try {
-        // Nothing has registered interest, so the tick must be inert however long it runs.
         await settle();
         expect(indexedStreams(service)).toBe(0);
 
@@ -175,8 +152,6 @@ describe("read model service", () => {
         await settle();
         expect(indexedStreams(service)).toBeGreaterThan(0);
 
-        // Releasing one registration twice must not drop a second, still-open consumer's hold, so
-        // the pass keeps advancing over newly appended records.
         const second = service.acquire();
         release();
         release();
@@ -185,8 +160,6 @@ describe("read model service", () => {
         await settle();
         expect(offset(service)).toBeGreaterThan(held);
 
-        // With the last consumer gone the pass goes inert again and the offset stops moving. A tick
-        // already past the gate still finishes, so drain before taking the baseline.
         second();
         await settle();
         const idle = offset(service);

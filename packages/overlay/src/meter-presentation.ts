@@ -6,7 +6,6 @@ import type {
 import type { OverlayMeterPoint, OverlayMeterState, PersonalDpsMode, StatType } from "./app-types.ts";
 import { visiblePartyActors } from "./overlayview/party-ranking.ts";
 
-/** Builds the bounded meter data the overlay actually renders. */
 export function overlayMeterState(
   record: CombatEncounterRecord | undefined,
   statType: StatType,

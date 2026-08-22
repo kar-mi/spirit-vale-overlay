@@ -9,7 +9,6 @@ import type { OverlayController, OverlaySurfaceSink } from "./controller.ts";
 export interface OverlaySurfaceOptions {
   controller: OverlayController;
   display: OverlayDisplay;
-  /** Fires when the user closes the window itself, as opposed to the controller retiring it. */
   onClosed?: (display: string) => void;
 }
 
@@ -20,14 +19,6 @@ export interface OverlaySurface {
   close(): void;
 }
 
-/**
- * One transparent, click-through, always-on-top window pinned to one monitor.
- *
- * The window is sized to the display's own bounds, so the document's CSS origin is that display's
- * top-left and every stored tile coordinate stays display-relative — no virtual-desktop offsets.
- * It also means each surface gets its own WebView2 and therefore its own DPI scale factor, which
- * one window spanning several monitors could not do.
- */
 export function createOverlaySurface({ controller, display, onClosed }: OverlaySurfaceOptions): OverlaySurface {
   const key = displayKey(display);
   const lifecycle = new DisposableStore();

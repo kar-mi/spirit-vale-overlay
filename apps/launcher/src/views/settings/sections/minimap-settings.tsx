@@ -2,13 +2,6 @@ import { useEffect, useState } from "preact/hooks";
 import { RARITY_TIERS } from "@svoverlay/overlay/rarity";
 import type { SettingsSection, SettingsSectionContext } from "../settings-section.ts";
 
-/**
- * A number input bound to `minimapLootChanceFilter` would otherwise fight the user: every keystroke
- * round-trips through the server, and re-rendering with the committed value (e.g. `5`) strips a
- * trailing "." the user just typed before they can enter the fractional part. Keeping the typed text
- * in local state — only resynced from the committed value while the field isn't focused — lets
- * intermediate strings like "5." or "5.0" survive until the user is done editing.
- */
 function LootChanceNumberInput({ value, onChange }: { value: number; onChange: (next: number) => void }) {
   const [text, setText] = useState(() => String(value));
   const [focused, setFocused] = useState(false);

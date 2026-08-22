@@ -12,13 +12,6 @@ import { createOverlaySurface, type OverlaySurface } from "./surface.ts";
 export type { BossTimerSource, XpTrackerSource } from "./controller.ts";
 export type OverlayWindowOptions = OverlayControllerOptions & { onClosed?: () => void };
 
-/**
- * The overlay as the rest of the app sees it: one handle, however many monitors it spans.
- *
- * Underneath it is a single controller (log pipeline, settings, global shortcuts) plus one window
- * per display that actually has an enabled tile. A display with no tiles gets no window at all,
- * which is what lets a game on that monitor keep DWM's independent-flip present mode.
- */
 export async function createOverlayWindow(options: OverlayWindowOptions) {
   const surfaces = new Map<string, OverlaySurface>();
   let closedCallbackSent = false;
@@ -38,8 +31,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     show: () => controller.setOverlayVisible(true),
     activate: () => controller.setOverlayVisible(true),
     close: async () => {
-      // Set before awaiting: a reconcile scheduled by the last settings flush would otherwise fire
-      // during the await and rebuild the very windows this is tearing down.
       closing = true;
       if (reconcileTimer !== undefined) clearTimeout(reconcileTimer);
       reconcileTimer = undefined;
@@ -66,12 +57,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     setMinimapLootChanceFilter: (chance: number) => controller.setMinimapLootChanceFilter(chance),
   };
 
-  /**
-   * Most reconciles are triggered from inside an RPC handler — locking, or enabling the last tile
-   * on a monitor — and closing a window synchronously there would destroy the webview the response
-   * still has to go back through. Deferring to a macrotask lets the handler return first, and
-   * coalesces the burst of settings changes a single gesture produces into one pass.
-   */
   function scheduleReconcile(): void {
     if (closing || reconcileTimer !== undefined) return;
     reconcileTimer = setTimeout(() => {
@@ -82,7 +67,6 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     reconcileTimer.unref?.();
   }
 
-  /** Brings the live window set in line with the displays that currently hold an enabled tile. */
   function reconcileSurfaces(): void {
     // Creating a surface publishes control state, which can re-enter here; one pass is enough.
     if (closing || reconciling) return;
@@ -103,8 +87,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
           display,
           onClosed: (closedKey) => {
             surfaces.delete(closedKey);
-            // The user closed the last overlay window: treat that as closing the overlay, which is
-            // what the single-window build did.
+            // Closing the last surface closes the overlay.
             if (surfaces.size === 0) {
               void controller.shutdown();
               notifyClosed();

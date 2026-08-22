@@ -4,7 +4,6 @@ export interface RarityTier {
   color: string;
 }
 
-/** The game's full rarity scheme. Only these three tiers exist today — `1` is unused. */
 export const RARITY_TIERS: readonly RarityTier[] = [
   { value: 0, label: "Common", color: "#f2f2f2" },
   { value: 2, label: "Rare", color: "#2ecc71" },
@@ -13,7 +12,6 @@ export const RARITY_TIERS: readonly RarityTier[] = [
 
 const DEFAULT_TIER = RARITY_TIERS[0]!;
 
-/** Nearest known tier at or below the given value, falling back to Common for undefined/unknown values. */
 export function rarityTier(rarity: number | undefined): RarityTier {
   if (rarity === undefined) return DEFAULT_TIER;
   let match = DEFAULT_TIER;

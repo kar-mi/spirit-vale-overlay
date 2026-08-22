@@ -3,10 +3,8 @@ import { type SpiritValeLocation, sameSpiritValeLocation } from "@svoverlay/desk
 
 export const ZONE_EVENT_SOURCE_PREFIX = "__spiritvaleZone:";
 export const TOWER_FLOOR_EVENT_SOURCE_PREFIX = "__spiritvaleTowerFloor:";
-/** Sentinel suffix for `TOWER_FLOOR_EVENT_SOURCE_PREFIX` when the tower is confirmed but no floor has been announced yet. */
 export const TOWER_FLOOR_UNKNOWN_SUFFIX = "unknown";
 
-/** Reads distinct zone visits in chronological order from a combat log. */
 export async function readCombatLocations(filePath: string): Promise<SpiritValeLocation[]> {
   const locations: SpiritValeLocation[] = [];
   const text = await Bun.file(filePath).text();

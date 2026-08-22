@@ -11,10 +11,6 @@ interface PendingKill {
   pickupAssigned: boolean;
 }
 
-/**
- * Reconciles coalesced rewards without changing the capture/log protocol. The reward totals live on
- * the latest kill in a group, while every kill covered by that update is marked attributed.
- */
 export class RewardEventAttributor {
   private readonly kills = new Map<string, PendingKill>();
   private readonly rewards: FishNetUnmatchedRewardEvent[] = [];

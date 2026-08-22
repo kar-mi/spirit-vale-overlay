@@ -50,10 +50,8 @@ import { rarityColor, rarityLabel } from "../rarity.ts";
 import { weightWarnLevel, type WeightWarnLevel } from "../weight-warning.ts";
 import { ewmaSeries } from "@kar-mi/spirit-vale-tools-metrics";
 
-/** World units mapped to the radar's edge, matched against a fraction of the tile's own size — the tile itself is user-resizable. */
 const RADAR_WORLD_RADIUS = 60;
 const RADAR_RING_COUNT = 3;
-/** How long a loot notification card stays on screen before it's dropped from the queue. */
 const LOOT_TOAST_LIFETIME_MS = 3_000;
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
@@ -62,20 +60,14 @@ const MIN_ELEMENT_WIDTH = 160;
 const MIN_ELEMENT_HEIGHT = 100;
 const MIN_BAR_HEIGHT = 24;
 const MIN_COMPACT_ELEMENT_HEIGHT = 40;
-/** Buffs flash once they fall below this share of their own duration, if they last long enough. */
 const FLASH_REMAINING_FRACTION = 0.15;
 const FLASH_MINIMUM_DURATION_MS = 59_000;
-/** How often the status countdowns are redrawn. Fine enough that the last second reads smoothly. */
 const STATUS_TICK_MS = 100;
-/** How often the boss respawn countdowns are redrawn; they run for up to 90 minutes, so once a second. */
 const BOSS_TICK_MS = 1_000;
-/** How long the boss tile's ring pulses after a timer crosses the spawnable or overdue mark. */
 const BOSS_ALERT_PULSE_MS = 60_000;
-/** Shown in place of a channel a timer was recorded without. */
 const UNKNOWN_BOSS_CHANNEL = "?";
 const GRID_SIZE = 10;
 const RESIZE_EDGES = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
-/** Pointer movement below this counts as selecting a tile rather than repositioning it. */
 const CLICK_MOVE_THRESHOLD_PX = 4;
 const PARTY_ROW_COLORS = [
   "rgba(111, 91, 211, 0.52)",
@@ -92,52 +84,26 @@ interface ElementRect { x: number; y: number; width: number; height: number }
 type PointerGesture =
   | { kind: "drag"; pointerId: number; originX: number; originY: number; start: ElementRect }
   | { kind: "resize"; pointerId: number; originX: number; originY: number; start: ElementRect; edge: ResizeEdge };
-/** The parts of the control state that affect the whole document rather than one tile. */
 interface OverlayChrome {
   locked: boolean;
   meterStatType: StatType;
   personalDpsMode: PersonalDpsMode;
   shortcuts: Record<KeybindAction, string>;
-  /** This window's own monitor, and every monitor, so a drag can be resolved across them. */
   surface?: OverlayDisplayPlacement;
   displayLayout: OverlayDisplayPlacement[];
 }
 
-// Control state is fanned out into one signal per tile plus one for the shared chrome, each
-// updated only when its own slice actually changed. The control channel republishes whenever the
-// capture status text moves — several times a second while reading a log — and without this split
-// every one of those would re-render all fourteen tiles for data none of them read.
 const chromeState = signal<OverlayChrome | undefined>(undefined);
 const elementStates = Object.fromEntries(
   OVERLAY_ELEMENT_IDS.map((id) => [id, signal<OverlayElementSettings | undefined>(undefined)]),
 ) as Record<OverlayElementId, Signal<OverlayElementSettings | undefined>>;
 const characterState = signal<OverlayCharacterState | undefined>(undefined);
-/**
- * Warn level for the weight tile, derived apart from the raw state so the tile's chrome re-renders
- * only when a threshold is actually crossed, not on every character publish.
- */
 const weightWarn = computed(() => weightWarnLevel(characterState.value?.weight));
 const statusState = signal<OverlayStatusState | undefined>(undefined);
-/**
- * Wall clock the status countdowns are drawn against.
- *
- * The overlay process publishes when the tracked set of statuses changes, not on a clock - a buff
- * that is merely running out produces no message at all until it lapses. Counting down here from
- * the `asOfMs` stamp on the last publish is what keeps the numbers moving, and it moves them more
- * smoothly than any publish cadence could.
- */
 const statusNow = signal(Date.now());
-/** Runs only while something is actually counting down; a screen of toggles needs no ticker. */
 let statusTicker: ReturnType<typeof setInterval> | undefined;
 const bossTimerState = signal<BossTimerState | undefined>(undefined);
-/**
- * Wall clock the boss countdowns are drawn against. Separate from `statusNow` because it ticks a
- * tenth as often: the boss timers publish only when a timer is created, re-anchored or removed,
- * and everything between — countdown text, the 60- and 90-minute phase changes, the alert pulses —
- * is derived here from the timers' own timestamps.
- */
 const bossNow = signal(Date.now());
-/** Runs only while boss timers exist; an empty tile needs no clock. */
 let bossTicker: ReturnType<typeof setInterval> | undefined;
 const meterState = signal<OverlayMeterState | undefined>(undefined);
 const minimapState = signal<OverlayMinimapState | undefined>(undefined);
@@ -152,15 +118,11 @@ function pushLootToast(event: OverlayLootToastEvent): void {
   }, LOOT_TOAST_LIFETIME_MS);
 }
 const gridEnabled = signal(false);
-/** The unlocked tile whose controls are displayed in the inspector. */
 const selectedElementId = signal<OverlayElementId | undefined>(undefined);
-/** The inspector position is an edit-session convenience, not a saved overlay preference. */
 const panelPosition = signal<{ x: number; y: number } | undefined>(undefined);
-/** A tile being dragged on another monitor's surface, relayed here so it can be ghosted. */
 const dragPreview = signal<OverlayDragPreview | undefined>(undefined);
 let lastChromeJson: string | undefined;
 const lastElementJson = new Map<OverlayElementId, string | undefined>();
-/** Coalesces pointermove to one send per frame; a drag otherwise fires far above refresh rate. */
 let pendingDragPreview: OverlayDragPreview | undefined;
 let dragPreviewFrame = 0;
 
@@ -233,12 +195,6 @@ void electroview.rpc?.request.getState({}).then((next) => {
   });
 });
 
-/**
- * Adopts a status publish and starts or stops the countdown ticker to match it.
- *
- * Re-stamping `statusNow` here means the first frame after a publish is drawn against the moment the
- * state was measured, rather than against a reading up to one tick old.
- */
 function applyStatuses(next: OverlayStatusState): void {
   statusState.value = next;
   statusNow.value = Date.now();
@@ -252,7 +208,6 @@ function applyStatuses(next: OverlayStatusState): void {
   }
 }
 
-/** Adopts a boss-timer publish and starts or stops the once-a-second countdown clock to match. */
 function applyBossTimers(next: BossTimerState): void {
   bossTimerState.value = next;
   bossNow.value = Date.now();
@@ -339,20 +294,11 @@ function App() {
   );
 }
 
-/**
- * Stand-in for a tile currently being dragged on another monitor.
- *
- * Windows cannot paint past their own display, so without this the tile appears to stick to the
- * bezel until the mouse is released. Drawn at the same virtual-desktop position, mapped into this
- * surface's local coordinates.
- */
 function DragGhost({ surface }: { surface?: OverlayDisplayPlacement }) {
   const preview = dragPreview.value;
   if (!preview || !surface || preview.origin === surface.display) return null;
   const x = preview.rect.x - surface.bounds.x;
   const y = preview.rect.y - surface.bounds.y;
-  // Skip entirely while the tile is still far outside this monitor, so the ghost only shows up
-  // once part of it would genuinely be on screen here.
   if (x + preview.rect.width < 0 || y + preview.rect.height < 0) return null;
   if (x > surface.bounds.width || y > surface.bounds.height) return null;
   return (
@@ -369,11 +315,8 @@ function DragGhost({ surface }: { surface?: OverlayDisplayPlacement }) {
 interface OverlayElementProps {
   id: OverlayElementId;
   locked: boolean;
-  /** Outlines the tile in red, e.g. a status the user armed a missing-buff warning for is down. */
   warn?: boolean;
-  /** Rings the weight tile as it nears maximum carry weight: steady caution, then flashing danger. */
   weightWarn?: WeightWarnLevel;
-  /** Pulses the boss tile's ring right after a timer turns spawnable (amber) or overdue (red). */
   bossAlert?: "window" | "expired";
   children: ComponentChildren;
 }
@@ -405,13 +348,9 @@ function StatusOverlayElement({
 function OverlayElement({ id, locked, warn, weightWarn, bossAlert, children }: OverlayElementProps) {
   const [gesture, setGesture] = useState<PointerGesture>();
   const [preview, setPreview] = useState<ElementRect>();
-  // Read per tile rather than from a shared control object, so a change to one tile does not
-  // re-render the other thirteen. Undefined means this tile lives on another monitor's surface.
   const settings = elementStates[id].value;
   if (!settings || (locked && !settings.enabled)) return null;
   const rect = preview ?? settings;
-  // A disabled tile remains movable in edit mode, but its saved size is restored only when it is
-  // enabled again; the placeholder itself stays deliberately compact.
   const displayRect = settings.enabled ? rect : { ...rect, width: 160, height: 36 };
   const selected = selectedElementId.value === id;
   const className = [
@@ -463,8 +402,6 @@ function OverlayElement({ id, locked, warn, weightWarn, bossAlert, children }: O
     void request.then(
       (next) => {
         applyControl(next);
-        // Retire the ghost only once the destination has been told about the tile, otherwise the
-        // ghost clears a frame or two before the real tile arrives and the drop visibly blinks.
         if (!wasResize) endDragPreview();
         setPreview(undefined);
       },
@@ -542,10 +479,6 @@ function OverlayElement({ id, locked, warn, weightWarn, bossAlert, children }: O
   );
 }
 
-/**
- * A single inspector avoids the overlapping floating controls that result when tiles are placed
- * close together. It reads only the selected tile's signal, so edits to one tile remain isolated.
- */
 function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | undefined }) {
   const [headerDrag, setHeaderDrag] = useState<{
     pointerId: number;
@@ -620,12 +553,6 @@ function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | 
   );
 }
 
-/**
- * With more than one monitor a drag is deliberately not clamped to this window: pointer capture
- * keeps delivering moves once the cursor leaves the display, and letting the tile follow it off the
- * edge is what makes dropping it on the next screen possible. Where it actually lands is resolved
- * in `dropRequest`, and the bun side clamps it into whichever display that turns out to be.
- */
 function dragRect(start: ElementRect, dx: number, dy: number): ElementRect {
   const spansDisplays = (chromeState.value?.displayLayout.length ?? 1) > 1;
   const x = spansDisplays
@@ -641,7 +568,6 @@ function dragRect(start: ElementRect, dx: number, dy: number): ElementRect {
   };
 }
 
-/** Publishes the in-flight drag in virtual-desktop coordinates so other surfaces can ghost it. */
 function relayDrag(id: OverlayElementId, rect: ElementRect): void {
   const chrome = chromeState.value;
   if (!chrome?.surface || chrome.displayLayout.length < 2) return;
@@ -653,12 +579,6 @@ function relayDrag(id: OverlayElementId, rect: ElementRect): void {
   });
 }
 
-/**
- * Commits a finished drag, moving the tile to another monitor if that is where it was released.
- *
- * Tile coordinates are stored relative to their own display, so crossing a boundary means going
- * out to virtual-desktop coordinates via this surface's origin and back down against the target's.
- */
 function dropRequest(id: OverlayElementId, rect: ElementRect): Promise<OverlayControlState> | undefined {
   const requests = electroview.rpc?.request;
   const chrome = chromeState.value;
@@ -783,7 +703,6 @@ function PersonalDpsElement() {
   );
 }
 
-/** The weight tile plus the ring around it that escalates as the character approaches maximum weight. */
 function WeightOverlayElement({ locked }: { locked: boolean }) {
   return (
     <OverlayElement id="weight" locked={locked} weightWarn={weightWarn.value}>
@@ -1004,23 +923,15 @@ function StatusCell(
     flashExpiring?: boolean;
   },
 ) {
-  // A sprite id no longer guarantees the artwork shipped: summons resolve theirs from the skill
-  // catalog, which covers far more skills than the icons copied into views/assets/status-icons.
-  // Drop the cell rather than leaving an empty frame behind, matching how icon-less statuses are
-  // already filtered out upstream.
   const [iconMissing, setIconMissing] = useState(false);
   if (iconMissing) return null;
   const totalMs = status.expiresAtMs === undefined ? undefined : status.expiresAtMs - status.appliedAtMs;
-  // The published figure was measured when the state was projected; carry it forward to now rather
-  // than waiting for a message that only arrives once the buff is gone.
   const remainingMs = status.remainingMs === undefined || asOfMs === undefined
     ? status.remainingMs
     : Math.max(0, status.remainingMs - Math.max(0, statusNow.value - asOfMs));
   const remainingFraction = totalMs !== undefined && totalMs > 0 && remainingMs !== undefined
     ? Math.max(0, Math.min(1, remainingMs / totalMs))
     : undefined;
-  // Short buffs spend their whole life near the threshold, so flashing them would be constant
-  // noise; only buffs long enough for the last 15% to be a usable warning pulse.
   const expiring = flashExpiring
     && totalMs !== undefined && totalMs > FLASH_MINIMUM_DURATION_MS
     && remainingFraction !== undefined && remainingFraction <= FLASH_REMAINING_FRACTION;
@@ -1055,7 +966,6 @@ function formatRemaining(remainingMs: number): string {
   return `${totalSeconds}`;
 }
 
-/** The boss timers tile plus the ring that pulses when a timer crosses the 60- or 90-minute mark. */
 function BossTimersOverlayElement({ locked }: { locked: boolean }) {
   const next = bossTimerState.value;
   const timers = next?.timers ?? [];
@@ -1072,11 +982,6 @@ function BossTimersOverlayElement({ locked }: { locked: boolean }) {
   );
 }
 
-/**
- * Which alert pulse the tile should carry: a timer that just turned overdue outranks one that just
- * became spawnable, and either only pulses for the minute after its crossing. Deriving this from
- * the timers' own timestamps means no extra publish is needed at either boundary.
- */
 function bossTimerAlert(timers: readonly BossTimer[], nowMs: number): "window" | "expired" | undefined {
   let alert: "window" | undefined;
   for (const timer of timers) {
@@ -1095,8 +1000,6 @@ function BossTimersElement(
     playerName: string | undefined;
   },
 ) {
-  // Region hopping is a minority workflow, so the tabs only appear once they are earning their
-  // space; hunting one region keeps the whole tile for the timers themselves.
   const regions = bossRegionsPresent(timers);
   if (timers.length === 0) {
     return (
@@ -1114,8 +1017,6 @@ function BossTimersElement(
       </div>
     );
   }
-  // Which tab is open is decided in the bun process, so the cycle keybind and a click in edit mode
-  // agree and every monitor's surface shows the same region.
   const region = selectedRegion !== undefined && regions.includes(selectedRegion)
     ? selectedRegion
     : regions[0]!;
@@ -1141,7 +1042,6 @@ function BossTimersElement(
   );
 }
 
-/** The most urgent phase a region is holding, so a tab marks itself while it is not being shown. */
 function bossRegionAlert(
   timers: readonly BossTimer[],
   region: string,
@@ -1166,14 +1066,11 @@ function BossTimerRow(
   },
 ) {
   const phase = bossTimerPhase(timer, nowMs);
-  // Under a region tab the row would repeat what the tab already says, so it shows only the channel
-  // and gives the width back to the boss's name.
   const placeLabel = region === undefined
     ? bossPlaceLabel(timer)
     : `Ch ${timer.channel ?? UNKNOWN_BOSS_CHANNEL}`;
   const { status, description } = bossTimerStatus(timer, phase, nowMs);
-  // The tile is compact, so the machine only appears in the tooltip; the Bosses settings tab lists
-  // it in full.
+  // The tile is compact, so the machine only appears in the tooltip; the Bosses settings tab lists it in full.
   const place = timer.instanceId === undefined ? placeLabel : `${placeLabel} (${timer.instanceId})`;
   return (
     <div class={`boss-timer-row boss-${phase}`} title={`${timer.bossName} · ${place} — ${description}`}>
@@ -1187,7 +1084,6 @@ function BossTimerRow(
   );
 }
 
-/** Region and channel as one short label, e.g. `NA 3`, falling back to `?` for anything unseen. */
 function bossPlaceLabel(timer: BossTimer): string {
   return `${bossRegionLabel(bossTimerRegion(timer))} ${timer.channel ?? UNKNOWN_BOSS_CHANNEL}`;
 }
@@ -1216,7 +1112,6 @@ function bossTimerStatus(
 }
 
 interface RadarDot extends OverlayMinimapLootDrop {
-  /** Fraction of the radar's radius, -1..1 on each axis, so the dot lays out relative to the tile's own (user-resizable) size. */
   fx: number;
   fy: number;
 }

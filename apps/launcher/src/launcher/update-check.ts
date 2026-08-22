@@ -14,7 +14,6 @@ interface GitHubRelease {
 
 export const RELEASES_LATEST_URL = "https://api.github.com/repos/kar-mi/spirit-vale-overlay/releases/latest";
 
-/** Returns the latest stable release only when it is newer than the running app. */
 export async function findAvailableUpdate(
   currentVersion: string,
   fetcher: FetchRelease = fetch,

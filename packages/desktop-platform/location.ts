@@ -1,6 +1,5 @@
 export type SpiritValeLocation =
   | { kind: "map"; mapId: number }
-  /** `floor` is absent when the tower is confirmed but no floor has been announced yet. */
   | { kind: "eternalTower"; floor?: number };
 
 export function sameSpiritValeLocation(

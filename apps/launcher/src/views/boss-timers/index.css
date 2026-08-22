@@ -25,25 +25,18 @@ h2 { margin: 0; font-size: 15px; }
 }
 .timer-table td { padding: 9px 10px; border-top: 1px solid var(--outline-variant); vertical-align: top; }
 .timer-boss { font-weight: 700; }
-/* A kill the character being played is credited with. Paired with a title and aria-label rather
-   than standing on colour alone. */
 .own-kill { margin-left: 6px; color: rgb(126, 217, 126); font-weight: 700; }
 .timer-where, .timer-status { display: table-cell; }
 .timer-place { display: block; white-space: nowrap; }
-/* Recorded but not part of the timer's identity, so it is deliberately quieter than the region. */
 .timer-instance { display: block; margin-top: 2px; color: var(--on-surface-variant); font-size: 10px; }
 .timer-killer { color: var(--on-surface-variant); overflow-wrap: anywhere; }
 .timer-countdown { display: block; white-space: nowrap; }
 .timer-clock { display: block; margin-top: 2px; color: var(--on-surface-variant); font-size: 10px; white-space: nowrap; }
 .timer-actions { text-align: right; }
 
-/* The spawn window is open: the boss can appear at any moment. */
 .timer-row.boss-window .timer-countdown { color: rgb(255, 213, 74); font-weight: 700; }
-/* The window has closed, so the boss is up somewhere on that channel. */
 .timer-row.boss-expired .timer-countdown { color: rgb(255, 138, 138); font-weight: 700; }
 
-/* Wraps rather than squeezing: at the window's minimum width the boss names would otherwise be
-   truncated to a few characters, so the button drops to its own line instead. */
 .entry-grid { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-top: 14px; }
 .field { display: grid; gap: 5px; flex: 0 0 auto; width: 140px; }
 .field > span { color: var(--on-surface-variant); font-size: 11px; }

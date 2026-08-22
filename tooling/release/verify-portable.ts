@@ -41,8 +41,6 @@ const forbiddenPaths = [
   `${productName}-Setup.metadata.json`,
   `${productName}-Setup.tar.zst`,
   "SpiritValeOverlay-Setup.zip",
-  // The portable build uses loose resources and manual ZIP downloads, so these
-  // Electrobun ASAR and differential-updater helpers must not be distributed.
   "bin/bspatch.exe",
   "bin/libasar.dll",
   "bin/libasar-arm64.dll",
@@ -50,7 +48,6 @@ const forbiddenPaths = [
   "Info.plist",
 ] as const;
 
-/** Executables that must carry the version metadata antivirus heuristics look for. */
 const metadataPaths = ["bin/launcher.exe"] as const;
 
 function resolveShortcutTarget(shortcutPath: string): string {
@@ -75,11 +72,6 @@ function run(command: string, args: string[]): void {
   if (result.exitCode !== 0) throw new Error(`${command} failed with exit code ${result.exitCode}`);
 }
 
-/**
- * Reads the version block the way Explorer does rather than by parsing the PE resources again:
- * a block can round-trip through a resource library and still show blank in Windows, which is
- * exactly the property sheet users and antivirus heuristics look at.
- */
 function readVersionInfo(executablePath: string): Record<string, string | null> {
   const result = Bun.spawnSync([
     "powershell",
