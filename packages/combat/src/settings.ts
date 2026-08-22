@@ -1,7 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
-import { loadJsonSettings } from "@svoverlay/desktop-platform/json-settings";
+import { loadJsonSettings, writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
 
 import type { DpsAppTab, StatType } from "./app-types.ts";
 import {
@@ -41,8 +40,7 @@ export async function loadDpsAppSettings(settingsPath?: string): Promise<DpsAppS
 
 export async function saveDpsAppSettings(settings: DpsAppSettings, settingsPath?: string): Promise<void> {
   const resolvedSettingsPath = await resolveSettingsPath(settingsPath);
-  await mkdir(path.dirname(resolvedSettingsPath), { recursive: true });
-  await writeFile(resolvedSettingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  await writeJsonFileAtomic(resolvedSettingsPath, settings);
 }
 
 async function resolveSettingsPath(settingsPath: string | undefined): Promise<string> {

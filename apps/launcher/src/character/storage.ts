@@ -1,6 +1,7 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
+import { writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
 import { CURRENT_GAME_BUILD_FINGERPRINT } from "@kar-mi/spirit-vale-tools-capture";
 import type { CharacterSnapshot } from "@kar-mi/spirit-vale-tools-character";
 
@@ -65,10 +66,7 @@ export async function saveCharacterCache(cache: CharacterSnapshotCache, file = d
     ...(activeName === undefined ? {} : { activeName }),
     characters,
   };
-  const temporary = `${file}.tmp`;
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(temporary, `${JSON.stringify(safe, null, 2)}\n`, "utf8");
-  await rename(temporary, file);
+  await writeJsonFileAtomic(file, safe);
 }
 
 export function sanitizeCharacterSnapshot(snapshot: CharacterSnapshot): CharacterSnapshot {

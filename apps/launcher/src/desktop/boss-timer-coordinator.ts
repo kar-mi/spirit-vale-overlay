@@ -1,8 +1,8 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readFile } from "node:fs/promises";
 
 import { loadBundledMobRewardCatalog, queryMobRewardCatalog } from "@kar-mi/spirit-vale-tools-rewards";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
+import { writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
 import {
   bossRegionOf,
   bossTimerKey,
@@ -332,10 +332,7 @@ async function loadBossTimers(file: string): Promise<BossTimer[]> {
 
 async function saveBossTimers(timers: BossTimer[], file: string): Promise<void> {
   const safe: PersistedBossTimers = { cacheVersion: 1, timers };
-  const temporary = `${file}.tmp`;
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(temporary, `${JSON.stringify(safe, null, 2)}\n`, "utf8");
-  await rename(temporary, file);
+  await writeJsonFileAtomic(file, safe);
 }
 
 function normalizeTimer(value: unknown): BossTimer | undefined {

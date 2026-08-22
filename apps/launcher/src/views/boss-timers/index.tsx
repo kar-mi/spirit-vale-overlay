@@ -6,17 +6,19 @@ import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-ch
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
-import { formatDuration, normalizeSearchText } from "@svoverlay/ui-kit/format";
+import { normalizeSearchText } from "@svoverlay/ui-kit/format";
 import {
   bossDueAtMs,
   bossEligibleAtMs,
+  bossRegionLabel,
   bossRegionsPresent,
   bossTimerPhase,
   bossTimerRegion,
   compareBossRegions,
+  formatBossClock,
+  formatBossCountdown,
   isOwnBossKill,
   MAX_BOSS_CHANNEL,
-  UNKNOWN_BOSS_REGION,
   type BossTimer,
   type BossTimerPhase,
 } from "@svoverlay/contracts/boss-timers";
@@ -293,20 +295,19 @@ function searchTextOf(timer: BossTimer): string {
 }
 
 function regionLabel(region: string): string {
-  return region === UNKNOWN_BOSS_REGION ? "Unknown" : region.toUpperCase();
+  return bossRegionLabel(region, "Unknown");
 }
 
 function statusText(timer: BossTimer, phase: BossTimerPhase, nowMs: number): string {
-  if (phase === "waiting") return `in ${formatDuration(Math.max(0, bossEligibleAtMs(timer) - nowMs))}`;
-  if (phase === "window") return `spawnable · ${formatDuration(Math.max(0, bossDueAtMs(timer) - nowMs))} left`;
+  if (phase === "waiting") return `in ${formatBossCountdown(bossEligibleAtMs(timer) - nowMs)}`;
+  if (phase === "window") return `spawnable · ${formatBossCountdown(bossDueAtMs(timer) - nowMs)} left`;
   return "spawned";
 }
 
 function clockText(timer: BossTimer, phase: BossTimerPhase): string {
-  const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
-  if (phase === "waiting") return `from ${timeFormat.format(bossEligibleAtMs(timer))}`;
-  if (phase === "window") return `by ${timeFormat.format(bossDueAtMs(timer))}`;
-  return `window closed ${timeFormat.format(bossDueAtMs(timer))}`;
+  if (phase === "waiting") return `from ${formatBossClock(bossEligibleAtMs(timer))}`;
+  if (phase === "window") return `by ${formatBossClock(bossDueAtMs(timer))}`;
+  return `window closed ${formatBossClock(bossDueAtMs(timer))}`;
 }
 
 /** The value as an integer within [minimum, maximum], or undefined when it isn't one. */
