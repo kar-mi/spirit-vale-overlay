@@ -1360,8 +1360,9 @@ describe("central capture coordinator", () => {
       const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-handoff-overflow-"));
       const capture = new FakeCapture();
       const errorReports: Array<{ title: string; reason: string }> = [];
+      let coordinator: CaptureCoordinator | undefined;
       try {
-        const coordinator = new CaptureCoordinator({
+        coordinator = new CaptureCoordinator({
           logDirectory: directory,
           captureFactory: () => capture as unknown as PacketCapture,
           onError: (report) => errorReports.push(report),
@@ -1381,6 +1382,7 @@ describe("central capture coordinator", () => {
         expect(errorReports.some((report) => report.reason.includes("exceeded its bounded packet buffer"))).toBe(true);
         expect(coordinator.state()).toMatchObject({ captureStatus: "unavailable" });
       } finally {
+        await coordinator?.stop();
         await rm(directory, { recursive: true, force: true });
       }
     });

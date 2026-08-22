@@ -26,10 +26,12 @@ bun run build
 bun run package:portable
 ```
 
-The portable Windows folder is written to `apps/desktop/dist/portable/SpiritValeOverlay`. Its `.spirit-vale-portable` marker keeps logs, settings, WebView2 state, and temporary files beside the app.
+The portable Windows ZIP and SHA-256 file are written to `dist/releases/`. The archive keeps the existing versioned folder and top-level `Spirit Vale Overlay.lnk` release contract; its `.spirit-vale-portable` marker keeps logs, settings, WebView2 state, and temporary files beside the app.
 
 ## Runtime architecture
 
 The Neutralino client never exposes its native token to the Bun-facing RPC server. The extension broadcasts a short-lived, one-use ticket to the launcher, and every child window receives its own ticket. The RPC server listens only on `127.0.0.1`.
 
 Neutralino starts configured extensions for every child-window process. An atomic owner file permits exactly one Bun backend per application tree; child extensions detect the live owner and exit before connecting or initializing capture.
+
+The Bun extension is launched with `--no-orphans`, so force-closing its owning Neutralino process also terminates the backend and native helper descendants.
