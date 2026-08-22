@@ -913,7 +913,6 @@ export class CaptureCoordinator {
         this.reportError("Tower location could not be committed", errorMessage(error));
       });
     }, delay);
-    this.towerLocationTimer.unref?.();
   }
 
   private clearTowerLocationTimer(): void {
@@ -1272,7 +1271,7 @@ function isStatusPacket(packet: CapturedFishNetPacket): boolean {
 }
 
 function isTowerStatePacket(packet: CapturedFishNetPacket): boolean {
-  return packet.rpcName === "ETUpdateRun" || packet.rpcName === "ETAdvanceFloor";
+  return packet.rpcName === "DrawTitle" || packet.rpcName === "ClientInstancedMapReady";
 }
 
 function channelFromIndex(packet: CapturedFishNetPacket, fieldName: string): number | undefined {

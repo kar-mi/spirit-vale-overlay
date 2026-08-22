@@ -523,13 +523,13 @@ describe("central capture coordinator", () => {
 
       capture.packet(authenticatedPacket(1, "tower-connection"));
       capture.packet(mapPacket(2, 17, "tower-connection"));
-      capture.packet(towerRunPacket(3, 1, "tower-connection"));
+      capture.packet(towerFloorPacket(3, 1, "tower-connection"));
       await Bun.sleep(550);
       capture.packet(mapPacket(4, 29, "tower-connection"));
-      capture.packet(towerAdvancePacket(5, 2, false, "tower-connection"));
+      capture.packet(towerFloorPacket(5, 2, "tower-connection"));
       await Bun.sleep(550);
-      capture.packet(towerAdvancePacket(6, 2, true, "tower-connection"));
-      capture.packet(towerClearPacket(7, "tower-connection"));
+      capture.packet(towerExitPacket(6, "tower-connection"));
+      capture.packet(towerExitPacket(7, "tower-connection"));
       await Bun.sleep(550);
       await coordinator.stop();
 
@@ -569,15 +569,15 @@ describe("central capture coordinator", () => {
       capture.packet(mapPacket(2, 17, "tower-connection"));
       const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
-      capture.packet(towerClearPacket(3, "tower-connection"));
-      capture.packet(towerRunPacket(4, 1, "tower-connection"));
-      capture.packet(towerAdvancePacket(5, 2, false, "tower-connection"));
+      capture.packet(towerExitPacket(3, "tower-connection"));
+      capture.packet(towerFloorPacket(4, 1, "tower-connection"));
+      capture.packet(towerFloorPacket(5, 2, "tower-connection"));
       capture.packet({ ...damagePacket(6, 900, 41), connectionId: "tower-connection" });
 
       const towerSessionId = await waitForSessionChange(directory, previousSessionId);
       expect(towerSessionId).toBeDefined();
       await Bun.sleep(100);
-      capture.packet(towerAdvancePacket(7, 2, true, "tower-connection"));
+      capture.packet(towerFloorPacket(7, 2, "tower-connection"));
       await Bun.sleep(550);
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(towerSessionId);
       await coordinator.stop();
@@ -610,7 +610,7 @@ describe("central capture coordinator", () => {
 
       capture.packet(authenticatedPacket(1, "tower-a"));
       capture.packet(mapPacket(2, 17, "tower-a"));
-      capture.packet(towerRunPacket(3, 1, "tower-a"));
+      capture.packet(towerFloorPacket(3, 1, "tower-a"));
       await Bun.sleep(550);
       capture.packet(authenticatedPacket(4, "tower-b"));
       capture.packet(mapPacket(5, 29, "tower-b"));
@@ -641,12 +641,12 @@ describe("central capture coordinator", () => {
 
       capture.packet(authenticatedPacket(1, "tower-a"));
       capture.packet(mapPacket(2, 17, "tower-a"));
-      capture.packet(towerRunPacket(3, 1, "tower-a"));
+      capture.packet(towerFloorPacket(3, 1, "tower-a"));
       await Bun.sleep(550);
       const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
       capture.packet(authenticatedPacket(4, "tower-b"));
-      capture.packet(towerClearPacket(5, "tower-b"));
+      capture.packet(towerExitPacket(5, "tower-b"));
       await Bun.sleep(50);
       await coordinator.resetSession();
       expect((await readCurrentLogStream("combat", directory))?.sessionId).not.toBe(previousSessionId);
@@ -673,7 +673,7 @@ describe("central capture coordinator", () => {
 
       capture.packet(authenticatedPacket(1, "tower-a"));
       capture.packet(mapPacket(2, 17, "tower-a"));
-      capture.packet(towerRunPacket(3, 1, "tower-a"));
+      capture.packet(towerFloorPacket(3, 1, "tower-a"));
       await coordinator.stop();
 
       const pointer = await readCurrentLogStream("combat", directory);
@@ -1951,19 +1951,15 @@ function mapPacket(tick: number, mapId: number, connectionId: string): TestPacke
   };
 }
 
-function towerRunPacket(tick: number, floor: number, connectionId: string): TestPacket {
+function towerFloorPacket(tick: number, floor: number, connectionId: string): TestPacket {
   return {
     tick,
     packetId: 901,
     packetName: "targetRpc",
-    rpcName: "ETUpdateRun",
+    rpcName: "DrawTitle",
     networkBehaviourType: "PlayerController",
     decodedFields: [
-      { name: "match", typeName: "EternalTowerRun", codec: "nullable", value: true },
-      { name: "match.InstanceId", codec: "packedInt32", value: 10 },
-      { name: "match.PartyId", codec: "packedInt32", value: 20 },
-      { name: "match.State", codec: "packedInt32", value: 2 },
-      { name: "match.Floor", codec: "packedInt32", value: floor },
+      { name: "title", codec: "stringUtf8Packed", value: `The Echoing Spire\nFloor ${floor}` },
     ],
     raw: Buffer.alloc(0),
     payload: Buffer.alloc(0),
@@ -1971,36 +1967,18 @@ function towerRunPacket(tick: number, floor: number, connectionId: string): Test
   };
 }
 
-function towerAdvancePacket(
-  tick: number,
-  floor: number,
-  finished: boolean,
-  connectionId: string,
-): TestPacket {
-  return {
-    tick,
-    packetId: 902,
-    packetName: "targetRpc",
-    rpcName: "ETAdvanceFloor",
-    networkBehaviourType: "PlayerController",
-    decodedFields: [
-      { name: "floor", codec: "packedInt32", value: floor },
-      { name: "finished", codec: "boolean", value: finished },
-    ],
-    raw: Buffer.alloc(0),
-    payload: Buffer.alloc(0),
-    connectionId,
-  };
-}
-
-function towerClearPacket(tick: number, connectionId: string): TestPacket {
+function towerExitPacket(tick: number, connectionId: string): TestPacket {
   return {
     tick,
     packetId: 903,
-    packetName: "targetRpc",
-    rpcName: "ETUpdateRun",
+    packetName: "serverRpc",
+    rpcName: "ClientInstancedMapReady",
     networkBehaviourType: "PlayerController",
-    decodedFields: [{ name: "match", typeName: "EternalTowerRun", codec: "nullable", value: null }],
+    decodedFields: [
+      { name: "localMapInstanceId", codec: "packedInt32", value: 29 },
+      { name: "instancedMapId", codec: "stringUtf8Packed", value: "world-29" },
+      { name: "bindingSlot", codec: "stringUtf8Packed", value: "world" },
+    ],
     raw: Buffer.alloc(0),
     payload: Buffer.alloc(0),
     connectionId,
