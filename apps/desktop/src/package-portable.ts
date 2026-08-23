@@ -14,7 +14,6 @@ const { version } = JSON.parse(await readFile(path.join(appRoot, "neutralino.con
 const folderName = `Spirit-Vale-Overlay-v${version}-win-x64`;
 const portable = path.join(stagingRoot, folderName);
 const portableExe = path.join(portable, "SpiritValeOverlay.exe");
-const shortcutName = `${productName}.lnk`;
 const zipPath = path.join(releasesRoot, `Spirit-Vale-Overlay-portable-win-x64-v${version}.zip`);
 const checksumPath = `${zipPath}.sha256`;
 
@@ -30,18 +29,10 @@ await Promise.all([
 
 await setWindowsExecutableMetadata(portableExe, { fileDescription: productName, version });
 
-run("powershell", [
-  "-NoProfile",
-  "-ExecutionPolicy", "Bypass",
-  "-File", path.join(projectRoot, "tooling", "release", "build-portable-shortcut.ps1"),
-  "-OutputPath", path.join(portable, shortcutName),
-  "-TargetPath", portableExe,
-]);
-
 await writeFile(path.join(portable, "README.txt"), [
   `${productName} - Version ${version}`,
   "",
-  `Extract the complete ZIP, then run \"${shortcutName}\".`,
+  "Extract the complete ZIP, then run \"SpiritValeOverlay.exe\".",
   "Npcap is required. Install it in WinPcap API-compatible mode without restricting it to administrators.",
   "",
   "Portable data stays in this folder:",

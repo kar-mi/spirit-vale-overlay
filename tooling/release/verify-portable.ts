@@ -23,10 +23,8 @@ const zipPath = path.resolve(projectRoot, Bun.argv[2] ?? defaultZip);
 const checksumPath = `${zipPath}.sha256`;
 const checkRoot = path.join(projectRoot, "dist", "portable-check");
 const extractedRoot = path.join(checkRoot, folderName);
-const portableLauncherName = `${productName}.lnk`;
 
 const requiredPaths = [
-  portableLauncherName,
   ".spirit-vale-portable",
   "README.txt",
   "SpiritValeOverlay.exe",
@@ -51,19 +49,6 @@ const forbiddenPaths = [
   "SpiritValeOverlay-Setup.zip",
   "Info.plist",
 ] as const;
-
-function resolveShortcutTarget(shortcutPath: string): string {
-  const directory = path.dirname(shortcutPath).replaceAll("'", "''");
-  const name = path.basename(shortcutPath).replaceAll("'", "''");
-  const result = Bun.spawnSync([
-    "pwsh", "-NoProfile", "-Command",
-    `$shell = New-Object -ComObject Shell.Application; $folder = $shell.NameSpace('${directory}'); `
-    + `$item = $folder.ParseName('${name}'); if ($null -eq $item) { throw 'Shortcut was not found.' }; `
-    + "$link = $item.GetLink; $link.Resolve(1); $link.Path",
-  ], { stdout: "pipe", stderr: "inherit" });
-  if (result.exitCode !== 0) throw new Error(`Could not resolve portable shortcut: ${shortcutPath}`);
-  return new TextDecoder().decode(result.stdout).trim();
-}
 
 function run(command: string, args: string[], stdout: "inherit" | "pipe" = "inherit") {
   const result = Bun.spawnSync([command, ...args], {
@@ -155,16 +140,10 @@ if (bundledBunVersion !== bunVersion) {
   throw new Error(`Portable Bun runtime is ${bundledBunVersion}, expected ${bunVersion}.`);
 }
 
-const shortcutPath = path.join(extractedRoot, portableLauncherName);
-const shortcutTarget = resolveShortcutTarget(shortcutPath);
-if (path.resolve(shortcutTarget).toLowerCase() !== path.resolve(executablePath).toLowerCase()) {
-  throw new Error(`Portable shortcut resolves to ${shortcutTarget}, expected ${executablePath}.`);
-}
-
 const readme = await readFile(path.join(extractedRoot, "README.txt"), "utf8");
 for (const expected of [
   `Version ${version}`,
-  `run "${portableLauncherName}"`,
+  "run \"SpiritValeOverlay.exe\"",
   "data\\settings\\",
   "data\\logs\\",
   "data\\runtime\\",
