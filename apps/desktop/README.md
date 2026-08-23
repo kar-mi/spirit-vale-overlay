@@ -26,7 +26,7 @@ bun run build
 bun run package:portable
 ```
 
-The portable Windows ZIP and SHA-256 file are written to `dist/releases/`. The archive keeps the existing versioned folder and top-level `Spirit Vale Overlay.lnk` release contract; its `.spirit-vale-portable` marker keeps logs, settings, WebView2 state, and temporary files beside the app.
+The portable Windows ZIP and SHA-256 file are written to `dist/releases/`. Run `SpiritValeOverlay.exe` from the extracted versioned folder. Its `.spirit-vale-portable` marker keeps logs, settings, WebView2 state, and temporary files beside the app.
 
 ## Runtime architecture
 
