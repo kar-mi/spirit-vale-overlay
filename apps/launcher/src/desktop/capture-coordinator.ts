@@ -1,5 +1,4 @@
 import {
-  FishNetActorDirectory,
   FishNetCombatTracker,
   FishNetPositionTracker,
   FishNetStatusTracker,
@@ -32,7 +31,7 @@ import type {
   LogStream,
   LogWriteFailure,
 } from "@kar-mi/spirit-vale-tools-logging";
-import { FishNetLootDropTracker, FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
+import { FishNetLootDropTracker, FishNetMobDirectory, FishNetMobRewardTracker } from "@kar-mi/spirit-vale-tools-rewards";
 import type { FishNetLootDrop, FishNetLootDropEvent } from "@kar-mi/spirit-vale-tools-rewards";
 import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, TOWER_FLOOR_UNKNOWN_SUFFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
@@ -40,7 +39,9 @@ import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desk
 import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
 import type { BossGravestoneObservation } from "./boss-timer-coordinator.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
+import { combatMonsterIdentityCatalog } from "./monster-identity-catalog.ts";
 import { RewardEventAttributor } from "./reward-event-attributor.ts";
+import { StickyActorDirectory } from "./sticky-actor-directory.ts";
 
 const SPAWN_PAYLOAD_LOG_LIMIT = 2_048;
 const HANDOFF_PACKET_LIMIT = 4_096;
@@ -119,14 +120,14 @@ export interface CaptureCoordinatorOptions {
 export class CaptureCoordinator {
   private readonly capture: PacketCapture;
   private readonly diagnosticLogging: boolean;
-  private readonly actors: FishNetActorDirectory;
+  private readonly actors: StickyActorDirectory;
   private readonly combat = new FishNetCombatTracker({
     actorIdentityResolver: (actorId) => this.actors.getAttribution(actorId),
     healingTraitsResolver: (actorId: number) => {
       return actorId === this.character.physicalObjectId() ? this.localHealingTraits() : undefined;
     },
     localActorIdResolver: () => this.character.physicalObjectId(),
-    monsterCatalog: mobDefinitionsById(),
+    monsterCatalog: combatMonsterIdentityCatalog(),
   });
   private readonly statusTracker = new FishNetStatusTracker();
   private readonly activeStatusListeners = new Set<(statuses: readonly FishNetActiveStatus[]) => void>();
@@ -196,7 +197,7 @@ export class CaptureCoordinator {
   private lifecycleChain: Promise<void> = Promise.resolve();
 
   constructor(private readonly options: CaptureCoordinatorOptions) {
-    this.actors = new FishNetActorDirectory({
+    this.actors = new StickyActorDirectory({
       ...(options.knownIdentities === undefined ? {} : { knownIdentities: options.knownIdentities }),
       ...(options.onIdentityLearned === undefined ? {} : { onIdentityLearned: options.onIdentityLearned }),
     });
