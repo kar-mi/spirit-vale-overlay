@@ -1225,6 +1225,76 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("rotates once for a same-connection waypoint map change and deduplicates its reconnect", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-waypoint-map-change-"));
+    const capture = new FakeCapture();
+    let goldResets = 0;
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => true,
+        onGoldMapChange: () => { goldResets += 1; },
+      });
+      await coordinator.start();
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      capture.packet(mapPacket(1_010, 17, "conn-a"));
+      const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      capture.packet(waypointPacket(1_020, 45, "conn-a"));
+      const nextSessionId = await waitForSessionChange(directory, previousSessionId);
+      expect(nextSessionId).toBeDefined();
+      capture.packet(authenticatedPacket(50, "conn-b"));
+      capture.packet(mapPacket(55, 45, "conn-b"));
+      await settleRotation();
+      expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(nextSessionId);
+      await coordinator.stop();
+
+      expect(await readdir(path.join(directory, "combat"))).toHaveLength(2);
+      expect(goldResets).toBe(1);
+      const pointer = await readCurrentLogStream("combat", directory);
+      expect(loggedLocations(await readFile(pointer!.path, "utf8"))).toEqual(["__spiritvaleZone:45"]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("clears actor lifetimes on same-connection character logout and rebuilds from fresh identities", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-character-boundary-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        resetOnMapChange: () => true,
+      });
+      await coordinator.start();
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      capture.packet(identityPacket(1_010, 40, "Former Ranger", "conn-a"));
+      const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      capture.packet(quitCharacterPacket(1_020, "conn-a"));
+      expect(await waitForSessionChange(directory, previousSessionId)).toBeDefined();
+      capture.packet(loadCharacterPacket(1_030, "conn-a"));
+      capture.packet(identityPacket(1_040, 41, "Current Ranger", "conn-a"));
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      const identities = records(await readFile(pointer!.path, "utf8")) as Array<{
+        type: string;
+        data?: { actorId?: number; displayName?: string };
+      }>;
+      expect(identities).toContainEqual(expect.objectContaining({
+        type: "combat.actorIdentity",
+        data: expect.objectContaining({ actorId: 41, displayName: "Current Ranger" }),
+      }));
+      expect(identities.some((record) => record.type === "combat.actorIdentity"
+        && record.data?.actorId === 40)).toBe(false);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("keeps one session across map changes while the setting is off, and honours it being turned on", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-off-"));
     const capture = new FakeCapture();
@@ -2010,6 +2080,46 @@ function mapPacket(tick: number, mapId: number, connectionId: string): TestPacke
     packetName: "rpcLink",
     rpcName: "TraverseActive",
     decodedFields: [{ name: "mapId", codec: "packedInt32", value: mapId }],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function waypointPacket(tick: number, mapId: number, connectionId: string): TestPacket {
+  return {
+    tick,
+    packetId: 900,
+    packetName: "serverRpc",
+    rpcName: "WarpWaypoint_S",
+    networkBehaviourType: "PlayerSave",
+    decodedFields: [{ name: "mapId", codec: "packedInt32", value: mapId }],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function quitCharacterPacket(tick: number, connectionId: string): TestPacket {
+  return {
+    tick,
+    packetId: 900,
+    packetName: "serverRpc",
+    rpcName: "QuitCharacter_Rpc",
+    networkBehaviourType: "PlayerSave",
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function loadCharacterPacket(tick: number, connectionId: string): TestPacket {
+  return {
+    tick,
+    packetId: 900,
+    packetName: "targetRpc",
+    rpcName: "LoadCharacter_T",
+    networkBehaviourType: "PlayerSave",
     raw: Buffer.alloc(0),
     payload: Buffer.alloc(0),
     connectionId,

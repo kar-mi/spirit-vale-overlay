@@ -73,6 +73,7 @@ type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDeta
 interface SessionSeed {
   identities?: readonly FishNetActorIdentity[];
   location?: SpiritValeLocation;
+  resetRewards?: boolean;
 }
 
 interface PacketAdmission {
@@ -188,6 +189,8 @@ export class CaptureCoordinator {
   private readonly loggedMobIdentities = new Map<number, string>();
   private lastLoggedLocation: SpiritValeLocation | undefined;
   private lastObservedMapId: number | undefined;
+  private pendingDirectWorldTransition = false;
+  private pendingCharacterBoundary = false;
   private towerLocationTimer?: ReturnType<typeof setTimeout>;
   private towerLocationDeadlineMs?: number;
   private pendingTowerLocationTick = 0;
@@ -383,6 +386,8 @@ export class CaptureCoordinator {
     this.tower.reset();
     this.lastLoggedLocation = undefined;
     this.lastObservedMapId = undefined;
+    this.pendingDirectWorldTransition = false;
+    this.pendingCharacterBoundary = false;
     this.clearTowerLocationTimer();
     this.towerLocationDeadlineMs = undefined;
     this.currentChannel = undefined;
@@ -477,6 +482,7 @@ export class CaptureCoordinator {
       );
       this.rewardAttributor.reset();
       this.locallyDamagedRewardTargets.clear();
+      if (seed?.resetRewards) this.rewards.reset();
       for (const event of rewardEvents) {
         this.rewardsLog?.log(event.kind === "kill" ? "rewards.kill" : "rewards.unmatched", jsonObject(event));
       }
@@ -651,6 +657,16 @@ export class CaptureCoordinator {
     const inspectHandled = this.inspected.consume(packet);
     let characterHandled = this.character.consumeBeforeAdmission(packet);
     if (!admission.accepted) return;
+    const authenticationCompletesDirectTransition = packet.packetName === "authenticated"
+      && (this.pendingDirectWorldTransition || this.pendingCharacterBoundary);
+    if (authenticationCompletesDirectTransition) {
+      this.pendingDirectWorldTransition = false;
+      this.pendingCharacterBoundary = false;
+    }
+    if (packet.packetName === "objectSpawn") {
+      this.pendingDirectWorldTransition = false;
+      this.pendingCharacterBoundary = false;
+    }
     if (!this.sawAuthenticated
       && packet.packetName !== "authenticated"
       && packet.packetName !== "disconnect") {
@@ -682,8 +698,10 @@ export class CaptureCoordinator {
       });
     }
     const loggedZone = this.logZone(packet);
-    const transitionSeed = packet.packetName === "authenticated" ? {} : undefined;
-    let handled = characterHandled || loggedZone || towerChanged;
+    const directWorldLocation = directWorldTransition(packet);
+    const characterBoundary = packet.rpcName === "QuitCharacter_Rpc";
+    const transitionSeed = packet.packetName === "authenticated" && !authenticationCompletesDirectTransition ? {} : undefined;
+    let handled = characterHandled || loggedZone || towerChanged || directWorldLocation !== undefined || characterBoundary;
     let combatEvents: FishNetCombatEvent[] = [];
     try {
       this.mobs.consume(packet);
@@ -756,7 +774,49 @@ export class CaptureCoordinator {
     }
 
     if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
+    if (directWorldLocation !== undefined) this.beginDirectWorldTransition(directWorldLocation, packet.tick);
+    if (characterBoundary) this.beginCharacterBoundary(packet.tick);
     if (transitionSeed) this.resetOnMapChange(transitionSeed);
+  }
+
+  private beginDirectWorldTransition(location: SpiritValeLocation & { kind: "map" }, tick: number): void {
+    if (sameSpiritValeLocation(location, this.lastLoggedLocation)) return;
+    this.pendingDirectWorldTransition = true;
+    this.lastObservedMapId = location.mapId;
+    this.options.onGoldMapChange?.();
+    if (this.options.resetOnMapChange?.()) {
+      void this.rotateSession({ location }).catch(() => {});
+    } else {
+      this.logLocation(location, tick);
+    }
+  }
+
+  private beginCharacterBoundary(tick: number): void {
+    this.pendingCharacterBoundary = true;
+    this.pendingDirectWorldTransition = false;
+    this.combatLog?.log("combat.actorIdentity", { kind: "actorIdentity", operation: "reset", tick });
+    this.actors.reset();
+    this.combat.reset();
+    this.statusTracker.reset();
+    this.loggedShortDisplayStatuses.clear();
+    this.publishActiveStatuses(true);
+    this.mobs.reset();
+    this.loggedMobIdentities.clear();
+    this.positions.reset();
+    this.loot.reset();
+    this.toastedLootIds.clear();
+    this.tower.reset();
+    this.lastObservedMapId = undefined;
+    this.currentChannel = undefined;
+    this.setServerInstance(undefined);
+    this.options.onGoldMapChange?.();
+    if (this.options.resetOnMapChange?.()) {
+      void this.rotateSession({ identities: [], resetRewards: true }).catch(() => {});
+    } else {
+      this.rewards.reset();
+      this.rewardAttributor.reset();
+      this.locallyDamagedRewardTargets.clear();
+    }
   }
 
   private resetOnMapChange(seed: SessionSeed): void {
@@ -1251,8 +1311,8 @@ export class CaptureCoordinator {
     if (this.lifecycleStopped) return;
     this.lifecycleStopped = true;
     const events = this.rewardAttributor.consume(this.rewards.flush(), Number.POSITIVE_INFINITY);
-    this.rewardAttributor.reset();
-    this.locallyDamagedRewardTargets.clear();
+      this.rewardAttributor.reset();
+      this.locallyDamagedRewardTargets.clear();
     for (const event of events) {
       this.rewardsLog?.log(event.kind === "kill" ? "rewards.kill" : "rewards.unmatched", jsonObject(event));
     }
@@ -1285,6 +1345,15 @@ function isStatusPacket(packet: CapturedFishNetPacket): boolean {
 
 function isTowerStatePacket(packet: CapturedFishNetPacket): boolean {
   return packet.rpcName === "DrawTitle" || packet.rpcName === "ClientInstancedMapReady";
+}
+
+function directWorldTransition(packet: CapturedFishNetPacket): (SpiritValeLocation & { kind: "map" }) | undefined {
+  if (packet.packetName !== "serverRpc" || packet.networkBehaviourType !== "PlayerSave"
+    || packet.rpcName !== "WarpWaypoint_S") return undefined;
+  const mapId = packet.decodedFields?.find((field) => field.name === "mapId")?.value;
+  return typeof mapId === "number" && Number.isSafeInteger(mapId) && mapId >= 0
+    ? { kind: "map", mapId }
+    : undefined;
 }
 
 function channelFromIndex(packet: CapturedFishNetPacket, fieldName: string): number | undefined {
