@@ -15,7 +15,12 @@ import { FishNetInspectRoster, resolveCharacterHealingTraits } from "@kar-mi/spi
 import type { CharacterSnapshot, CharacterViewState, InspectedCharacter } from "@kar-mi/spirit-vale-tools-character";
 import { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import { decodeBossGravestone, FishNetEternalTowerTracker } from "@kar-mi/spirit-vale-tools-capture";
-import type { CapturedFishNetPacket, CapturedLiteNetLibPacket, CaptureTargetStatus } from "@kar-mi/spirit-vale-tools-capture";
+import type {
+  CaptureConnectionEvent,
+  CapturedFishNetPacket,
+  CapturedLiteNetLibPacket,
+  CaptureTargetStatus,
+} from "@kar-mi/spirit-vale-tools-capture";
 import {
   activateLogSession,
   createLogSession,
@@ -185,6 +190,7 @@ export class CaptureCoordinator {
   private lastCaptureWarning?: string;
   private readonly reportedStallStages = new Set<string>();
   private activeConnectionId?: string;
+  private lastClosedConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
   private sawAuthenticated = false;
   private sawAdmittedTrafficBeforeAuthentication = false;
@@ -240,8 +246,60 @@ export class CaptureCoordinator {
     this.capture.on("warning", (message) => this.captureWarning(message));
     this.capture.on("error", (error) => this.captureError(error));
     this.armCaptureStageListeners();
+    this.capture.on("connection", (event) => this.connectionChanged(event));
     this.capture.on("fishNetPacket", (packet) => this.routePacket(packet));
     this.capture.on("stopped", () => this.captureStopped());
+  }
+
+  /**
+   * Follows the connection the capture reports the game is on.
+   *
+   * A channel change reconnects, and `authenticated` is the only packet that announced it here. One
+   * lost packet meant every packet from the live connection was refused for the rest of its life:
+   * the overlay froze on that channel and came back only after changing channel again. The
+   * transport reports every connect and disconnect, so no single packet decides it any more.
+   */
+  private connectionChanged(event: CaptureConnectionEvent): void {
+    const previous = this.activeConnectionId;
+    if (event.state === "closed") {
+      // A connection goes on sending for a moment after it is told to close, and those stragglers
+      // must not take the free slot back from the connection replacing it.
+      this.lastClosedConnectionId = event.connectionId;
+      if (previous === event.connectionId) this.setActiveConnection(undefined);
+    } else {
+      this.lastClosedConnectionId = undefined;
+      this.setActiveConnection(event.connectionId);
+    }
+    this.otherLog?.log("capture.connection", {
+      state: event.state,
+      connectionId: event.connectionId,
+      previous: previous ?? null,
+      active: this.activeConnectionId ?? null,
+    });
+  }
+
+  /**
+   * Moves the active connection, forgetting what the last one taught us.
+   *
+   * Everything below is scoped to one connection: the channel and instance stamped onto a boss
+   * timer, the map, and the trackers whose object ids only mean anything on the connection that
+   * spawned them. The reset used to ride on `authenticated`, which was safe only while that packet
+   * was also what moved the connection. It is not any more — the transport moves it several hundred
+   * milliseconds earlier, and the server's spawn burst arrives inside that gap — so a gravestone
+   * would be timed against the channel the player just left.
+   */
+  private setActiveConnection(connectionId: string | undefined): void {
+    if (this.activeConnectionId === connectionId) return;
+    this.activeConnectionId = connectionId;
+    this.currentChannel = undefined;
+    this.setServerInstance(undefined);
+    this.lastObservedMapId = undefined;
+    this.loggedMobIdentities.clear();
+    this.reportedGravestones.clear();
+    this.positions.reset();
+    this.loot.reset();
+    this.tower.reset();
+    if (this.minimapEnabled()) this.publishMinimap(true);
   }
 
   state(): CaptureCoordinatorState {
@@ -432,6 +490,7 @@ export class CaptureCoordinator {
     this.receivedDataForCurrentGame = false;
     this.resetCaptureHealth();
     this.activeConnectionId = undefined;
+    this.lastClosedConnectionId = undefined;
     this.lastAuthenticated = undefined;
     this.sawAuthenticated = false;
     this.sawAdmittedTrafficBeforeAuthentication = false;
@@ -1143,13 +1202,17 @@ export class CaptureCoordinator {
   private admitPacket(packet: CapturedFishNetPacket): PacketAdmission {
     const connectionId = packet.connectionId;
     const activeBefore = this.activeConnectionId;
-    this.activeConnectionId ??= connectionId;
+    if (activeBefore === undefined && connectionId === this.lastClosedConnectionId) {
+      this.logPacketAdmission(packet, "rejected", "closed-connection", activeBefore);
+      return { accepted: false, suppressBeforeAdmission: false };
+    }
+    if (activeBefore === undefined) this.setActiveConnection(connectionId);
     if (connectionId !== this.activeConnectionId) {
       if (packet.packetName !== "authenticated") {
         this.logPacketAdmission(packet, "rejected", "inactive-connection", activeBefore);
         return { accepted: false, suppressBeforeAdmission: false };
       }
-      this.activeConnectionId = connectionId;
+      this.setActiveConnection(connectionId);
     }
     if (packet.packetName === "authenticated") {
       if (this.lastAuthenticated?.connectionId === connectionId && this.lastAuthenticated.tick === packet.tick) {
@@ -1163,7 +1226,10 @@ export class CaptureCoordinator {
       }
       this.lastAuthenticated = { connectionId, tick: packet.tick };
     }
-    if (packet.packetName === "disconnect") this.activeConnectionId = undefined;
+    if (packet.packetName === "disconnect") {
+      this.lastClosedConnectionId = connectionId;
+      this.setActiveConnection(undefined);
+    }
     if (packet.packetName === "authenticated" || packet.packetName === "disconnect" || isStatusPacket(packet)) {
       this.logPacketAdmission(packet, "accepted", undefined, activeBefore);
     }
