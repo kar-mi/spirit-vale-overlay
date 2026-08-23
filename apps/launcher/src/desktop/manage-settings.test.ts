@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { importSettingsFrom, resetAllSettings } from "./manage-settings.ts";
+import { exportSingleSetting, importSettingsFrom, importSingleSetting, resetAllSettings } from "./manage-settings.ts";
 import { resolveDesktopStoragePaths } from "./portable-paths.ts";
 import { defaultLauncherSettings } from "../launcher/settings.ts";
 import { defaultOverlaySettings } from "@svoverlay/overlay/settings";
@@ -119,6 +119,24 @@ describe("importSettingsFrom", () => {
     expect(imported.skippedUpdateVersion).toBeUndefined();
   });
 
+  test("finds settings nested under data/settings when the selected folder is a portable root", async () => {
+    const currentRoot = await createRoot();
+    const oldRoot = await createRoot();
+    const currentPaths = resolveDesktopStoragePaths({ root: currentRoot });
+    const oldSettingsDir = path.join(oldRoot, "data", "settings");
+    await mkdir(oldSettingsDir, { recursive: true });
+    await writeFile(path.join(oldSettingsDir, "launcher.json"), JSON.stringify({
+      ...defaultLauncherSettings(),
+      captureAdapter: "Portable Root Adapter",
+    }), "utf8");
+
+    const result = await importSettingsFrom(oldRoot, currentPaths, displays);
+    expect(result).toBe("imported");
+
+    const imported = JSON.parse(await readFile(currentPaths.launcherSettingsPath, "utf8"));
+    expect(imported.captureAdapter).toBe("Portable Root Adapter");
+  });
+
   test("skips a settings file that doesn't exist in the old folder", async () => {
     const currentRoot = await createRoot();
     const oldRoot = await createRoot();
@@ -131,6 +149,44 @@ describe("importSettingsFrom", () => {
 
     expect(result).toBe("imported");
     await expect(readFile(currentPaths.overlaySettingsPath, "utf8")).rejects.toThrow();
+  });
+});
+
+describe("importSingleSetting", () => {
+  test("imports only the requested setting, leaving others untouched", async () => {
+    const currentRoot = await createRoot();
+    const currentPaths = resolveDesktopStoragePaths({ root: currentRoot });
+    await resetAllSettings(currentPaths, displays);
+
+    const sourceFile = path.join(await createRoot(), "launcher.json");
+    await writeFile(sourceFile, JSON.stringify({
+      ...defaultLauncherSettings(),
+      captureAdapter: "Single Import Adapter",
+    }), "utf8");
+
+    await importSingleSetting("launcher", sourceFile, currentPaths, displays);
+
+    const imported = JSON.parse(await readFile(currentPaths.launcherSettingsPath, "utf8"));
+    expect(imported.captureAdapter).toBe("Single Import Adapter");
+    expect(JSON.parse(await readFile(currentPaths.overlaySettingsPath, "utf8"))).toEqual(defaultOverlaySettings(displays));
+  });
+});
+
+describe("exportSingleSetting", () => {
+  test("writes the current value of just the requested setting to the destination file", async () => {
+    const currentRoot = await createRoot();
+    const currentPaths = resolveDesktopStoragePaths({ root: currentRoot });
+    await resetAllSettings(currentPaths, displays);
+    await writeFile(currentPaths.launcherSettingsPath, JSON.stringify({
+      ...defaultLauncherSettings(),
+      captureAdapter: "Exported Adapter",
+    }), "utf8");
+
+    const destination = path.join(await createRoot(), "backup-launcher.json");
+    await exportSingleSetting("launcher", currentPaths, destination, displays);
+
+    const exported = JSON.parse(await readFile(destination, "utf8"));
+    expect(exported.captureAdapter).toBe("Exported Adapter");
   });
 });
 

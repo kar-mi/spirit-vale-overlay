@@ -8,7 +8,16 @@ import { createBuildExportWindow } from "@svoverlay/build-export";
 import { createRewardsWindow } from "@svoverlay/rewards";
 import type { LauncherRpc, LauncherSettingsRpc, LauncherState, ManageSettingsRpc, ToolWindow } from "../launcher/types.ts";
 import { loadLauncherSettings, saveLauncherSettings } from "../launcher/settings.ts";
-import { applyImport, planImport, resetAllSettings } from "./manage-settings.ts";
+import {
+  applyImport,
+  exportSingleSetting,
+  importSingleSetting,
+  planImport,
+  resetAllSettings,
+  settingsKindFileName,
+  settingsKindPath,
+  type SettingsKind,
+} from "./manage-settings.ts";
 import {
   activeCharacterSnapshot,
   loadCharacterCache,
@@ -585,6 +594,48 @@ async function importSettingsAndClose(): Promise<void> {
   }
 }
 
+async function importSingleSettingAndClose(kind: SettingsKind): Promise<void> {
+  const [selected] = await Utils.openFileDialog({
+    canChooseDirectory: false,
+    canChooseFiles: true,
+    allowsMultipleSelection: false,
+    allowedFileTypes: "json",
+    startingFolder: path.dirname(settingsKindPath(kind, storagePaths)),
+  });
+  if (!selected) return;
+  try {
+    await closeAllWindowsAndFlush();
+    await importSingleSetting(kind, selected, storagePaths, readDisplays());
+    await Utils.showMessageBox({
+      type: "info",
+      title: "Manage Settings",
+      message: "Settings imported. Spirit Vale Overlay will now close — please reopen it to use the imported settings.",
+      buttons: ["OK"],
+      defaultId: 0,
+      cancelId: 0,
+    });
+  } finally {
+    await quitImmediately();
+  }
+}
+
+async function exportSettingAndNotify(kind: SettingsKind): Promise<void> {
+  const destination = await Utils.showSaveDialog({
+    defaultPath: path.join(localRoot, settingsKindFileName(kind)),
+    filters: ["json"],
+  });
+  if (!destination) return;
+  await exportSingleSetting(kind, storagePaths, destination, readDisplays());
+  await Utils.showMessageBox({
+    type: "info",
+    title: "Manage Settings",
+    message: "Settings exported.",
+    buttons: ["OK"],
+    defaultId: 0,
+    cancelId: 0,
+  });
+}
+
 function openSettingsDataFolder(): void {
   Utils.showItemInFolder(path.dirname(storagePaths.launcherSettingsPath));
 }
@@ -612,6 +663,8 @@ const manageSettingsRpc = BrowserView.defineRPC<ManageSettingsRpc>({
     requests: {
       getState: () => ({ dataFolder: path.dirname(storagePaths.launcherSettingsPath) }),
       importSettings: () => importSettingsAndClose(),
+      importSetting: ({ kind }) => importSingleSettingAndClose(kind),
+      exportSetting: ({ kind }) => exportSettingAndNotify(kind),
       openDataFolder: () => { openSettingsDataFolder(); },
       resetSettings: () => resetSettingsAndClose(),
       getWindowFrame: () => manageSettingsWindow?.getFrame() ?? { x: 130, y: 130, width: 480, height: 380 },

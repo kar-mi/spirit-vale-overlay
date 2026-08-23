@@ -8,6 +8,7 @@ import type {
   PersonalDpsMode,
   RequiredStatusCategory,
 } from "@svoverlay/overlay/app-types";
+import type { SettingsKind } from "../desktop/manage-settings.ts";
 
 export type CaptureStatus = "starting" | "capturing" | "unavailable" | "stopped";
 export type ToolWindow = "combat" | "overlay" | "rewards" | "character" | "build-export" | "boss-timers";
@@ -88,6 +89,8 @@ export type ManageSettingsRpc = {
     requests: {
       getState: { params: Record<string, never>; response: ManageSettingsState };
       importSettings: { params: Record<string, never>; response: void };
+      importSetting: { params: { kind: SettingsKind }; response: void };
+      exportSetting: { params: { kind: SettingsKind }; response: void };
       openDataFolder: { params: Record<string, never>; response: void };
       resetSettings: { params: Record<string, never>; response: void };
       windowAction: { params: { action: "minimize" | "close" }; response: void };
