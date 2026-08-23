@@ -597,6 +597,70 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("preserves actor identities and creates only the floor session across same-connection reauthentication", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-reauth-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        diagnosticLogging: true,
+        resetOnMapChange: () => true,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "tower-connection"));
+      capture.packet(mapPacket(2, 17, "tower-connection"));
+      capture.packet(identityPacket(3, 123, "John", "tower-connection"));
+      const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+
+      capture.packet(towerFloorPacket(4, 1, "tower-connection"));
+      capture.packet(authenticatedPacket(5, "tower-connection"));
+      capture.packet({ ...damagePacket(6, 900, 123), connectionId: "tower-connection" });
+      capture.packet(identityPacket(7, 123, "Jane", "tower-connection"));
+
+      const towerSessionId = await waitForSessionChange(directory, previousSessionId);
+      expect(towerSessionId).toBeDefined();
+      await settleRotation();
+      expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(towerSessionId);
+      await coordinator.stop();
+
+      expect(await readdir(path.join(directory, "combat"))).toHaveLength(2);
+      const combatPointer = await readCurrentLogStream("combat", directory);
+      const combat = records(await readFile(combatPointer!.path, "utf8")) as Array<{
+        type: string;
+        data?: { operation?: string; actorId?: number; displayName?: string; sourceId?: string };
+      }>;
+      const identityIndex = combat.findIndex((record) => record.type === "combat.actorIdentity"
+        && record.data?.operation === "upsert"
+        && record.data.actorId === 123
+        && record.data.displayName === "John");
+      const damageIndex = combat.findIndex((record) => record.type === "combat.event"
+        && record.data?.actorId === 123);
+      expect(identityIndex).toBeGreaterThan(-1);
+      expect(damageIndex).toBeGreaterThan(identityIndex);
+      expect(combat).toContainEqual(expect.objectContaining({
+        type: "combat.actorIdentity",
+        data: expect.objectContaining({ operation: "upsert", actorId: 123, displayName: "Jane" }),
+      }));
+      expect(combat.some((record) => record.type === "combat.actorIdentity"
+        && record.data?.operation === "reset")).toBe(false);
+      expect(loggedLocations(await readFile(combatPointer!.path, "utf8"))).toEqual([
+        "__spiritvaleTowerFloor:1",
+      ]);
+
+      const other = await readOtherLogs(directory);
+      expect(admissionRecords(other)).toContainEqual(expect.objectContaining({
+        decision: "rejected",
+        reason: "same-connection-reauthenticated",
+        packetConnectionId: "tower-connection",
+        tick: 5,
+      }));
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("clears the tower floor when the next map authenticates on a new connection", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-switch-"));
     const capture = new FakeCapture();
@@ -1046,7 +1110,8 @@ describe("central capture coordinator", () => {
       expect(mapChangeSessionId).toBeDefined();
 
       capture.packet(authenticatedPacket(80, "conn-b"));
-      expect(await waitForSessionChange(directory, mapChangeSessionId)).toBeDefined();
+      await settleRotation();
+      expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(mapChangeSessionId);
 
       await coordinator.stop();
     } finally {
@@ -1216,7 +1281,7 @@ describe("central capture coordinator", () => {
 
       capture.packet(authenticatedPacket(80, "conn-b"));
       await settleRotation();
-      expect(goldResets).toBe(2);
+      expect(goldResets).toBe(1);
 
       await coordinator.stop();
     } finally {

@@ -74,6 +74,11 @@ interface SessionSeed {
   location?: SpiritValeLocation;
 }
 
+interface PacketAdmission {
+  accepted: boolean;
+  suppressBeforeAdmission: boolean;
+}
+
 export interface CaptureMinimapState {
   self: FishNetPosition | undefined;
   loot: FishNetLootDrop[];
@@ -640,9 +645,11 @@ export class CaptureCoordinator {
       this.waitingForDataReported = false;
       this.refreshCaptureDetail();
     }
+    const admission = this.admitPacket(packet);
+    if (admission.suppressBeforeAdmission) return;
     const inspectHandled = this.inspected.consume(packet);
     let characterHandled = this.character.consumeBeforeAdmission(packet);
-    if (!this.admitPacket(packet)) return;
+    if (!admission.accepted) return;
     if (!this.sawAuthenticated
       && packet.packetName !== "authenticated"
       && packet.packetName !== "disconnect") {
@@ -1040,21 +1047,26 @@ export class CaptureCoordinator {
     return true;
   }
 
-  private admitPacket(packet: CapturedFishNetPacket): boolean {
+  private admitPacket(packet: CapturedFishNetPacket): PacketAdmission {
     const connectionId = packet.connectionId;
     const activeBefore = this.activeConnectionId;
     this.activeConnectionId ??= connectionId;
     if (connectionId !== this.activeConnectionId) {
       if (packet.packetName !== "authenticated") {
         this.logPacketAdmission(packet, "rejected", "inactive-connection", activeBefore);
-        return false;
+        return { accepted: false, suppressBeforeAdmission: false };
       }
       this.activeConnectionId = connectionId;
     }
     if (packet.packetName === "authenticated") {
       if (this.lastAuthenticated?.connectionId === connectionId && this.lastAuthenticated.tick === packet.tick) {
         this.logPacketAdmission(packet, "rejected", "duplicate-authenticated", activeBefore);
-        return false;
+        return { accepted: false, suppressBeforeAdmission: true };
+      }
+      if (activeBefore === connectionId && this.lastAuthenticated?.connectionId === connectionId) {
+        this.lastAuthenticated = { connectionId, tick: packet.tick };
+        this.logPacketAdmission(packet, "rejected", "same-connection-reauthenticated", activeBefore);
+        return { accepted: false, suppressBeforeAdmission: true };
       }
       this.lastAuthenticated = { connectionId, tick: packet.tick };
     }
@@ -1062,7 +1074,7 @@ export class CaptureCoordinator {
     if (packet.packetName === "authenticated" || packet.packetName === "disconnect" || isStatusPacket(packet)) {
       this.logPacketAdmission(packet, "accepted", undefined, activeBefore);
     }
-    return true;
+    return { accepted: true, suppressBeforeAdmission: false };
   }
 
   private logPacketAdmission(

@@ -17,7 +17,7 @@ const defaults: LauncherSettings = {
   captureAdapter: "auto",
   uiScale: 1,
   minimizeToTray: false,
-  resetMeterOnMapChange: false,
+  resetMeterOnMapChange: true,
   resetGoldOnMapChange: false,
 };
 
@@ -33,7 +33,9 @@ export async function loadLauncherSettings(file = defaultSettingsFile()): Promis
         : defaults.captureAdapter,
       uiScale: normalizeUiScale(candidate.uiScale),
       minimizeToTray: candidate.minimizeToTray === true,
-      resetMeterOnMapChange: candidate.resetMeterOnMapChange === true,
+      resetMeterOnMapChange: typeof candidate.resetMeterOnMapChange === "boolean"
+        ? candidate.resetMeterOnMapChange
+        : defaults.resetMeterOnMapChange,
       resetGoldOnMapChange: candidate.resetGoldOnMapChange === true,
       skippedUpdateVersion: typeof candidate.skippedUpdateVersion === "string" && candidate.skippedUpdateVersion.trim()
         ? candidate.skippedUpdateVersion
