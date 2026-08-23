@@ -6,11 +6,20 @@ import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import type { ManageSettingsRpc, ManageSettingsState } from "../../launcher/types.ts";
+import type { SettingsKind } from "../../desktop/manage-settings.ts";
 
 const DEFAULT_WIDTH = 480;
-const DEFAULT_HEIGHT = 380;
+const DEFAULT_HEIGHT = 560;
 const MINIMUM_WIDTH = 420;
-const MINIMUM_HEIGHT = 340;
+const MINIMUM_HEIGHT = 460;
+
+const SETTINGS_KIND_ROWS: ReadonlyArray<{ kind: SettingsKind; label: string }> = [
+  { kind: "launcher", label: "Launcher" },
+  { kind: "overlay", label: "Overlay" },
+  { kind: "dps", label: "Combat (DPS)" },
+  { kind: "rewards", label: "Rewards" },
+  { kind: "windowLayout", label: "Window Layout" },
+];
 
 const state = signal<ManageSettingsState | undefined>(undefined);
 const resetPromptOpen = signal(false);
@@ -47,6 +56,21 @@ function App() {
           <button class="btn" type="button" onClick={() => void desktopView.rpc?.request.openDataFolder({})}>
             Open Settings Folder
           </button>
+        </div>
+        <div class="settings-rows">
+          {SETTINGS_KIND_ROWS.map(({ kind, label }) => (
+            <div class="settings-row" key={kind}>
+              <span class="settings-row-label">{label}</span>
+              <button class="btn" type="button" onClick={() => void desktopView.rpc?.request.importSetting({ kind })}>
+                Import…
+              </button>
+              <button class="btn" type="button" onClick={() => void desktopView.rpc?.request.exportSetting({ kind })}>
+                Export…
+              </button>
+            </div>
+          ))}
+        </div>
+        <div class="manage-settings-actions">
           <button class="btn" type="button" onClick={() => { resetPromptOpen.value = true; }}>
             Reset All Settings…
           </button>

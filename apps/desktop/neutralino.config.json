@@ -19,7 +19,10 @@
     "os.open",
     "os.openFile",
     "os.setTray",
+    "os.showFolderDialog",
     "os.showMessageBox",
+    "os.showOpenDialog",
+    "os.showSaveDialog",
     "window.*"
   ],
   "extensions": [

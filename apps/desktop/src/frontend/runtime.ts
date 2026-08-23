@@ -313,8 +313,13 @@ export const Utils = {
       const selected = await native?.call<string>("os.showFolderDialog", { title: "Select folder", defaultPath: options.startingFolder });
       return selected ? [selected] : [];
     }
-    const filters = typeof options.allowedFileTypes === "string" ? [options.allowedFileTypes] : options.allowedFileTypes;
+    const extensions = typeof options.allowedFileTypes === "string" ? [options.allowedFileTypes] : options.allowedFileTypes;
+    const filters = extensions ? [{ name: extensions.map((extension) => `.${extension}`).join(", "), extensions }] : undefined;
     return await native?.call<string[]>("os.showOpenDialog", { title: "Select file", defaultPath: options.startingFolder, multiSelections: options.allowsMultipleSelection, filters }) ?? [];
+  },
+  showSaveDialog: async (options: { defaultPath?: string; filters?: string[] }) => {
+    const filters = options.filters ? [{ name: options.filters.map((extension) => `.${extension}`).join(", "), extensions: options.filters }] : undefined;
+    return native?.call<string>("os.showSaveDialog", { title: "Save file", defaultPath: options.defaultPath, filters });
   },
   showMessageBox: async (options: { title: string; message: string; type?: string; buttons?: string[]; defaultId?: number; cancelId?: number }) => native?.call("os.showMessageBox", {
     title: options.title,
