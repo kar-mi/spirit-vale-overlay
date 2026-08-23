@@ -1,5 +1,4 @@
 import {
-  FishNetActorDirectory,
   FishNetCombatTracker,
   FishNetPositionTracker,
   FishNetStatusTracker,
@@ -32,7 +31,7 @@ import type {
   LogStream,
   LogWriteFailure,
 } from "@kar-mi/spirit-vale-tools-logging";
-import { FishNetLootDropTracker, FishNetMobDirectory, FishNetMobRewardTracker, mobDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
+import { FishNetLootDropTracker, FishNetMobDirectory, FishNetMobRewardTracker } from "@kar-mi/spirit-vale-tools-rewards";
 import type { FishNetLootDrop, FishNetLootDropEvent } from "@kar-mi/spirit-vale-tools-rewards";
 import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, TOWER_FLOOR_UNKNOWN_SUFFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
@@ -40,7 +39,9 @@ import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desk
 import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
 import type { BossGravestoneObservation } from "./boss-timer-coordinator.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
+import { combatMonsterIdentityCatalog } from "./monster-identity-catalog.ts";
 import { RewardEventAttributor } from "./reward-event-attributor.ts";
+import { StickyActorDirectory } from "./sticky-actor-directory.ts";
 
 const SPAWN_PAYLOAD_LOG_LIMIT = 2_048;
 const HANDOFF_PACKET_LIMIT = 4_096;
@@ -72,6 +73,12 @@ type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDeta
 interface SessionSeed {
   identities?: readonly FishNetActorIdentity[];
   location?: SpiritValeLocation;
+  resetRewards?: boolean;
+}
+
+interface PacketAdmission {
+  accepted: boolean;
+  suppressBeforeAdmission: boolean;
 }
 
 export interface CaptureMinimapState {
@@ -114,14 +121,14 @@ export interface CaptureCoordinatorOptions {
 export class CaptureCoordinator {
   private readonly capture: PacketCapture;
   private readonly diagnosticLogging: boolean;
-  private readonly actors: FishNetActorDirectory;
+  private readonly actors: StickyActorDirectory;
   private readonly combat = new FishNetCombatTracker({
     actorIdentityResolver: (actorId) => this.actors.getAttribution(actorId),
     healingTraitsResolver: (actorId: number) => {
       return actorId === this.character.physicalObjectId() ? this.localHealingTraits() : undefined;
     },
     localActorIdResolver: () => this.character.physicalObjectId(),
-    monsterCatalog: mobDefinitionsById(),
+    monsterCatalog: combatMonsterIdentityCatalog(),
   });
   private readonly statusTracker = new FishNetStatusTracker();
   private readonly activeStatusListeners = new Set<(statuses: readonly FishNetActiveStatus[]) => void>();
@@ -182,6 +189,8 @@ export class CaptureCoordinator {
   private readonly loggedMobIdentities = new Map<number, string>();
   private lastLoggedLocation: SpiritValeLocation | undefined;
   private lastObservedMapId: number | undefined;
+  private pendingDirectWorldTransition = false;
+  private pendingCharacterBoundary = false;
   private towerLocationTimer?: ReturnType<typeof setTimeout>;
   private towerLocationDeadlineMs?: number;
   private pendingTowerLocationTick = 0;
@@ -191,7 +200,7 @@ export class CaptureCoordinator {
   private lifecycleChain: Promise<void> = Promise.resolve();
 
   constructor(private readonly options: CaptureCoordinatorOptions) {
-    this.actors = new FishNetActorDirectory({
+    this.actors = new StickyActorDirectory({
       ...(options.knownIdentities === undefined ? {} : { knownIdentities: options.knownIdentities }),
       ...(options.onIdentityLearned === undefined ? {} : { onIdentityLearned: options.onIdentityLearned }),
     });
@@ -377,6 +386,8 @@ export class CaptureCoordinator {
     this.tower.reset();
     this.lastLoggedLocation = undefined;
     this.lastObservedMapId = undefined;
+    this.pendingDirectWorldTransition = false;
+    this.pendingCharacterBoundary = false;
     this.clearTowerLocationTimer();
     this.towerLocationDeadlineMs = undefined;
     this.currentChannel = undefined;
@@ -471,6 +482,7 @@ export class CaptureCoordinator {
       );
       this.rewardAttributor.reset();
       this.locallyDamagedRewardTargets.clear();
+      if (seed?.resetRewards) this.rewards.reset();
       for (const event of rewardEvents) {
         this.rewardsLog?.log(event.kind === "kill" ? "rewards.kill" : "rewards.unmatched", jsonObject(event));
       }
@@ -640,9 +652,21 @@ export class CaptureCoordinator {
       this.waitingForDataReported = false;
       this.refreshCaptureDetail();
     }
+    const admission = this.admitPacket(packet);
+    if (admission.suppressBeforeAdmission) return;
     const inspectHandled = this.inspected.consume(packet);
     let characterHandled = this.character.consumeBeforeAdmission(packet);
-    if (!this.admitPacket(packet)) return;
+    if (!admission.accepted) return;
+    const authenticationCompletesDirectTransition = packet.packetName === "authenticated"
+      && (this.pendingDirectWorldTransition || this.pendingCharacterBoundary);
+    if (authenticationCompletesDirectTransition) {
+      this.pendingDirectWorldTransition = false;
+      this.pendingCharacterBoundary = false;
+    }
+    if (packet.packetName === "objectSpawn") {
+      this.pendingDirectWorldTransition = false;
+      this.pendingCharacterBoundary = false;
+    }
     if (!this.sawAuthenticated
       && packet.packetName !== "authenticated"
       && packet.packetName !== "disconnect") {
@@ -674,8 +698,10 @@ export class CaptureCoordinator {
       });
     }
     const loggedZone = this.logZone(packet);
-    const transitionSeed = packet.packetName === "authenticated" ? {} : undefined;
-    let handled = characterHandled || loggedZone || towerChanged;
+    const directWorldLocation = directWorldTransition(packet);
+    const characterBoundary = packet.rpcName === "QuitCharacter_Rpc";
+    const transitionSeed = packet.packetName === "authenticated" && !authenticationCompletesDirectTransition ? {} : undefined;
+    let handled = characterHandled || loggedZone || towerChanged || directWorldLocation !== undefined || characterBoundary;
     let combatEvents: FishNetCombatEvent[] = [];
     try {
       this.mobs.consume(packet);
@@ -748,7 +774,49 @@ export class CaptureCoordinator {
     }
 
     if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
+    if (directWorldLocation !== undefined) this.beginDirectWorldTransition(directWorldLocation, packet.tick);
+    if (characterBoundary) this.beginCharacterBoundary(packet.tick);
     if (transitionSeed) this.resetOnMapChange(transitionSeed);
+  }
+
+  private beginDirectWorldTransition(location: SpiritValeLocation & { kind: "map" }, tick: number): void {
+    if (sameSpiritValeLocation(location, this.lastLoggedLocation)) return;
+    this.pendingDirectWorldTransition = true;
+    this.lastObservedMapId = location.mapId;
+    this.options.onGoldMapChange?.();
+    if (this.options.resetOnMapChange?.()) {
+      void this.rotateSession({ location }).catch(() => {});
+    } else {
+      this.logLocation(location, tick);
+    }
+  }
+
+  private beginCharacterBoundary(tick: number): void {
+    this.pendingCharacterBoundary = true;
+    this.pendingDirectWorldTransition = false;
+    this.combatLog?.log("combat.actorIdentity", { kind: "actorIdentity", operation: "reset", tick });
+    this.actors.reset();
+    this.combat.reset();
+    this.statusTracker.reset();
+    this.loggedShortDisplayStatuses.clear();
+    this.publishActiveStatuses(true);
+    this.mobs.reset();
+    this.loggedMobIdentities.clear();
+    this.positions.reset();
+    this.loot.reset();
+    this.toastedLootIds.clear();
+    this.tower.reset();
+    this.lastObservedMapId = undefined;
+    this.currentChannel = undefined;
+    this.setServerInstance(undefined);
+    this.options.onGoldMapChange?.();
+    if (this.options.resetOnMapChange?.()) {
+      void this.rotateSession({ identities: [], resetRewards: true }).catch(() => {});
+    } else {
+      this.rewards.reset();
+      this.rewardAttributor.reset();
+      this.locallyDamagedRewardTargets.clear();
+    }
   }
 
   private resetOnMapChange(seed: SessionSeed): void {
@@ -1040,21 +1108,26 @@ export class CaptureCoordinator {
     return true;
   }
 
-  private admitPacket(packet: CapturedFishNetPacket): boolean {
+  private admitPacket(packet: CapturedFishNetPacket): PacketAdmission {
     const connectionId = packet.connectionId;
     const activeBefore = this.activeConnectionId;
     this.activeConnectionId ??= connectionId;
     if (connectionId !== this.activeConnectionId) {
       if (packet.packetName !== "authenticated") {
         this.logPacketAdmission(packet, "rejected", "inactive-connection", activeBefore);
-        return false;
+        return { accepted: false, suppressBeforeAdmission: false };
       }
       this.activeConnectionId = connectionId;
     }
     if (packet.packetName === "authenticated") {
       if (this.lastAuthenticated?.connectionId === connectionId && this.lastAuthenticated.tick === packet.tick) {
         this.logPacketAdmission(packet, "rejected", "duplicate-authenticated", activeBefore);
-        return false;
+        return { accepted: false, suppressBeforeAdmission: true };
+      }
+      if (activeBefore === connectionId && this.lastAuthenticated?.connectionId === connectionId) {
+        this.lastAuthenticated = { connectionId, tick: packet.tick };
+        this.logPacketAdmission(packet, "rejected", "same-connection-reauthenticated", activeBefore);
+        return { accepted: false, suppressBeforeAdmission: true };
       }
       this.lastAuthenticated = { connectionId, tick: packet.tick };
     }
@@ -1062,7 +1135,7 @@ export class CaptureCoordinator {
     if (packet.packetName === "authenticated" || packet.packetName === "disconnect" || isStatusPacket(packet)) {
       this.logPacketAdmission(packet, "accepted", undefined, activeBefore);
     }
-    return true;
+    return { accepted: true, suppressBeforeAdmission: false };
   }
 
   private logPacketAdmission(
@@ -1238,8 +1311,8 @@ export class CaptureCoordinator {
     if (this.lifecycleStopped) return;
     this.lifecycleStopped = true;
     const events = this.rewardAttributor.consume(this.rewards.flush(), Number.POSITIVE_INFINITY);
-    this.rewardAttributor.reset();
-    this.locallyDamagedRewardTargets.clear();
+      this.rewardAttributor.reset();
+      this.locallyDamagedRewardTargets.clear();
     for (const event of events) {
       this.rewardsLog?.log(event.kind === "kill" ? "rewards.kill" : "rewards.unmatched", jsonObject(event));
     }
@@ -1272,6 +1345,15 @@ function isStatusPacket(packet: CapturedFishNetPacket): boolean {
 
 function isTowerStatePacket(packet: CapturedFishNetPacket): boolean {
   return packet.rpcName === "DrawTitle" || packet.rpcName === "ClientInstancedMapReady";
+}
+
+function directWorldTransition(packet: CapturedFishNetPacket): (SpiritValeLocation & { kind: "map" }) | undefined {
+  if (packet.packetName !== "serverRpc" || packet.networkBehaviourType !== "PlayerSave"
+    || packet.rpcName !== "WarpWaypoint_S") return undefined;
+  const mapId = packet.decodedFields?.find((field) => field.name === "mapId")?.value;
+  return typeof mapId === "number" && Number.isSafeInteger(mapId) && mapId >= 0
+    ? { kind: "map", mapId }
+    : undefined;
 }
 
 function channelFromIndex(packet: CapturedFishNetPacket, fieldName: string): number | undefined {

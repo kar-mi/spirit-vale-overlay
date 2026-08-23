@@ -12,9 +12,9 @@
   },
   "dependencies": {
     "@kar-mi/spirit-vale-tools-character": "0.4.3",
-    "@kar-mi/spirit-vale-tools-combat": "3.3.3",
+    "@kar-mi/spirit-vale-tools-combat": "3.3.4",
     "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
-    "@kar-mi/spirit-vale-tools-rewards": "1.2.2",
+    "@kar-mi/spirit-vale-tools-rewards": "1.3.0",
     "@kar-mi/spirit-vale-tools-statuses": "0.2.3",
     "@kar-mi/spirit-vale-tools-skills": "0.2.1",
     "@preact/signals": "^2.9.4",

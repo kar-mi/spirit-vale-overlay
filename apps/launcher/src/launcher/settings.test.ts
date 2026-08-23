@@ -22,7 +22,7 @@ test("launcher settings default safely and reject unsupported UI scales", async 
   expect((await loadLauncherSettings(settingsPath)).minimizeToTray).toBe(false);
 
   await writeFile(settingsPath, "{}", "utf8");
-  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: false, resetMeterOnMapChange: false, resetGoldOnMapChange: false, skippedUpdateVersion: undefined });
+  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: false, resetMeterOnMapChange: true, resetGoldOnMapChange: false, skippedUpdateVersion: undefined });
 });
 
 test("launcher settings round-trip with capture settings", async () => {
@@ -31,19 +31,19 @@ test("launcher settings round-trip with capture settings", async () => {
   expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 2, minimizeToTray: true, resetMeterOnMapChange: true, resetGoldOnMapChange: true, skippedUpdateVersion: "0.6.5" });
 });
 
-test("map-change reset stays off unless it was stored as a boolean true", async () => {
+test("map-change reset defaults on while preserving an explicit opt-out", async () => {
   const settingsPath = await createSettingsPath();
   await writeFile(settingsPath, JSON.stringify({ resetMeterOnMapChange: "yes" }), "utf8");
-  expect((await loadLauncherSettings(settingsPath)).resetMeterOnMapChange).toBe(false);
-
-  await writeFile(settingsPath, JSON.stringify({ resetMeterOnMapChange: true }), "utf8");
   expect((await loadLauncherSettings(settingsPath)).resetMeterOnMapChange).toBe(true);
+
+  await writeFile(settingsPath, JSON.stringify({ resetMeterOnMapChange: false }), "utf8");
+  expect((await loadLauncherSettings(settingsPath)).resetMeterOnMapChange).toBe(false);
 });
 
 test("ignores the retired close-to-tray setting", async () => {
   const settingsPath = await createSettingsPath();
   await writeFile(settingsPath, JSON.stringify({ closeToTray: true }), "utf8");
-  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: false, resetMeterOnMapChange: false, resetGoldOnMapChange: false, skippedUpdateVersion: undefined });
+  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: false, resetMeterOnMapChange: true, resetGoldOnMapChange: false, skippedUpdateVersion: undefined });
 });
 
 async function createSettingsPath(): Promise<string> {
