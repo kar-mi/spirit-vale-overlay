@@ -1489,6 +1489,53 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("times a kill from the sync that follows the marker's bare spawn", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gravestone-sync-"));
+    const capture = new FakeCapture();
+    const kills: Array<{
+      mobId: string;
+      bossName: string;
+      killedBy?: string;
+      channel?: number;
+      instanceId?: string;
+      diedAtMs: number;
+    }> = [];
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        onBossGravestone: (gravestone) => kills.push(gravestone),
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet(channelListPacket(2, 1, "na3-15"));
+      const diedAtMs = Math.floor((Date.now() - 5_000) / 1_000) * 1_000;
+      capture.packet({
+        tick: 3,
+        packetId: 5,
+        packetName: "objectSpawn",
+        objectId: 700,
+        raw: Buffer.alloc(0),
+        payload: Buffer.alloc(0),
+      });
+      expect(kills).toHaveLength(0);
+      capture.packet(gravestoneSyncPacket(3, 700, diedAtMs, "Vapulah", "Vespa", "Sting"));
+
+      expect(kills).toEqual([{
+        mobId: "Sting",
+        bossName: "Vespa",
+        killedBy: "Vapulah",
+        channel: 2,
+        instanceId: "na3-15",
+        diedAtMs,
+      }]);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("re-reports a gravestone first seen before the channel list arrived", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gravestone-late-"));
     const capture = new FakeCapture();
@@ -1877,6 +1924,28 @@ function gravestonePacket(
   };
 }
 
+function gravestoneSyncPacket(
+  tick: number,
+  objectId: number,
+  diedAtMs: number,
+  killedBy: string,
+  bossName: string,
+  mobId: string,
+  connectionId?: string,
+): TestPacket {
+  const spawn = gravestonePacket(tick, objectId, diedAtMs, killedBy, bossName, mobId, connectionId);
+  const [entry] = spawn.spawnSyncEntries!;
+  const { componentIndex, networkBehaviourType, ...syncEntry } = entry!;
+  return {
+    ...spawn,
+    packetId: 7,
+    packetName: "syncType",
+    networkBehaviourIndex: componentIndex,
+    networkBehaviourType,
+    spawnSyncEntries: undefined,
+    syncEntries: [syncEntry],
+  };
+}
 
 function damagePacket(tick: number, targetId: number, actorId: number): TestPacket {
   return {

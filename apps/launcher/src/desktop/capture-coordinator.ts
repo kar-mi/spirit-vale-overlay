@@ -218,7 +218,11 @@ export class CaptureCoordinator {
   currentServerInstance(): string | undefined { return this.currentInstanceId; }
 
   private consumeGravestone(packet: CapturedFishNetPacket): boolean {
-    if (packet.packetName !== "objectSpawn" || packet.objectId === undefined) return false;
+    // A fresh marker spawns carrying none of its fields and sends them straight after in a SyncType;
+    // only one already standing carries them in the spawn. Offering spawns alone missed every kill
+    // the player was present for.
+    if (packet.objectId === undefined) return false;
+    if (packet.packetName !== "objectSpawn" && packet.packetName !== "syncType") return false;
     const gravestone = decodeBossGravestone(packet);
     if (!gravestone) return false;
     const fingerprint = [
