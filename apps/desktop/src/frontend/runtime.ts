@@ -338,6 +338,7 @@ async function quitRuntime(): Promise<void> {
   server?.stop();
   await native?.call("app.exit").catch(() => {});
   native?.close();
+  process.exit(0);
 }
 
 function viewName(url: string): string { return /views:\/\/([^/]+)/.exec(url)?.[1] ?? "window"; }
