@@ -25,7 +25,7 @@ export function releaseBackendOwner(file: string, pid = process.pid): void {
   try { unlinkSync(file); } catch {}
 }
 
-function readOwner(file: string): number | undefined {
+export function readOwner(file: string): number | undefined {
   try {
     const value = JSON.parse(readFileSync(file, "utf8")) as { pid?: unknown };
     return typeof value.pid === "number" ? value.pid : undefined;

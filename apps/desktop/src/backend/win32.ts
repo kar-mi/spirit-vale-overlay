@@ -127,6 +127,55 @@ export function overlayExtendedStylesReady(styles: number, clickThrough: boolean
   return taskbarReady && passThroughReady;
 }
 
+export interface ProcessEntry {
+  parentProcessId: number;
+  exeFile: string;
+}
+
+export function findProcessEntry(pid: number): ProcessEntry | undefined {
+  if (process.platform !== "win32") return undefined;
+  const kernel32 = dlopen("kernel32", {
+    CreateToolhelp32Snapshot: { args: [FFIType.u32, FFIType.u32], returns: FFIType.ptr },
+    Process32FirstW: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.bool },
+    Process32NextW: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.bool },
+    CloseHandle: { args: [FFIType.ptr], returns: FFIType.bool },
+  });
+  const TH32CS_SNAPPROCESS = 0x2;
+  const snapshot = kernel32.symbols.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (!snapshot) return undefined;
+  try {
+    // PROCESSENTRY32W is a fixed-size 568-byte struct on x64: th32ProcessID sits at
+    // offset 8, th32ParentProcessID at offset 32, and the null-terminated wide-char
+    // szExeFile[260] image name starts at offset 44.
+    const entry = new Uint8Array(568);
+    const view = new DataView(entry.buffer);
+    view.setUint32(0, entry.length, true);
+    let ok = kernel32.symbols.Process32FirstW(snapshot, ptr(entry));
+    while (ok) {
+      if (view.getUint32(8, true) === pid) {
+        return { parentProcessId: view.getUint32(32, true), exeFile: readWideString(entry, 44) };
+      }
+      view.setUint32(0, entry.length, true);
+      ok = kernel32.symbols.Process32NextW(snapshot, ptr(entry));
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  } finally {
+    kernel32.symbols.CloseHandle(snapshot);
+  }
+}
+
+function readWideString(bytes: Uint8Array, offset: number): string {
+  const units: number[] = [];
+  for (let i = offset; i + 1 < bytes.length; i += 2) {
+    const unit = bytes[i]! | (bytes[i + 1]! << 8);
+    if (unit === 0) break;
+    units.push(unit);
+  }
+  return String.fromCharCode(...units);
+}
+
 export function findWindowHandle(targetPid: number): Pointer | undefined {
   const user32 = dlopen("user32", {
     EnumWindows: { args: [FFIType.function, FFIType.i64_fast], returns: FFIType.bool },
