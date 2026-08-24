@@ -52,6 +52,19 @@ export function isDesktopWindowProcess(processId: number): boolean {
   return false;
 }
 
+// Each child window (combat, overlay, rewards, etc.) is its own Neutralino OS
+// process, spawned as a child of the root app the same way the bun extension is.
+// If we are exiting because the root app disappeared out from under us rather
+// than through the normal RPC-driven window-close sequence, nothing else will
+// ever tell those processes to close, leaving them stuck on screen. Kill them
+// directly by their tracked OS pid before we exit ourselves.
+export function terminateAllWindowProcesses(): void {
+  for (const session of sessions.values()) {
+    if (session.processId === undefined) continue;
+    try { process.kill(session.processId); } catch {}
+  }
+}
+
 export async function initializeNeutralinoRuntime(options: { version: string }): Promise<void> {
   appVersion = options.version;
   native = await NeutralinoClient.fromStdin();
@@ -63,7 +76,11 @@ export async function initializeNeutralinoRuntime(options: { version: string }):
     const action = String((data as { id?: string })?.id ?? "");
     for (const tray of trays) tray.dispatch(action);
   });
-  native.onClose(() => { if (!shuttingDown) process.exit(0); });
+  native.onClose(() => {
+    if (shuttingDown) return;
+    terminateAllWindowProcesses();
+    process.exit(0);
+  });
   announceTimer = setInterval(() => void announceLauncher(), 750);
   await announceLauncher();
 }
