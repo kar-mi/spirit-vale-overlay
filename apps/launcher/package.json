@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-capture": "2.1.1",
+    "@kar-mi/spirit-vale-tools-capture": "2.2.0",
     "@kar-mi/spirit-vale-tools-character": "0.4.2",
     "@kar-mi/spirit-vale-tools-combat": "3.3.4",
-    "@kar-mi/spirit-vale-tools-items": "0.1.7",
+    "@kar-mi/spirit-vale-tools-items": "0.1.9",
     "@kar-mi/spirit-vale-tools-logging": "0.8.0",
     "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
     "@kar-mi/spirit-vale-tools-rewards": "1.3.0",
