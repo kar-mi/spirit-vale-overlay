@@ -11,7 +11,7 @@
     "test": "bun test src"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-capture": "2.1.1",
+    "@kar-mi/spirit-vale-tools-capture": "2.2.0",
     "@neutralinojs/lib": "6.9.0",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/desktop-platform": "workspace:*",
