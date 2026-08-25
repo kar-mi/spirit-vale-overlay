@@ -37,10 +37,10 @@ describe("overlay settings", () => {
     const settings = defaultOverlaySettings([{ bounds: { x: 0, y: 0, width: 2560, height: 1440 }, isPrimary: true }]);
 
     expect(settings.elements.characterXp).toEqual({
-      enabled: false, opacity: 1, x: 965, y: 842, width: 160, height: 24, display: "2560x1440@0,0",
+      enabled: false, opacity: 1, x: 580, y: 883, width: 160, height: 24, display: "2560x1440@0,0",
     });
     expect(settings.elements.jobXp).toEqual({
-      enabled: false, opacity: 1, x: 965, y: 871, width: 160, height: 24, display: "2560x1440@0,0",
+      enabled: false, opacity: 1, x: 580, y: 921, width: 160, height: 24, display: "2560x1440@0,0",
     });
   });
 
@@ -121,10 +121,10 @@ describe("overlay settings", () => {
     const settings = defaultOverlaySettings([{ bounds: { x: 0, y: 0, width: 1920, height: 1080 }, isPrimary: true }]);
 
     expect(settings.elements.bossTimers).toEqual({
-      enabled: false, opacity: 1, x: 1350, y: 225, width: 173, height: 113, display: "1920x1080@0,0",
+      enabled: false, opacity: 1, x: 1140, y: 225, width: 173, height: 113, display: "1920x1080@0,0",
     });
     expect(settings.elements.debuffs).toEqual({
-      enabled: false, opacity: 1, x: 665, y: 406, width: 331, height: 60, display: "1920x1080@0,0",
+      enabled: false, opacity: 1, x: 455, y: 406, width: 331, height: 60, display: "1920x1080@0,0",
     });
   });
 
@@ -144,7 +144,7 @@ describe("overlay settings", () => {
 
     expect(settings.elements.goldTracker.enabled).toBe(false);
     expect(settings.elements.goldTracker).toEqual({
-      enabled: false, opacity: 1, x: 982, y: 456, width: 160, height: 100, display: "2560x1440@0,0",
+      enabled: false, opacity: 1, x: 603, y: 368, width: 160, height: 100, display: "2560x1440@0,0",
     });
   });
 
@@ -387,7 +387,7 @@ describe("overlay settings", () => {
     const settings = normalizeOverlaySettings({ schemaVersion: 5, homeDisplay: homeKey }, [...displays, wide]);
 
     expect(settings.homeDisplay).toBe(homeKey);
-    expect(settings.elements.goldTracker).toMatchObject({ x: 982, y: 456, display: homeKey });
+    expect(settings.elements.goldTracker).toMatchObject({ x: 603, y: 368, display: homeKey });
   });
 
   test("clamps each element against its own display's bounds", () => {

@@ -61,36 +61,40 @@ const DEFAULT_LOCKED = true;
 const DEFAULT_AUTO_HIDE_WHEN_UNFOCUSED = true;
 
 const DEFAULT_ELEMENTS: Record<OverlayElementId, Omit<OverlayElementSettings, "display">> = {
-  dpsChart: { enabled: false, opacity: 1, x: 663, y: 342, width: 286, height: 203 },
-  personalDps: { enabled: false, opacity: 1, x: 662, y: 310, width: 120, height: 95 },
-  partyRanking: { enabled: true, opacity: 0.4, x: 1445, y: 341, width: 251, height: 425 },
-  health: { enabled: true, opacity: 0.75, x: 780, y: 675, width: 233, height: 38 },
-  mana: { enabled: true, opacity: 0.8, x: 1013, y: 675, width: 278, height: 38 },
-  characterXp: { enabled: false, opacity: 1, x: 645, y: 662, width: 125, height: 18 },
-  jobXp: { enabled: false, opacity: 1, x: 645, y: 691, width: 128, height: 18 },
-  weight: { enabled: true, opacity: 0.75, x: 1290, y: 638, width: 135, height: 38 },
-  xpTracker: { enabled: false, opacity: 1, x: 662, y: 243, width: 120, height: 90 },
-  goldTracker: { enabled: false, opacity: 1, x: 662, y: 276, width: 120, height: 90 },
-  xpChart: { enabled: false, opacity: 1, x: 664, y: 374, width: 315, height: 225 },
-  buffs: { enabled: true, opacity: 1, x: 780, y: 638, width: 233, height: 38 },
-  debuffs: { enabled: false, opacity: 1, x: 665, y: 406, width: 331, height: 60 },
-  toggles: { enabled: true, opacity: 1, x: 1013, y: 638, width: 278, height: 38 },
-  lootToast: { enabled: false, opacity: 0, x: 789, y: 247, width: 143, height: 150 },
-  minimap: { enabled: false, opacity: 0, x: 917, y: 247, width: 245, height: 242 },
-  bossTimers: { enabled: false, opacity: 1, x: 1350, y: 225, width: 173, height: 113 },
+  dpsChart: { enabled: false, opacity: 1, x: 453, y: 342, width: 286, height: 203 },
+  personalDps: { enabled: false, opacity: 1, x: 452, y: 310, width: 120, height: 95 },
+  partyRanking: { enabled: true, opacity: 0.4, x: 1235, y: 341, width: 251, height: 425 },
+  health: { enabled: true, opacity: 0.75, x: 570, y: 675, width: 233, height: 38 },
+  mana: { enabled: true, opacity: 0.8, x: 803, y: 675, width: 278, height: 38 },
+  characterXp: { enabled: false, opacity: 1, x: 435, y: 662, width: 125, height: 18 },
+  jobXp: { enabled: false, opacity: 1, x: 435, y: 691, width: 128, height: 18 },
+  weight: { enabled: true, opacity: 0.75, x: 1080, y: 638, width: 135, height: 38 },
+  xpTracker: { enabled: false, opacity: 1, x: 452, y: 243, width: 120, height: 90 },
+  goldTracker: { enabled: false, opacity: 1, x: 452, y: 276, width: 120, height: 90 },
+  xpChart: { enabled: false, opacity: 1, x: 454, y: 374, width: 315, height: 225 },
+  buffs: { enabled: true, opacity: 1, x: 570, y: 638, width: 233, height: 38 },
+  debuffs: { enabled: false, opacity: 1, x: 455, y: 406, width: 331, height: 60 },
+  toggles: { enabled: true, opacity: 1, x: 803, y: 638, width: 278, height: 38 },
+  lootToast: { enabled: false, opacity: 0, x: 579, y: 247, width: 143, height: 150 },
+  minimap: { enabled: false, opacity: 0, x: 707, y: 247, width: 245, height: 242 },
+  bossTimers: { enabled: false, opacity: 1, x: 1140, y: 225, width: 173, height: 113 },
 };
 
-// DEFAULT_ELEMENTS is authored for a 1920x1080 display; default positions are translated
-// relative to this reference center so they stay on-screen (and roughly centered) at other resolutions.
-const REFERENCE_CENTER = { x: 1920 / 2, y: 1080 / 2 };
+// DEFAULT_ELEMENTS is authored for a 1920x1080 display; default positions are scaled relative
+// to this reference center so they stay on-screen (and roughly centered) at other resolutions.
+const REFERENCE_WIDTH = 1920;
+const REFERENCE_HEIGHT = 1080;
+const REFERENCE_CENTER = { x: REFERENCE_WIDTH / 2, y: REFERENCE_HEIGHT / 2 };
 
 function resolveDefaultPosition(
   defaults: Omit<OverlayElementSettings, "display">,
   bounds: DisplayBounds,
 ): { x: number; y: number } {
-  const offsetX = bounds.width / 2 - REFERENCE_CENTER.x;
-  const offsetY = bounds.height / 2 - REFERENCE_CENTER.y;
-  return { x: Math.round(defaults.x + offsetX), y: Math.round(defaults.y + offsetY) };
+  if (bounds.width <= 0 || bounds.height <= 0) return { x: defaults.x, y: defaults.y };
+  const scale = Math.min(bounds.width / REFERENCE_WIDTH, bounds.height / REFERENCE_HEIGHT);
+  const x = bounds.width / 2 + (defaults.x - REFERENCE_CENTER.x) * scale;
+  const y = bounds.height / 2 + (defaults.y - REFERENCE_CENTER.y) * scale;
+  return { x: Math.round(x), y: Math.round(y) };
 }
 
 export function defaultOverlaySettings(displays: readonly OverlayDisplay[]): OverlaySettings {
