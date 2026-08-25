@@ -37,10 +37,10 @@ describe("overlay settings", () => {
     const settings = defaultOverlaySettings([{ bounds: { x: 0, y: 0, width: 2560, height: 1440 }, isPrimary: true }]);
 
     expect(settings.elements.characterXp).toEqual({
-      enabled: false, opacity: 1, x: 860, y: 882, width: 167, height: 24, display: "2560x1440@0,0",
+      enabled: false, opacity: 1, x: 965, y: 842, width: 160, height: 24, display: "2560x1440@0,0",
     });
     expect(settings.elements.jobXp).toEqual({
-      enabled: false, opacity: 1, x: 860, y: 921, width: 171, height: 24, display: "2560x1440@0,0",
+      enabled: false, opacity: 1, x: 965, y: 871, width: 160, height: 24, display: "2560x1440@0,0",
     });
   });
 
@@ -75,13 +75,13 @@ describe("overlay settings", () => {
     expect(settings.elements.personalDps.width).toBe(160);
     expect(settings.elements.personalDps.height).toBe(100);
     expect(settings.elements.health.enabled).toBe(true);
-    expect(settings.elements.health.height).toBe(50);
+    expect(settings.elements.health.height).toBe(38);
     expect(settings.elements.mana.enabled).toBe(true);
-    expect(settings.elements.mana.height).toBe(50);
-    expect(settings.elements.characterXp).toMatchObject({ enabled: false, width: 167, height: 24 });
-    expect(settings.elements.jobXp).toMatchObject({ enabled: false, width: 171, height: 24 });
+    expect(settings.elements.mana.height).toBe(38);
+    expect(settings.elements.characterXp).toMatchObject({ enabled: false, width: 160, height: 24 });
+    expect(settings.elements.jobXp).toMatchObject({ enabled: false, width: 160, height: 24 });
     expect(settings.elements.weight.enabled).toBe(true);
-    expect(settings.elements.weight.height).toBe(50);
+    expect(settings.elements.weight.height).toBe(40);
   });
 
   test("round-trips normalized settings", async () => {
@@ -113,8 +113,30 @@ describe("overlay settings", () => {
 
     expect(settings.elements.health).toMatchObject({ enabled: false, x: 25, width: 325 });
     expect(settings.elements.xpTracker.enabled).toBe(false);
-    expect(settings.elements.characterXp).toMatchObject({ enabled: false, width: 167, height: 24 });
-    expect(settings.elements.jobXp).toMatchObject({ enabled: false, width: 171, height: 24 });
+    expect(settings.elements.characterXp).toMatchObject({ enabled: false, width: 160, height: 24 });
+    expect(settings.elements.jobXp).toMatchObject({ enabled: false, width: 160, height: 24 });
+  });
+
+  test("uses the authored defaults as-is at the 1920x1080 reference resolution", () => {
+    const settings = defaultOverlaySettings([{ bounds: { x: 0, y: 0, width: 1920, height: 1080 }, isPrimary: true }]);
+
+    expect(settings.elements.bossTimers).toEqual({
+      enabled: false, opacity: 1, x: 1350, y: 225, width: 173, height: 113, display: "1920x1080@0,0",
+    });
+    expect(settings.elements.debuffs).toEqual({
+      enabled: false, opacity: 1, x: 665, y: 406, width: 331, height: 60, display: "1920x1080@0,0",
+    });
+  });
+
+  test("keeps default positions on screen and roughly centered at other resolutions", () => {
+    const smaller = [{ bounds: { x: 0, y: 0, width: 1280, height: 720 }, isPrimary: true }];
+    const settings = defaultOverlaySettings(smaller);
+
+    const bossTimers = settings.elements.bossTimers;
+    expect(bossTimers.x).toBeGreaterThanOrEqual(0);
+    expect(bossTimers.x).toBeLessThanOrEqual(1280 - bossTimers.width);
+    expect(bossTimers.y).toBeGreaterThanOrEqual(0);
+    expect(bossTimers.y).toBeLessThanOrEqual(720 - bossTimers.height);
   });
 
   test("defaults the gold tracker tile off, near the XP tracker", () => {
@@ -122,7 +144,7 @@ describe("overlay settings", () => {
 
     expect(settings.elements.goldTracker.enabled).toBe(false);
     expect(settings.elements.goldTracker).toEqual({
-      enabled: false, opacity: 1, x: 883, y: 368, width: 160, height: 120, display: "2560x1440@0,0",
+      enabled: false, opacity: 1, x: 982, y: 456, width: 160, height: 100, display: "2560x1440@0,0",
     });
   });
 
@@ -163,7 +185,7 @@ describe("overlay settings", () => {
       elements: { weight: { height: 72 } },
     }, displays);
 
-    expect(retired.elements.weight).toMatchObject({ enabled: true, height: 50 });
+    expect(retired.elements.weight).toMatchObject({ enabled: true, height: 40 });
     expect(current.elements.weight.height).toBe(72);
   });
 
@@ -365,7 +387,7 @@ describe("overlay settings", () => {
     const settings = normalizeOverlaySettings({ schemaVersion: 5, homeDisplay: homeKey }, [...displays, wide]);
 
     expect(settings.homeDisplay).toBe(homeKey);
-    expect(settings.elements.goldTracker).toMatchObject({ x: 883, y: 368, display: homeKey });
+    expect(settings.elements.goldTracker).toMatchObject({ x: 982, y: 456, display: homeKey });
   });
 
   test("clamps each element against its own display's bounds", () => {

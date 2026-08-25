@@ -61,24 +61,37 @@ const DEFAULT_LOCKED = true;
 const DEFAULT_AUTO_HIDE_WHEN_UNFOCUSED = true;
 
 const DEFAULT_ELEMENTS: Record<OverlayElementId, Omit<OverlayElementSettings, "display">> = {
-  dpsChart: { enabled: false, opacity: 1, x: 884, y: 456, width: 381, height: 271 },
-  personalDps: { enabled: false, opacity: 1, x: 882, y: 413, width: 160, height: 127 },
-  partyRanking: { enabled: true, opacity: 0.4, x: 1926, y: 455, width: 334, height: 567 },
-  health: { enabled: true, opacity: 0.75, x: 1040, y: 900, width: 310, height: 50 },
-  mana: { enabled: true, opacity: 0.8, x: 1350, y: 900, width: 370, height: 50 },
-  characterXp: { enabled: false, opacity: 1, x: 860, y: 882, width: 167, height: 24 },
-  jobXp: { enabled: false, opacity: 1, x: 860, y: 921, width: 171, height: 24 },
-  weight: { enabled: true, opacity: 0.75, x: 1720, y: 850, width: 180, height: 50 },
-  xpTracker: { enabled: false, opacity: 1, x: 883, y: 324, width: 160, height: 120 },
-  goldTracker: { enabled: false, opacity: 1, x: 883, y: 368, width: 160, height: 120 },
-  xpChart: { enabled: false, opacity: 1, x: 885, y: 498, width: 420, height: 300 },
-  buffs: { enabled: true, opacity: 1, x: 1040, y: 850, width: 310, height: 50 },
-  debuffs: { enabled: false, opacity: 1, x: 887, y: 541, width: 441, height: 80 },
-  toggles: { enabled: true, opacity: 1, x: 1350, y: 850, width: 370, height: 50 },
-  lootToast: { enabled: false, opacity: 0, x: 1052, y: 329, width: 190, height: 200 },
-  minimap: { enabled: false, opacity: 0, x: 1223, y: 329, width: 327, height: 323 },
-  bossTimers: { enabled: false, opacity: 1, x: 1800, y: 300, width: 230, height: 150 },
+  dpsChart: { enabled: false, opacity: 1, x: 663, y: 342, width: 286, height: 203 },
+  personalDps: { enabled: false, opacity: 1, x: 662, y: 310, width: 120, height: 95 },
+  partyRanking: { enabled: true, opacity: 0.4, x: 1445, y: 341, width: 251, height: 425 },
+  health: { enabled: true, opacity: 0.75, x: 780, y: 675, width: 233, height: 38 },
+  mana: { enabled: true, opacity: 0.8, x: 1013, y: 675, width: 278, height: 38 },
+  characterXp: { enabled: false, opacity: 1, x: 645, y: 662, width: 125, height: 18 },
+  jobXp: { enabled: false, opacity: 1, x: 645, y: 691, width: 128, height: 18 },
+  weight: { enabled: true, opacity: 0.75, x: 1290, y: 638, width: 135, height: 38 },
+  xpTracker: { enabled: false, opacity: 1, x: 662, y: 243, width: 120, height: 90 },
+  goldTracker: { enabled: false, opacity: 1, x: 662, y: 276, width: 120, height: 90 },
+  xpChart: { enabled: false, opacity: 1, x: 664, y: 374, width: 315, height: 225 },
+  buffs: { enabled: true, opacity: 1, x: 780, y: 638, width: 233, height: 38 },
+  debuffs: { enabled: false, opacity: 1, x: 665, y: 406, width: 331, height: 60 },
+  toggles: { enabled: true, opacity: 1, x: 1013, y: 638, width: 278, height: 38 },
+  lootToast: { enabled: false, opacity: 0, x: 789, y: 247, width: 143, height: 150 },
+  minimap: { enabled: false, opacity: 0, x: 917, y: 247, width: 245, height: 242 },
+  bossTimers: { enabled: false, opacity: 1, x: 1350, y: 225, width: 173, height: 113 },
 };
+
+// DEFAULT_ELEMENTS is authored for a 1920x1080 display; default positions are translated
+// relative to this reference center so they stay on-screen (and roughly centered) at other resolutions.
+const REFERENCE_CENTER = { x: 1920 / 2, y: 1080 / 2 };
+
+function resolveDefaultPosition(
+  defaults: Omit<OverlayElementSettings, "display">,
+  bounds: DisplayBounds,
+): { x: number; y: number } {
+  const offsetX = bounds.width / 2 - REFERENCE_CENTER.x;
+  const offsetY = bounds.height / 2 - REFERENCE_CENTER.y;
+  return { x: Math.round(defaults.x + offsetX), y: Math.round(defaults.y + offsetY) };
+}
 
 export function defaultOverlaySettings(displays: readonly OverlayDisplay[]): OverlaySettings {
   return normalizeOverlaySettings({ schemaVersion: 7 }, displays);
@@ -131,11 +144,12 @@ export function normalizeOverlaySettings(
       ? 24
       : id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" || id === "bossTimers" ? 40 : 100;
     const height = clampNumber(value.height, defaults.height, minimumHeight, Math.max(minimumHeight, bounds.height));
+    const defaultPosition = resolveDefaultPosition(defaults, bounds);
     return [id, {
       enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,
       opacity: normalizeOpacity(value.opacity, defaults.opacity),
-      x: clampNumber(value.x, defaults.x, 0, Math.max(0, bounds.width - width)),
-      y: clampNumber(value.y, defaults.y, 0, Math.max(0, bounds.height - height)),
+      x: clampNumber(value.x, defaultPosition.x, 0, Math.max(0, bounds.width - width)),
+      y: clampNumber(value.y, defaultPosition.y, 0, Math.max(0, bounds.height - height)),
       width,
       height,
       display,
