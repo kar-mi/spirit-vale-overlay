@@ -3,6 +3,7 @@ import { render } from "preact";
 import { useState } from "preact/hooks";
 import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
+import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import type { KeybindAction } from "@svoverlay/overlay/app-types";
@@ -26,6 +27,7 @@ void desktopView.rpc?.request.getState({}).then((next) => { state.value = repair
 
 const SETTINGS_DEFAULT_WIDTH = 798;
 const SETTINGS_DEFAULT_HEIGHT = 680;
+disableWebChrome();
 void ensureInitialWindowSize(desktopView.rpc?.request, { width: 560, height: 420 });
 
 function App() {

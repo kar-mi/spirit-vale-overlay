@@ -4,6 +4,7 @@ import { useRef, useState } from "preact/hooks";
 import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-chrome";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
+import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
 import { normalizeSearchText } from "@svoverlay/ui-kit/format";
@@ -40,6 +41,7 @@ const rpc = DesktopView.defineRPC<BossTimerRpc>({
 });
 const desktopView = new DesktopView({ rpc });
 void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+disableWebChrome();
 void ensureInitialWindowSize(desktopView.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 setInterval(() => { nowMs.value = Date.now(); }, TICK_MS);
 

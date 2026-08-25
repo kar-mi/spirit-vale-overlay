@@ -8,6 +8,7 @@
     "./theme.css": "./theme.css",
     "./window-chrome": "./window-chrome.ts",
     "./ensure-window-size": "./ensure-window-size.ts",
+    "./disable-web-chrome": "./disable-web-chrome.ts",
     "./title-bar": "./title-bar.tsx",
     "./settings-button": "./settings-button.tsx",
     "./status-dot": "./status-dot.tsx",
