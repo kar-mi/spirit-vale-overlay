@@ -4,6 +4,7 @@ import { useRef, useState } from "preact/hooks";
 import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-chrome";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
+import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { resolveFishNetItem, type FishNetArtifactSlot } from "@kar-mi/spirit-vale-tools-items";
 import type {
@@ -31,6 +32,7 @@ void desktopView.rpc?.request.getState({}).then((next) => { state.value = repair
 
 const CHARACTER_DEFAULT_WIDTH = 920;
 const CHARACTER_DEFAULT_HEIGHT = 720;
+disableWebChrome();
 void ensureInitialWindowSize(desktopView.rpc?.request, { width: 680, height: 520 });
 
 function App() {

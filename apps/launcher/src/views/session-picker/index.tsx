@@ -4,6 +4,7 @@ import { useState } from "preact/hooks";
 import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
+import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import type { SessionPickerItem, SessionPickerRpc, SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
@@ -17,6 +18,7 @@ void desktopView.rpc?.request.getState({}).then((next) => { const repaired = rep
 
 const SESSION_PICKER_DEFAULT_WIDTH = 640;
 const SESSION_PICKER_DEFAULT_HEIGHT = 560;
+disableWebChrome();
 void ensureInitialWindowSize(desktopView.rpc?.request, { width: 480, height: 400 });
 
 function App() {

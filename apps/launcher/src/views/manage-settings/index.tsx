@@ -4,6 +4,7 @@ import { useEffect, useRef } from "preact/hooks";
 import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
+import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import type { ManageSettingsRpc, ManageSettingsState } from "../../launcher/types.ts";
 import type { SettingsKind } from "../../desktop/manage-settings.ts";
@@ -28,6 +29,7 @@ const rpc = DesktopView.defineRPC<ManageSettingsRpc>({
 });
 const desktopView = new DesktopView({ rpc });
 void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
+disableWebChrome();
 void ensureInitialWindowSize(desktopView.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 
 function App() {

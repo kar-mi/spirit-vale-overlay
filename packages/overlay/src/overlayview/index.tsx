@@ -7,6 +7,7 @@ import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { InteractiveChart } from "@svoverlay/ui-kit/interactive-chart";
 import type { ChartRange, ChartRenderResult } from "@svoverlay/ui-kit/interactive-chart";
 import { classIconUrlForArchetype, classIconUrlForName } from "@svoverlay/ui-kit/class-display";
+import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import {
@@ -183,6 +184,7 @@ const rpc = DesktopView.defineRPC<OverlayRpc>({
   } },
 });
 const desktopView = new DesktopView({ rpc });
+disableWebChrome();
 void desktopView.rpc?.request.getState({}).then((next) => {
   const repaired = repairRendererPayload(next);
   batch(() => {

@@ -4,6 +4,7 @@ import { useRef } from "preact/hooks";
 import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-chrome";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
+import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { formatBytes, formatMeasuredAt } from "@svoverlay/ui-kit/format";
 import type { LauncherRpc, LauncherState, ToolWindow } from "../../launcher/types.ts";
@@ -27,6 +28,7 @@ const rpc = DesktopView.defineRPC<LauncherRpc>({
 });
 const desktopView = new DesktopView({ rpc });
 
+disableWebChrome();
 void ensureInitialWindowSize(desktopView.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
 
