@@ -22,7 +22,7 @@
     "./disposable-store": "./disposable-store.ts"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-logging": "0.8.0",
+    "@kar-mi/spirit-vale-tools-logging": "0.9.0",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*"
   }
