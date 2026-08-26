@@ -26,7 +26,7 @@ bun run build
 bun run package:portable
 ```
 
-The portable Windows ZIP and SHA-256 file are written to `dist/releases/`. Run `SpiritValeOverlay.exe` from the extracted versioned folder. Its `.spirit-vale-portable` marker keeps logs, settings, WebView2 state, and temporary files beside the app.
+Neutralino writes `apps/desktop/dist/spirit-vale-overlay-release.zip`. Run `spirit-vale-overlay-win_x64.exe` after extracting it. The release contains Neutralino's other platform launchers, but Spirit Vale Overlay currently supports Windows x64 only. Its `.spirit-vale-portable` marker keeps logs, settings, WebView2 state, and temporary files beside the app.
 
 ## Runtime architecture
 

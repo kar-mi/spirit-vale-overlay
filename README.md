@@ -52,11 +52,11 @@ Administrators only** unchecked.
 
 ### Portable release
 
-1. Download the latest `Spirit-Vale-Overlay-portable-win-x64-v*.zip` from [GitHub Releases](https://github.com/kar-mi/spirit-vale-overlay/releases/latest).
+1. Download `spirit-vale-overlay-release.zip` from [GitHub Releases](https://github.com/kar-mi/spirit-vale-overlay/releases/latest).
 2. Extract the complete ZIP.
-3. Run `SpiritValeOverlay.exe`.
+3. Run `spirit-vale-overlay-win_x64.exe`.
 
-The portable app keeps its settings, logs, and writable runtime data inside the extracted folder.
+The Neutralino release contains launchers for every platform supplied by the CLI, but Spirit Vale Overlay currently supports Windows x64 only. The portable app keeps its settings, logs, and writable runtime data inside the extracted folder.
 
 ### Run from source
 

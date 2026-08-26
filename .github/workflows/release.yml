@@ -57,9 +57,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: spirit-vale-overlay-portable-${{ github.run_number }}
-          path: |
-            dist/releases/Spirit-Vale-Overlay-portable-win-x64-v*.zip
-            dist/releases/Spirit-Vale-Overlay-portable-win-x64-v*.zip.sha256
+          path: apps/desktop/dist/spirit-vale-overlay-release.zip
           retention-days: 7
       - name: Create GitHub Release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -68,8 +66,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create $env:GITHUB_REF_NAME `
-            dist/releases/Spirit-Vale-Overlay-portable-win-x64-v*.zip `
-            dist/releases/Spirit-Vale-Overlay-portable-win-x64-v*.zip.sha256 `
+            apps/desktop/dist/spirit-vale-overlay-release.zip `
             --verify-tag `
             --generate-notes `
             --title "Spirit Vale Overlay $env:GITHUB_REF_NAME"

@@ -6,7 +6,6 @@
       "name": "spirit-vale-overlay",
       "devDependencies": {
         "@types/bun": "1.4.0",
-        "resedit": "3.0.2",
         "typescript": "7.0.2",
       },
     },
@@ -330,7 +329,7 @@
 
     "path-is-absolute": ["path-is-absolute@1.0.1", "", {}, "sha512-AVbw3UJ2e9bq64vSaS9Am0fje1Pa8pbGqTTsmXfaIiMpnr5DlDhfJOuLj9Sf95ZPVDAUerDfEk88MPmPe7UCQg=="],
 
-    "pe-library": ["pe-library@2.0.1", "", {}, "sha512-/qjYFqNSlq59B5DI36am++5/3gMgh02QnzpYigrwrW6s+QpU0mHf09/iA4wjTu21UUxodyV7ZCetV5MiDhaN/A=="],
+    "pe-library": ["pe-library@1.0.1", "", {}, "sha512-nh39Mo1eGWmZS7y+mK/dQIqg7S1lp38DpRxkyoHf0ZcUs/HDc+yyTjuOtTvSMZHmfSLuSQaX945u05Y2Q6UWZg=="],
 
     "pend": ["pend@1.2.0", "", {}, "sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg=="],
 
@@ -346,7 +345,7 @@
 
     "recursive-readdir": ["recursive-readdir@2.2.3", "", { "dependencies": { "minimatch": "^3.0.5" } }, "sha512-8HrF5ZsXk5FAH9dgsx3BlUer73nIhuj+9OrQwEbLTPOBzGkL1lsFCR01am+v+0m2Cmbs1nP12hLDl5FA7EszKA=="],
 
-    "resedit": ["resedit@3.0.2", "", { "dependencies": { "pe-library": "^2.0.1" } }, "sha512-FnqVDJYX4etlEnz2AaJYE1c1FTcgrsHiI2U4DXRxO4CIzbGP7r0jml9uZIMlvzCom2pbBLZjIhF26wj92y1cVQ=="],
+    "resedit": ["resedit@2.0.3", "", { "dependencies": { "pe-library": "^1.0.1" } }, "sha512-oTeemxwoMuxxTYxXUwjkrOPfngTQehlv0/HoYFNkB4uzsP1Un1A9nI8JQKGOFkxpqkC7qkMs0lUsGrvUlbLNUA=="],
 
     "semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
@@ -395,10 +394,6 @@
     "zip-lib": ["zip-lib@1.4.0", "", { "dependencies": { "yauzl": "^3.4.0", "yazl": "^3.3.1" } }, "sha512-ZRdZqCUW/f9PmQXEYJZL5aI1ElWpOUG3J7TpJc4FqliT3mEUVw6lNRFZGym85+N35tTheO2B/WN/+oAY1QVyrA=="],
 
     "@electron/asar/commander": ["commander@5.1.0", "", {}, "sha512-P0CysNDQ7rtVw4QIQtm+MRxV66vKFSvlsQvGYXZWR3qFU0jlMKHZZZgw8e+8DSah4UDKMqnknRDQz+xuQXQ/Zg=="],
-
-    "@neutralinojs/neu/pe-library": ["pe-library@1.0.1", "", {}, "sha512-nh39Mo1eGWmZS7y+mK/dQIqg7S1lp38DpRxkyoHf0ZcUs/HDc+yyTjuOtTvSMZHmfSLuSQaX945u05Y2Q6UWZg=="],
-
-    "@neutralinojs/neu/resedit": ["resedit@2.0.3", "", { "dependencies": { "pe-library": "^1.0.1" } }, "sha512-oTeemxwoMuxxTYxXUwjkrOPfngTQehlv0/HoYFNkB4uzsP1Un1A9nI8JQKGOFkxpqkC7qkMs0lUsGrvUlbLNUA=="],
 
     "postject/commander": ["commander@9.5.0", "", {}, "sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ=="],
 

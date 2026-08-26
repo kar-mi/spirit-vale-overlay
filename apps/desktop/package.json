@@ -7,7 +7,7 @@
     "update": "neu update",
     "dev": "bun run prepare && neu build && bun run src/dev.ts",
     "build": "bun run prepare && neu build",
-    "package": "bun run build && bun run src/package-portable.ts",
+    "package": "bun run prepare && neu build --clean --release",
     "test": "bun test src"
   },
   "dependencies": {
