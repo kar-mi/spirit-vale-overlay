@@ -13,7 +13,7 @@
     "apps/desktop": {
       "name": "@svoverlay/desktop",
       "dependencies": {
-        "@kar-mi/spirit-vale-tools-capture": "2.4.0",
+        "@kar-mi/spirit-vale-tools-capture": "2.4.1",
         "@neutralinojs/lib": "6.9.0",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
@@ -28,7 +28,7 @@
     "apps/launcher": {
       "name": "@svoverlay/launcher",
       "dependencies": {
-        "@kar-mi/spirit-vale-tools-capture": "2.4.0",
+        "@kar-mi/spirit-vale-tools-capture": "2.4.1",
         "@kar-mi/spirit-vale-tools-character": "0.5.0",
         "@kar-mi/spirit-vale-tools-combat": "3.3.5",
         "@kar-mi/spirit-vale-tools-items": "0.1.9",
@@ -130,7 +130,7 @@
   "packages": {
     "@electron/asar": ["@electron/asar@3.4.1", "", { "dependencies": { "commander": "^5.0.0", "glob": "^7.1.6", "minimatch": "^3.0.4" }, "bin": { "asar": "bin/asar.js" } }, "sha512-i4/rNPRS84t0vSRa2HorerGRXWyF4vThfHesw0dmcWHp+cspK743UanA0suA5Q5y8kzY2y6YKrvbIUn69BCAiA=="],
 
-    "@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.4.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/2.4.0/daffc42c32442acff767cabd57e18f6b12fcec04", {}, "sha512-zbDYBDenQ0qrOyKIxuRTywZIEoWz96iAaZ0xZ4bZNd5aPA3uWtKWDwSRvZJ9KRik/HLjonvUCcwBI+tcD4ZI7w=="],
+    "@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.4.1", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-capture/2.4.1/413755e075fd311cce9ae68080b9bd8a5f307249", {}, "sha512-/poWX+3zZpp40bzmzOh54fcavgV3OBZ4Mjs1RAldmXeAXyYUzrUtBNkJbxHTpaeZYHMEaMhXh3Tf+dofmBpVGQ=="],
 
     "@kar-mi/spirit-vale-tools-character": ["@kar-mi/spirit-vale-tools-character@0.5.0", "https://npm.pkg.github.com/download/@kar-mi/spirit-vale-tools-character/0.5.0/14a52f85299261acc88e568c60d053cfacd9af01", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.4.0", "@kar-mi/spirit-vale-tools-items": "^0.1.8", "@kar-mi/spirit-vale-tools-skills": "^0.2.1" } }, "sha512-uVgGSCb0zJVScmdNtSXhNrT/omUVNCReijTIs/rB9OYTtTKD9yp6kL8u6yIrzha9+gIMoFo6iOrvSStoTzZcsg=="],
 
