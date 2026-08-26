@@ -50,6 +50,44 @@ describe("local character router", () => {
     ]);
   });
 
+  test("promotes spawn-embedded resources when the first outbound RPC proves the local object", () => {
+    const router = new LocalCharacterRouter();
+    router.consumeAdmitted(packet("objectSpawn", "conn-a", {
+      objectId: 202,
+      spawnSyncEntries: [
+        spawnEntry("HealthComponent", "healthSync", 750),
+        spawnEntry("HealthComponent", "maxHealthSync", 1_000),
+        spawnEntry("SkillsComponent", "manaSync", 120),
+        spawnEntry("SkillsComponent", "maxManaSync", 240),
+        spawnEntry("MoveComponent", "MoveSpeed", 8.925),
+      ],
+    }));
+
+    expect(router.state().records).toBeUndefined();
+    router.consumeAdmitted(packet("serverRpc", "conn-a", { objectId: 202 }));
+
+    expect(router.physicalObjectId()).toBe(202);
+    expect(router.state().records).toMatchObject({
+      currentHealth: 750,
+      maxHealth: 1_000,
+      currentMana: 120,
+      maxMana: 240,
+      moveSpeed: 8.925,
+    });
+  });
+
+  test("does not promote a different object's spawn resources", () => {
+    const router = new LocalCharacterRouter();
+    router.consumeAdmitted(packet("objectSpawn", "conn-a", {
+      objectId: 101,
+      spawnSyncEntries: [spawnEntry("SkillsComponent", "maxManaSync", 999)],
+    }));
+
+    router.consumeAdmitted(packet("serverRpc", "conn-a", { objectId: 202 }));
+
+    expect(router.state().records).toBeUndefined();
+  });
+
   test("contains tracker failures and reports the original packet", () => {
     const tracker = new FakeCharacterTracker();
     const failure = new Error("bad character payload");
@@ -79,6 +117,8 @@ class FakeCharacterTracker {
     this.packets.push(packet);
     return true;
   }
+
+  rekeyPendingObject(_connectionId: string, _fromObjectId: number, _toObjectId: number): void {}
 
   current(): CharacterSnapshot | undefined {
     return this.snapshot;
@@ -121,4 +161,14 @@ function packet(
     connectionId,
     ...extra,
   } as CapturedFishNetPacket;
+}
+
+function spawnEntry(networkBehaviourType: string, name: string, value: number) {
+  return {
+    componentIndex: 0,
+    networkBehaviourType,
+    index: 0,
+    name,
+    fields: [{ name, typeName: "Synthetic", codec: "packedInt32" as const, value }],
+  };
 }

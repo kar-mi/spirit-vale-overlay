@@ -8,7 +8,7 @@ const ACTIVE_CHARACTER_OBJECT_ID = -1;
 
 type CharacterTracker = Pick<
   FishNetCharacterTracker,
-  "consume" | "current" | "currentArchetypeId" | "setCached" | "state" | "subscribe"
+  "consume" | "current" | "currentArchetypeId" | "rekeyPendingObject" | "setCached" | "state" | "subscribe"
 >;
 
 interface LocalCharacterRouterOptions {
@@ -70,6 +70,13 @@ export class LocalCharacterRouter {
             ...(localObjectPacket ? { objectId: ACTIVE_CHARACTER_OBJECT_ID } : {}),
           }
         : packet;
+      if (normalizeConnection && packet.packetName === "serverRpc" && packet.objectId !== undefined) {
+        this.tracker.rekeyPendingObject(
+          ACTIVE_CHARACTER_CONNECTION_ID,
+          packet.objectId,
+          ACTIVE_CHARACTER_OBJECT_ID,
+        );
+      }
       const handled = this.tracker.consume(characterPacket);
       if (packet.packetName === "serverRpc" && packet.objectId !== undefined) {
         this.physicalPlayerObjectId = packet.objectId;
