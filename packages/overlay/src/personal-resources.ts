@@ -10,8 +10,8 @@ export interface PersonalResources {
 export function personalResources(records: CharacterRecordValues | undefined): PersonalResources {
   if (!records) return {};
   return {
-    ...resource("health", records.currentHealth, records.maxHealth),
-    ...resource("mana", records.currentMana, records.maxMana),
+    ...resource("health", records.currentHealth, records.maxHealth ?? records.normalizedMaxHp),
+    ...resource("mana", records.currentMana, records.maxMana ?? records.normalizedMaxMp),
   };
 }
 
