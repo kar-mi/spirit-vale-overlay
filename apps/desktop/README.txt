@@ -10,4 +10,4 @@ Portable data stays in this folder:
 
 The portable marker keeps these files out of Windows AppData.
 
-The other platform launchers in this Neutralino release are not supported by Spirit Vale Overlay.
+This release supports Windows x64 only.

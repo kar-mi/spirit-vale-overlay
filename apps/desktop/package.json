@@ -7,7 +7,7 @@
     "update": "neu update",
     "dev": "bun run prepare && neu build && bun run src/dev.ts",
     "build": "bun run prepare && neu build",
-    "package": "bun run prepare && neu build --clean --release",
+    "package": "bun run prepare && bun run src/select-windows-release-binaries.ts && neu build --clean --release",
     "test": "bun test src"
   },
   "dependencies": {

@@ -42,12 +42,6 @@ const requiredPaths = [
   "extensions/backend/index.js.map",
   "extensions/bin/bun.exe",
   "extensions/bin/sv-overlay-hotkeys.exe",
-  "spirit-vale-overlay-linux_arm64",
-  "spirit-vale-overlay-linux_armhf",
-  "spirit-vale-overlay-linux_x64",
-  "spirit-vale-overlay-mac_arm64",
-  "spirit-vale-overlay-mac_universal",
-  "spirit-vale-overlay-mac_x64",
   "spirit-vale-overlay-win_x64.exe",
 ] as const;
 
@@ -58,6 +52,12 @@ const forbiddenPaths = [
   "neutralinojs.log",
   "error.log",
   "data",
+  "spirit-vale-overlay-linux_arm64",
+  "spirit-vale-overlay-linux_armhf",
+  "spirit-vale-overlay-linux_x64",
+  "spirit-vale-overlay-mac_arm64",
+  "spirit-vale-overlay-mac_universal",
+  "spirit-vale-overlay-mac_x64",
   "bin/launcher.exe",
   "Resources/main.js",
   "Resources/build.json",
@@ -107,7 +107,7 @@ function toWindowsFileVersion(semanticVersion: string): string {
     .join(".");
 }
 
-if (!existsSync(zipPath)) throw new Error(`Missing Neutralino release ZIP: ${zipPath}`);
+if (!existsSync(zipPath)) throw new Error(`Missing Neutralino Windows release ZIP: ${zipPath}`);
 
 await rm(checkRoot, { recursive: true, force: true });
 await mkdir(checkRoot, { recursive: true });
@@ -119,12 +119,12 @@ run("powershell", [
 
 for (const relativePath of requiredPaths) {
   if (!existsSync(path.join(checkRoot, relativePath))) {
-    throw new Error(`Neutralino release ZIP is missing required path: ${relativePath}`);
+    throw new Error(`Neutralino Windows release ZIP is missing required path: ${relativePath}`);
   }
 }
 for (const relativePath of forbiddenPaths) {
   if (existsSync(path.join(checkRoot, relativePath))) {
-    throw new Error(`Neutralino release ZIP contains forbidden path: ${relativePath}`);
+    throw new Error(`Neutralino Windows release ZIP contains forbidden path: ${relativePath}`);
   }
 }
 
@@ -167,9 +167,9 @@ for (const expected of [
   "data\\runtime\\",
   "out of Windows AppData",
   "Npcap",
-  "not supported",
+  "Windows x64 only",
 ]) {
   if (!readme.includes(expected)) throw new Error(`Portable README is missing expected text: ${expected}`);
 }
 
-console.log(`Neutralino release ZIP verified: ${zipPath}`);
+console.log(`Neutralino Windows release ZIP verified: ${zipPath}`);

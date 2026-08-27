@@ -18,7 +18,7 @@
    git tag app-vX.Y.Z && git push origin app-vX.Y.Z
    ```
 
-3. The release workflow validates the tag, type-checks, tests, builds and verifies Neutralino's portable release ZIP, then publishes it in a GitHub Release. No separate `gh release create` command is needed.
+3. The release workflow validates the tag, type-checks, tests, builds and verifies Neutralino's Windows-x64 portable release ZIP, then publishes it as `spirit-vale-overlay-windows-x64-vX.Y.Z.zip` in a GitHub Release. No separate `gh release create` command is needed.
 4. Confirm that the tagged workflow run and GitHub Release completed successfully. The pushed tag is not immutable by itself; GitHub locks it to its commit when the workflow publishes the release.
 
 After publication, the release tag cannot be moved or deleted while the release exists, and its ZIP asset cannot be replaced or removed. The release title and notes remain editable. If a release must be corrected, publish a new version and tag instead of attempting to replace its artifacts.
