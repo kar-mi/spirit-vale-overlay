@@ -637,7 +637,7 @@ async function exportSettingAndNotify(kind: SettingsKind): Promise<void> {
 }
 
 function openSettingsDataFolder(): void {
-  Utils.showItemInFolder(path.dirname(storagePaths.launcherSettingsPath));
+  Utils.showItemInFolder(storagePaths.launcherSettingsPath);
 }
 
 async function resetSettingsAndClose(): Promise<void> {

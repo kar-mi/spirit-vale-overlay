@@ -1,6 +1,16 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
+export const appDataDirectoryName = "Spirit Vale Overlay";
+
+type Environment = Record<string, string | undefined>;
+
+export interface LocalStorageRootOptions {
+  readonly environment?: Environment;
+  readonly executablePath?: string;
+  readonly findWorkspaceRoot?: () => string | undefined;
+}
+
 function findWorkspaceRoot(): string | undefined {
   let current = process.cwd();
   while (true) {
@@ -17,14 +27,20 @@ export function resolveWorkspaceRoot(): string | undefined {
   return findWorkspaceRoot();
 }
 
-export function resolveLocalStorageRoot(): string {
-  const portableRoot = process.env.SPIRIT_VALE_PORTABLE_ROOT?.trim();
+export function resolveLocalStorageRoot(options: LocalStorageRootOptions = {}): string {
+  const environment = options.environment ?? process.env;
+  const portableRoot = environment.SPIRIT_VALE_PORTABLE_ROOT?.trim();
   if (portableRoot) return path.resolve(portableRoot);
 
-  const workspaceRoot = findWorkspaceRoot();
+  const workspaceRoot = environment.SPIRIT_VALE_PACKAGED === "1"
+    ? undefined
+    : (options.findWorkspaceRoot ?? findWorkspaceRoot)();
   if (workspaceRoot) return workspaceRoot;
 
-  const executableDirectory = path.dirname(process.execPath);
+  const appDataRoot = environment.APPDATA?.trim() || environment.LOCALAPPDATA?.trim();
+  if (appDataRoot) return path.resolve(appDataRoot, appDataDirectoryName);
+
+  const executableDirectory = path.dirname(options.executablePath ?? process.execPath);
   return path.basename(executableDirectory).toLowerCase() === "bin"
     ? path.dirname(executableDirectory)
     : executableDirectory;

@@ -166,6 +166,9 @@ for (const expected of [
   "data\\logs\\",
   "data\\runtime\\",
   "out of Windows AppData",
+  "Delete .spirit-vale-portable",
+  "%APPDATA%\\Spirit Vale Overlay\\data\\",
+  "does not move existing portable data",
   "Npcap",
   "Windows x64 only",
 ]) {

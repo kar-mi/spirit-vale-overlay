@@ -39,6 +39,8 @@ logBackend("desktop extension process started");
 watchOwningProcess();
 if (existsSync(path.join(neutralinoRoot, ".spirit-vale-portable"))) {
   await configurePortableEnvironment({ executablePath: path.join(neutralinoRoot, "bin", "spirit-vale-overlay-win_x64.exe") });
+} else {
+  process.env.SPIRIT_VALE_PACKAGED = "1";
 }
 process.env.SPIRIT_VALE_HOTKEY_HELPER ??= path.join(neutralinoRoot, "extensions", "bin", "sv-overlay-hotkeys.exe");
 
