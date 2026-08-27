@@ -56,7 +56,15 @@ Administrators only** unchecked.
 2. Extract the complete ZIP.
 3. Run `spirit-vale-overlay-win_x64.exe`.
 
-The portable app supports Windows x64 and keeps its settings, logs, and writable runtime data inside the extracted folder.
+The portable app supports Windows x64 and, by default, keeps its settings, logs, and writable runtime data inside the extracted folder.
+
+To store data in Windows AppData instead:
+
+1. Close Spirit Vale Overlay completely.
+2. Delete `.spirit-vale-portable` from the extracted application folder.
+3. Restart the app. New data will be stored under `%APPDATA%\Spirit Vale Overlay\data`.
+
+Deleting the marker does not move existing portable data. To keep your current settings, open **Settings > Manage Settings** before deleting it and export them, then import them after restarting. You can also import directly from the old extracted folder's `data` directory.
 
 ### Run from source
 
