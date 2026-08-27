@@ -38,11 +38,11 @@ process.on("SIGTERM", releaseOwner);
 logBackend("desktop extension process started");
 watchOwningProcess();
 if (existsSync(path.join(neutralinoRoot, ".spirit-vale-portable"))) {
-  await configurePortableEnvironment({ executablePath: path.join(neutralinoRoot, "bin", "SpiritValeOverlay.exe") });
+  await configurePortableEnvironment({ executablePath: path.join(neutralinoRoot, "bin", "spirit-vale-overlay-win_x64.exe") });
 }
 process.env.SPIRIT_VALE_HOTKEY_HELPER ??= path.join(neutralinoRoot, "extensions", "bin", "sv-overlay-hotkeys.exe");
 
-await initializeNeutralinoRuntime({ version: "0.10.2" });
+await initializeNeutralinoRuntime({ version: "0.10.3" });
 logBackend("Neutralino runtime initialized");
 await import("../../../launcher/src/desktop/desktop.ts");
 

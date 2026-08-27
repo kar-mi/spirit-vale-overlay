@@ -1,7 +1,12 @@
 {
   "$schema": "https://raw.githubusercontent.com/neutralinojs/neutralinojs/main/schemas/neutralino.config.schema.json",
   "applicationId": "dev.spiritvale.overlay",
-  "version": "0.10.2",
+  "version": "0.10.3",
+  "applicationName": "Spirit Vale Overlay",
+  "author": "kar-mi",
+  "description": "Spirit Vale Overlay",
+  "copyright": "Copyright (C) 2026 kar-mi. Licensed under the GNU AGPL v3.",
+  "applicationIcon": "resources/views/assets/app-icon.png",
   "defaultMode": "window",
   "port": 0,
   "enableServer": true,
@@ -53,6 +58,10 @@
     "resourcesPath": "resources",
     "extensionsPath": "extensions",
     "binaryName": "spirit-vale-overlay",
-    "distributionPath": "dist"
+    "distributionPath": "dist",
+    "copyItems": [
+      ".spirit-vale-portable",
+      "README.txt"
+    ]
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "spirit-vale-overlay",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -20,7 +20,6 @@
   },
   "devDependencies": {
     "@types/bun": "1.4.0",
-    "resedit": "3.0.2",
     "typescript": "7.0.2"
   },
   "engines": {
