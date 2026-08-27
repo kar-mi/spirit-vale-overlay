@@ -59,7 +59,7 @@ jobs:
           $releaseDirectory = Join-Path $env:GITHUB_WORKSPACE "dist/releases"
           New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null
           $asset = Join-Path $releaseDirectory "spirit-vale-overlay-windows-x64-v$($package.version).zip"
-          Copy-Item -LiteralPath "apps/desktop/dist/spirit-vale-overlay-release.zip" -Destination $asset -Force
+          Copy-Item -LiteralPath "apps/desktop/dist/spirit-vale-overlay-windows-x64-v$($package.version).zip" -Destination $asset -Force
       - name: Upload dry-run artifact
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
