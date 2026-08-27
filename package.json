@@ -20,7 +20,8 @@
   },
   "devDependencies": {
     "@types/bun": "1.4.0",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "zip-lib": "1.4.0"
   },
   "engines": {
     "bun": ">=1.4.0"

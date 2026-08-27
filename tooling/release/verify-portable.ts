@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 interface PackageJson {
@@ -30,7 +30,8 @@ if (neutralinoConfig.version !== version) {
   throw new Error(`neutralino.config.json version ${neutralinoConfig.version ?? "missing"} does not match ${version}.`);
 }
 
-const defaultZip = path.join(appRoot, "dist", "spirit-vale-overlay-release.zip");
+const bundleName = `spirit-vale-overlay-windows-x64-v${version}`;
+const defaultZip = path.join(appRoot, "dist", `${bundleName}.zip`);
 const zipPath = path.resolve(projectRoot, Bun.argv[2] ?? defaultZip);
 const checkRoot = path.join(projectRoot, "dist", "portable-check");
 
@@ -117,18 +118,26 @@ run("powershell", [
   `Expand-Archive -LiteralPath '${zipPath.replaceAll("'", "''")}' -DestinationPath '${checkRoot.replaceAll("'", "''")}' -Force`,
 ]);
 
+const topLevelEntries = await readdir(checkRoot);
+if (topLevelEntries.length !== 1 || topLevelEntries[0] !== bundleName) {
+  throw new Error(
+    `Portable ZIP must contain only the top-level folder ${bundleName}; found: ${topLevelEntries.join(", ") || "nothing"}.`,
+  );
+}
+const bundleRoot = path.join(checkRoot, bundleName);
+
 for (const relativePath of requiredPaths) {
-  if (!existsSync(path.join(checkRoot, relativePath))) {
+  if (!existsSync(path.join(bundleRoot, relativePath))) {
     throw new Error(`Neutralino Windows release ZIP is missing required path: ${relativePath}`);
   }
 }
 for (const relativePath of forbiddenPaths) {
-  if (existsSync(path.join(checkRoot, relativePath))) {
+  if (existsSync(path.join(bundleRoot, relativePath))) {
     throw new Error(`Neutralino Windows release ZIP contains forbidden path: ${relativePath}`);
   }
 }
 
-const executablePath = path.join(checkRoot, "spirit-vale-overlay-win_x64.exe");
+const executablePath = path.join(bundleRoot, "spirit-vale-overlay-win_x64.exe");
 const metadata = readVersionInfo(executablePath);
 const expectedEntries = {
   CompanyName: neutralinoConfig.author,
@@ -146,7 +155,7 @@ for (const [key, expected] of Object.entries(expectedEntries)) {
   }
 }
 
-const bunExecutable = path.join(checkRoot, "extensions", "bin", "bun.exe");
+const bunExecutable = path.join(bundleRoot, "extensions", "bin", "bun.exe");
 const bunSignature = readAuthenticodeSignature(bunExecutable);
 if (bunSignature.Status !== "Valid") {
   throw new Error(`Portable Bun runtime has Authenticode status ${bunSignature.Status}, expected Valid.`);
@@ -159,7 +168,7 @@ if (bundledBunVersion !== bunVersion) {
   throw new Error(`Portable Bun runtime is ${bundledBunVersion}, expected ${bunVersion}.`);
 }
 
-const readme = await readFile(path.join(checkRoot, "README.txt"), "utf8");
+const readme = await readFile(path.join(bundleRoot, "README.txt"), "utf8");
 for (const expected of [
   "run \"spirit-vale-overlay-win_x64.exe\"",
   "data\\settings\\",
