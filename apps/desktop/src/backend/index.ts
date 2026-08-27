@@ -42,7 +42,7 @@ if (existsSync(path.join(neutralinoRoot, ".spirit-vale-portable"))) {
 }
 process.env.SPIRIT_VALE_HOTKEY_HELPER ??= path.join(neutralinoRoot, "extensions", "bin", "sv-overlay-hotkeys.exe");
 
-await initializeNeutralinoRuntime({ version: "0.10.2" });
+await initializeNeutralinoRuntime({ version: "0.10.3" });
 logBackend("Neutralino runtime initialized");
 await import("../../../launcher/src/desktop/desktop.ts");
 
