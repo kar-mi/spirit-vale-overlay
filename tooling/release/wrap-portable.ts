@@ -10,9 +10,18 @@ interface PackageJson {
 
 const projectRoot = path.resolve(import.meta.dir, "..", "..");
 const appDist = path.join(projectRoot, "apps", "desktop", "dist");
-const packageJson = JSON.parse(
-  await readFile(path.join(projectRoot, "package.json"), "utf8"),
-) as PackageJson;
+
+const f = await readFile(path.join(projectRoot, "package.json"), "utf8");
+
+console.log(f);
+let packageJson: PackageJson | undefined;
+
+try {
+  packageJson = JSON.parse(f) as PackageJson;
+} catch (err) {
+  throw new Error(`Error: ${err} ${f}`);
+}
+
 
 if (!packageJson.version) throw new Error("package.json must define a version before packaging.");
 

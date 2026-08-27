@@ -20,7 +20,8 @@ export function backendConnectionFromSearch(search: string): BackendReady | unde
       const connection = JSON.parse(atob(base64)) as Partial<BackendReady>;
       const valid = validConnection(connection.port, connection.ticket);
       if (valid) return valid;
-    } catch {
+    } catch (err) {
+      console.error("Error: ", err);
       // Fall through to legacy parameters for an already-open development window.
     }
   }

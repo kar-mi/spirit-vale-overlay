@@ -6,13 +6,19 @@ import { initializeNeutralinoRuntime, terminateAllWindowProcesses } from "../fro
 import { claimBackendOwner, readOwner, releaseBackendOwner } from "./backend-owner.ts";
 import { findProcessEntry } from "./win32.ts";
 
+console.log("hello from ./desktop/src/backend/index.ts");
+
 const neutralinoRoot = path.resolve(import.meta.dir, "../..");
 const backendLog = path.join(neutralinoRoot, "neutralino-backend.log");
 const ownerFile = path.join(neutralinoRoot, ".neutralino-backend-owner.json");
 
 function logBackend(message: string): void {
-  try { appendFileSync(backendLog, `${new Date().toISOString()} ${message}\n`); } catch {}
+  console.log("hello from ./desktop/src/backend/index.ts", message);
+
+  try { appendFileSync(backendLog, `${new Date().toISOString()} ${message}\n`); } catch (err) {}
 }
+
+logBackend("hello from ./desktop/src/backend/index.ts");
 
 process.on("uncaughtException", (error) => logBackend(`uncaughtException: ${error?.stack ?? error}`));
 process.on("unhandledRejection", (error) => logBackend(`unhandledRejection: ${error instanceof Error ? error.stack : String(error)}`));

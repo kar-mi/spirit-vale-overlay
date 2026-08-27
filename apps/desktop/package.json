@@ -4,10 +4,10 @@
   "type": "module",
   "scripts": {
     "prepare": "bun run src/build.ts",
-    "update": "neu update",
-    "dev": "bun run prepare && neu build && bun run src/dev.ts",
-    "build": "bun run prepare && neu build",
-    "package": "bun run prepare && bun run src/select-windows-release-binaries.ts && neu build --clean --release && bun run ../../tooling/release/wrap-portable.ts",
+    "update": "bunx neu update",
+    "dev": "bun run prepare && bunx neu build && bun run src/dev.ts",
+    "build": "bun run prepare && bunx neu build",
+    "package": "bun run prepare && bun run src/select-windows-release-binaries.ts && bunx neu build --clean --release && bun run ../../tooling/release/wrap-portable.ts",
     "test": "bun test src"
   },
   "dependencies": {
@@ -21,5 +21,8 @@
   },
   "devDependencies": {
     "@neutralinojs/neu": "11.7.2"
+  },
+  "overrides": {
+    "@kar-mi/spirit-vale-tools-capture": "file:/home/anon/Projects/spirit-vale-tools/packages/capture"
   }
 }
