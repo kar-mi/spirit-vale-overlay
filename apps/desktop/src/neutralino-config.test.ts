@@ -25,7 +25,12 @@ describe("Neutralino configuration", () => {
     );
 
     expect(backend?.commandWindows).toBe(
-      "${NL_PATH}/extensions/bin/bun.exe --no-orphans ${NL_PATH}/extensions/backend/index.js",
+      "\"${NL_PATH}/extensions/bin/bun.exe\" --no-orphans \"${NL_PATH}/extensions/backend/index.js\"",
+    );
+
+    const localizedPath = "C:/Users/Zoë 李/Spirit & Vale (portable)";
+    expect(backend?.commandWindows?.replaceAll("${NL_PATH}", localizedPath)).toBe(
+      `"${localizedPath}/extensions/bin/bun.exe" --no-orphans "${localizedPath}/extensions/backend/index.js"`,
     );
   });
 

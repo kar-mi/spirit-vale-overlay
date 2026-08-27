@@ -33,7 +33,7 @@
   "extensions": [
     {
       "id": "dev.spiritvale.backend",
-      "commandWindows": "${NL_PATH}/extensions/bin/bun.exe --no-orphans ${NL_PATH}/extensions/backend/index.js"
+      "commandWindows": "\"${NL_PATH}/extensions/bin/bun.exe\" --no-orphans \"${NL_PATH}/extensions/backend/index.js\""
     }
   ],
   "modes": {
