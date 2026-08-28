@@ -12,6 +12,8 @@ import {
   setOverlayWindowVisible,
 } from "../backend/win32.ts";
 
+console.log("hello from ./desktop/frontend/runtime.ts");
+
 type Frame = { x: number; y: number; width: number; height: number };
 type Handler = (...args: unknown[]) => void;
 
@@ -67,8 +69,15 @@ export function terminateAllWindowProcesses(): void {
 
 export async function initializeNeutralinoRuntime(options: { version: string }): Promise<void> {
   appVersion = options.version;
+
+  console.log("native = await NeutralinoClient.fromStdin();");
   native = await NeutralinoClient.fromStdin();
+  console.log(":", native);
+
+  console.log("server = new DesktopRpcServer();");
   server = new DesktopRpcServer();
+  console.log(":", server);
+
   server.onSession = attachSession;
   server.onClose = detachSession;
   server.onWindowEvent = receiveWindowEvent;
@@ -88,6 +97,9 @@ export async function initializeNeutralinoRuntime(options: { version: string }):
 async function announceLauncher(): Promise<void> {
   if (!native || !server || launcherSession || shuttingDown) return;
   const ticket = server.issueWindow("launcher");
+
+  console.log("announceLauncher()");
+
   await native.call("app.broadcast", { event: "desktopBackendReady", data: { port: server.port, ticket } });
 }
 

@@ -33,6 +33,7 @@
   "extensions": [
     {
       "id": "dev.spiritvale.backend",
+      "commandLinux": "\"${NL_PATH}/extensions/bin/bun\" --no-orphans \"${NL_PATH}/extensions/backend/index.js\"",
       "commandWindows": "\"${NL_PATH}/extensions/bin/bun.exe\" --no-orphans \"${NL_PATH}/extensions/backend/index.js\""
     }
   ],
@@ -49,7 +50,8 @@
       "injectGlobals": true,
       "injectClientLibrary": false,
       "useLogicalPixels": false,
-      "icon": "/resources/views/assets/app-icon.png"
+      "icon": "/resources/views/assets/app-icon.png",
+      "enableInspector": true
     }
   },
   "cli": {

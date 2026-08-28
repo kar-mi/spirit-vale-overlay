@@ -57,6 +57,8 @@ import { findAvailableUpdate } from "../launcher/update-check.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { HumanReadableErrorLog } from "./human-readable-error-log.ts";
 
+console.log("Hello from ./launcher/src/desktop/desktop.ts");
+
 makeProcessDpiAware();
 
 const localRoot = resolveLocalRoot();

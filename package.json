@@ -26,5 +26,8 @@
   "engines": {
     "bun": ">=1.4.0"
   },
-  "packageManager": "bun@1.4.0"
+  "packageManager": "bun@1.4.0",
+  "overrides": {
+    "@kar-mi/spirit-vale-tools-capture": "file:/home/anon/Projects/spirit-vale-tools/packages/capture"
+  }
 }

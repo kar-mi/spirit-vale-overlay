@@ -43,19 +43,33 @@ await Promise.all([
   cp(path.join(workspace, "apps/launcher/assets/status-icons"), path.join(assets, "status-icons"), { recursive: true }),
 ]);
 
-await copyFile(process.execPath, path.join(bin, "bun.exe"));
-if (process.platform === "win32") {
-  const helper = Bun.spawn([
-    "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-    "-File", path.join(workspace, "tooling/release/build-pass-through-shortcuts.ps1"),
-    "-OutputPath", path.join(bin, "sv-overlay-hotkeys.exe"),
-  ], { stdout: "inherit", stderr: "inherit" });
-  if (await helper.exited !== 0) throw new Error("Could not build the pass-through hotkey helper.");
+console.log("Copying bun from:", process.execPath);
+console.log("Copying bun to:", bin);
+switch (process.platform) {
+  case "win32": await copyFile(process.execPath, path.join(bin, "bun.exe")); break;
+  case "linux": await copyFile(process.execPath, path.join(bin, "bun")); break;
+  default: console.warn("[WARN] Copying bun.exe, not yet implemented for this platform:", process.platform, bin);
+}
+console.log("Copyed bun...", bin);
+
+switch (process.platform) {
+  case "win32":
+    const helper = Bun.spawn([
+      "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+      "-File", path.join(workspace, "tooling/release/build-pass-through-shortcuts.ps1"),
+      "-OutputPath", path.join(bin, "sv-overlay-hotkeys.exe"),
+    ], { stdout: "inherit", stderr: "inherit" });
+    if (await helper.exited !== 0) throw new Error("Could not build the pass-through hotkey helper.");
+    break;
+  default: console.warn("[WARN] pass-through hotkey helper, not yet implemented for platform, hotkeys may not work!:", process.platform); break;
 }
 console.log(`Neutralino desktop app prepared in ${appRoot}`);
 
 async function buildView(name: string, source: string): Promise<void> {
   const destination = path.join(views, name);
+
+  console.log("Building", destination);
+
   await mkdir(destination, { recursive: true });
   await build({
     entrypoint: path.join(source, "index.tsx"),
