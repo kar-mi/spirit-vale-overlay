@@ -19,14 +19,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.0
-      - name: Configure GitHub Packages registry
-        shell: pwsh
-        run: |
-          '@kar-mi:registry=https://npm.pkg.github.com' | Out-File -FilePath .npmrc -Encoding ascii
-          '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' | Add-Content -Path .npmrc -Encoding ascii
       - name: Install Bun dependencies
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
         run: bun install --frozen-lockfile --verbose
       - name: Check dependency deduplication
         run: bun dedupe --check
