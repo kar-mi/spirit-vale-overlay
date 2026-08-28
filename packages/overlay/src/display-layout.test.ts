@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  constrainRectToBounds,
   displayForRect,
   displayKey,
   displaysNeedingSurface,
@@ -16,6 +17,34 @@ const secondary: OverlayDisplay = { bounds: { x: 1920, y: -120, width: 2560, hei
 const displays = [primary, secondary];
 const primaryKey = displayKey(primary);
 const secondaryKey = displayKey(secondary);
+
+describe("rectangle constraints", () => {
+  const bounds = { x: 0, y: 0, width: 1280, height: 720 };
+
+  test("moves left and top overflow back to the display origin", () => {
+    expect(constrainRectToBounds({ x: -40, y: -25, width: 200, height: 120 }, bounds))
+      .toEqual({ x: 0, y: 0, width: 200, height: 120 });
+  });
+
+  test("uses the complete rectangle for right and bottom overflow", () => {
+    expect(constrainRectToBounds({ x: 1200, y: 680, width: 200, height: 120 }, bounds))
+      .toEqual({ x: 1080, y: 600, width: 200, height: 120 });
+  });
+
+  test("restores a completely off-screen rectangle and leaves valid positions alone", () => {
+    expect(constrainRectToBounds({ x: 5000, y: 5000, width: 200, height: 120 }, bounds))
+      .toEqual({ x: 1080, y: 600, width: 200, height: 120 });
+    expect(constrainRectToBounds({ x: 40, y: 50, width: 200, height: 120 }, bounds))
+      .toEqual({ x: 40, y: 50, width: 200, height: 120 });
+  });
+
+  test("supports bounds with a non-zero origin", () => {
+    expect(constrainRectToBounds(
+      { x: 2100, y: -200, width: 400, height: 300 },
+      secondary.bounds,
+    )).toEqual({ x: 2100, y: -120, width: 400, height: 300 });
+  });
+});
 
 describe("display keys", () => {
   test("derives a key from bounds rather than the native display id", () => {

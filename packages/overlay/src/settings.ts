@@ -18,6 +18,7 @@ import {
   type RequiredStatusCategory,
 } from "./required-statuses.ts";
 import {
+  constrainRectToBounds,
   displayKey,
   resolveElementDisplay,
   resolveElementDisplayKey,
@@ -149,11 +150,17 @@ export function normalizeOverlaySettings(
       : id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" || id === "bossTimers" ? 40 : 100;
     const height = clampNumber(value.height, defaults.height, minimumHeight, Math.max(minimumHeight, bounds.height));
     const defaultPosition = resolveDefaultPosition(defaults, bounds);
+    const constrained = constrainRectToBounds({
+      x: clampNumber(value.x, defaultPosition.x, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
+      y: clampNumber(value.y, defaultPosition.y, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
+      width,
+      height,
+    }, { x: 0, y: 0, width: bounds.width, height: bounds.height });
     return [id, {
       enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,
       opacity: normalizeOpacity(value.opacity, defaults.opacity),
-      x: clampNumber(value.x, defaultPosition.x, 0, Math.max(0, bounds.width - width)),
-      y: clampNumber(value.y, defaultPosition.y, 0, Math.max(0, bounds.height - height)),
+      x: constrained.x,
+      y: constrained.y,
       width,
       height,
       display,
