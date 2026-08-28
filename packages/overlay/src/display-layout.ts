@@ -12,6 +12,21 @@ export interface OverlayDisplay {
   isPrimary?: boolean;
 }
 
+/**
+ * Moves a rectangle just far enough to fit inside the supplied bounds.
+ * The rectangle's size is preserved; callers that permit oversized rectangles
+ * should normalize their dimensions before constraining their position.
+ */
+export function constrainRectToBounds<T extends DisplayBounds>(rect: T, bounds: DisplayBounds): T {
+  const maximumX = bounds.x + Math.max(0, bounds.width - rect.width);
+  const maximumY = bounds.y + Math.max(0, bounds.height - rect.height);
+  return {
+    ...rect,
+    x: Math.max(bounds.x, Math.min(maximumX, rect.x)),
+    y: Math.max(bounds.y, Math.min(maximumY, rect.y)),
+  };
+}
+
 export function displayKey(display: OverlayDisplay): string {
   const { x, y, width, height } = display.bounds;
   return `${Math.round(width)}x${Math.round(height)}@${Math.round(x)},${Math.round(y)}`;

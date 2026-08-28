@@ -84,6 +84,22 @@ describe("overlay settings", () => {
     expect(settings.elements.weight.height).toBe(40);
   });
 
+  test("repairs every partially off-screen edge when loading saved settings", async () => {
+    const settingsPath = await createSettingsPath();
+    await writeFile(settingsPath, JSON.stringify({
+      schemaVersion: 7,
+      elements: {
+        dpsChart: { x: -30, y: -20, width: 300, height: 200 },
+        personalDps: { x: 1200, y: 680, width: 200, height: 120 },
+      },
+    }), "utf8");
+
+    const settings = await loadOverlaySettings(settingsPath, displays);
+
+    expect(settings.elements.dpsChart).toMatchObject({ x: 0, y: 0, width: 300, height: 200 });
+    expect(settings.elements.personalDps).toMatchObject({ x: 1080, y: 600, width: 200, height: 120 });
+  });
+
   test("round-trips normalized settings", async () => {
     const settingsPath = await createSettingsPath();
     const settings = defaultOverlaySettings(displays);

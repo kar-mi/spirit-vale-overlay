@@ -491,6 +491,9 @@ export async function createOverlayController(options: OverlayControllerOptions)
   }
 
   function updateLocked(locked: boolean): void {
+    // Opening edit mode is the recovery path for stale placements. Re-run the
+    // same display-aware normalization used at load before making tiles interactive.
+    if (!locked) settings = normalizeOverlaySettings(settings, displays);
     settings.locked = locked;
     reconcileFocusVisibility(autoHideEnabledForMode(settings.autoHideWhenUnfocused, locked));
     scheduleClickThroughUpdate();

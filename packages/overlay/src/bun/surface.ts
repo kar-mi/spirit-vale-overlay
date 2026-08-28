@@ -94,6 +94,7 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
     frame: display.bounds,
     titleBarStyle: "hidden",
     transparent: true,
+    resizable: false,
     hidden: true,
     rpc,
   });

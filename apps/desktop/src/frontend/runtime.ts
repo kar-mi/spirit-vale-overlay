@@ -127,6 +127,7 @@ async function launchWindow(window: BrowserWindow): Promise<void> {
         ...window.frame,
         borderless: window.titleBarStyle === "hidden",
         transparent: window.transparent,
+        resizable: window.resizable,
         hidden: true,
         alwaysOnTop: window.alwaysOnTop,
         exitProcessOnClose: true,
@@ -155,6 +156,7 @@ interface WindowOptions<Schema extends CombinedSchema = CombinedSchema> {
   frame: Frame;
   titleBarStyle?: string;
   transparent?: boolean;
+  resizable?: boolean;
   hidden?: boolean;
   rpc: RpcInstance<Schema, "bun">;
 }
@@ -166,6 +168,7 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
   readonly url: string;
   readonly titleBarStyle?: string;
   readonly transparent: boolean;
+  readonly resizable: boolean | undefined;
   frame: Frame;
   launched = false;
   alwaysOnTop = false;
@@ -183,6 +186,7 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
     this.frame = { ...options.frame };
     this.titleBarStyle = options.titleBarStyle;
     this.transparent = options.transparent === true;
+    this.resizable = options.resizable;
     this.desiredVisible = options.hidden !== true;
     this.rpc = options.rpc;
     this.id = options.url.includes("launcherview") ? "launcher" : `${viewName(options.url)}-${++nextWindowId}`;

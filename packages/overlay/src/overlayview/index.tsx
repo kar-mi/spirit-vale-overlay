@@ -1,6 +1,6 @@
 import { batch, computed, signal, type Signal } from "@preact/signals";
 import { render, type ComponentChildren } from "preact";
-import { useCallback, useState } from "preact/hooks";
+import { useCallback, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { formatDps, formatDuration } from "@svoverlay/ui-kit/format";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
@@ -45,7 +45,7 @@ import {
   type PersonalDpsMode,
   type StatType,
 } from "../app-types.ts";
-import { displayForRect } from "../display-layout.ts";
+import { constrainRectToBounds, displayForRect } from "../display-layout.ts";
 import { resourceFill } from "../personal-resources.ts";
 import { rarityColor, rarityLabel } from "../rarity.ts";
 import { weightWarnLevel, type WeightWarnLevel } from "../weight-warning.ts";
@@ -350,7 +350,26 @@ function StatusOverlayElement({
 function OverlayElement({ id, locked, warn, weightWarn, bossAlert, children }: OverlayElementProps) {
   const [gesture, setGesture] = useState<PointerGesture>();
   const [preview, setPreview] = useState<ElementRect>();
+  const elementRef = useRef<HTMLElement>(null);
   const settings = elementStates[id].value;
+  useLayoutEffect(() => {
+    const element = elementRef.current;
+    if (!element || !settings || gesture || preview) return;
+    const rendered = element.getBoundingClientRect();
+    const constrained = constrainRectToBounds(
+      { x: rendered.left, y: rendered.top, width: rendered.width, height: rendered.height },
+      { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight },
+    );
+    const dx = constrained.x - rendered.left;
+    const dy = constrained.y - rendered.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+    const request = desktopView.rpc?.request.setElementPosition({
+      id,
+      x: Math.round(settings.x + dx),
+      y: Math.round(settings.y + dy),
+    });
+    void request?.then((next) => applyControl(next));
+  }, [id, locked, settings?.enabled, settings?.x, settings?.y, settings?.width, settings?.height, gesture, preview]);
   if (!settings || (locked && !settings.enabled)) return null;
   const rect = preview ?? settings;
   const displayRect = settings.enabled ? rect : { ...rect, width: 160, height: 36 };
@@ -416,6 +435,7 @@ function OverlayElement({ id, locked, warn, weightWarn, bossAlert, children }: O
   };
   return (
     <section
+      ref={elementRef}
       class={className}
       data-element-id={id}
       style={{
