@@ -49,7 +49,11 @@ async function startBackend(): Promise<void> {
       path.join(neutralinoRoot, "extensions", "bin", "bun.exe"),
       path.join(neutralinoRoot, "extensions", "backend", "index.js"),
       path.join(neutralinoRoot, "resources.neu"),
-    ]);
+    ], {
+      onRetry: (failure, attempt, attempts) => logBackend(
+        `startup preflight retry ${attempt + 1}/${attempts} (${failure.operation}, ${failure.code ?? "no code"}): ${failure.path}: ${failure.message}`,
+      ),
+    });
     logBackend("bundle preflight passed");
 
     phase = "portable environment";

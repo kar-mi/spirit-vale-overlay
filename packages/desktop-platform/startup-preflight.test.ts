@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { writeFileSync } from "node:fs";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -26,10 +27,29 @@ describe("startup filesystem preflight", () => {
       await writeFile(empty, "", "utf8");
       await verifyReadableFiles([readable]);
       expect(await readFile(readable, "utf8")).toBe("export {};");
-      await expect(verifyReadableFiles([empty])).rejects.toMatchObject({
+      await expect(verifyReadableFiles([empty], { attempts: 1 })).rejects.toMatchObject({
         name: "StartupPreflightError",
         details: { phase: "bundle", operation: "bundle-read", path: empty },
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("retries a transient bundle read before failing startup", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "spiritvale-bundle-retry-"));
+    try {
+      const delayed = path.join(root, "resources.neu");
+      const retries: number[] = [];
+      await verifyReadableFiles([delayed], {
+        attempts: 3,
+        retryDelayMs: 0,
+        onRetry: (_failure, attempt) => {
+          retries.push(attempt);
+          if (attempt === 1) writeFileSync(delayed, "bundle", "utf8");
+        },
+      });
+      expect(retries).toEqual([1]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -42,7 +62,7 @@ describe("startup filesystem preflight", () => {
       await writeFile(file, "not a directory", "utf8");
       const target = path.join(file, "settings");
       try {
-        await verifyWritableDirectories([target]);
+        await verifyWritableDirectories([target], { attempts: 1 });
         throw new Error("Expected preflight to fail");
       } catch (error) {
         expect(error).toBeInstanceOf(StartupPreflightError);

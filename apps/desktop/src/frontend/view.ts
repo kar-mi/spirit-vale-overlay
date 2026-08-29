@@ -213,7 +213,7 @@ function renderStartupFailure(failure: StartupFailure, mode: "terminal" | "slow"
     ? "Startup is continuing automatically. Antivirus scanning, synchronized storage, or a busy drive can delay the bundled backend on first launch."
     : mode === "reconnecting" ? "The app is reconnecting automatically. Capture continues if the backend process is still available."
       : mode === "runtime" ? "Close this window and reopen Spirit Vale Overlay."
-        : "Close the app, make sure the complete extracted folder is available and writable, then launch it again. Moving the complete folder to a reliable local location may resolve sync, permission, or antivirus locking failures.";
+        : "The app retried this operation, but the file or folder remained unavailable. Close other programs that may be scanning or synchronizing it and try again. If it keeps failing, make sure the complete extracted folder is writable or move it to a local folder.";
   overlay.innerHTML = `
     <style>
       #desktop-startup-failure{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:28px;background:#0c110e;color:#edf5ee;font:14px/1.45 system-ui,sans-serif}

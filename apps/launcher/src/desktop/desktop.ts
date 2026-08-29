@@ -67,6 +67,8 @@ const storagePaths = resolveDesktopStoragePaths({
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,
 });
 const logDirectory = storagePaths.logDirectory;
+const errorLog = new HumanReadableErrorLog(localRoot);
+const warningLog = new HumanReadableErrorLog(localRoot, "warning.log");
 await verifyWritableDirectories([
   localRoot,
   path.join(localRoot, "data"),
@@ -74,9 +76,21 @@ await verifyWritableDirectories([
   logDirectory,
   ...[process.env.LOCALAPPDATA, process.env.APPDATA, process.env.TEMP, process.env.WEBVIEW2_USER_DATA_FOLDER]
     .filter((directory): directory is string => Boolean(process.env.SPIRIT_VALE_PORTABLE_ROOT && directory?.trim())),
-]);
-const errorLog = new HumanReadableErrorLog(localRoot);
-const warningLog = new HumanReadableErrorLog(localRoot, "warning.log");
+], {
+  onRetry: (failure, attempt, attempts) => console.warn(
+    `[overlay] startup storage retry ${attempt + 1}/${attempts} (${failure.operation}, ${failure.code ?? "no code"}): ${failure.path}: ${failure.message}`,
+  ),
+  onWarning: (warning) => {
+    console.warn(
+      `[overlay] non-fatal startup storage warning (${warning.operation}, ${warning.code ?? "no code"}): ${warning.path}: ${warning.message}`,
+    );
+    warningLog.write({
+      title: "Startup storage probe cleanup was delayed",
+      reason: warning.message,
+      details: { operation: warning.operation, code: warning.code, path: warning.path },
+    });
+  },
+});
 const reportedStorageWarnings = new Map<string, string>();
 const readModel = await createReadModelService({ logDirectory });
 const xpTracker = createXpTrackerCoordinator({ logDirectory });
