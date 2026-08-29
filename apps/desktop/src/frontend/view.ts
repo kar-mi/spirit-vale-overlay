@@ -1,9 +1,10 @@
-import { app, events, init, os, window as neutralinoWindow } from "@neutralinojs/lib";
+import { app, events, filesystem, init, os, window as neutralinoWindow } from "@neutralinojs/lib";
 import type { DesktopRPCSchema } from "@svoverlay/contracts/rpc";
 
 import type { BackendReady, ClientPacket, RpcPacket, ServerPacket, StartupFailure } from "../shared/protocol.ts";
 import { backendConnectionFromSearch } from "../shared/backend-connection.ts";
 import { defineRpc, type RpcInstance } from "../shared/rpc.ts";
+import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapRuntime } from "./bootstrap-preflight.ts";
 
 type Handler = (packet: RpcPacket) => void;
 
@@ -13,6 +14,7 @@ class DesktopTransport {
   private readonly queued: RpcPacket[] = [];
   private connecting = false;
   private sessionReady = false;
+  private bootstrapChecked = false;
   private readonly launcher = backendConnectionFromSearch(location.search) === undefined;
 
   constructor() {
@@ -37,6 +39,17 @@ class DesktopTransport {
     if (this.connecting) return;
     this.connecting = true;
     try {
+      if (this.launcher && !this.bootstrapChecked) {
+        const globals = globalThis as typeof globalThis & { NL_PATH?: unknown; NL_OS?: unknown };
+        if (typeof globals.NL_PATH === "string") {
+          await verifyBootstrapRuntime({
+            applicationPath: globals.NL_PATH,
+            platform: neutralinoPlatform(typeof globals.NL_OS === "string" ? globals.NL_OS : "Windows"),
+            filesystem,
+          });
+        }
+        this.bootstrapChecked = true;
+      }
       const connection = await backendConnection((failure) => renderStartupFailure(failure, "slow"));
       document.getElementById("desktop-startup-failure")?.remove();
       const socket = new WebSocket(`ws://127.0.0.1:${connection.port}/rpc`);
@@ -186,9 +199,20 @@ class StartupFailureError extends Error {
 
 function startupFailure(error: unknown): StartupFailure {
   if (error instanceof StartupFailureError) return error.failure;
+  if (error instanceof BootstrapRuntimeError) {
+    const applicationPath = neutralinoApplicationPath();
+    return {
+      ...error.details,
+      phase: "frontend bootstrap",
+      category: "bundle",
+      ...(applicationPath === undefined ? {} : {
+        applicationPath,
+        logPaths: [`${applicationPath}/neutralinojs.log`, `${applicationPath}/neutralino-backend.log`],
+      }),
+    };
+  }
   const message = error instanceof Error ? error.message : String(error);
-  const neutralinoGlobals = globalThis as typeof globalThis & { NL_PATH?: unknown };
-  const applicationPath = typeof neutralinoGlobals.NL_PATH === "string" ? neutralinoGlobals.NL_PATH : undefined;
+  const applicationPath = neutralinoApplicationPath();
   return {
     phase: "backend handshake",
     operation: "connect",
@@ -198,6 +222,11 @@ function startupFailure(error: unknown): StartupFailure {
       logPaths: [`${applicationPath}/neutralinojs.log`, `${applicationPath}/neutralino-backend.log`],
     }),
   };
+}
+
+function neutralinoApplicationPath(): string | undefined {
+  const globals = globalThis as typeof globalThis & { NL_PATH?: unknown };
+  return typeof globals.NL_PATH === "string" ? globals.NL_PATH : undefined;
 }
 
 function renderStartupFailure(failure: StartupFailure, mode: "terminal" | "slow" | "reconnecting" | "runtime"): void {

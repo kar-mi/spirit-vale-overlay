@@ -38,4 +38,6 @@ export function executableNamesFor(
   };
 }
 
-export const currentExecutableNames = executableNamesFor();
+export function getCurrentExecutableNames(): PlatformExecutableNames {
+  return executableNamesFor();
+}

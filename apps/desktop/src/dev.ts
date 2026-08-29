@@ -1,9 +1,9 @@
 import path from "node:path";
-import { currentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
+import { getCurrentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
 
 const appRoot = path.resolve(import.meta.dir, "..");
 const bundleRoot = path.join(appRoot, "dist", "spirit-vale-overlay");
-const binary = path.join(bundleRoot, currentExecutableNames.desktopApp);
+const binary = path.join(bundleRoot, getCurrentExecutableNames().desktopApp);
 
 const child = Bun.spawn([
   binary,

@@ -26,6 +26,12 @@ describe("Neutralino configuration", () => {
     // Neutralino's window.create implementation launches each secondary window
     // through os.execCommand internally, even though our frontend never calls it.
     expect(config.nativeAllowList).toContain("os.execCommand");
+    expect(config.nativeAllowList).toEqual(expect.arrayContaining([
+      "filesystem.access",
+      "filesystem.getStats",
+      "filesystem.readBinaryFile",
+    ]));
+    expect(config.nativeAllowList).not.toContain("filesystem.*");
     expect(config.nativeAllowList).not.toContain("os.spawnProcess");
   });
 

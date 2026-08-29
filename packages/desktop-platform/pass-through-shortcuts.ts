@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { currentExecutableNames } from "./executable-names.ts";
+import { getCurrentExecutableNames } from "./executable-names.ts";
 
 export interface ShortcutBinding<Action extends string> {
   action: Action;
@@ -31,7 +31,7 @@ export function createPassThroughShortcutListener<Action extends string>(
     }
     const executable = helperPath();
     if (!executable) {
-      onWarning(`Optional pass-through hotkeys are unavailable because ${currentExecutableNames.hotkeyHelper} is missing.`);
+      onWarning(`Optional pass-through hotkeys are unavailable because ${getCurrentExecutableNames().hotkeyHelper} is missing.`);
       return false;
     }
     const arguments_ = next.flatMap(({ action, shortcut }) => ["--binding", action, shortcut]);
@@ -87,7 +87,7 @@ async function monitorChild<Action extends string>(
 
 function helperPath(): string | undefined {
   const executable = process.env.SPIRIT_VALE_HOTKEY_HELPER?.trim()
-    || path.join(path.dirname(process.execPath), currentExecutableNames.hotkeyHelper);
+    || path.join(path.dirname(process.execPath), getCurrentExecutableNames().hotkeyHelper);
   return existsSync(executable) ? executable : undefined;
 }
 

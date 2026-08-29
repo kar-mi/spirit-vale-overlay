@@ -35,7 +35,7 @@ import { FishNetLootDropTracker, FishNetMobDirectory, FishNetMobRewardTracker } 
 import type { FishNetLootDrop, FishNetLootDropEvent } from "@kar-mi/spirit-vale-tools-rewards";
 import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, TOWER_FLOOR_UNKNOWN_SUFFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
-import { currentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
+import { getCurrentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
 
 import type { CaptureHealthWarning, CaptureStatus, CaptureWarningCode, LauncherState } from "../launcher/types.ts";
 import type { BossGravestoneObservation } from "./boss-timer-coordinator.ts";
@@ -70,6 +70,7 @@ const MAP_RPC_NAMES = new Set(["TraverseActive", "TraverseObservers", "SyncInsta
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
+const gameProcessName = getCurrentExecutableNames().gameProcess;
 type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail" | "captureWarning">;
 
 interface SessionSeed {
@@ -648,7 +649,7 @@ export class CaptureCoordinator {
     this.resetCaptureHealth();
     return this.capture.start({
       protocols: ["udp"],
-      targetProcessName: currentExecutableNames.gameProcess,
+      targetProcessName: gameProcessName,
       decodeFishNet: true,
       deviceName: this.options.deviceName,
     });
