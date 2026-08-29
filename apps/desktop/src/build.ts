@@ -43,14 +43,11 @@ await Promise.all([
   cp(path.join(workspace, "apps/launcher/assets/status-icons"), path.join(assets, "status-icons"), { recursive: true }),
 ]);
 
-console.log("Copying bun from:", process.execPath);
-console.log("Copying bun to:", bin);
 switch (process.platform) {
   case "win32": await copyFile(process.execPath, path.join(bin, "bun.exe")); break;
   case "linux": await copyFile(process.execPath, path.join(bin, "bun")); break;
   default: console.warn("[WARN] Copying bun.exe, not yet implemented for this platform:", process.platform, bin);
 }
-console.log("Copyed bun...", bin);
 
 switch (process.platform) {
   case "win32":
@@ -67,9 +64,6 @@ console.log(`Neutralino desktop app prepared in ${appRoot}`);
 
 async function buildView(name: string, source: string): Promise<void> {
   const destination = path.join(views, name);
-
-  console.log("Building", destination);
-
   await mkdir(destination, { recursive: true });
   await build({
     entrypoint: path.join(source, "index.tsx"),

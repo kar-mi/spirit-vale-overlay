@@ -5,8 +5,6 @@ import type { BackendReady, ClientPacket, RpcPacket, ServerPacket } from "../sha
 import { backendConnectionFromSearch } from "../shared/backend-connection.ts";
 import { defineRpc, type RpcInstance } from "../shared/rpc.ts";
 
-console.log("hello from ./desktop/frontend/view.ts");
-
 
 type Handler = (packet: RpcPacket) => void;
 
@@ -34,14 +32,10 @@ class DesktopTransport {
   }
 
   private async connect(): Promise<void> {
-    console.log("connect()");
     const connection = await backendConnection();
     const socket = new WebSocket(`ws://127.0.0.1:${connection.port}/rpc`);
-    console.log("socket state:", socket.readyState);
-
     this.socket = socket;
     socket.addEventListener("open", async () => {
-      console.log("[socket opened]");
       const processId = await app.getProcessId().catch(() => undefined);
       socket.send(JSON.stringify({ kind: "hello", ticket: connection.ticket, processId } satisfies ClientPacket));
     });
@@ -51,7 +45,6 @@ class DesktopTransport {
   }
 
   private async receive(serialized: string): Promise<void> {
-    console.log("recv", serialized);
     let packet: ServerPacket;
     try {
       packet = JSON.parse(serialized) as ServerPacket;
@@ -136,20 +129,11 @@ async function settleInitialWindowSize(): Promise<void> {
 }
 
 async function backendConnection(): Promise<BackendReady> {
-  console.log("init backendConnection();");
   const connection = backendConnectionFromSearch(location.search);
-
-  console.log("connection:", connection);
-
   if (connection) return connection;
 
-  console.log("promise event listener desktopBackendReady...");
-
   return new Promise((resolve) => {
-    void events.on("desktopBackendReady", (event) => {
-      console.log("recv desktopBackendReady event:", event);
-      resolve(event.detail as BackendReady);
-    });
+    void events.on("desktopBackendReady", (event) => resolve(event.detail as BackendReady));
   });
 }
 

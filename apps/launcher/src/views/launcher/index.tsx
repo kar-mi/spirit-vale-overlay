@@ -48,11 +48,7 @@ function App() {
   const next = state.value;
   const unavailable = next?.captureStatus === "unavailable";
 
-  console.log("state:", next)
-
   return (
-    <>
-      <h1>Hello from linux</h1>
     <main class="app-shell">
       <header ref={titlebarRef} class="titlebar">
         <div class="brand">
@@ -70,7 +66,7 @@ function App() {
 
       <section class="launcher-content">
         <div class={unavailable ? "capture-status is-error" : "capture-status"} aria-live="polite">
-          <div class={`status-dot ${unavailable ? "is-err" : next?.captureStatus === "capturing" ? "is-ok" : "is-idle"}`} />
+          <span class={`status-dot ${unavailable ? "is-err" : next?.captureStatus === "capturing" ? "is-ok" : "is-idle"}`} />
           <div><strong>Central capture</strong><p>{next?.statusDetail ?? "Starting centralized capture…"}</p></div>
         </div>
 
@@ -103,8 +99,7 @@ function App() {
 
       {next?.overlayShortcuts && <OverlayHints shortcuts={next.overlayShortcuts} />}
       {next?.logStorage && <LogStorage usage={next.logStorage} />}
-      </main>
-    </>
+    </main>
   );
 }
 

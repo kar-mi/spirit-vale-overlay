@@ -10,8 +10,6 @@ interface PendingCall {
   reject(error: Error): void;
 }
 
-console.log("hello from ./desktop/src/backend/neutralino-client.ts");
-
 export class NeutralinoClient {
   private readonly pending = new Map<string, PendingCall>();
   private readonly listeners = new Map<string, Set<(data: unknown) => void>>();

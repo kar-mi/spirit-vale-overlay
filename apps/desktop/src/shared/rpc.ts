@@ -52,27 +52,18 @@ export function defineRpc<Schema extends CombinedSchema, LocalSide extends Side>
   let nextId = 0;
   const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer?: Timer }>();
 
-  console.log("defineRpc() ... const request = new Proxy({}, { ");
   const request = new Proxy({}, {
     get: (_target, method: string) => (params: unknown) => new Promise((resolve, reject) => {
-      console.log("if (!transport)", transport);
-
       if (!transport) return reject(new Error("RPC transport is not connected."));
       const id = ++nextId;
       const max = config.maxRequestTime ?? 30_000;
       const entry: { resolve(value: unknown): void; reject(error: Error): void; timer?: Timer } = { resolve, reject };
-
-      console.log("if (max !== Infinity) entry.timer = setTimeout(() => { ...");
-
       if (max !== Infinity) entry.timer = setTimeout(() => {
         pending.delete(id);
         reject(new Error(`RPC request timed out: ${method}`));
       }, max);
-
       pending.set(id, entry);
-      const packet: RpcPacket = { type: "request", id, method, params };
-      console.log("Sent RPC request:", pending, id, entry, transport, packet);
-      transport.send(packet);
+      transport.send({ type: "request", id, method, params });
     }),
   }) as RequestProxy<Schema, LocalSide>;
 

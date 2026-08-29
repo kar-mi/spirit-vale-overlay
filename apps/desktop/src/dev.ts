@@ -1,20 +1,12 @@
 import path from "node:path";
 
-console.log("Hello from ./dev.ts", import.meta.dir);
 const appRoot = path.resolve(import.meta.dir, "..");
 const bundleRoot = path.join(appRoot, "dist", "spirit-vale-overlay");
-
-console.log("Building for platform:", process.platform); // assume we're building for the host platform, and not a targeted platform.
-
 const binary = process.platform === "win32"
   ? path.join(bundleRoot, "spirit-vale-overlay-win_x64.exe")
   : process.platform === "darwin"
     ? path.join(bundleRoot, process.arch === "arm64" ? "spirit-vale-overlay-mac_arm64" : "spirit-vale-overlay-mac_x64")
     : path.join(bundleRoot, process.arch === "arm64" ? "spirit-vale-overlay-linux_arm64" : "spirit-vale-overlay-linux_x64");
-
-console.log("cwd:", bundleRoot);
-console.log("binary:", binary);
-console.log("Spawning child process...");
 
 let child: Bun.Subprocess<"inherit", "inherit", "inherit"> | undefined;
 try {
@@ -36,12 +28,9 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   console.log("Got SIG, Killing child process:", signal);
   switch (process.platform) {
     case "win32": process.on(signal, () => child.kill(signal)); break;
-    default: console.warn("[WARN] WORKAROUND - Not killing child process.");
+    default: console.warn("[WARN] Not killing child process.");
   }
 }
 
-console.log("Started child process:");
 const exitCode = await child.exited;
-
-console.log("Child process exited with exitcode, so we exit also:", exitCode);
 process.exit(exitCode);
