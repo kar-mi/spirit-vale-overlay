@@ -113,7 +113,9 @@ truncation. Diagnostic logs contain raw game-network payloads and endpoint addre
 before sharing and disable the environment variable after reproducing the issue.
 
 ## VPN Issues
-![Potential solutions to vpn issues](VPN_ISSUES.md)
+
+Using a VPN or network optimizer such as ExitLag can prevent packet capture.
+See [VPN Issues](docs/vpn/VPN_ISSUES.md) for known tools and fixes.
 
 ## Releases
 
