@@ -170,6 +170,7 @@ export class CaptureCoordinator {
   private missingGameReported = false;
   private receivedDataForCurrentGame = false;
   private healthWarning?: CaptureHealthWarning;
+  private captureHealthDirty = false;
   private captureStage: "waiting" | "udp" | "litenet" | "fishnet" = "waiting";
   private captureStageSinceMs = Date.now();
   private captureStageTimer?: ReturnType<typeof setTimeout>;
@@ -209,6 +210,19 @@ export class CaptureCoordinator {
   private currentInstanceId: string | undefined;
   private readonly reportedGravestones = new Map<number, string>();
   private lifecycleChain: Promise<void> = Promise.resolve();
+  private readonly captureUdpPacket = (): void => {
+    // Health only needs the first UDP packet in each epoch. Remove this raw-
+    // packet callback once the stage has been observed.
+    this.capture.off("udpPacket", this.captureUdpPacket);
+    this.observeCaptureStage("udp");
+  };
+  private readonly captureLiteNetPacket = (packet: CapturedLiteNetLibPacket): void => {
+    // Normal health monitoring needs only the first LiteNetLib packet. Packet-
+    // level work remains enabled when diagnostic logging explicitly requests it.
+    if (!this.diagnosticLogging) this.capture.off("liteNetPacket", this.captureLiteNetPacket);
+    this.observeCaptureStage("litenet");
+    if (this.diagnosticLogging) this.captureLiteNetDiagnostic(packet);
+  };
 
   constructor(private readonly options: CaptureCoordinatorOptions) {
     this.actors = new StickyActorDirectory({
@@ -222,11 +236,7 @@ export class CaptureCoordinator {
     this.capture.on("targetStatus", (target) => this.targetStatus(target));
     this.capture.on("warning", (message) => this.captureWarning(message));
     this.capture.on("error", (error) => this.captureError(error));
-    this.capture.on("udpPacket", () => this.observeCaptureStage("udp"));
-    this.capture.on("liteNetPacket", (packet) => {
-      this.observeCaptureStage("litenet");
-      if (this.diagnosticLogging) this.captureLiteNetDiagnostic(packet);
-    });
+    this.armCaptureStageListeners();
     this.capture.on("fishNetPacket", (packet) => this.routePacket(packet));
     this.capture.on("stopped", () => this.captureStopped());
   }
@@ -580,7 +590,7 @@ export class CaptureCoordinator {
     this.combatLog?.log("combat.lifecycle", { state: "started" });
     this.rewardsLog?.log("rewards.lifecycle", { state: "started" });
     this.otherLog?.log("capture.lifecycle", { state: "started" });
-    this.setStatus("capturing", this.captureDetail());
+    this.publishCaptureDetail();
   }
 
   private targetStatus(target: CaptureTargetStatus): void {
@@ -1343,13 +1353,23 @@ export class CaptureCoordinator {
 
   private refreshCaptureDetail(): void {
     if (this.status !== "capturing") return;
-    this.setStatus("capturing", this.captureDetail());
+    this.publishCaptureDetail();
+  }
+
+  private publishCaptureDetail(): void {
+    const detail = this.captureDetail();
+    const unchanged = this.status === "capturing" && this.statusDetail === detail;
+    const publishHealthChange = this.captureHealthDirty;
+    this.captureHealthDirty = false;
+    this.setStatus("capturing", detail);
+    if (publishHealthChange && unchanged) this.options.onStatus?.(this.state());
   }
 
   private captureDetail(): string {
     if (this.targetState === "waiting") return GAME_NOT_RUNNING_DETAIL;
+    if (!this.receivedDataForCurrentGame) return WAITING_FOR_DATA_DETAIL;
     if (this.healthWarning) return this.healthWarning.message;
-    return this.receivedDataForCurrentGame ? CAPTURE_ACTIVE_DETAIL : WAITING_FOR_DATA_DETAIL;
+    return CAPTURE_ACTIVE_DETAIL;
   }
 
   private observeCaptureStage(stage: "udp" | "litenet" | "fishnet"): void {
@@ -1357,10 +1377,13 @@ export class CaptureCoordinator {
     if (stage === "udp") this.udpPacketCount += 1;
     else if (stage === "litenet") this.liteNetPacketCount += 1;
     else {
+      this.capture.off("udpPacket", this.captureUdpPacket);
+      if (!this.diagnosticLogging) this.capture.off("liteNetPacket", this.captureLiteNetPacket);
       this.fishNetPacketCount += 1;
       this.lastFishNetPacketAtMs = observedAtMs;
       if (this.healthWarning) {
         this.healthWarning = undefined;
+        this.captureHealthDirty = true;
         this.refreshCaptureDetail();
       }
       if (this.captureStage === "fishnet") {
@@ -1371,6 +1394,7 @@ export class CaptureCoordinator {
     if (captureStageRank(stage) <= captureStageRank(this.captureStage)) return;
     this.captureStage = stage;
     this.captureStageSinceMs = observedAtMs;
+    if (this.healthWarning !== undefined) this.captureHealthDirty = true;
     this.healthWarning = undefined;
     this.clearCaptureStageTimer();
     if (this.targetState === "active") this.scheduleCaptureStageWarning();
@@ -1402,6 +1426,7 @@ export class CaptureCoordinator {
     const warning = warningForCaptureStage(this.captureStage);
     const reportKey = warning.code;
     this.healthWarning = { ...warning, detectedAt: new Date().toISOString() };
+    this.captureHealthDirty = true;
     this.refreshCaptureDetail();
     if (this.reportedStallStages.has(reportKey)) return;
     this.reportedStallStages.add(reportKey);
@@ -1419,6 +1444,8 @@ export class CaptureCoordinator {
 
   private resetCaptureHealth(): void {
     this.clearCaptureStageTimer();
+    this.armCaptureStageListeners();
+    if (this.healthWarning !== undefined) this.captureHealthDirty = true;
     this.healthWarning = undefined;
     this.captureStage = "waiting";
     this.captureStageSinceMs = Date.now();
@@ -1429,6 +1456,14 @@ export class CaptureCoordinator {
     this.captureWarningCount = 0;
     this.lastCaptureWarning = undefined;
     this.reportedStallStages.clear();
+  }
+
+  private armCaptureStageListeners(): void {
+    // Re-arming is idempotent across game detection and adapter changes.
+    this.capture.off("udpPacket", this.captureUdpPacket);
+    this.capture.on("udpPacket", this.captureUdpPacket);
+    this.capture.off("liteNetPacket", this.captureLiteNetPacket);
+    this.capture.on("liteNetPacket", this.captureLiteNetPacket);
   }
 
   private clearCaptureStageTimer(): void {

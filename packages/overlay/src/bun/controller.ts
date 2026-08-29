@@ -71,7 +71,7 @@ const METER_PUBLISH_MS = 1_000;
 const MAX_TICK_DELAY_MS = 30_000;
 const STATUS_PUBLISH_MS = 250;
 const ESCAPE_LOCK_SHORTCUT = "Escape";
-const SHORTCUT_UNAVAILABLE_ERROR = "Pass-through shortcuts are unavailable.";
+const SHORTCUT_UNAVAILABLE_WARNING = "Global hotkeys are unavailable; the overlay and capture continue normally.";
 const LOCK_STYLE_DEBOUNCE_MS = 50;
 const DISPLAY_RECONCILE_MS = 5_000;
 const AUTO_HIDE_POLL_MS = 400;
@@ -197,9 +197,9 @@ export async function createOverlayController(options: OverlayControllerOptions)
 
   let shortcutListener: PassThroughShortcutListener<KeybindAction | "lockOnEscape"> | undefined;
   try {
-    shortcutListener = createPassThroughShortcutListener(shortcutBindings(), handleShortcut, handleShortcutFailure);
+    shortcutListener = createPassThroughShortcutListener(shortcutBindings(), handleShortcut, handleShortcutWarning);
   } catch (error) {
-    handleShortcutFailure(error instanceof Error ? error : new Error(String(error)));
+    handleShortcutWarning(error instanceof Error ? error.message : String(error));
   }
 
   const displayTimer = setInterval(() => reconcileDisplays(), DISPLAY_RECONCILE_MS);
@@ -695,22 +695,22 @@ export async function createOverlayController(options: OverlayControllerOptions)
   function updateShortcutBindings(): void {
     if (!shortcutListener) return;
     try {
-      shortcutListener.setBindings(shortcutBindings());
+      if (!shortcutListener.setBindings(shortcutBindings())) return;
       let recovered = false;
       for (const action of KEYBIND_ACTIONS) {
-        if (shortcutErrors.get(action) !== SHORTCUT_UNAVAILABLE_ERROR) continue;
+        if (shortcutErrors.get(action) !== SHORTCUT_UNAVAILABLE_WARNING) continue;
         shortcutErrors.delete(action);
         recovered = true;
       }
       if (recovered) publishControl();
     } catch (error) {
-      handleShortcutFailure(error instanceof Error ? error : new Error(String(error)));
+      handleShortcutWarning(error instanceof Error ? error.message : String(error));
     }
   }
 
-  function handleShortcutFailure(error: Error): void {
-    console.warn("[overlay] pass-through shortcuts failed:", error);
-    for (const action of KEYBIND_ACTIONS) shortcutErrors.set(action, SHORTCUT_UNAVAILABLE_ERROR);
+  function handleShortcutWarning(warning: string): void {
+    console.warn("[overlay] optional pass-through hotkey warning:", warning);
+    for (const action of KEYBIND_ACTIONS) shortcutErrors.set(action, SHORTCUT_UNAVAILABLE_WARNING);
     publishControl();
   }
 

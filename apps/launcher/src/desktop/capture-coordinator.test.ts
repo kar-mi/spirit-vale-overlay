@@ -31,13 +31,17 @@ describe("central capture coordinator", () => {
       await coordinator.start();
 
       capture.udp(liteNetPacket(new Date(), Buffer.from("udp-only")).udpPacket);
+      expect(capture.listenerCount("udpPacket")).toBe(0);
       await Bun.sleep(15);
       expect(coordinator.state().captureWarning?.code).toBe("unrecognized-game-udp");
+      expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map if recently launched).");
 
       capture.liteNet(liteNetPacket(new Date(), Buffer.from("litenet-only")));
+      expect(capture.listenerCount("liteNetPacket")).toBe(0);
       expect(coordinator.state().captureWarning).toBeUndefined();
       await Bun.sleep(15);
       expect(coordinator.state().captureWarning?.code).toBe("fishnet-decode-stalled");
+      expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map if recently launched).");
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       expect(coordinator.state()).toMatchObject({ captureStatus: "capturing", statusDetail: "Capture Active" });

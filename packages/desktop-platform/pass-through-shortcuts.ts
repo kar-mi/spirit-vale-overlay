@@ -7,27 +7,32 @@ export interface ShortcutBinding<Action extends string> {
 }
 
 export interface PassThroughShortcutListener<Action extends string> {
-  setBindings(bindings: ReadonlyArray<ShortcutBinding<Action>>): void;
+  /** Returns false when the optional helper executable is unavailable. */
+  setBindings(bindings: ReadonlyArray<ShortcutBinding<Action>>): boolean;
   close(): void;
 }
 
 export function createPassThroughShortcutListener<Action extends string>(
   bindings: readonly ShortcutBinding<Action>[],
   onShortcut: (action: Action) => void,
-  onError: (error: Error) => void = () => {},
+  onWarning: (warning: string) => void = () => {},
 ): PassThroughShortcutListener<Action> {
   if (process.platform !== "win32") throw new Error("Pass-through shortcuts are supported on Windows only.");
   let child: ReturnType<typeof Bun.spawn> | undefined;
   let closed = false;
 
-  const start = (next: ReadonlyArray<ShortcutBinding<Action>>): void => {
+  const start = (next: ReadonlyArray<ShortcutBinding<Action>>): boolean => {
     const previous = child;
     child = undefined;
     previous?.kill();
     if (next.length === 0) {
-      return;
+      return true;
     }
     const executable = helperPath();
+    if (!executable) {
+      onWarning("Optional pass-through hotkeys are unavailable because sv-overlay-hotkeys.exe is missing.");
+      return false;
+    }
     const arguments_ = next.flatMap(({ action, shortcut }) => ["--binding", action, shortcut]);
     const current = Bun.spawn([executable, ...arguments_], { stdout: "pipe", stderr: "ignore", windowsHide: true });
     child = current;
@@ -36,16 +41,17 @@ export function createPassThroughShortcutListener<Action extends string>(
       current,
       actions,
       onShortcut,
-      onError,
+      onWarning,
       () => !closed && child === current,
       () => { if (child === current) child = undefined; },
     );
+    return true;
   };
 
   start(bindings);
   return {
-    setBindings(next): void {
-      if (!closed) start(next);
+    setBindings(next): boolean {
+      return !closed && start(next);
     },
     close(): void {
       if (closed) return;
@@ -60,7 +66,7 @@ async function monitorChild<Action extends string>(
   child: ReturnType<typeof Bun.spawn>,
   actions: ReadonlySet<Action>,
   onShortcut: (action: Action) => void,
-  onError: (error: Error) => void,
+  onWarning: (warning: string) => void,
   isCurrent: () => boolean,
   retire: () => void,
 ): Promise<void> {
@@ -69,20 +75,19 @@ async function monitorChild<Action extends string>(
     const exitCode = await child.exited;
     if (!isCurrent()) return;
     retire();
-    onError(new Error(`Pass-through shortcut helper exited unexpectedly with code ${exitCode}.`));
+    onWarning(`Pass-through shortcut helper exited unexpectedly with code ${exitCode}.`);
   } catch (error) {
     if (!isCurrent()) return;
     child.kill();
     retire();
-    onError(error instanceof Error ? error : new Error(String(error)));
+    onWarning(error instanceof Error ? error.message : String(error));
   }
 }
 
-function helperPath(): string {
+function helperPath(): string | undefined {
   const executable = process.env.SPIRIT_VALE_HOTKEY_HELPER?.trim()
     || path.join(path.dirname(process.execPath), "sv-overlay-hotkeys.exe");
-  if (!existsSync(executable)) throw new Error(`Pass-through shortcut helper is missing: ${executable}`);
-  return executable;
+  return existsSync(executable) ? executable : undefined;
 }
 
 async function readActions<Action extends string>(
