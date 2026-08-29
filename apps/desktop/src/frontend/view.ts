@@ -8,6 +8,10 @@ import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapFiles } from 
 
 type Handler = (packet: RpcPacket) => void;
 
+const RECONNECT_ATTEMPT_LIMIT = 5;
+const RECONNECT_BASE_DELAY_MS = 250;
+const RECONNECT_MAX_DELAY_MS = 4_000;
+
 class DesktopTransport {
   private socket?: WebSocket;
   private handler?: Handler;
@@ -15,6 +19,8 @@ class DesktopTransport {
   private connecting = false;
   private sessionReady = false;
   private bootstrapChecked = false;
+  private reconnectAttempts = 0;
+  private reconnectTimer?: ReturnType<typeof setTimeout>;
   private readonly launcher = backendConnectionFromSearch(location.search) === undefined;
 
   constructor() {
@@ -75,6 +81,7 @@ class DesktopTransport {
     }
     if (packet.kind === "ready") {
       this.sessionReady = true;
+      this.reconnectAttempts = 0;
       document.getElementById("desktop-startup-failure")?.remove();
       for (const queued of this.queued.splice(0)) this.send(queued);
       await registerWindowEvents(this.socket!);
@@ -102,7 +109,7 @@ class DesktopTransport {
     this.sessionReady = false;
     this.socket = undefined;
     if (!wasReady) {
-      void this.connect().catch((error) => this.fail(startupFailure(error)));
+      this.scheduleReconnect();
       return;
     }
     const failure = startupFailure("The desktop backend disconnected after the app started.");
@@ -111,7 +118,25 @@ class DesktopTransport {
       return;
     }
     renderStartupFailure(failure, "reconnecting");
-    void this.connect().catch((error) => this.fail(startupFailure(error)));
+    this.scheduleReconnect();
+  }
+
+  private scheduleReconnect(): void {
+    // A child window carries its ticket in its URL, and the backend burns that ticket on
+    // first use (or expires it after 60s), so a rejected handshake never recovers by
+    // retrying the same ticket. Back off between attempts and give up rather than
+    // spinning connect/close as fast as the socket can fail.
+    if (this.reconnectTimer !== undefined) return;
+    if (this.reconnectAttempts >= RECONNECT_ATTEMPT_LIMIT) {
+      this.fail(startupFailure("The desktop backend connection could not be re-established."));
+      return;
+    }
+    const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts, RECONNECT_MAX_DELAY_MS);
+    this.reconnectAttempts += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      void this.connect().catch((error) => this.fail(startupFailure(error)));
+    }, delay);
   }
 }
 
