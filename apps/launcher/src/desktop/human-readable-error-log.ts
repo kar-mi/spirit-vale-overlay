@@ -10,8 +10,8 @@ export interface HumanReadableErrorEntry {
 export class HumanReadableErrorLog {
   readonly path: string;
 
-  constructor(rootDirectory: string) {
-    this.path = path.join(rootDirectory, "error.log");
+  constructor(rootDirectory: string, fileName = "error.log") {
+    this.path = path.join(rootDirectory, fileName);
   }
 
   write(entry: HumanReadableErrorEntry): void {

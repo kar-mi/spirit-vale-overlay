@@ -1,20 +1,32 @@
-import { app, events, init, os, window as neutralinoWindow } from "@neutralinojs/lib";
+import { app, events, filesystem, init, os, window as neutralinoWindow } from "@neutralinojs/lib";
 import type { DesktopRPCSchema } from "@svoverlay/contracts/rpc";
+import { bundleLogPaths } from "@svoverlay/desktop-platform/bundle-layout";
 
-import type { BackendReady, ClientPacket, RpcPacket, ServerPacket } from "../shared/protocol.ts";
+import type { BackendReady, ClientPacket, RpcPacket, ServerPacket, StartupFailure } from "../shared/protocol.ts";
 import { backendConnectionFromSearch } from "../shared/backend-connection.ts";
 import { defineRpc, type RpcInstance } from "../shared/rpc.ts";
+import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapFiles } from "./bootstrap-preflight.ts";
 
 type Handler = (packet: RpcPacket) => void;
+
+const RECONNECT_ATTEMPT_LIMIT = 5;
+const RECONNECT_BASE_DELAY_MS = 250;
+const RECONNECT_MAX_DELAY_MS = 4_000;
 
 class DesktopTransport {
   private socket?: WebSocket;
   private handler?: Handler;
   private readonly queued: RpcPacket[] = [];
+  private connecting = false;
+  private sessionReady = false;
+  private bootstrapChecked = false;
+  private reconnectAttempts = 0;
+  private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private readonly launcher = backendConnectionFromSearch(location.search) === undefined;
 
   constructor() {
     init();
-    void this.connect();
+    void this.connect().catch((error) => this.fail(startupFailure(error)));
     void settleInitialWindowSize();
   }
 
@@ -31,16 +43,34 @@ class DesktopTransport {
   }
 
   private async connect(): Promise<void> {
-    const connection = await backendConnection();
-    const socket = new WebSocket(`ws://127.0.0.1:${connection.port}/rpc`);
-    this.socket = socket;
-    socket.addEventListener("open", async () => {
-      const processId = await app.getProcessId().catch(() => undefined);
-      socket.send(JSON.stringify({ kind: "hello", ticket: connection.ticket, processId } satisfies ClientPacket));
-    });
-    socket.addEventListener("message", (event) => void this.receive(String(event.data)));
-    socket.addEventListener("close", () => this.fail("The desktop backend disconnected."));
-    socket.addEventListener("error", () => this.fail("The desktop backend connection failed."));
+    if (this.connecting) return;
+    this.connecting = true;
+    try {
+      if (this.launcher && !this.bootstrapChecked) {
+        const globals = globalThis as typeof globalThis & { NL_PATH?: unknown; NL_OS?: unknown };
+        if (typeof globals.NL_PATH === "string") {
+          await verifyBootstrapFiles({
+            applicationPath: globals.NL_PATH,
+            platform: neutralinoPlatform(typeof globals.NL_OS === "string" ? globals.NL_OS : "Windows"),
+            filesystem,
+          });
+        }
+        this.bootstrapChecked = true;
+      }
+      const connection = await backendConnection((failure) => renderStartupFailure(failure, "slow"));
+      document.getElementById("desktop-startup-failure")?.remove();
+      const socket = new WebSocket(`ws://127.0.0.1:${connection.port}/rpc`);
+      this.socket = socket;
+      socket.addEventListener("open", async () => {
+        const processId = await app.getProcessId().catch(() => undefined);
+        socket.send(JSON.stringify({ kind: "hello", ticket: connection.ticket, processId } satisfies ClientPacket));
+      });
+      socket.addEventListener("message", (event) => void this.receive(String(event.data)));
+      socket.addEventListener("close", () => this.disconnected());
+      socket.addEventListener("error", () => console.error("The desktop backend connection failed."));
+    } finally {
+      this.connecting = false;
+    }
   }
 
   private async receive(serialized: string): Promise<void> {
@@ -51,6 +81,9 @@ class DesktopTransport {
       return;
     }
     if (packet.kind === "ready") {
+      this.sessionReady = true;
+      this.reconnectAttempts = 0;
+      document.getElementById("desktop-startup-failure")?.remove();
       for (const queued of this.queued.splice(0)) this.send(queued);
       await registerWindowEvents(this.socket!);
       return;
@@ -63,12 +96,48 @@ class DesktopTransport {
       await executeWindowCommand(this.socket!, packet.id, packet.method, packet.params);
       return;
     }
-    if (packet.kind === "fatal") this.fail(packet.message);
+    if (packet.kind === "fatal") this.fail(startupFailure(packet.message));
   }
 
-  private fail(message: string): void {
-    console.error(message);
-    document.body.dataset["backendError"] = message;
+  private fail(failure: StartupFailure): void {
+    console.error(failure.message);
+    document.body.dataset["backendError"] = failure.message;
+    renderStartupFailure(failure, "terminal");
+  }
+
+  private disconnected(): void {
+    const wasReady = this.sessionReady;
+    this.sessionReady = false;
+    this.socket = undefined;
+    if (!wasReady) {
+      this.scheduleReconnect();
+      return;
+    }
+    const failure = startupFailure("The desktop backend disconnected after the app started.");
+    if (!this.launcher) {
+      renderStartupFailure(failure, "runtime");
+      return;
+    }
+    renderStartupFailure(failure, "reconnecting");
+    this.scheduleReconnect();
+  }
+
+  private scheduleReconnect(): void {
+    // A child window carries its ticket in its URL, and the backend burns that ticket on
+    // first use (or expires it after 60s), so a rejected handshake never recovers by
+    // retrying the same ticket. Back off between attempts and give up rather than
+    // spinning connect/close as fast as the socket can fail.
+    if (this.reconnectTimer !== undefined) return;
+    if (this.reconnectAttempts >= RECONNECT_ATTEMPT_LIMIT) {
+      this.fail(startupFailure("The desktop backend connection could not be re-established."));
+      return;
+    }
+    const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts, RECONNECT_MAX_DELAY_MS);
+    this.reconnectAttempts += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      void this.connect().catch((error) => this.fail(startupFailure(error)));
+    }, delay);
   }
 }
 
@@ -127,13 +196,113 @@ async function settleInitialWindowSize(): Promise<void> {
   await neutralinoWindow.setSize({ width: size.width, height: size.height }).catch(() => {});
 }
 
-async function backendConnection(): Promise<BackendReady> {
+async function backendConnection(onSlow: (failure: StartupFailure) => void): Promise<BackendReady> {
   const connection = backendConnectionFromSearch(location.search);
   if (connection) return connection;
 
-  return new Promise((resolve) => {
-    void events.on("desktopBackendReady", (event) => resolve(event.detail as BackendReady));
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (action: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      action();
+    };
+    const timer = setTimeout(() => onSlow(startupFailure(
+      "The desktop backend is taking longer than expected. Required files may be delayed or temporarily blocked.",
+    )), 10_000);
+    void events.on("desktopBackendReady", (event) => finish(() => resolve(event.detail as BackendReady)));
+    void events.on("desktopBackendFatal", (event) => finish(() => reject(new StartupFailureError(event.detail as StartupFailure))));
   });
+}
+
+class StartupFailureError extends Error {
+  constructor(readonly failure: StartupFailure) {
+    super(failure.message);
+    this.name = "StartupFailureError";
+  }
+}
+
+function startupFailure(error: unknown): StartupFailure {
+  if (error instanceof StartupFailureError) return error.failure;
+  if (error instanceof BootstrapRuntimeError) {
+    const applicationPath = neutralinoApplicationPath();
+    return {
+      ...error.details,
+      phase: "frontend bootstrap",
+      category: "bundle",
+      ...(applicationPath === undefined ? {} : {
+        applicationPath,
+        logPaths: bundleLogPaths(applicationPath),
+      }),
+    };
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  const applicationPath = neutralinoApplicationPath();
+  return {
+    phase: "backend handshake",
+    operation: "connect",
+    message,
+    ...(applicationPath === undefined ? {} : {
+      applicationPath,
+      logPaths: bundleLogPaths(applicationPath),
+    }),
+  };
+}
+
+function neutralinoApplicationPath(): string | undefined {
+  const globals = globalThis as typeof globalThis & { NL_PATH?: unknown };
+  return typeof globals.NL_PATH === "string" ? globals.NL_PATH : undefined;
+}
+
+function renderStartupFailure(failure: StartupFailure, mode: "terminal" | "slow" | "reconnecting" | "runtime"): void {
+  document.getElementById("desktop-startup-failure")?.remove();
+  const overlay = document.createElement("section");
+  overlay.id = "desktop-startup-failure";
+  overlay.setAttribute("role", "alert");
+  const heading = mode === "slow"
+    ? "Spirit Vale Overlay is still starting"
+    : mode === "reconnecting" ? "Reconnecting to Spirit Vale Overlay"
+      : mode === "runtime" ? "Spirit Vale Overlay disconnected" : "Spirit Vale Overlay could not start";
+  const guidance = mode === "slow"
+    ? "Startup is continuing automatically. Antivirus scanning, synchronized storage, or a busy drive can delay the bundled backend on first launch."
+    : mode === "reconnecting" ? "The app is reconnecting automatically. Capture continues if the backend process is still available."
+      : mode === "runtime" ? "Close this window and reopen Spirit Vale Overlay."
+        : "The app retried this operation, but the file or folder remained unavailable. Close other programs that may be scanning or synchronizing it and try again. If it keeps failing, make sure the complete extracted folder is writable or move it to a local folder.";
+  overlay.innerHTML = `
+    <style>
+      #desktop-startup-failure{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:28px;background:#0c110e;color:#edf5ee;font:14px/1.45 system-ui,sans-serif}
+      #desktop-startup-failure .card{width:min(680px,100%);padding:24px;border:1px solid #b95252;border-radius:14px;background:#171d19;box-shadow:0 18px 50px #0008}
+      #desktop-startup-failure h1{margin:0 0 10px;font-size:22px}#desktop-startup-failure p{margin:8px 0;color:#c8d2ca}
+      #desktop-startup-failure dl{display:grid;grid-template-columns:max-content 1fr;gap:5px 12px;margin:16px 0;padding:12px;border-radius:8px;background:#0f1511}
+      #desktop-startup-failure dt{color:#91a095}#desktop-startup-failure dd{margin:0;overflow-wrap:anywhere}
+      #desktop-startup-failure .actions{display:flex;gap:8px;margin-top:18px}#desktop-startup-failure button{padding:9px 13px;border:1px solid #667269;border-radius:7px;background:#252d27;color:#edf5ee;cursor:pointer}
+    </style>
+    <div class="card">
+      <h1>${heading}</h1>
+      <p>${escapeHtml(failure.message)}</p>
+      <p>${guidance}</p>
+      <dl>
+        <dt>Phase</dt><dd>${escapeHtml(failure.phase)}</dd>
+        ${failure.category ? `<dt>Category</dt><dd>${escapeHtml(failure.category)}</dd>` : ""}
+        <dt>Operation</dt><dd>${escapeHtml(failure.operation)}</dd>
+        ${failure.code ? `<dt>Error code</dt><dd>${escapeHtml(failure.code)}</dd>` : ""}
+        ${failure.path ? `<dt>Path</dt><dd>${escapeHtml(failure.path)}</dd>` : ""}
+        ${failure.logPaths?.length ? `<dt>Logs</dt><dd>${failure.logPaths.map(escapeHtml).join("<br>")}</dd>` : ""}
+      </dl>
+      <div class="actions">${failure.applicationPath ? '<button type="button" data-action="folder">Open application folder</button>' : ""}<button type="button" data-action="exit">Exit</button></div>
+    </div>`;
+  overlay.querySelector<HTMLButtonElement>('[data-action="folder"]')?.addEventListener("click", () => {
+    if (failure.applicationPath) void os.open(failure.applicationPath);
+  });
+  overlay.querySelector<HTMLButtonElement>('[data-action="exit"]')?.addEventListener("click", () => void app.exit());
+  document.body.append(overlay);
+}
+
+function escapeHtml(value: string): string {
+  const node = document.createElement("span");
+  node.textContent = value;
+  return node.innerHTML;
 }
 
 async function registerWindowEvents(socket: WebSocket): Promise<void> {

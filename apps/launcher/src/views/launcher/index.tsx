@@ -47,6 +47,7 @@ function App() {
 
   const next = state.value;
   const unavailable = next?.captureStatus === "unavailable";
+  const warning = next?.captureWarning !== undefined;
 
   return (
     <main class="app-shell">
@@ -65,8 +66,8 @@ function App() {
       </header>
 
       <section class="launcher-content">
-        <div class={unavailable ? "capture-status is-error" : "capture-status"} aria-live="polite">
-          <span class={`status-dot ${unavailable ? "is-err" : next?.captureStatus === "capturing" ? "is-ok" : "is-idle"}`} />
+        <div class={`capture-status${unavailable ? " is-error" : warning ? " is-warning" : ""}`} aria-live="polite">
+          <span class={`status-dot ${unavailable ? "is-err" : warning ? "is-warn" : next?.captureStatus === "capturing" ? "is-ok" : "is-idle"}`} />
           <div><strong>Central capture</strong><p>{next?.statusDetail ?? "Starting centralized capture…"}</p></div>
         </div>
 

@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import type { CombinedSchema, RpcInstance } from "../shared/rpc.ts";
+import type { StartupFailure } from "../shared/protocol.ts";
 import { defineRpc } from "../shared/rpc.ts";
 import { backendConnectionUrl } from "../shared/backend-connection.ts";
 import { DesktopRpcServer, type Session } from "../backend/rpc-server.ts";
@@ -37,6 +38,7 @@ let native: NeutralinoClient | undefined;
 let server: DesktopRpcServer | undefined;
 let launcherSession: Session | undefined;
 let announceTimer: ReturnType<typeof setInterval> | undefined;
+let launcherAnnouncementsEnabled = false;
 let appVersion = "0.0.0";
 let nextWindowId = 0;
 let shuttingDown = false;
@@ -58,8 +60,12 @@ export function isDesktopWindowProcess(processId: number): boolean {
 // than through the normal RPC-driven window-close sequence, nothing else will
 // ever tell those processes to close, leaving them stuck on screen. Kill them
 // directly by their tracked OS pid before we exit ourselves.
-export function terminateAllWindowProcesses(): void {
-  for (const session of sessions.values()) {
+export function terminateAllWindowProcesses(options: { preserveLauncher?: boolean } = {}): void {
+  for (const [windowId, session] of sessions) {
+    // A startup-failure card is rendered by the launcher itself. Preserve that
+    // one process while still closing any tool/overlay windows that managed to
+    // connect before initialization failed.
+    if (options.preserveLauncher && windowId === "launcher") continue;
     if (session.processId === undefined) continue;
     try { process.kill(session.processId); } catch {}
   }
@@ -81,8 +87,22 @@ export async function initializeNeutralinoRuntime(options: { version: string }):
     terminateAllWindowProcesses();
     process.exit(0);
   });
-  announceTimer = setInterval(() => void announceLauncher(), 750);
+}
+
+export async function markDesktopBackendReady(): Promise<void> {
+  launcherAnnouncementsEnabled = true;
+  if (!announceTimer) announceTimer = setInterval(() => void announceLauncher(), 750);
   await announceLauncher();
+}
+
+export async function reportStartupFailure(failure: StartupFailure): Promise<void> {
+  launcherAnnouncementsEnabled = false;
+  if (announceTimer) clearInterval(announceTimer);
+  announceTimer = undefined;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await native?.call("app.broadcast", { event: "desktopBackendFatal", data: failure });
+    if (attempt < 3) await new Promise<void>((resolve) => setTimeout(resolve, 500));
+  }
 }
 
 async function announceLauncher(): Promise<void> {
@@ -105,7 +125,13 @@ function attachSession(session: Session): void {
 function detachSession(session: Session): void {
   if (sessions.get(session.windowId) !== session) return;
   sessions.delete(session.windowId);
-  if (launcherSession === session) launcherSession = undefined;
+  if (launcherSession === session) {
+    launcherSession = undefined;
+    if (launcherAnnouncementsEnabled && !shuttingDown) {
+      if (!announceTimer) announceTimer = setInterval(() => void announceLauncher(), 750);
+      void announceLauncher();
+    }
+  }
   windows.get(session.windowId)?.detach(session);
 }
 

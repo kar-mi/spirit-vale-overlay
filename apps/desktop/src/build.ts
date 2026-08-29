@@ -1,13 +1,18 @@
 import { cp, mkdir, readFile, rm, writeFile, copyFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  bundleLayout,
+  bundledHotkeyHelperPath,
+  bundledRuntimePath,
+} from "@svoverlay/desktop-platform/bundle-layout";
 
 const appRoot = path.resolve(import.meta.dir, "..");
 const workspace = path.resolve(appRoot, "../..");
-const resources = path.join(appRoot, "resources");
-const views = path.join(resources, "views");
-const extensions = path.join(appRoot, "extensions");
-const backend = path.join(extensions, "backend");
-const bin = path.join(extensions, "bin");
+const resources = path.join(appRoot, bundleLayout.resourcesDirectory);
+const views = path.join(appRoot, bundleLayout.viewsDirectory);
+const extensions = path.join(appRoot, bundleLayout.extensionsDirectory);
+const backend = path.join(appRoot, bundleLayout.backendDirectory);
+const bin = path.join(appRoot, bundleLayout.binaryDirectory);
 
 await Promise.all([rm(resources, { recursive: true, force: true }), rm(extensions, { recursive: true, force: true })]);
 await Promise.all([mkdir(views, { recursive: true }), mkdir(backend, { recursive: true }), mkdir(bin, { recursive: true })]);
@@ -39,16 +44,17 @@ await mkdir(assets, { recursive: true });
 await Promise.all([
   copyFile(path.join(workspace, "apps/launcher/assets/icon/eggplant_icon_320px.png"), path.join(assets, "app-icon.png")),
   copyFile(path.join(workspace, "apps/launcher/assets/icon/eggplant_icon.ico"), path.join(assets, "app-icon.ico")),
+  copyFile(path.join(workspace, "apps/launcher/assets/icon/eggplant_icon.ico"), path.join(resources, "favicon.ico")),
   cp(path.join(workspace, "apps/launcher/assets/class_icons"), path.join(assets, "class-icons"), { recursive: true }),
   cp(path.join(workspace, "apps/launcher/assets/status-icons"), path.join(assets, "status-icons"), { recursive: true }),
 ]);
 
-await copyFile(process.execPath, path.join(bin, "bun.exe"));
+await copyFile(process.execPath, path.join(appRoot, bundledRuntimePath()));
 if (process.platform === "win32") {
   const helper = Bun.spawn([
     "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
     "-File", path.join(workspace, "tooling/release/build-pass-through-shortcuts.ps1"),
-    "-OutputPath", path.join(bin, "sv-overlay-hotkeys.exe"),
+    "-OutputPath", path.join(appRoot, bundledHotkeyHelperPath()),
   ], { stdout: "inherit", stderr: "inherit" });
   if (await helper.exited !== 0) throw new Error("Could not build the pass-through hotkey helper.");
 }

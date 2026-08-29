@@ -35,6 +35,11 @@ html, body {
   background: color-mix(in srgb, var(--error-container) 45%, var(--surface-container-low));
 }
 
+.capture-status.is-warning {
+  border-color: var(--warning);
+  background: color-mix(in srgb, var(--warning-container) 55%, var(--surface-container-low));
+}
+
 .capture-status strong { font-size: 13px; }
 .capture-status p { margin: 3px 0 0; color: var(--on-surface-variant); font-size: 12px; }
 

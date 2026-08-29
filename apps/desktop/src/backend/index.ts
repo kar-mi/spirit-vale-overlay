@@ -1,14 +1,18 @@
 import { appendFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import { StartupPreflightError, verifyReadableFiles } from "@svoverlay/desktop-platform/startup-preflight";
+import { bundleLayout, bundledHotkeyHelperPath } from "@svoverlay/desktop-platform/bundle-layout";
 
+import neutralinoConfig from "../../neutralino.config.json" with { type: "json" };
 import { configurePortableEnvironment } from "../../../launcher/src/desktop/portable-environment.ts";
-import { initializeNeutralinoRuntime, terminateAllWindowProcesses } from "../frontend/runtime.ts";
+import { initializeNeutralinoRuntime, markDesktopBackendReady, reportStartupFailure, terminateAllWindowProcesses } from "../frontend/runtime.ts";
+import type { StartupFailure } from "../shared/protocol.ts";
 import { claimBackendOwner, readOwner, releaseBackendOwner } from "./backend-owner.ts";
 import { findProcessEntry } from "./win32.ts";
 
 const neutralinoRoot = path.resolve(import.meta.dir, "../..");
-const backendLog = path.join(neutralinoRoot, "neutralino-backend.log");
-const ownerFile = path.join(neutralinoRoot, ".neutralino-backend-owner.json");
+const backendLog = path.join(neutralinoRoot, bundleLayout.backendLog);
+const ownerFile = path.join(neutralinoRoot, bundleLayout.backendOwnerFile);
 
 function logBackend(message: string): void {
   try { appendFileSync(backendLog, `${new Date().toISOString()} ${message}\n`); } catch {}
@@ -37,16 +41,81 @@ process.on("SIGTERM", releaseOwner);
 
 logBackend("desktop extension process started");
 watchOwningProcess();
-if (existsSync(path.join(neutralinoRoot, ".spirit-vale-portable"))) {
-  await configurePortableEnvironment({ executablePath: path.join(neutralinoRoot, "bin", "spirit-vale-overlay-win_x64.exe") });
-} else {
-  process.env.SPIRIT_VALE_PACKAGED = "1";
-}
-process.env.SPIRIT_VALE_HOTKEY_HELPER ??= path.join(neutralinoRoot, "extensions", "bin", "sv-overlay-hotkeys.exe");
+await startBackend();
 
-await initializeNeutralinoRuntime({ version: "0.10.4" });
-logBackend("Neutralino runtime initialized");
-await import("../../../launcher/src/desktop/desktop.ts");
+async function startBackend(): Promise<void> {
+  let runtimeReady = false;
+  let phase = "bundle preflight";
+  try {
+    await verifyReadableFiles([
+      path.join(neutralinoRoot, bundleLayout.resourceBundle),
+    ], {
+      onRetry: (failure, attempt, attempts) => logBackend(
+        `startup preflight retry ${attempt + 1}/${attempts} (${failure.operation}, ${failure.code ?? "no code"}): ${failure.path}: ${failure.message}`,
+      ),
+    });
+    logBackend("resource bundle preflight passed");
+
+    phase = "portable environment";
+    if (existsSync(path.join(neutralinoRoot, bundleLayout.portableMarker))) {
+      // The marker check above already established the root, and this process runs from
+      // the bundled Bun under extensions/bin, which executable-based discovery would
+      // resolve to the wrong directory.
+      await configurePortableEnvironment({ portableRoot: neutralinoRoot });
+    } else {
+      process.env.SPIRIT_VALE_PACKAGED = "1";
+    }
+    process.env.SPIRIT_VALE_HOTKEY_HELPER ??= path.join(neutralinoRoot, bundledHotkeyHelperPath());
+
+    phase = "Neutralino runtime";
+    await initializeNeutralinoRuntime({ version: neutralinoConfig.version });
+    runtimeReady = true;
+    logBackend("Neutralino runtime initialized");
+
+    phase = "desktop initialization";
+    await import("../../../launcher/src/desktop/desktop.ts");
+    await markDesktopBackendReady();
+    logBackend("desktop application initialized");
+  } catch (error) {
+    const failure = startupFailure(error, phase);
+    logBackend(`startup failure (${failure.phase}/${failure.operation}): ${errorStack(error)}`);
+    terminateAllWindowProcesses({ preserveLauncher: true });
+    if (runtimeReady) await reportStartupFailure(failure).catch((reportError) => {
+      logBackend(`could not publish startup failure: ${errorStack(reportError)}`);
+    });
+    setTimeout(() => process.exit(1), runtimeReady ? 500 : 0);
+  }
+}
+
+function startupFailure(error: unknown, phase: string): StartupFailure {
+  const logPaths = [path.join(neutralinoRoot, bundleLayout.neutralinoLog), backendLog];
+  if (error instanceof StartupPreflightError) {
+    const { phase: category, ...details } = error.details;
+    return {
+      ...details,
+      phase,
+      category,
+      applicationPath: neutralinoRoot,
+      logPaths,
+    };
+  }
+  const cause = error instanceof Error ? error : new Error(String(error));
+  const code = typeof (error as NodeJS.ErrnoException | undefined)?.code === "string"
+    ? (error as NodeJS.ErrnoException).code
+    : undefined;
+  return {
+    phase,
+    operation: "initialize",
+    message: cause.message,
+    ...(code === undefined ? {} : { code }),
+    applicationPath: neutralinoRoot,
+    logPaths,
+  };
+}
+
+function errorStack(error: unknown): string {
+  return error instanceof Error ? error.stack ?? error.message : String(error);
+}
 
 // An owner PID can still be alive yet orphaned: its own app process (found by
 // walking up past the `cmd.exe` hop the same way watchOwningProcess does) is

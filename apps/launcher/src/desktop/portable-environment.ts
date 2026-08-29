@@ -1,12 +1,15 @@
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { bundleLayout } from "@svoverlay/desktop-platform/bundle-layout";
 
-export const portableMarkerName = ".spirit-vale-portable";
+export const portableMarkerName = bundleLayout.portableMarker;
 
 type Environment = Record<string, string | undefined>;
 
 export interface PortableEnvironmentOptions {
+  /** Skips executable-based discovery for callers that already know the bundle root. */
+  readonly portableRoot?: string;
   readonly executablePath?: string;
   readonly environment?: Environment;
   readonly markerExists?: (markerPath: string) => boolean;
@@ -26,7 +29,7 @@ export function resolvePortableRoot(
 export async function configurePortableEnvironment(options: PortableEnvironmentOptions = {}): Promise<string | undefined> {
   const executablePath = options.executablePath ?? process.execPath;
   const environment = options.environment ?? process.env;
-  const root = resolvePortableRoot(executablePath, options.markerExists);
+  const root = options.portableRoot ?? resolvePortableRoot(executablePath, options.markerExists);
   if (!root) return undefined;
 
   const dataDirectory = path.join(root, "data");

@@ -13,6 +13,10 @@
   "enableNativeAPI": true,
   "enableExtensions": true,
   "tokenSecurity": "one-time",
+  "logging": {
+    "enabled": true,
+    "writeToLogFile": true
+  },
   "url": "/views/launcherview/index.html",
   "documentRoot": "/resources/",
   "nativeAllowList": [
@@ -20,6 +24,8 @@
     "computer.*",
     "events.*",
     "extensions.*",
+    "filesystem.getStats",
+    "filesystem.readBinaryFile",
     "os.execCommand",
     "os.open",
     "os.openFile",
