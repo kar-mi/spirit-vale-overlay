@@ -36,7 +36,7 @@ import type { FishNetLootDrop, FishNetLootDropEvent } from "@kar-mi/spirit-vale-
 import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, TOWER_FLOOR_UNKNOWN_SUFFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
-import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
+import type { CaptureHealthWarning, CaptureStatus, CaptureWarningCode, LauncherState } from "../launcher/types.ts";
 import type { BossGravestoneObservation } from "./boss-timer-coordinator.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
 import { combatMonsterIdentityCatalog } from "./monster-identity-catalog.ts";
@@ -48,6 +48,7 @@ const HANDOFF_PACKET_LIMIT = 4_096;
 const HANDOFF_BYTE_LIMIT = 16 * 1024 * 1024;
 const CAPTURE_LOG_BUFFER_BYTES = 1024 * 1024 * 1024;
 const WRITE_MONITOR_INTERVAL_MS = 5_000;
+const CAPTURE_STALL_WARNING_MS = 15_000;
 const UNRESOLVED_REPORT_INTERVAL_MS = 60_000;
 const UNRESOLVED_REPORT_ENTRIES = 5;
 const DIAGNOSTIC_PRE_AUTH_MS = 5_000;
@@ -68,7 +69,7 @@ const MAP_RPC_NAMES = new Set(["TraverseActive", "TraverseObservers", "SyncInsta
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
-type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail">;
+type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail" | "captureWarning">;
 
 interface SessionSeed {
   identities?: readonly FishNetActorIdentity[];
@@ -106,6 +107,7 @@ export interface CaptureCoordinatorOptions {
   captureFactory?: () => PacketCapture;
   onStatus?: (state: CaptureCoordinatorState) => void;
   onError?: (report: CaptureErrorReport) => void;
+  onWarning?: (report: CaptureErrorReport) => void;
   diagnosticLogging?: boolean;
   knownIdentities?: readonly FishNetKnownIdentity[];
   onIdentityLearned?: (identity: FishNetKnownIdentity) => void;
@@ -116,6 +118,7 @@ export interface CaptureCoordinatorOptions {
   getMinimapLootChanceFilter?: () => number;
   onBossGravestone?: (gravestone: BossGravestoneObservation) => void;
   onServerInstance?: (instanceId: string | undefined) => void;
+  stallWarningMs?: number;
 }
 
 export class CaptureCoordinator {
@@ -166,8 +169,16 @@ export class CaptureCoordinator {
   private targetState: CaptureTargetStatus["state"] = "waiting";
   private missingGameReported = false;
   private receivedDataForCurrentGame = false;
-  private hasReceivedCaptureData = false;
-  private waitingForDataReported = false;
+  private healthWarning?: CaptureHealthWarning;
+  private captureStage: "waiting" | "udp" | "litenet" | "fishnet" = "waiting";
+  private captureStageSinceMs = Date.now();
+  private captureStageTimer?: ReturnType<typeof setTimeout>;
+  private udpPacketCount = 0;
+  private liteNetPacketCount = 0;
+  private fishNetPacketCount = 0;
+  private captureWarningCount = 0;
+  private lastCaptureWarning?: string;
+  private readonly reportedStallStages = new Set<string>();
   private activeConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
   private sawAuthenticated = false;
@@ -210,15 +221,21 @@ export class CaptureCoordinator {
     this.capture.on("targetStatus", (target) => this.targetStatus(target));
     this.capture.on("warning", (message) => this.captureWarning(message));
     this.capture.on("error", (error) => this.captureError(error));
-    if (this.diagnosticLogging) {
-      this.capture.on("liteNetPacket", (packet) => this.captureLiteNetDiagnostic(packet));
-    }
+    this.capture.on("udpPacket", () => this.observeCaptureStage("udp"));
+    this.capture.on("liteNetPacket", (packet) => {
+      this.observeCaptureStage("litenet");
+      if (this.diagnosticLogging) this.captureLiteNetDiagnostic(packet);
+    });
     this.capture.on("fishNetPacket", (packet) => this.routePacket(packet));
     this.capture.on("stopped", () => this.captureStopped());
   }
 
   state(): CaptureCoordinatorState {
-    return { captureStatus: this.status, statusDetail: this.statusDetail };
+    return {
+      captureStatus: this.status,
+      statusDetail: this.statusDetail,
+      ...(this.healthWarning === undefined ? {} : { captureWarning: this.healthWarning }),
+    };
   }
 
   characterState(): CharacterViewState { return this.character.state(); }
@@ -399,8 +416,7 @@ export class CaptureCoordinator {
     this.clearPacketBuffer();
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
-    this.hasReceivedCaptureData = false;
-    this.waitingForDataReported = false;
+    this.resetCaptureHealth();
     this.activeConnectionId = undefined;
     this.lastAuthenticated = undefined;
     this.sawAuthenticated = false;
@@ -572,9 +588,11 @@ export class CaptureCoordinator {
       state: target.state,
       processIds: target.processIds,
     });
+    const previousState = this.targetState;
     this.targetState = target.state;
     if (target.state === "waiting") {
       this.receivedDataForCurrentGame = false;
+      this.resetCaptureHealth();
       if (!this.missingGameReported) {
         this.missingGameReported = true;
         this.reportError(
@@ -585,22 +603,17 @@ export class CaptureCoordinator {
       }
     } else {
       this.missingGameReported = false;
-      if (this.hasReceivedCaptureData && !this.receivedDataForCurrentGame && !this.waitingForDataReported) {
-        this.waitingForDataReported = true;
-        this.reportError(
-          "Game detected, but capture is waiting for data",
-          `${target.processName} is running again, but capture has not received game network data since it was last detected. Changing channel or map may create a fresh connection; otherwise verify the selected network adapter or VPN routing.`,
-          {
-            "Expected process": target.processName,
-            "Network adapter": this.options.deviceName ?? "Automatic selection",
-          },
-        );
+      if (previousState !== "active") {
+        this.resetCaptureHealth();
+        this.scheduleCaptureStageWarning();
       }
     }
     this.refreshCaptureDetail();
   }
 
   private captureWarning(message: string): void {
+    this.captureWarningCount += 1;
+    this.lastCaptureWarning = message;
     this.combatLog?.log("combat.warning", { message });
     this.rewardsLog?.log("rewards.warning", { message });
     this.otherLog?.log("capture.warning", { message });
@@ -618,6 +631,7 @@ export class CaptureCoordinator {
   }
 
   private startCapture(): Promise<void> {
+    this.resetCaptureHealth();
     return this.capture.start({
       protocols: ["udp"],
       targetProcessName: "SpiritVale.exe",
@@ -627,6 +641,7 @@ export class CaptureCoordinator {
   }
 
   private routePacket(packet: CapturedFishNetPacket): void {
+    this.observeCaptureStage("fishnet");
     if (this.towerLocationTimer !== undefined) {
       if (packet.connectionId === this.activeConnectionId && isTowerStatePacket(packet)) {
         if (this.tower.consume(packet)) {
@@ -651,8 +666,6 @@ export class CaptureCoordinator {
     }
     if (!this.receivedDataForCurrentGame) {
       this.receivedDataForCurrentGame = true;
-      this.hasReceivedCaptureData = true;
-      this.waitingForDataReported = false;
       this.refreshCaptureDetail();
     }
     const admission = this.admitPacket(packet);
@@ -1332,8 +1345,101 @@ export class CaptureCoordinator {
 
   private captureDetail(): string {
     if (this.targetState === "waiting") return GAME_NOT_RUNNING_DETAIL;
+    if (this.healthWarning) return this.healthWarning.message;
     return this.receivedDataForCurrentGame ? CAPTURE_ACTIVE_DETAIL : WAITING_FOR_DATA_DETAIL;
   }
+
+  private observeCaptureStage(stage: "udp" | "litenet" | "fishnet"): void {
+    if (stage === "udp") this.udpPacketCount += 1;
+    else if (stage === "litenet") this.liteNetPacketCount += 1;
+    else this.fishNetPacketCount += 1;
+    if (captureStageRank(stage) <= captureStageRank(this.captureStage)) return;
+    this.captureStage = stage;
+    this.captureStageSinceMs = Date.now();
+    this.healthWarning = undefined;
+    this.clearCaptureStageTimer();
+    if (stage !== "fishnet" && this.targetState === "active") this.scheduleCaptureStageWarning();
+    this.refreshCaptureDetail();
+  }
+
+  private scheduleCaptureStageWarning(): void {
+    this.clearCaptureStageTimer();
+    const delay = this.options.stallWarningMs ?? CAPTURE_STALL_WARNING_MS;
+    this.captureStageTimer = setTimeout(() => {
+      this.captureStageTimer = undefined;
+      this.publishCaptureStageWarning();
+    }, delay);
+    this.captureStageTimer.unref?.();
+  }
+
+  private publishCaptureStageWarning(): void {
+    if (this.targetState !== "active" || this.captureStage === "fishnet") return;
+    const warning = warningForCaptureStage(this.captureStage);
+    const reportKey = `${this.diagnosticTransitionId}:${warning.code}`;
+    this.healthWarning = { ...warning, detectedAt: new Date().toISOString() };
+    this.refreshCaptureDetail();
+    if (this.reportedStallStages.has(reportKey)) return;
+    this.reportedStallStages.add(reportKey);
+    this.reportWarning("Capture is still waiting for usable game data", warning.message, {
+      "Capture stage": this.captureStage,
+      "Stage waiting since": new Date(this.captureStageSinceMs).toISOString(),
+      "Target-owned UDP packets": this.udpPacketCount,
+      "LiteNetLib packets": this.liteNetPacketCount,
+      "FishNet packets": this.fishNetPacketCount,
+      "Capture warnings": this.captureWarningCount,
+      "Latest capture warning": this.lastCaptureWarning,
+      "Network adapter": this.options.deviceName ?? "Automatic selection",
+    });
+  }
+
+  private resetCaptureHealth(): void {
+    this.clearCaptureStageTimer();
+    this.healthWarning = undefined;
+    this.captureStage = "waiting";
+    this.captureStageSinceMs = Date.now();
+    this.udpPacketCount = 0;
+    this.liteNetPacketCount = 0;
+    this.fishNetPacketCount = 0;
+    this.captureWarningCount = 0;
+    this.lastCaptureWarning = undefined;
+    this.reportedStallStages.clear();
+  }
+
+  private clearCaptureStageTimer(): void {
+    if (this.captureStageTimer !== undefined) clearTimeout(this.captureStageTimer);
+    this.captureStageTimer = undefined;
+  }
+
+  private reportWarning(
+    title: string,
+    reason: string,
+    details?: Readonly<Record<string, string | number | boolean | undefined>>,
+  ): void {
+    try {
+      this.options.onWarning?.({ title, reason, ...(details === undefined ? {} : { details }) });
+    } catch (error) {
+      console.error("[spiritvale-warning-log]", errorMessage(error));
+    }
+  }
+}
+
+function captureStageRank(stage: "waiting" | "udp" | "litenet" | "fishnet"): number {
+  return ["waiting", "udp", "litenet", "fishnet"].indexOf(stage);
+}
+
+function warningForCaptureStage(stage: "waiting" | "udp" | "litenet"): { code: CaptureWarningCode; message: string } {
+  if (stage === "waiting") return {
+    code: "no-game-udp",
+    message: "Still waiting for game network traffic. Capture remains active; check the adapter or VPN route if this continues.",
+  };
+  if (stage === "udp") return {
+    code: "unrecognized-game-udp",
+    message: "Game traffic is arriving, but it has not produced LiteNetLib data yet. Capture remains active.",
+  };
+  return {
+    code: "fishnet-decode-stalled",
+    message: "Game traffic is arriving, but no FishNet data has decoded yet. Capture remains active.",
+  };
 }
 
 function isStatusPacket(packet: CapturedFishNetPacket): boolean {

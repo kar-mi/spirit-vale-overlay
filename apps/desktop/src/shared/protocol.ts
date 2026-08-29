@@ -20,3 +20,13 @@ export interface BackendReady {
   port: number;
   ticket: string;
 }
+
+export interface StartupFailure {
+  phase: string;
+  operation: string;
+  message: string;
+  path?: string;
+  code?: string;
+  applicationPath?: string;
+  logPaths?: string[];
+}

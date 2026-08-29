@@ -11,6 +11,13 @@ import type {
 import type { SettingsKind } from "../desktop/manage-settings.ts";
 
 export type CaptureStatus = "starting" | "capturing" | "unavailable" | "stopped";
+export type CaptureWarningCode = "no-game-udp" | "unrecognized-game-udp" | "fishnet-decode-stalled";
+
+export interface CaptureHealthWarning {
+  code: CaptureWarningCode;
+  message: string;
+  detectedAt: string;
+}
 export type ToolWindow = "combat" | "overlay" | "rewards" | "character" | "build-export" | "boss-timers";
 export type NpcapAvailability = "checking" | "ready" | "missing" | "admin-only" | "error";
 
@@ -29,6 +36,7 @@ export interface LauncherState {
   appVersion: string;
   captureStatus: CaptureStatus;
   statusDetail: string;
+  captureWarning?: CaptureHealthWarning;
   storageWarning?: string;
   logStorage?: LogStorageState;
   npcapAvailability: NpcapAvailability;

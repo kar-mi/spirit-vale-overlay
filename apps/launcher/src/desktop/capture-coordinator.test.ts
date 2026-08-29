@@ -14,6 +14,66 @@ import { RewardSessionLogFollower } from "@kar-mi/spirit-vale-tools-rewards";
 import { CaptureCoordinator } from "./capture-coordinator.ts";
 
 describe("central capture coordinator", () => {
+  test("identifies the deepest stalled capture stage without recording packet contents", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-health-"));
+    const capture = new FakeCapture();
+    capture.initialTargetState = "active";
+    const states: ReturnType<CaptureCoordinator["state"]>[] = [];
+    const reports: Array<{ title: string; reason: string; details?: Readonly<Record<string, unknown>> }> = [];
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        stallWarningMs: 5,
+        onStatus: (state) => states.push(state),
+        onWarning: (report) => reports.push(report),
+      });
+      await coordinator.start();
+
+      capture.udp(liteNetPacket(new Date(), Buffer.from("udp-only")).udpPacket);
+      await Bun.sleep(15);
+      expect(coordinator.state().captureWarning?.code).toBe("unrecognized-game-udp");
+
+      capture.liteNet(liteNetPacket(new Date(), Buffer.from("litenet-only")));
+      expect(coordinator.state().captureWarning).toBeUndefined();
+      await Bun.sleep(15);
+      expect(coordinator.state().captureWarning?.code).toBe("fishnet-decode-stalled");
+
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      expect(coordinator.state()).toMatchObject({ captureStatus: "capturing", statusDetail: "Capture Active" });
+      expect(coordinator.state().captureWarning).toBeUndefined();
+
+      expect(reports.map((report) => report.details?.["Capture stage"])).toEqual(["udp", "litenet"]);
+      expect(JSON.stringify(reports)).not.toContain("udp-only");
+      expect(JSON.stringify(reports)).not.toContain("litenet-only");
+      expect(states.some((state) => state.captureWarning?.code === "fishnet-decode-stalled")).toBe(true);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("warns when a detected game produces no target-owned UDP", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-no-udp-"));
+    const capture = new FakeCapture();
+    capture.initialTargetState = "active";
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        stallWarningMs: 5,
+      });
+      await coordinator.start();
+      await Bun.sleep(15);
+      expect(coordinator.state().captureWarning?.code).toBe("no-game-udp");
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      expect(coordinator.state().captureWarning).toBeUndefined();
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("reports a missing game once until it has been detected again", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-missing-game-"));
     const capture = new FakeCapture();
@@ -22,6 +82,7 @@ describe("central capture coordinator", () => {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
+        stallWarningMs: 5,
         onError: (report) => errorReports.push(report),
       });
       await coordinator.start();
@@ -49,11 +110,14 @@ describe("central capture coordinator", () => {
     const capture = new FakeCapture();
     capture.initialTargetState = "active";
     const errorReports: Array<{ title: string; reason: string; details?: Readonly<Record<string, unknown>> }> = [];
+    const warningReports: Array<{ title: string; reason: string; details?: Readonly<Record<string, unknown>> }> = [];
     try {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
+        stallWarningMs: 5,
         onError: (report) => errorReports.push(report),
+        onWarning: (report) => warningReports.push(report),
       });
       await coordinator.start();
 
@@ -71,14 +135,13 @@ describe("central capture coordinator", () => {
       capture.target("active", [4242]);
       expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map if recently launched).");
       capture.target("active", [4242]);
-      expect(errorReports.map((report) => report.title)).toEqual([
-        "Game was not detected for capture",
-        "Game detected, but capture is waiting for data",
-      ]);
-      expect(errorReports[1]).toMatchObject({
-        reason: expect.stringContaining("has not received game network data since it was last detected"),
+      await Bun.sleep(15);
+      expect(errorReports.map((report) => report.title)).toEqual(["Game was not detected for capture"]);
+      expect(warningReports.map((report) => report.title)).toEqual(["Capture is still waiting for usable game data"]);
+      expect(warningReports[0]).toMatchObject({
+        reason: expect.stringContaining("Capture remains active"),
         details: {
-          "Expected process": "SpiritVale.exe",
+          "Capture stage": "waiting",
           "Network adapter": "Automatic selection",
         },
       });
@@ -1827,6 +1890,10 @@ class FakeCapture extends EventEmitter {
 
   liteNet(packet: CapturedLiteNetLibPacket): void {
     this.emit("liteNetPacket", packet);
+  }
+
+  udp(packet: CapturedLiteNetLibPacket["udpPacket"]): void {
+    this.emit("udpPacket", packet);
   }
 
   fail(error: Error): void {

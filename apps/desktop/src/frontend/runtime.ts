@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import type { CombinedSchema, RpcInstance } from "../shared/rpc.ts";
+import type { StartupFailure } from "../shared/protocol.ts";
 import { defineRpc } from "../shared/rpc.ts";
 import { backendConnectionUrl } from "../shared/backend-connection.ts";
 import { DesktopRpcServer, type Session } from "../backend/rpc-server.ts";
@@ -83,6 +84,10 @@ export async function initializeNeutralinoRuntime(options: { version: string }):
   });
   announceTimer = setInterval(() => void announceLauncher(), 750);
   await announceLauncher();
+}
+
+export async function reportStartupFailure(failure: StartupFailure): Promise<void> {
+  await native?.call("app.broadcast", { event: "desktopBackendFatal", data: failure });
 }
 
 async function announceLauncher(): Promise<void> {

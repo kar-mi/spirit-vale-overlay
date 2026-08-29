@@ -6,6 +6,7 @@ interface NeutralinoConfig {
   description?: string;
   copyright?: string;
   applicationIcon?: string;
+  logging?: { enabled?: boolean; writeToLogFile?: boolean };
   nativeAllowList?: string[];
   extensions?: Array<{
     id?: string;
@@ -57,6 +58,7 @@ describe("Neutralino configuration", () => {
       description: "Spirit Vale Overlay",
       copyright: "Copyright (C) 2026 kar-mi. Licensed under the GNU AGPL v3.",
       applicationIcon: "resources/views/assets/app-icon.png",
+      logging: { enabled: true, writeToLogFile: true },
       cli: {
         copyItems: [".spirit-vale-portable", "README.txt"],
       },

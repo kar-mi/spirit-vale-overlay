@@ -13,6 +13,7 @@
     "./ui-scale-window": "./ui-scale-window.ts",
     "./local-storage": "./local-storage.ts",
     "./safe-save": "./safe-save.ts",
+    "./startup-preflight": "./startup-preflight.ts",
     "./json-settings": "./json-settings.ts",
     "./managed-session": "./managed-session.ts",
     "./location": "./location.ts",

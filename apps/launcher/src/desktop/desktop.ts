@@ -56,6 +56,7 @@ import { launcherMinimizeAction, trayAction } from "./launcher-tray-actions.ts";
 import { findAvailableUpdate } from "../launcher/update-check.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { HumanReadableErrorLog } from "./human-readable-error-log.ts";
+import { verifyWritableDirectories } from "@svoverlay/desktop-platform/startup-preflight";
 
 makeProcessDpiAware();
 
@@ -66,19 +67,29 @@ const storagePaths = resolveDesktopStoragePaths({
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,
 });
 const logDirectory = storagePaths.logDirectory;
+await verifyWritableDirectories([
+  localRoot,
+  path.join(localRoot, "data"),
+  path.dirname(storagePaths.launcherSettingsPath),
+  logDirectory,
+  ...[process.env.LOCALAPPDATA, process.env.APPDATA, process.env.TEMP, process.env.WEBVIEW2_USER_DATA_FOLDER]
+    .filter((directory): directory is string => Boolean(process.env.SPIRIT_VALE_PORTABLE_ROOT && directory?.trim())),
+]);
 const errorLog = new HumanReadableErrorLog(localRoot);
+const warningLog = new HumanReadableErrorLog(localRoot, "warning.log");
+const reportedStorageWarnings = new Map<string, string>();
 const readModel = await createReadModelService({ logDirectory });
 const xpTracker = createXpTrackerCoordinator({ logDirectory });
 let bossTimerStorageWarning: string | undefined;
 const bossTimers = await createBossTimerCoordinator({
   storagePath: storagePaths.bossTimersPath,
-  onWarning: (warning) => { bossTimerStorageWarning = warning; updateStorageWarning(); },
+  onWarning: (warning) => { bossTimerStorageWarning = warning; recordStorageWarning("boss timers", warning); updateStorageWarning(); },
 });
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
 let placementStorageWarning: string | undefined;
 const placements = await WindowPlacementStore.load(storagePaths.windowPlacementsPath, {
-  onWarning: (warning) => { placementStorageWarning = warning; updateStorageWarning(); },
+  onWarning: (warning) => { placementStorageWarning = warning; recordStorageWarning("window placements", warning); updateStorageWarning(); },
 });
 let launcherWindow: BrowserWindow;
 let settingsWindow: BrowserWindow | undefined;
@@ -119,7 +130,7 @@ const liveDeathLogWindow = createDeathLogWindow({
 const launcherSettingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "launcher settings",
   save: (value) => saveLauncherSettings(value, storagePaths.launcherSettingsPath),
-  onWarning: (warning) => { launcherSettingsStorageWarning = warning; updateStorageWarning(); },
+  onWarning: (warning) => { launcherSettingsStorageWarning = warning; recordStorageWarning("launcher settings", warning); updateStorageWarning(); },
 });
 let characterCache: CharacterSnapshotCache = { characters: [] };
 const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
@@ -127,7 +138,7 @@ const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
   // `updateCharacterCache` returns a fresh cache that nothing mutates afterwards, so the queue does not need its own copy.
   clone: false,
   save: (value) => saveCharacterCache(value, storagePaths.characterStatePath),
-  onWarning: (warning) => { characterStorageWarning = warning; updateStorageWarning(); },
+  onWarning: (warning) => { characterStorageWarning = warning; recordStorageWarning("character snapshot", warning); updateStorageWarning(); },
 });
 const inspectedCharacterStore = new InspectedCharacterStore(storagePaths.inspectedCharactersPath);
 const inspectedCharacterRoster = new DurableInspectedCharacterRoster(inspectedCharacterStore, {
@@ -135,6 +146,7 @@ const inspectedCharacterRoster = new DurableInspectedCharacterRoster(inspectedCh
     inspectedCharacterStorageWarning = error === undefined
       ? undefined
       : `Could not save inspected characters: ${error instanceof Error ? error.message : String(error)}`;
+    recordStorageWarning("inspected characters", inspectedCharacterStorageWarning);
     updateStorageWarning();
   },
 });
@@ -143,7 +155,7 @@ const actorIdentityPersistence = new SafeSaveQueue<ActorIdentityCache>({
   label: "actor identities",
   clone: false,
   save: (value) => saveActorIdentityCache(value, storagePaths.actorIdentitiesPath),
-  onWarning: (warning) => { actorIdentityStorageWarning = warning; updateStorageWarning(); },
+  onWarning: (warning) => { actorIdentityStorageWarning = warning; recordStorageWarning("actor identities", warning); updateStorageWarning(); },
 });
 
 const combatWindow = new WindowSlot((onClosed) => createDpsWindow({
@@ -199,10 +211,32 @@ const capture = new CaptureCoordinator({
   logDirectory,
   deviceName: settings.captureAdapter === "auto" ? undefined : settings.captureAdapter,
   onStatus: (state) => {
-    launcherState = { ...launcherState, ...state };
+    const { captureWarning, ...captureState } = state;
+    launcherState = { ...launcherState, ...captureState };
+    if (captureWarning) launcherState.captureWarning = captureWarning;
+    else delete launcherState.captureWarning;
     publish();
   },
-  onError: (report) => errorLog.write(report),
+  onError: (report) => errorLog.write({
+    ...report,
+    details: {
+      "App version": appVersion,
+      "Npcap version": launcherState.npcapVersion,
+      "Selected adapter": launcherState.selectedAdapter,
+      "Effective adapter": launcherState.effectiveAdapter,
+      ...report.details,
+    },
+  }),
+  onWarning: (report) => warningLog.write({
+    ...report,
+    details: {
+      "App version": appVersion,
+      "Npcap version": launcherState.npcapVersion,
+      "Selected adapter": launcherState.selectedAdapter,
+      "Effective adapter": launcherState.effectiveAdapter,
+      ...report.details,
+    },
+  }),
   resetOnMapChange: () => settings.resetMeterOnMapChange,
   onGoldMapChange: () => { if (settings.resetGoldOnMapChange) xpTracker.resetCoins(); },
   minimapEnabled: () => overlayWindow.current?.getSettingsState().elements.minimap.enabled ?? true,
@@ -454,7 +488,9 @@ process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
 void initializeCapture();
 void checkForUpdate();
-void measureLogUsage();
+void measureLogUsage().catch((error) => {
+  errorLog.write({ title: "Log storage could not be measured", reason: error instanceof Error ? error.message : String(error) });
+});
 void overlayWindow.open().catch((error) => {
   console.error(`[overlay] startup failed: ${error instanceof Error ? error.message : String(error)}`);
 });
@@ -881,6 +917,16 @@ function updateStorageWarning(): void {
     storageWarning: characterStorageWarning ?? inspectedCharacterStorageWarning ?? launcherSettingsStorageWarning ?? placementStorageWarning ?? actorIdentityStorageWarning ?? bossTimerStorageWarning,
   };
   publish();
+}
+
+function recordStorageWarning(source: string, warning: string | undefined): void {
+  if (!warning || reportedStorageWarnings.get(source) === warning) return;
+  reportedStorageWarnings.set(source, warning);
+  errorLog.write({
+    title: `${source} storage warning`,
+    reason: warning,
+    details: { "Storage root": localRoot, "Log directory": logDirectory },
+  });
 }
 
 async function closeAllWindowsAndFlush(): Promise<void> {

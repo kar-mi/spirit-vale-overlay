@@ -1,8 +1,10 @@
 import { appendFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import { StartupPreflightError, verifyReadableFiles } from "@svoverlay/desktop-platform/startup-preflight";
 
 import { configurePortableEnvironment } from "../../../launcher/src/desktop/portable-environment.ts";
-import { initializeNeutralinoRuntime, terminateAllWindowProcesses } from "../frontend/runtime.ts";
+import { initializeNeutralinoRuntime, reportStartupFailure, terminateAllWindowProcesses } from "../frontend/runtime.ts";
+import type { StartupFailure } from "../shared/protocol.ts";
 import { claimBackendOwner, readOwner, releaseBackendOwner } from "./backend-owner.ts";
 import { findProcessEntry } from "./win32.ts";
 
@@ -37,16 +39,71 @@ process.on("SIGTERM", releaseOwner);
 
 logBackend("desktop extension process started");
 watchOwningProcess();
-if (existsSync(path.join(neutralinoRoot, ".spirit-vale-portable"))) {
-  await configurePortableEnvironment({ executablePath: path.join(neutralinoRoot, "bin", "spirit-vale-overlay-win_x64.exe") });
-} else {
-  process.env.SPIRIT_VALE_PACKAGED = "1";
-}
-process.env.SPIRIT_VALE_HOTKEY_HELPER ??= path.join(neutralinoRoot, "extensions", "bin", "sv-overlay-hotkeys.exe");
+await startBackend();
 
-await initializeNeutralinoRuntime({ version: "0.10.4" });
-logBackend("Neutralino runtime initialized");
-await import("../../../launcher/src/desktop/desktop.ts");
+async function startBackend(): Promise<void> {
+  let runtimeReady = false;
+  let phase = "bundle preflight";
+  try {
+    await verifyReadableFiles([
+      path.join(neutralinoRoot, "extensions", "bin", "bun.exe"),
+      path.join(neutralinoRoot, "extensions", "backend", "index.js"),
+      path.join(neutralinoRoot, "resources.neu"),
+    ]);
+    logBackend("bundle preflight passed");
+
+    phase = "portable environment";
+    if (existsSync(path.join(neutralinoRoot, ".spirit-vale-portable"))) {
+      await configurePortableEnvironment({ executablePath: path.join(neutralinoRoot, "bin", "spirit-vale-overlay-win_x64.exe") });
+    } else {
+      process.env.SPIRIT_VALE_PACKAGED = "1";
+    }
+    process.env.SPIRIT_VALE_HOTKEY_HELPER ??= path.join(neutralinoRoot, "extensions", "bin", "sv-overlay-hotkeys.exe");
+
+    phase = "Neutralino runtime";
+    await initializeNeutralinoRuntime({ version: "0.10.4" });
+    runtimeReady = true;
+    logBackend("Neutralino runtime initialized");
+
+    phase = "desktop initialization";
+    await import("../../../launcher/src/desktop/desktop.ts");
+    logBackend("desktop application initialized");
+  } catch (error) {
+    const failure = startupFailure(error, phase);
+    logBackend(`startup failure (${failure.phase}/${failure.operation}): ${errorStack(error)}`);
+    if (runtimeReady) await reportStartupFailure(failure).catch((reportError) => {
+      logBackend(`could not publish startup failure: ${errorStack(reportError)}`);
+    });
+    setTimeout(() => process.exit(1), runtimeReady ? 500 : 0);
+  }
+}
+
+function startupFailure(error: unknown, phase: string): StartupFailure {
+  const logPaths = [path.join(neutralinoRoot, "neutralinojs.log"), backendLog];
+  if (error instanceof StartupPreflightError) {
+    return {
+      ...error.details,
+      applicationPath: neutralinoRoot,
+      logPaths,
+    };
+  }
+  const cause = error instanceof Error ? error : new Error(String(error));
+  const code = typeof (error as NodeJS.ErrnoException | undefined)?.code === "string"
+    ? (error as NodeJS.ErrnoException).code
+    : undefined;
+  return {
+    phase,
+    operation: "initialize",
+    message: cause.message,
+    ...(code === undefined ? {} : { code }),
+    applicationPath: neutralinoRoot,
+    logPaths,
+  };
+}
+
+function errorStack(error: unknown): string {
+  return error instanceof Error ? error.stack ?? error.message : String(error);
+}
 
 // An owner PID can still be alive yet orphaned: its own app process (found by
 // walking up past the `cmd.exe` hop the same way watchOwningProcess does) is
