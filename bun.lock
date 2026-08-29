@@ -13,7 +13,7 @@
     "apps/desktop": {
       "name": "@svoverlay/desktop",
       "dependencies": {
-        "@kar-mi/spirit-vale-tools-capture": "2.4.2",
+        "@kar-mi/spirit-vale-tools-capture": "2.5.0",
         "@neutralinojs/lib": "6.9.0",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
@@ -28,7 +28,7 @@
     "apps/launcher": {
       "name": "@svoverlay/launcher",
       "dependencies": {
-        "@kar-mi/spirit-vale-tools-capture": "2.4.2",
+        "@kar-mi/spirit-vale-tools-capture": "2.5.0",
         "@kar-mi/spirit-vale-tools-character": "0.5.0",
         "@kar-mi/spirit-vale-tools-combat": "3.3.6",
         "@kar-mi/spirit-vale-tools-items": "0.1.9",
@@ -130,7 +130,7 @@
   "packages": {
     "@electron/asar": ["@electron/asar@3.4.1", "", { "dependencies": { "commander": "^5.0.0", "glob": "^7.1.6", "minimatch": "^3.0.4" }, "bin": { "asar": "bin/asar.js" } }, "sha512-i4/rNPRS84t0vSRa2HorerGRXWyF4vThfHesw0dmcWHp+cspK743UanA0suA5Q5y8kzY2y6YKrvbIUn69BCAiA=="],
 
-    "@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.4.2", "", {}, "sha512-eOXr25gvS5vx1sxJz+NmlxOMWy2Tw3XcXm3iQlOL8c9bxT08yf8Sqr5mMjRL1YGngQImYLtSsF/2mHHU0Wvy4A=="],
+    "@kar-mi/spirit-vale-tools-capture": ["@kar-mi/spirit-vale-tools-capture@2.5.0", "", {}, "sha512-feTTQnxd0yH68woaVI+VxtZ3XoHperB7pwChmvWEd9ZTA4fkuka/4QgKgkYn5opW1mx5V+JqPJz29rqNJh8+xA=="],
 
     "@kar-mi/spirit-vale-tools-character": ["@kar-mi/spirit-vale-tools-character@0.5.0", "", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.4.0", "@kar-mi/spirit-vale-tools-items": "^0.1.8", "@kar-mi/spirit-vale-tools-skills": "^0.2.1" } }, "sha512-PW47PzskMlPEdKPzfcNfMKBzFyDTcI3wX0BGSXoiGvGz67P0tKwugwUTUqW2JtpQfoq8z6xdyR9G0BvXwow9QA=="],
 
@@ -256,7 +256,7 @@
 
     "d": ["d@1.0.2", "", { "dependencies": { "es5-ext": "^0.10.64", "type": "^2.7.2" } }, "sha512-MOqHvMWF9/9MX6nza0KgvFH4HpMU0EF5uUDXqX/BtxtU8NfB0QzRtJ8Oe/6SuS4kbhyzVJwjd97EA4PKrzJ8bw=="],
 
-    "debug": ["debug@4.3.1", "", { "dependencies": { "ms": "2.1.2" } }, "sha512-doEwdvm4PCeK4K3RQN2ZC2BYUBaxwLARCqZmMjtF8a51J2Rb0xpVloFRnCODwqjpwnAoao4pelN8l3RJdv3gRQ=="],
+    "debug": ["debug@4.3.1", "", { "dependencies": { "ms": "2.1.2" }, "peerDependencies": { "supports-color": "*" }, "optionalPeers": ["supports-color"] }, "sha512-doEwdvm4PCeK4K3RQN2ZC2BYUBaxwLARCqZmMjtF8a51J2Rb0xpVloFRnCODwqjpwnAoao4pelN8l3RJdv3gRQ=="],
 
     "deep-is": ["deep-is@0.1.4", "", {}, "sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ=="],
 
