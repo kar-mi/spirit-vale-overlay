@@ -39,6 +39,7 @@ await mkdir(assets, { recursive: true });
 await Promise.all([
   copyFile(path.join(workspace, "apps/launcher/assets/icon/eggplant_icon_320px.png"), path.join(assets, "app-icon.png")),
   copyFile(path.join(workspace, "apps/launcher/assets/icon/eggplant_icon.ico"), path.join(assets, "app-icon.ico")),
+  copyFile(path.join(workspace, "apps/launcher/assets/icon/eggplant_icon.ico"), path.join(resources, "favicon.ico")),
   cp(path.join(workspace, "apps/launcher/assets/class_icons"), path.join(assets, "class-icons"), { recursive: true }),
   cp(path.join(workspace, "apps/launcher/assets/status-icons"), path.join(assets, "status-icons"), { recursive: true }),
 ]);

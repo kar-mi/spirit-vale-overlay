@@ -3,7 +3,7 @@ import path from "node:path";
 import { StartupPreflightError, verifyReadableFiles } from "@svoverlay/desktop-platform/startup-preflight";
 
 import { configurePortableEnvironment } from "../../../launcher/src/desktop/portable-environment.ts";
-import { initializeNeutralinoRuntime, reportStartupFailure, terminateAllWindowProcesses } from "../frontend/runtime.ts";
+import { initializeNeutralinoRuntime, markDesktopBackendReady, reportStartupFailure, terminateAllWindowProcesses } from "../frontend/runtime.ts";
 import type { StartupFailure } from "../shared/protocol.ts";
 import { claimBackendOwner, readOwner, releaseBackendOwner } from "./backend-owner.ts";
 import { findProcessEntry } from "./win32.ts";
@@ -67,6 +67,7 @@ async function startBackend(): Promise<void> {
 
     phase = "desktop initialization";
     await import("../../../launcher/src/desktop/desktop.ts");
+    await markDesktopBackendReady();
     logBackend("desktop application initialized");
   } catch (error) {
     const failure = startupFailure(error, phase);
@@ -81,8 +82,11 @@ async function startBackend(): Promise<void> {
 function startupFailure(error: unknown, phase: string): StartupFailure {
   const logPaths = [path.join(neutralinoRoot, "neutralinojs.log"), backendLog];
   if (error instanceof StartupPreflightError) {
+    const { phase: category, ...details } = error.details;
     return {
-      ...error.details,
+      ...details,
+      phase,
+      category,
       applicationPath: neutralinoRoot,
       logPaths,
     };

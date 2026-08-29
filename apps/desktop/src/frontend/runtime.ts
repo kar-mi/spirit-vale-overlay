@@ -38,6 +38,7 @@ let native: NeutralinoClient | undefined;
 let server: DesktopRpcServer | undefined;
 let launcherSession: Session | undefined;
 let announceTimer: ReturnType<typeof setInterval> | undefined;
+let launcherAnnouncementsEnabled = false;
 let appVersion = "0.0.0";
 let nextWindowId = 0;
 let shuttingDown = false;
@@ -82,12 +83,22 @@ export async function initializeNeutralinoRuntime(options: { version: string }):
     terminateAllWindowProcesses();
     process.exit(0);
   });
-  announceTimer = setInterval(() => void announceLauncher(), 750);
+}
+
+export async function markDesktopBackendReady(): Promise<void> {
+  launcherAnnouncementsEnabled = true;
+  if (!announceTimer) announceTimer = setInterval(() => void announceLauncher(), 750);
   await announceLauncher();
 }
 
 export async function reportStartupFailure(failure: StartupFailure): Promise<void> {
-  await native?.call("app.broadcast", { event: "desktopBackendFatal", data: failure });
+  launcherAnnouncementsEnabled = false;
+  if (announceTimer) clearInterval(announceTimer);
+  announceTimer = undefined;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await native?.call("app.broadcast", { event: "desktopBackendFatal", data: failure });
+    if (attempt < 3) await new Promise<void>((resolve) => setTimeout(resolve, 500));
+  }
 }
 
 async function announceLauncher(): Promise<void> {
@@ -110,7 +121,13 @@ function attachSession(session: Session): void {
 function detachSession(session: Session): void {
   if (sessions.get(session.windowId) !== session) return;
   sessions.delete(session.windowId);
-  if (launcherSession === session) launcherSession = undefined;
+  if (launcherSession === session) {
+    launcherSession = undefined;
+    if (launcherAnnouncementsEnabled && !shuttingDown) {
+      if (!announceTimer) announceTimer = setInterval(() => void announceLauncher(), 750);
+      void announceLauncher();
+    }
+  }
   windows.get(session.windowId)?.detach(session);
 }
 

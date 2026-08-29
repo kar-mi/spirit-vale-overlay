@@ -176,6 +176,7 @@ export class CaptureCoordinator {
   private udpPacketCount = 0;
   private liteNetPacketCount = 0;
   private fishNetPacketCount = 0;
+  private lastFishNetPacketAtMs?: number;
   private captureWarningCount = 0;
   private lastCaptureWarning?: string;
   private readonly reportedStallStages = new Set<string>();
@@ -631,6 +632,8 @@ export class CaptureCoordinator {
   }
 
   private startCapture(): Promise<void> {
+    this.targetState = "waiting";
+    this.receivedDataForCurrentGame = false;
     this.resetCaptureHealth();
     return this.capture.start({
       protocols: ["udp"],
@@ -1350,21 +1353,37 @@ export class CaptureCoordinator {
   }
 
   private observeCaptureStage(stage: "udp" | "litenet" | "fishnet"): void {
+    const observedAtMs = Date.now();
     if (stage === "udp") this.udpPacketCount += 1;
     else if (stage === "litenet") this.liteNetPacketCount += 1;
-    else this.fishNetPacketCount += 1;
+    else {
+      this.fishNetPacketCount += 1;
+      this.lastFishNetPacketAtMs = observedAtMs;
+      if (this.healthWarning) {
+        this.healthWarning = undefined;
+        this.refreshCaptureDetail();
+      }
+      if (this.captureStage === "fishnet") {
+        if (this.captureStageTimer === undefined && this.targetState === "active") this.scheduleCaptureStageWarning();
+        return;
+      }
+    }
     if (captureStageRank(stage) <= captureStageRank(this.captureStage)) return;
     this.captureStage = stage;
-    this.captureStageSinceMs = Date.now();
+    this.captureStageSinceMs = observedAtMs;
     this.healthWarning = undefined;
     this.clearCaptureStageTimer();
-    if (stage !== "fishnet" && this.targetState === "active") this.scheduleCaptureStageWarning();
+    if (this.targetState === "active") this.scheduleCaptureStageWarning();
     this.refreshCaptureDetail();
   }
 
   private scheduleCaptureStageWarning(): void {
     this.clearCaptureStageTimer();
-    const delay = this.options.stallWarningMs ?? CAPTURE_STALL_WARNING_MS;
+    const warningMs = this.options.stallWarningMs ?? CAPTURE_STALL_WARNING_MS;
+    const elapsed = this.captureStage === "fishnet" && this.lastFishNetPacketAtMs !== undefined
+      ? Date.now() - this.lastFishNetPacketAtMs
+      : 0;
+    const delay = Math.max(0, warningMs - elapsed);
     this.captureStageTimer = setTimeout(() => {
       this.captureStageTimer = undefined;
       this.publishCaptureStageWarning();
@@ -1373,9 +1392,15 @@ export class CaptureCoordinator {
   }
 
   private publishCaptureStageWarning(): void {
-    if (this.targetState !== "active" || this.captureStage === "fishnet") return;
+    if (this.targetState !== "active") return;
+    const warningMs = this.options.stallWarningMs ?? CAPTURE_STALL_WARNING_MS;
+    if (this.captureStage === "fishnet" && this.lastFishNetPacketAtMs !== undefined
+      && Date.now() - this.lastFishNetPacketAtMs < warningMs) {
+      this.scheduleCaptureStageWarning();
+      return;
+    }
     const warning = warningForCaptureStage(this.captureStage);
-    const reportKey = `${this.diagnosticTransitionId}:${warning.code}`;
+    const reportKey = warning.code;
     this.healthWarning = { ...warning, detectedAt: new Date().toISOString() };
     this.refreshCaptureDetail();
     if (this.reportedStallStages.has(reportKey)) return;
@@ -1400,6 +1425,7 @@ export class CaptureCoordinator {
     this.udpPacketCount = 0;
     this.liteNetPacketCount = 0;
     this.fishNetPacketCount = 0;
+    this.lastFishNetPacketAtMs = undefined;
     this.captureWarningCount = 0;
     this.lastCaptureWarning = undefined;
     this.reportedStallStages.clear();
@@ -1427,7 +1453,7 @@ function captureStageRank(stage: "waiting" | "udp" | "litenet" | "fishnet"): num
   return ["waiting", "udp", "litenet", "fishnet"].indexOf(stage);
 }
 
-function warningForCaptureStage(stage: "waiting" | "udp" | "litenet"): { code: CaptureWarningCode; message: string } {
+function warningForCaptureStage(stage: "waiting" | "udp" | "litenet" | "fishnet"): { code: CaptureWarningCode; message: string } {
   if (stage === "waiting") return {
     code: "no-game-udp",
     message: "Still waiting for game network traffic. Capture remains active; check the adapter or VPN route if this continues.",
@@ -1436,9 +1462,13 @@ function warningForCaptureStage(stage: "waiting" | "udp" | "litenet"): { code: C
     code: "unrecognized-game-udp",
     message: "Game traffic is arriving, but it has not produced LiteNetLib data yet. Capture remains active.",
   };
-  return {
+  if (stage === "litenet") return {
     code: "fishnet-decode-stalled",
     message: "Game traffic is arriving, but no FishNet data has decoded yet. Capture remains active.",
+  };
+  return {
+    code: "fishnet-data-delayed",
+    message: "Decoded game data has paused. Capture remains active and will recover automatically when packets resume.",
   };
 }
 

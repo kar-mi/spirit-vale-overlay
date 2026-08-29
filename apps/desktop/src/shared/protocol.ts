@@ -23,6 +23,7 @@ export interface BackendReady {
 
 export interface StartupFailure {
   phase: string;
+  category?: string;
   operation: string;
   message: string;
   path?: string;

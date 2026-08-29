@@ -11,7 +11,7 @@ import type {
 import type { SettingsKind } from "../desktop/manage-settings.ts";
 
 export type CaptureStatus = "starting" | "capturing" | "unavailable" | "stopped";
-export type CaptureWarningCode = "no-game-udp" | "unrecognized-game-udp" | "fishnet-decode-stalled";
+export type CaptureWarningCode = "no-game-udp" | "unrecognized-game-udp" | "fishnet-decode-stalled" | "fishnet-data-delayed";
 
 export interface CaptureHealthWarning {
   code: CaptureWarningCode;

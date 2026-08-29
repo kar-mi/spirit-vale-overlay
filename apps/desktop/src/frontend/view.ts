@@ -11,6 +11,9 @@ class DesktopTransport {
   private socket?: WebSocket;
   private handler?: Handler;
   private readonly queued: RpcPacket[] = [];
+  private connecting = false;
+  private sessionReady = false;
+  private readonly launcher = backendConnectionFromSearch(location.search) === undefined;
 
   constructor() {
     init();
@@ -31,16 +34,23 @@ class DesktopTransport {
   }
 
   private async connect(): Promise<void> {
-    const connection = await backendConnection();
-    const socket = new WebSocket(`ws://127.0.0.1:${connection.port}/rpc`);
-    this.socket = socket;
-    socket.addEventListener("open", async () => {
-      const processId = await app.getProcessId().catch(() => undefined);
-      socket.send(JSON.stringify({ kind: "hello", ticket: connection.ticket, processId } satisfies ClientPacket));
-    });
-    socket.addEventListener("message", (event) => void this.receive(String(event.data)));
-    socket.addEventListener("close", () => this.fail(startupFailure("The desktop backend disconnected.")));
-    socket.addEventListener("error", () => this.fail(startupFailure("The desktop backend connection failed.")));
+    if (this.connecting) return;
+    this.connecting = true;
+    try {
+      const connection = await backendConnection((failure) => renderStartupFailure(failure, "slow"));
+      document.getElementById("desktop-startup-failure")?.remove();
+      const socket = new WebSocket(`ws://127.0.0.1:${connection.port}/rpc`);
+      this.socket = socket;
+      socket.addEventListener("open", async () => {
+        const processId = await app.getProcessId().catch(() => undefined);
+        socket.send(JSON.stringify({ kind: "hello", ticket: connection.ticket, processId } satisfies ClientPacket));
+      });
+      socket.addEventListener("message", (event) => void this.receive(String(event.data)));
+      socket.addEventListener("close", () => this.disconnected());
+      socket.addEventListener("error", () => console.error("The desktop backend connection failed."));
+    } finally {
+      this.connecting = false;
+    }
   }
 
   private async receive(serialized: string): Promise<void> {
@@ -51,6 +61,8 @@ class DesktopTransport {
       return;
     }
     if (packet.kind === "ready") {
+      this.sessionReady = true;
+      document.getElementById("desktop-startup-failure")?.remove();
       for (const queued of this.queued.splice(0)) this.send(queued);
       await registerWindowEvents(this.socket!);
       return;
@@ -69,7 +81,24 @@ class DesktopTransport {
   private fail(failure: StartupFailure): void {
     console.error(failure.message);
     document.body.dataset["backendError"] = failure.message;
-    renderStartupFailure(failure);
+    renderStartupFailure(failure, "terminal");
+  }
+
+  private disconnected(): void {
+    const wasReady = this.sessionReady;
+    this.sessionReady = false;
+    this.socket = undefined;
+    if (!wasReady) {
+      void this.connect().catch((error) => this.fail(startupFailure(error)));
+      return;
+    }
+    const failure = startupFailure("The desktop backend disconnected after the app started.");
+    if (!this.launcher) {
+      renderStartupFailure(failure, "runtime");
+      return;
+    }
+    renderStartupFailure(failure, "reconnecting");
+    void this.connect().catch((error) => this.fail(startupFailure(error)));
   }
 }
 
@@ -128,7 +157,7 @@ async function settleInitialWindowSize(): Promise<void> {
   await neutralinoWindow.setSize({ width: size.width, height: size.height }).catch(() => {});
 }
 
-async function backendConnection(): Promise<BackendReady> {
+async function backendConnection(onSlow: (failure: StartupFailure) => void): Promise<BackendReady> {
   const connection = backendConnectionFromSearch(location.search);
   if (connection) return connection;
 
@@ -140,9 +169,9 @@ async function backendConnection(): Promise<BackendReady> {
       clearTimeout(timer);
       action();
     };
-    const timer = setTimeout(() => finish(() => reject(new Error(
-      "The desktop backend did not start within 10 seconds. Required files may be unavailable, incomplete, or blocked by another program.",
-    ))), 10_000);
+    const timer = setTimeout(() => onSlow(startupFailure(
+      "The desktop backend is taking longer than expected. Required files may be delayed or temporarily blocked.",
+    )), 10_000);
     void events.on("desktopBackendReady", (event) => finish(() => resolve(event.detail as BackendReady)));
     void events.on("desktopBackendFatal", (event) => finish(() => reject(new StartupFailureError(event.detail as StartupFailure))));
   });
@@ -171,11 +200,20 @@ function startupFailure(error: unknown): StartupFailure {
   };
 }
 
-function renderStartupFailure(failure: StartupFailure): void {
+function renderStartupFailure(failure: StartupFailure, mode: "terminal" | "slow" | "reconnecting" | "runtime"): void {
   document.getElementById("desktop-startup-failure")?.remove();
   const overlay = document.createElement("section");
   overlay.id = "desktop-startup-failure";
   overlay.setAttribute("role", "alert");
+  const heading = mode === "slow"
+    ? "Spirit Vale Overlay is still starting"
+    : mode === "reconnecting" ? "Reconnecting to Spirit Vale Overlay"
+      : mode === "runtime" ? "Spirit Vale Overlay disconnected" : "Spirit Vale Overlay could not start";
+  const guidance = mode === "slow"
+    ? "Startup is continuing automatically. Antivirus scanning, synchronized storage, or a busy drive can delay the bundled backend on first launch."
+    : mode === "reconnecting" ? "The app is reconnecting automatically. Capture continues if the backend process is still available."
+      : mode === "runtime" ? "Close this window and reopen Spirit Vale Overlay."
+        : "Close the app, make sure the complete extracted folder is available and writable, then launch it again. Moving the complete folder to a reliable local location may resolve sync, permission, or antivirus locking failures.";
   overlay.innerHTML = `
     <style>
       #desktop-startup-failure{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:28px;background:#0c110e;color:#edf5ee;font:14px/1.45 system-ui,sans-serif}
@@ -186,17 +224,18 @@ function renderStartupFailure(failure: StartupFailure): void {
       #desktop-startup-failure .actions{display:flex;gap:8px;margin-top:18px}#desktop-startup-failure button{padding:9px 13px;border:1px solid #667269;border-radius:7px;background:#252d27;color:#edf5ee;cursor:pointer}
     </style>
     <div class="card">
-      <h1>Spirit Vale Overlay could not start</h1>
+      <h1>${heading}</h1>
       <p>${escapeHtml(failure.message)}</p>
-      <p>Close the app, make sure the complete extracted folder is available and writable, then launch it again. Moving the complete folder to a reliable local location may resolve sync, permission, or antivirus locking failures.</p>
+      <p>${guidance}</p>
       <dl>
         <dt>Phase</dt><dd>${escapeHtml(failure.phase)}</dd>
+        ${failure.category ? `<dt>Category</dt><dd>${escapeHtml(failure.category)}</dd>` : ""}
         <dt>Operation</dt><dd>${escapeHtml(failure.operation)}</dd>
         ${failure.code ? `<dt>Error code</dt><dd>${escapeHtml(failure.code)}</dd>` : ""}
         ${failure.path ? `<dt>Path</dt><dd>${escapeHtml(failure.path)}</dd>` : ""}
         ${failure.logPaths?.length ? `<dt>Logs</dt><dd>${failure.logPaths.map(escapeHtml).join("<br>")}</dd>` : ""}
       </dl>
-      <div class="actions"><button type="button" data-action="folder">Open application folder</button><button type="button" data-action="exit">Exit</button></div>
+      <div class="actions">${failure.applicationPath ? '<button type="button" data-action="folder">Open application folder</button>' : ""}<button type="button" data-action="exit">Exit</button></div>
     </div>`;
   overlay.querySelector<HTMLButtonElement>('[data-action="folder"]')?.addEventListener("click", () => {
     if (failure.applicationPath) void os.open(failure.applicationPath);

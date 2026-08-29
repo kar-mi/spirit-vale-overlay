@@ -64,4 +64,10 @@ describe("Neutralino configuration", () => {
       },
     });
   });
+
+  test("packages the default browser favicon from the application icon", async () => {
+    const buildSource = await Bun.file(`${import.meta.dir}/build.ts`).text();
+    expect(buildSource).toContain('path.join(resources, "favicon.ico")');
+    expect(buildSource).toContain('assets/icon/eggplant_icon.ico');
+  });
 });

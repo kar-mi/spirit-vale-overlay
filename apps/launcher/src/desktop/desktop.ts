@@ -920,7 +920,11 @@ function updateStorageWarning(): void {
 }
 
 function recordStorageWarning(source: string, warning: string | undefined): void {
-  if (!warning || reportedStorageWarnings.get(source) === warning) return;
+  if (!warning) {
+    reportedStorageWarnings.delete(source);
+    return;
+  }
+  if (reportedStorageWarnings.get(source) === warning) return;
   reportedStorageWarnings.set(source, warning);
   errorLog.write({
     title: `${source} storage warning`,

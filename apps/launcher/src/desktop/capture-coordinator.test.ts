@@ -68,6 +68,10 @@ describe("central capture coordinator", () => {
       expect(coordinator.state().captureWarning?.code).toBe("no-game-udp");
       capture.packet(authenticatedPacket(1, "test-connection"));
       expect(coordinator.state().captureWarning).toBeUndefined();
+      await Bun.sleep(15);
+      expect(coordinator.state().captureWarning?.code).toBe("fishnet-data-delayed");
+      capture.packet(authenticatedPacket(2, "test-connection"));
+      expect(coordinator.state().captureWarning).toBeUndefined();
       await coordinator.stop();
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -1049,15 +1053,19 @@ describe("central capture coordinator", () => {
   test("restarts capture for a new adapter and rolls back a failed selection", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-adapter-"));
     const capture = new FakeCapture();
+    capture.initialTargetState = "active";
     try {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         deviceName: "fictional-adapter-a",
         captureFactory: () => capture as unknown as PacketCapture,
+        stallWarningMs: 5,
       });
       await coordinator.start();
       await coordinator.reconfigure("fictional-adapter-b");
       expect(capture.configs.map((config) => config.deviceName)).toEqual(["fictional-adapter-a", "fictional-adapter-b"]);
+      await Bun.sleep(15);
+      expect(coordinator.state().captureWarning?.code).toBe("no-game-udp");
 
       capture.failDeviceName = "fictional-adapter-c";
       await expect(coordinator.reconfigure("fictional-adapter-c")).rejects.toThrow("Could not switch capture adapter");
