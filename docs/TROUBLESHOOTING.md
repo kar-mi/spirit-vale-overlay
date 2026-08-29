@@ -9,6 +9,7 @@ This guide covers the portable Windows x64 release of Spirit Vale Overlay. Work 
    - [Npcap](https://npcap.com/#download). During setup, select **Install Npcap in WinPcap API-compatible Mode** and leave **Restrict Npcap driver's access to Administrators only** unchecked.
    - [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/). Use the **Evergreen Bootstrapper**, or the x64 **Evergreen Standalone Installer** for an offline installation. Neutralino uses WebView2 to display the app on Windows.
    - [Microsoft Visual C++ Redistributable for x64](https://aka.ms/vc14/vc_redist.x64.exe). Choose **Repair** if it is already installed.
+      - [All versions of Microsoft Visual C++ Redistributable for x64](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-supported-redistributable-version)
 3. Restart Windows after installing or repairing Npcap or the runtimes.
 4. Download the latest ZIP from [GitHub Releases](https://github.com/kar-mi/spirit-vale-overlay/releases/latest).
 5. If you are unable to extract the zip, right-click it, choose **Properties**, select **Unblock** if that option is present, and then extract it. You can scan the zip with antivirus/view as needed.
