@@ -11,7 +11,7 @@
   "dependencies": {
     "@preact/signals": "^2.9.4",
     "@kar-mi/spirit-vale-tools-character": "0.5.0",
-    "@kar-mi/spirit-vale-tools-combat": "3.3.5",
+    "@kar-mi/spirit-vale-tools-combat": "3.3.6",
     "@svoverlay/desktop-platform": "workspace:*",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*",

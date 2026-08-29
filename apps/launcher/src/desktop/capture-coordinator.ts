@@ -127,7 +127,6 @@ export class CaptureCoordinator {
     healingTraitsResolver: (actorId: number) => {
       return actorId === this.character.physicalObjectId() ? this.localHealingTraits() : undefined;
     },
-    localActorIdResolver: () => this.character.physicalObjectId(),
     monsterCatalog: combatMonsterIdentityCatalog(),
   });
   private readonly statusTracker = new FishNetStatusTracker();
@@ -739,12 +738,6 @@ export class CaptureCoordinator {
       for (const identity of identities) this.statusTracker.consumeIdentity(identity);
       for (const event of events) this.statusTracker.consume(event, observedAtMs);
       this.scheduleActiveStatusExpiry();
-      for (const event of events) {
-        if (event.kind !== "summon" || !event.recovered) continue;
-        this.combatLog?.log("combat.warning", {
-          message: `recovered an unnamed summon calibration (${event.skillId} ×${event.stacks}) at tick ${event.tick}`,
-        });
-      }
       handled ||= identities.length > 0 || events.length > 0;
       for (const event of identities) this.combatLog?.log("combat.actorIdentity", jsonObject(event));
       for (const event of events) if (event.actorId !== undefined) this.logMobIdentity(event.actorId, event.tick);
