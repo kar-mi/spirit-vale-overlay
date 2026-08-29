@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { StartupPreflightError, verifyReadableFiles } from "@svoverlay/desktop-platform/startup-preflight";
+import { currentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
 
 import { configurePortableEnvironment } from "../../../launcher/src/desktop/portable-environment.ts";
 import { initializeNeutralinoRuntime, markDesktopBackendReady, reportStartupFailure, terminateAllWindowProcesses } from "../frontend/runtime.ts";
@@ -46,7 +47,7 @@ async function startBackend(): Promise<void> {
   let phase = "bundle preflight";
   try {
     await verifyReadableFiles([
-      path.join(neutralinoRoot, "extensions", "bin", "bun.exe"),
+      path.join(neutralinoRoot, "extensions", "bin", currentExecutableNames.bunRuntime),
       path.join(neutralinoRoot, "extensions", "backend", "index.js"),
       path.join(neutralinoRoot, "resources.neu"),
     ], {
@@ -58,11 +59,11 @@ async function startBackend(): Promise<void> {
 
     phase = "portable environment";
     if (existsSync(path.join(neutralinoRoot, ".spirit-vale-portable"))) {
-      await configurePortableEnvironment({ executablePath: path.join(neutralinoRoot, "bin", "spirit-vale-overlay-win_x64.exe") });
+      await configurePortableEnvironment({ executablePath: path.join(neutralinoRoot, "bin", currentExecutableNames.desktopApp) });
     } else {
       process.env.SPIRIT_VALE_PACKAGED = "1";
     }
-    process.env.SPIRIT_VALE_HOTKEY_HELPER ??= path.join(neutralinoRoot, "extensions", "bin", "sv-overlay-hotkeys.exe");
+    process.env.SPIRIT_VALE_HOTKEY_HELPER ??= path.join(neutralinoRoot, "extensions", "bin", currentExecutableNames.hotkeyHelper);
 
     phase = "Neutralino runtime";
     await initializeNeutralinoRuntime({ version: "0.10.4" });

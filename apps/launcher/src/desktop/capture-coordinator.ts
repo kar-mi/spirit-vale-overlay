@@ -35,6 +35,7 @@ import { FishNetLootDropTracker, FishNetMobDirectory, FishNetMobRewardTracker } 
 import type { FishNetLootDrop, FishNetLootDropEvent } from "@kar-mi/spirit-vale-tools-rewards";
 import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, TOWER_FLOOR_UNKNOWN_SUFFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
+import { currentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
 
 import type { CaptureHealthWarning, CaptureStatus, CaptureWarningCode, LauncherState } from "../launcher/types.ts";
 import type { BossGravestoneObservation } from "./boss-timer-coordinator.ts";
@@ -647,7 +648,7 @@ export class CaptureCoordinator {
     this.resetCaptureHealth();
     return this.capture.start({
       protocols: ["udp"],
-      targetProcessName: "SpiritVale.exe",
+      targetProcessName: currentExecutableNames.gameProcess,
       decodeFishNet: true,
       deviceName: this.options.deviceName,
     });

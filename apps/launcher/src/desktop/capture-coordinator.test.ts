@@ -10,6 +10,7 @@ import type { CapturedFishNetPacket, CapturedLiteNetLibPacket, CaptureConfig } f
 import type { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import { isLogStreamHeader, readCurrentLogStream } from "@kar-mi/spirit-vale-tools-logging";
 import { RewardSessionLogFollower } from "@kar-mi/spirit-vale-tools-rewards";
+import { currentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
 
 import { CaptureCoordinator } from "./capture-coordinator.ts";
 
@@ -99,8 +100,8 @@ describe("central capture coordinator", () => {
       expect(errorReports).toHaveLength(1);
       expect(errorReports[0]).toMatchObject({
         title: "Game was not detected for capture",
-        reason: expect.stringContaining("SpiritVale.exe was not found by Windows process inspection"),
-        details: { "Expected process": "SpiritVale.exe" },
+        reason: expect.stringContaining(`${currentExecutableNames.gameProcess} was not found by Windows process inspection`),
+        details: { "Expected process": currentExecutableNames.gameProcess },
       });
 
       capture.target("active", [4242]);
@@ -1913,7 +1914,7 @@ class FakeCapture extends EventEmitter {
   }
 
   target(state: "waiting" | "active", processIds: number[] = []): void {
-    this.emit("targetStatus", { processName: "SpiritVale.exe", state, processIds });
+    this.emit("targetStatus", { processName: currentExecutableNames.gameProcess, state, processIds });
   }
 }
 

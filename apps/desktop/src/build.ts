@@ -1,5 +1,6 @@
 import { cp, mkdir, readFile, rm, writeFile, copyFile } from "node:fs/promises";
 import path from "node:path";
+import { currentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
 
 const appRoot = path.resolve(import.meta.dir, "..");
 const workspace = path.resolve(appRoot, "../..");
@@ -44,12 +45,12 @@ await Promise.all([
   cp(path.join(workspace, "apps/launcher/assets/status-icons"), path.join(assets, "status-icons"), { recursive: true }),
 ]);
 
-await copyFile(process.execPath, path.join(bin, "bun.exe"));
+await copyFile(process.execPath, path.join(bin, currentExecutableNames.bunRuntime));
 if (process.platform === "win32") {
   const helper = Bun.spawn([
     "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
     "-File", path.join(workspace, "tooling/release/build-pass-through-shortcuts.ps1"),
-    "-OutputPath", path.join(bin, "sv-overlay-hotkeys.exe"),
+    "-OutputPath", path.join(bin, currentExecutableNames.hotkeyHelper),
   ], { stdout: "inherit", stderr: "inherit" });
   if (await helper.exited !== 0) throw new Error("Could not build the pass-through hotkey helper.");
 }
