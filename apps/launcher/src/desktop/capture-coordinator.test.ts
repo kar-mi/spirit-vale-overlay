@@ -582,6 +582,32 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("ignores map broadcasts for remote players", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-local-zone-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+      });
+      await coordinator.start();
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet(mapPacket(2, 43, "test-connection"));
+      capture.packet(characterPinPacket(3, 100, "test-connection"));
+      capture.packet(mapBroadcastPacket(4, 44, 200, "test-connection"));
+      capture.packet(mapBroadcastPacket(5, 45, 100, "test-connection"));
+      await coordinator.stop();
+
+      const pointer = await readCurrentLogStream("combat", directory);
+      expect(loggedLocations(await readFile(pointer!.path, "utf8"))).toEqual([
+        "__spiritvaleZone:43",
+        "__spiritvaleZone:45",
+      ]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("records tower floors as zones and returns to the latest physical map on exit", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-zones-"));
     const capture = new FakeCapture();
@@ -2230,6 +2256,25 @@ function mapPacket(tick: number, mapId: number, connectionId: string): TestPacke
     packetId: 900,
     packetName: "rpcLink",
     rpcName: "TraverseActive",
+    decodedFields: [{ name: "mapId", codec: "packedInt32", value: mapId }],
+    raw: Buffer.alloc(0),
+    payload: Buffer.alloc(0),
+    connectionId,
+  };
+}
+
+function mapBroadcastPacket(
+  tick: number,
+  mapId: number,
+  objectId: number,
+  connectionId: string,
+): TestPacket {
+  return {
+    tick,
+    packetId: 900,
+    packetName: "rpcLink",
+    rpcName: "TraverseObservers",
+    objectId,
     decodedFields: [{ name: "mapId", codec: "packedInt32", value: mapId }],
     raw: Buffer.alloc(0),
     payload: Buffer.alloc(0),

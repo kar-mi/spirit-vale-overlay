@@ -66,7 +66,8 @@ const STATUS_RPC_NAMES = new Set([
   "ApplySkillDisplay_O",
   "RemoveSkillDisplay_O",
 ]);
-const MAP_RPC_NAMES = new Set(["TraverseActive", "TraverseObservers", "SyncInstanceState"]);
+const LOCAL_TARGET_MAP_RPC = "TraverseActive";
+const OBJECT_MAP_RPC_NAMES = new Set(["TraverseObservers", "SyncInstanceState"]);
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
 const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map or re-log if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
@@ -969,7 +970,13 @@ export class CaptureCoordinator {
   }
 
   private observePhysicalMap(packet: CapturedFishNetPacket): number | undefined {
-    if (packet.rpcName === undefined || !MAP_RPC_NAMES.has(packet.rpcName)) return undefined;
+    const localObjectId = this.character.physicalObjectId();
+    const localTarget = packet.rpcName === LOCAL_TARGET_MAP_RPC;
+    const localObjectBroadcast = packet.rpcName !== undefined
+      && OBJECT_MAP_RPC_NAMES.has(packet.rpcName)
+      && localObjectId !== undefined
+      && packet.objectId === localObjectId;
+    if (!localTarget && !localObjectBroadcast) return undefined;
     const mapId = packet.decodedFields?.find((field) => field.name === "mapId")?.value;
     if (typeof mapId !== "number" || !Number.isSafeInteger(mapId) || mapId < 0) return undefined;
     this.lastObservedMapId = mapId;
