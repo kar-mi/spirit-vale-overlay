@@ -27,7 +27,6 @@ describe("Neutralino configuration", () => {
     // through os.execCommand internally, even though our frontend never calls it.
     expect(config.nativeAllowList).toContain("os.execCommand");
     expect(config.nativeAllowList).toEqual(expect.arrayContaining([
-      "filesystem.access",
       "filesystem.getStats",
       "filesystem.readBinaryFile",
     ]));

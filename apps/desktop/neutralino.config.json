@@ -24,7 +24,6 @@
     "computer.*",
     "events.*",
     "extensions.*",
-    "filesystem.access",
     "filesystem.getStats",
     "filesystem.readBinaryFile",
     "os.execCommand",

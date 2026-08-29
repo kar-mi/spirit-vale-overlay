@@ -48,15 +48,13 @@ async function startBackend(): Promise<void> {
   let phase = "bundle preflight";
   try {
     await verifyReadableFiles([
-      path.join(neutralinoRoot, "extensions", "bin", executableNames.bunRuntime),
-      path.join(neutralinoRoot, "extensions", "backend", "index.js"),
       path.join(neutralinoRoot, "resources.neu"),
     ], {
       onRetry: (failure, attempt, attempts) => logBackend(
         `startup preflight retry ${attempt + 1}/${attempts} (${failure.operation}, ${failure.code ?? "no code"}): ${failure.path}: ${failure.message}`,
       ),
     });
-    logBackend("bundle preflight passed");
+    logBackend("resource bundle preflight passed");
 
     phase = "portable environment";
     if (existsSync(path.join(neutralinoRoot, ".spirit-vale-portable"))) {

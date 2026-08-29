@@ -1,39 +1,43 @@
 import { describe, expect, test } from "bun:test";
 
-import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapRuntime } from "./bootstrap-preflight.ts";
+import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapFiles } from "./bootstrap-preflight.ts";
 
 describe("Neutralino frontend bootstrap preflight", () => {
   test("reads the bundled runtime without depending on that runtime", async () => {
     const calls: string[] = [];
-    await verifyBootstrapRuntime({
+    await verifyBootstrapFiles({
       applicationPath: "C:\\Spirit Vale",
       platform: "win32",
       filesystem: {
         getStats: async (path) => { calls.push(`stat:${path}`); return { size: 10, isFile: true }; },
-        access: async (path) => { calls.push(`access:${path}`); },
         readBinaryFile: async (path) => { calls.push(`read:${path}`); return new Uint8Array([1]).buffer; },
       },
     });
-    expect(calls).toEqual([
+    expect(calls).toHaveLength(4);
+    expect(calls).toEqual(expect.arrayContaining([
       "stat:C:\\Spirit Vale/extensions/bin/bun.exe",
-      "access:C:\\Spirit Vale/extensions/bin/bun.exe",
       "read:C:\\Spirit Vale/extensions/bin/bun.exe",
-    ]);
+      "stat:C:\\Spirit Vale/extensions/backend/index.js",
+      "read:C:\\Spirit Vale/extensions/backend/index.js",
+    ]));
   });
 
   test("retries and reports a missing runtime with its path and native code", async () => {
     let attempts = 0;
     const missing = Object.assign(new Error("Path does not exist"), { code: "NE_FS_NOPATHE" });
     try {
-      await verifyBootstrapRuntime({
+      await verifyBootstrapFiles({
         applicationPath: "/opt/spirit-vale",
         platform: "linux",
         attempts: 3,
         retryDelayMs: 0,
         filesystem: {
-          getStats: async () => { attempts += 1; throw missing; },
-          access: async () => {},
-          readBinaryFile: async () => new ArrayBuffer(0),
+          getStats: async (path) => {
+            attempts += 1;
+            if (path.includes("/bin/")) throw missing;
+            return { size: 10, isFile: true };
+          },
+          readBinaryFile: async () => new Uint8Array([1]).buffer,
         },
       });
       throw new Error("Expected bootstrap preflight to fail");
@@ -44,7 +48,28 @@ describe("Neutralino frontend bootstrap preflight", () => {
         path: "/opt/spirit-vale/extensions/bin/bun",
         code: "NE_FS_NOPATHE",
       });
-      expect(attempts).toBe(3);
+      expect(attempts).toBe(4);
+    }
+  });
+
+  test("reports a missing backend entrypoint before Bun is needed", async () => {
+    try {
+      await verifyBootstrapFiles({
+        applicationPath: "C:\\Spirit Vale",
+        platform: "win32",
+        attempts: 1,
+        filesystem: {
+          getStats: async (path) => {
+            if (path.endsWith("index.js")) throw Object.assign(new Error("Path does not exist"), { code: "NE_FS_NOPATHE" });
+            return { size: 10, isFile: true };
+          },
+          readBinaryFile: async () => new Uint8Array([1]).buffer,
+        },
+      });
+      throw new Error("Expected bootstrap preflight to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(BootstrapRuntimeError);
+      expect((error as BootstrapRuntimeError).details.path).toBe("C:\\Spirit Vale/extensions/backend/index.js");
     }
   });
 

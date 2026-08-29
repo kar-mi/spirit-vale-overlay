@@ -2,7 +2,6 @@ import { executableBaseNames, platformExecutableName } from "@svoverlay/desktop-
 
 interface BootstrapFilesystem {
   getStats(path: string): Promise<{ size: number; isFile: boolean }>;
-  access(path: string, mode?: number): Promise<unknown>;
   readBinaryFile(path: string, options?: { pos: number; size: number }): Promise<ArrayBuffer>;
 }
 
@@ -28,18 +27,34 @@ export interface BootstrapPreflightOptions {
   retryDelayMs?: number;
 }
 
-export async function verifyBootstrapRuntime(options: BootstrapPreflightOptions): Promise<void> {
+export async function verifyBootstrapFiles(options: BootstrapPreflightOptions): Promise<void> {
   const runtimeName = platformExecutableName(executableBaseNames.bunRuntime, options.platform);
-  const runtimePath = joinApplicationPath(options.applicationPath, "extensions", "bin", runtimeName);
+  const files = [
+    {
+      displayName: `backend runtime ${runtimeName}`,
+      path: joinApplicationPath(options.applicationPath, "extensions", "bin", runtimeName),
+    },
+    {
+      displayName: "backend entrypoint index.js",
+      path: joinApplicationPath(options.applicationPath, "extensions", "backend", "index.js"),
+    },
+  ];
+
+  await Promise.all(files.map((file) => verifyBootstrapFile(file, options)));
+}
+
+async function verifyBootstrapFile(
+  file: { displayName: string; path: string },
+  options: BootstrapPreflightOptions,
+): Promise<void> {
   const attempts = Math.max(1, Math.floor(options.attempts ?? 3));
   const retryDelayMs = Math.max(0, options.retryDelayMs ?? 250);
 
   for (let attempt = 1; ; attempt += 1) {
     try {
-      const stats = await options.filesystem.getStats(runtimePath);
+      const stats = await options.filesystem.getStats(file.path);
       if (!stats.isFile || stats.size === 0) throw new Error(stats.isFile ? "The file is empty." : "The path is not a file.");
-      await options.filesystem.access(runtimePath, 4);
-      const sample = await options.filesystem.readBinaryFile(runtimePath, { pos: 0, size: 1 });
+      const sample = await options.filesystem.readBinaryFile(file.path, { pos: 0, size: 1 });
       if (sample.byteLength !== 1) throw new Error("The file could not be read.");
       return;
     } catch (error) {
@@ -51,8 +66,8 @@ export async function verifyBootstrapRuntime(options: BootstrapPreflightOptions)
       const code = errorCode(error);
       throw new BootstrapRuntimeError({
         operation: "bundle-read",
-        path: runtimePath,
-        message: `The required backend runtime ${runtimeName} is missing, empty, or unreadable. ${cause.message}`,
+        path: file.path,
+        message: `The required ${file.displayName} is missing, empty, or unreadable. ${cause.message}`,
         ...(code === undefined ? {} : { code }),
       }, { cause });
     }

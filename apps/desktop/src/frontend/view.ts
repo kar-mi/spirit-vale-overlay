@@ -4,7 +4,7 @@ import type { DesktopRPCSchema } from "@svoverlay/contracts/rpc";
 import type { BackendReady, ClientPacket, RpcPacket, ServerPacket, StartupFailure } from "../shared/protocol.ts";
 import { backendConnectionFromSearch } from "../shared/backend-connection.ts";
 import { defineRpc, type RpcInstance } from "../shared/rpc.ts";
-import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapRuntime } from "./bootstrap-preflight.ts";
+import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapFiles } from "./bootstrap-preflight.ts";
 
 type Handler = (packet: RpcPacket) => void;
 
@@ -42,7 +42,7 @@ class DesktopTransport {
       if (this.launcher && !this.bootstrapChecked) {
         const globals = globalThis as typeof globalThis & { NL_PATH?: unknown; NL_OS?: unknown };
         if (typeof globals.NL_PATH === "string") {
-          await verifyBootstrapRuntime({
+          await verifyBootstrapFiles({
             applicationPath: globals.NL_PATH,
             platform: neutralinoPlatform(typeof globals.NL_OS === "string" ? globals.NL_OS : "Windows"),
             filesystem,
