@@ -66,6 +66,8 @@ To store data in Windows AppData instead:
 
 Deleting the marker does not move existing portable data. To keep your current settings, open **Settings > Manage Settings** before deleting it and export them, then import them after restarting. You can also import directly from the old extracted folder's `data` directory.
 
+If the app does not start, shows a blank window, or cannot capture game traffic, see the [Windows troubleshooting guide](docs/TROUBLESHOOTING.md).
+
 ### Run from source
 
 This path is only for developers building the application. It requires Bun 1.4.0 or newer and access to the `@kar-mi/spirit-vale-tools-*` GitHub Packages.
