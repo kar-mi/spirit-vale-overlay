@@ -2,9 +2,6 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
-console.log("Hello from ./desktop/portable-environment.ts");
-
-
 export const portableMarkerName = ".spirit-vale-portable";
 
 type Environment = Record<string, string | undefined>;
