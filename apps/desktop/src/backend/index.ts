@@ -76,6 +76,7 @@ async function startBackend(): Promise<void> {
   } catch (error) {
     const failure = startupFailure(error, phase);
     logBackend(`startup failure (${failure.phase}/${failure.operation}): ${errorStack(error)}`);
+    terminateAllWindowProcesses({ preserveLauncher: true });
     if (runtimeReady) await reportStartupFailure(failure).catch((reportError) => {
       logBackend(`could not publish startup failure: ${errorStack(reportError)}`);
     });

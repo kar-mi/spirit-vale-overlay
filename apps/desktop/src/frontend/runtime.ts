@@ -60,8 +60,12 @@ export function isDesktopWindowProcess(processId: number): boolean {
 // than through the normal RPC-driven window-close sequence, nothing else will
 // ever tell those processes to close, leaving them stuck on screen. Kill them
 // directly by their tracked OS pid before we exit ourselves.
-export function terminateAllWindowProcesses(): void {
-  for (const session of sessions.values()) {
+export function terminateAllWindowProcesses(options: { preserveLauncher?: boolean } = {}): void {
+  for (const [windowId, session] of sessions) {
+    // A startup-failure card is rendered by the launcher itself. Preserve that
+    // one process while still closing any tool/overlay windows that managed to
+    // connect before initialization failed.
+    if (options.preserveLauncher && windowId === "launcher") continue;
     if (session.processId === undefined) continue;
     try { process.kill(session.processId); } catch {}
   }
