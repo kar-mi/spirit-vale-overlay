@@ -6,6 +6,7 @@ interface NeutralinoConfig {
   description?: string;
   copyright?: string;
   applicationIcon?: string;
+  nativeAllowList?: string[];
   extensions?: Array<{
     id?: string;
     commandWindows?: string;
@@ -16,6 +17,15 @@ interface NeutralinoConfig {
 }
 
 describe("Neutralino configuration", () => {
+  test("does not expose process execution to renderer code", async () => {
+    const config = (await Bun.file(
+      `${import.meta.dir}/../neutralino.config.json`,
+    ).json()) as NeutralinoConfig;
+
+    expect(config.nativeAllowList).not.toContain("os.execCommand");
+    expect(config.nativeAllowList).not.toContain("os.spawnProcess");
+  });
+
   test("runs the backend with the bundled Bun and orphan cleanup", async () => {
     const config = (await Bun.file(
       `${import.meta.dir}/../neutralino.config.json`,

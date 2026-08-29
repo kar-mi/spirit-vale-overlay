@@ -20,7 +20,6 @@
     "computer.*",
     "events.*",
     "extensions.*",
-    "os.execCommand",
     "os.open",
     "os.openFile",
     "os.setTray",
