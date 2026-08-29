@@ -6,6 +6,7 @@ interface NeutralinoConfig {
   description?: string;
   copyright?: string;
   applicationIcon?: string;
+  nativeAllowList?: string[];
   extensions?: Array<{
     id?: string;
     commandWindows?: string;
@@ -16,6 +17,17 @@ interface NeutralinoConfig {
 }
 
 describe("Neutralino configuration", () => {
+  test("allows only the process capability required by secondary windows", async () => {
+    const config = (await Bun.file(
+      `${import.meta.dir}/../neutralino.config.json`,
+    ).json()) as NeutralinoConfig;
+
+    // Neutralino's window.create implementation launches each secondary window
+    // through os.execCommand internally, even though our frontend never calls it.
+    expect(config.nativeAllowList).toContain("os.execCommand");
+    expect(config.nativeAllowList).not.toContain("os.spawnProcess");
+  });
+
   test("runs the backend with the bundled Bun and orphan cleanup", async () => {
     const config = (await Bun.file(
       `${import.meta.dir}/../neutralino.config.json`,

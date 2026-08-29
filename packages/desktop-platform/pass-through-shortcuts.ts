@@ -14,22 +14,32 @@ export interface PassThroughShortcutListener<Action extends string> {
 export function createPassThroughShortcutListener<Action extends string>(
   bindings: readonly ShortcutBinding<Action>[],
   onShortcut: (action: Action) => void,
+  onError: (error: Error) => void = () => {},
 ): PassThroughShortcutListener<Action> {
   if (process.platform !== "win32") throw new Error("Pass-through shortcuts are supported on Windows only.");
   let child: ReturnType<typeof Bun.spawn> | undefined;
   let closed = false;
 
   const start = (next: ReadonlyArray<ShortcutBinding<Action>>): void => {
-    child?.kill();
+    const previous = child;
+    child = undefined;
+    previous?.kill();
     if (next.length === 0) {
-      child = undefined;
       return;
     }
     const executable = helperPath();
     const arguments_ = next.flatMap(({ action, shortcut }) => ["--binding", action, shortcut]);
-    const current = Bun.spawn([executable, ...arguments_], { stdout: "pipe", stderr: "pipe", windowsHide: true });
+    const current = Bun.spawn([executable, ...arguments_], { stdout: "pipe", stderr: "ignore", windowsHide: true });
     child = current;
-    void readActions(current.stdout as ReadableStream<Uint8Array>, onShortcut, () => !closed && child === current && current.exitCode === null);
+    const actions = new Set(next.map(({ action }) => action));
+    void monitorChild(
+      current,
+      actions,
+      onShortcut,
+      onError,
+      () => !closed && child === current,
+      () => { if (child === current) child = undefined; },
+    );
   };
 
   start(bindings);
@@ -46,6 +56,28 @@ export function createPassThroughShortcutListener<Action extends string>(
   };
 }
 
+async function monitorChild<Action extends string>(
+  child: ReturnType<typeof Bun.spawn>,
+  actions: ReadonlySet<Action>,
+  onShortcut: (action: Action) => void,
+  onError: (error: Error) => void,
+  isCurrent: () => boolean,
+  retire: () => void,
+): Promise<void> {
+  try {
+    await readActions(child.stdout as ReadableStream<Uint8Array>, actions, onShortcut, isCurrent);
+    const exitCode = await child.exited;
+    if (!isCurrent()) return;
+    retire();
+    onError(new Error(`Pass-through shortcut helper exited unexpectedly with code ${exitCode}.`));
+  } catch (error) {
+    if (!isCurrent()) return;
+    child.kill();
+    retire();
+    onError(error instanceof Error ? error : new Error(String(error)));
+  }
+}
+
 function helperPath(): string {
   const executable = process.env.SPIRIT_VALE_HOTKEY_HELPER?.trim()
     || path.join(path.dirname(process.execPath), "sv-overlay-hotkeys.exe");
@@ -55,6 +87,7 @@ function helperPath(): string {
 
 async function readActions<Action extends string>(
   stream: ReadableStream<Uint8Array>,
+  actions: ReadonlySet<Action>,
   onShortcut: (action: Action) => void,
   isCurrent: () => boolean,
 ): Promise<void> {
@@ -68,7 +101,9 @@ async function readActions<Action extends string>(
       pending += decoder.decode(value, { stream: true });
       const lines = pending.split(/\r?\n/);
       pending = lines.pop() ?? "";
-      for (const line of lines) if (line && isCurrent()) onShortcut(line as Action);
+      for (const line of lines) {
+        if (isCurrent() && actions.has(line as Action)) onShortcut(line as Action);
+      }
     }
   } finally {
     reader.releaseLock();
