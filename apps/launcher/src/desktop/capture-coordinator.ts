@@ -68,7 +68,7 @@ const STATUS_RPC_NAMES = new Set([
 ]);
 const MAP_RPC_NAMES = new Set(["TraverseActive", "TraverseObservers", "SyncInstanceState"]);
 const GAME_NOT_RUNNING_DETAIL = "Capture Active - Game not running";
-const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map if recently launched).";
+const WAITING_FOR_DATA_DETAIL = "Capture Active - Waiting on data (change channel/map or re-log if recently launched).";
 const CAPTURE_ACTIVE_DETAIL = "Capture Active";
 const gameProcessName = getCurrentExecutableNames().gameProcess;
 type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail" | "captureWarning">;

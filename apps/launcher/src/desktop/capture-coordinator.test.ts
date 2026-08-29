@@ -37,14 +37,14 @@ describe("central capture coordinator", () => {
       expect(capture.listenerCount("udpPacket")).toBe(0);
       await Bun.sleep(15);
       expect(coordinator.state().captureWarning?.code).toBe("unrecognized-game-udp");
-      expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map if recently launched).");
+      expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map or re-log if recently launched).");
 
       capture.liteNet(liteNetPacket(new Date(), Buffer.from("litenet-only")));
       expect(capture.listenerCount("liteNetPacket")).toBe(0);
       expect(coordinator.state().captureWarning).toBeUndefined();
       await Bun.sleep(15);
       expect(coordinator.state().captureWarning?.code).toBe("fishnet-decode-stalled");
-      expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map if recently launched).");
+      expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map or re-log if recently launched).");
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       expect(coordinator.state()).toMatchObject({ captureStatus: "capturing", statusDetail: "Capture Active" });
@@ -134,7 +134,7 @@ describe("central capture coordinator", () => {
 
       expect(coordinator.state()).toEqual({
         captureStatus: "capturing",
-        statusDetail: "Capture Active - Waiting on data (change channel/map if recently launched).",
+        statusDetail: "Capture Active - Waiting on data (change channel/map or re-log if recently launched).",
       });
 
       capture.packet(authenticatedPacket(1, "test-connection"));
@@ -144,7 +144,7 @@ describe("central capture coordinator", () => {
       expect(coordinator.state().statusDetail).toBe("Capture Active - Game not running");
 
       capture.target("active", [4242]);
-      expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map if recently launched).");
+      expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map or re-log if recently launched).");
       capture.target("active", [4242]);
       await Bun.sleep(15);
       expect(errorReports.map((report) => report.title)).toEqual(["Game was not detected for capture"]);
