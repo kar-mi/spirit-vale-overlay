@@ -1,5 +1,6 @@
 import { app, events, filesystem, init, os, window as neutralinoWindow } from "@neutralinojs/lib";
 import type { DesktopRPCSchema } from "@svoverlay/contracts/rpc";
+import { bundleLogPaths } from "@svoverlay/desktop-platform/bundle-layout";
 
 import type { BackendReady, ClientPacket, RpcPacket, ServerPacket, StartupFailure } from "../shared/protocol.ts";
 import { backendConnectionFromSearch } from "../shared/backend-connection.ts";
@@ -232,7 +233,7 @@ function startupFailure(error: unknown): StartupFailure {
       category: "bundle",
       ...(applicationPath === undefined ? {} : {
         applicationPath,
-        logPaths: [`${applicationPath}/neutralinojs.log`, `${applicationPath}/neutralino-backend.log`],
+        logPaths: bundleLogPaths(applicationPath),
       }),
     };
   }
@@ -244,7 +245,7 @@ function startupFailure(error: unknown): StartupFailure {
     message,
     ...(applicationPath === undefined ? {} : {
       applicationPath,
-      logPaths: [`${applicationPath}/neutralinojs.log`, `${applicationPath}/neutralino-backend.log`],
+      logPaths: bundleLogPaths(applicationPath),
     }),
   };
 }

@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { bundleLayout, bundledRuntimePath } from "@svoverlay/desktop-platform/bundle-layout";
 
 import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapFiles } from "./bootstrap-preflight.ts";
+
+const windowsRuntime = bundledRuntimePath("win32");
+const linuxRuntime = bundledRuntimePath("linux");
+const entrypoint = bundleLayout.backendEntrypoint;
 
 describe("Neutralino frontend bootstrap preflight", () => {
   test("reads the bundled runtime without depending on that runtime", async () => {
@@ -15,10 +20,10 @@ describe("Neutralino frontend bootstrap preflight", () => {
     });
     expect(calls).toHaveLength(4);
     expect(calls).toEqual(expect.arrayContaining([
-      "stat:C:\\Spirit Vale/extensions/bin/bun.exe",
-      "read:C:\\Spirit Vale/extensions/bin/bun.exe",
-      "stat:C:\\Spirit Vale/extensions/backend/index.js",
-      "read:C:\\Spirit Vale/extensions/backend/index.js",
+      `stat:C:\\Spirit Vale/${windowsRuntime}`,
+      `read:C:\\Spirit Vale/${windowsRuntime}`,
+      `stat:C:\\Spirit Vale/${entrypoint}`,
+      `read:C:\\Spirit Vale/${entrypoint}`,
     ]));
   });
 
@@ -45,7 +50,7 @@ describe("Neutralino frontend bootstrap preflight", () => {
       expect(error).toBeInstanceOf(BootstrapRuntimeError);
       expect((error as BootstrapRuntimeError).details).toMatchObject({
         operation: "bundle-read",
-        path: "/opt/spirit-vale/extensions/bin/bun",
+        path: `/opt/spirit-vale/${linuxRuntime}`,
         code: "NE_FS_NOPATHE",
       });
       expect(attempts).toBe(4);
@@ -69,7 +74,7 @@ describe("Neutralino frontend bootstrap preflight", () => {
       throw new Error("Expected bootstrap preflight to fail");
     } catch (error) {
       expect(error).toBeInstanceOf(BootstrapRuntimeError);
-      expect((error as BootstrapRuntimeError).details.path).toBe("C:\\Spirit Vale/extensions/backend/index.js");
+      expect((error as BootstrapRuntimeError).details.path).toBe(`C:\\Spirit Vale/${entrypoint}`);
     }
   });
 

@@ -1,6 +1,13 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, rm } from "node:fs/promises";
 import path from "node:path";
+// tooling/ is not an npm workspace member, so the shared layout is imported by path.
+import {
+  bundleLayout,
+  bundledHotkeyHelperPath,
+  bundledRuntimePath,
+} from "../../packages/desktop-platform/bundle-layout.ts";
+import { neutralinoDesktopExecutableName } from "../../packages/desktop-platform/executable-names.ts";
 
 interface PackageJson {
   version?: string;
@@ -36,21 +43,21 @@ const zipPath = path.resolve(projectRoot, Bun.argv[2] ?? defaultZip);
 const checkRoot = path.join(projectRoot, "dist", "portable-check");
 
 const requiredPaths = [
-  ".spirit-vale-portable",
-  "README.txt",
-  "resources.neu",
-  "extensions/backend/index.js",
-  "extensions/backend/index.js.map",
-  "extensions/bin/bun.exe",
-  "extensions/bin/sv-overlay-hotkeys.exe",
-  "spirit-vale-overlay-win_x64.exe",
+  bundleLayout.portableMarker,
+  bundleLayout.portableReadme,
+  bundleLayout.resourceBundle,
+  bundleLayout.backendEntrypoint,
+  bundleLayout.backendSourceMap,
+  bundledRuntimePath("win32"),
+  bundledHotkeyHelperPath("win32"),
+  neutralinoDesktopExecutableName("win32", "x64"),
 ] as const;
 
 const forbiddenPaths = [
   ".tmp",
-  ".neutralino-backend-owner.json",
-  "neutralino-backend.log",
-  "neutralinojs.log",
+  bundleLayout.backendOwnerFile,
+  bundleLayout.backendLog,
+  bundleLayout.neutralinoLog,
   "error.log",
   "data",
   "spirit-vale-overlay-linux_arm64",
@@ -168,7 +175,7 @@ if (bundledBunVersion !== bunVersion) {
   throw new Error(`Portable Bun runtime is ${bundledBunVersion}, expected ${bunVersion}.`);
 }
 
-const readme = await readFile(path.join(bundleRoot, "README.txt"), "utf8");
+const readme = await readFile(path.join(bundleRoot, bundleLayout.portableReadme), "utf8");
 for (const expected of [
   "run \"spirit-vale-overlay-win_x64.exe\"",
   "data\\settings\\",

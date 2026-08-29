@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { backendExtensionCommand, bundleLayout } from "@svoverlay/desktop-platform/bundle-layout";
 
 interface NeutralinoConfig {
+  version?: string;
   applicationName?: string;
   author?: string;
   description?: string;
@@ -42,14 +44,23 @@ describe("Neutralino configuration", () => {
       (extension) => extension.id === "dev.spiritvale.backend",
     );
 
-    expect(backend?.commandWindows).toBe(
-      "\"${NL_PATH}/extensions/bin/bun.exe\" --no-orphans \"${NL_PATH}/extensions/backend/index.js\"",
-    );
+    expect(backend?.commandWindows).toBe(backendExtensionCommand("${NL_PATH}", "win32"));
 
     const localizedPath = "C:/Users/Zoë 李/Spirit & Vale (portable)";
     expect(backend?.commandWindows?.replaceAll("${NL_PATH}", localizedPath)).toBe(
-      `"${localizedPath}/extensions/bin/bun.exe" --no-orphans "${localizedPath}/extensions/backend/index.js"`,
+      backendExtensionCommand(localizedPath, "win32"),
     );
+  });
+
+  test("keeps the packaged version in step with the workspace version", async () => {
+    // The backend reports this version to the runtime, the release bundle is named for
+    // it, and the portable verifier refuses a mismatch. Bumping one file is enough.
+    const [config, packageJson] = await Promise.all([
+      Bun.file(`${import.meta.dir}/../neutralino.config.json`).json() as Promise<NeutralinoConfig>,
+      Bun.file(`${import.meta.dir}/../../../package.json`).json() as Promise<{ version?: string }>,
+    ]);
+
+    expect(config.version).toBe(packageJson.version);
   });
 
   test("lets Neutralino brand and assemble portable release bundles", async () => {
@@ -65,7 +76,7 @@ describe("Neutralino configuration", () => {
       applicationIcon: "resources/views/assets/app-icon.png",
       logging: { enabled: true, writeToLogFile: true },
       cli: {
-        copyItems: [".spirit-vale-portable", "README.txt"],
+        copyItems: [bundleLayout.portableMarker, bundleLayout.portableReadme],
       },
     });
   });

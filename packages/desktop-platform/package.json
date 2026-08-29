@@ -5,6 +5,7 @@
   "description": "Shared Bun, desktop-window, Windows-window, and local-persistence infrastructure.",
   "exports": {
     "./executable-names": "./executable-names.ts",
+    "./bundle-layout": "./bundle-layout.ts",
     "./win32": "./win32.ts",
     "./pass-through-shortcuts": "./pass-through-shortcuts.ts",
     "./window-publish": "./window-publish.ts",

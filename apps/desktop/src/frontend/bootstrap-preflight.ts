@@ -1,4 +1,8 @@
-import { executableBaseNames, platformExecutableName } from "@svoverlay/desktop-platform/executable-names";
+import {
+  bundleLayout,
+  bundledRuntimePath,
+  joinBundlePath,
+} from "@svoverlay/desktop-platform/bundle-layout";
 
 interface BootstrapFilesystem {
   getStats(path: string): Promise<{ size: number; isFile: boolean }>;
@@ -28,15 +32,15 @@ export interface BootstrapPreflightOptions {
 }
 
 export async function verifyBootstrapFiles(options: BootstrapPreflightOptions): Promise<void> {
-  const runtimeName = platformExecutableName(executableBaseNames.bunRuntime, options.platform);
+  const runtimePath = bundledRuntimePath(options.platform);
   const files = [
     {
-      displayName: `backend runtime ${runtimeName}`,
-      path: joinApplicationPath(options.applicationPath, "extensions", "bin", runtimeName),
+      displayName: `backend runtime ${basename(runtimePath)}`,
+      path: joinBundlePath(options.applicationPath, runtimePath),
     },
     {
-      displayName: "backend entrypoint index.js",
-      path: joinApplicationPath(options.applicationPath, "extensions", "backend", "index.js"),
+      displayName: `backend entrypoint ${basename(bundleLayout.backendEntrypoint)}`,
+      path: joinBundlePath(options.applicationPath, bundleLayout.backendEntrypoint),
     },
   ];
 
@@ -80,8 +84,8 @@ export function neutralinoPlatform(osName: string): NodeJS.Platform {
   return "linux";
 }
 
-function joinApplicationPath(root: string, ...parts: string[]): string {
-  return [root.replace(/[\\/]+$/, ""), ...parts].join("/");
+function basename(bundlePath: string): string {
+  return bundlePath.slice(bundlePath.lastIndexOf("/") + 1);
 }
 
 function errorCode(error: unknown): string | undefined {

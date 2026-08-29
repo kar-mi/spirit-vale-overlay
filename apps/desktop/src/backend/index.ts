@@ -1,8 +1,9 @@
 import { appendFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { StartupPreflightError, verifyReadableFiles } from "@svoverlay/desktop-platform/startup-preflight";
-import { getCurrentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
+import { bundleLayout, bundledHotkeyHelperPath } from "@svoverlay/desktop-platform/bundle-layout";
 
+import neutralinoConfig from "../../neutralino.config.json" with { type: "json" };
 import { configurePortableEnvironment } from "../../../launcher/src/desktop/portable-environment.ts";
 import { initializeNeutralinoRuntime, markDesktopBackendReady, reportStartupFailure, terminateAllWindowProcesses } from "../frontend/runtime.ts";
 import type { StartupFailure } from "../shared/protocol.ts";
@@ -10,9 +11,8 @@ import { claimBackendOwner, readOwner, releaseBackendOwner } from "./backend-own
 import { findProcessEntry } from "./win32.ts";
 
 const neutralinoRoot = path.resolve(import.meta.dir, "../..");
-const executableNames = getCurrentExecutableNames();
-const backendLog = path.join(neutralinoRoot, "neutralino-backend.log");
-const ownerFile = path.join(neutralinoRoot, ".neutralino-backend-owner.json");
+const backendLog = path.join(neutralinoRoot, bundleLayout.backendLog);
+const ownerFile = path.join(neutralinoRoot, bundleLayout.backendOwnerFile);
 
 function logBackend(message: string): void {
   try { appendFileSync(backendLog, `${new Date().toISOString()} ${message}\n`); } catch {}
@@ -48,7 +48,7 @@ async function startBackend(): Promise<void> {
   let phase = "bundle preflight";
   try {
     await verifyReadableFiles([
-      path.join(neutralinoRoot, "resources.neu"),
+      path.join(neutralinoRoot, bundleLayout.resourceBundle),
     ], {
       onRetry: (failure, attempt, attempts) => logBackend(
         `startup preflight retry ${attempt + 1}/${attempts} (${failure.operation}, ${failure.code ?? "no code"}): ${failure.path}: ${failure.message}`,
@@ -57,15 +57,18 @@ async function startBackend(): Promise<void> {
     logBackend("resource bundle preflight passed");
 
     phase = "portable environment";
-    if (existsSync(path.join(neutralinoRoot, ".spirit-vale-portable"))) {
-      await configurePortableEnvironment({ executablePath: path.join(neutralinoRoot, "bin", executableNames.desktopApp) });
+    if (existsSync(path.join(neutralinoRoot, bundleLayout.portableMarker))) {
+      // The marker check above already established the root, and this process runs from
+      // the bundled Bun under extensions/bin, which executable-based discovery would
+      // resolve to the wrong directory.
+      await configurePortableEnvironment({ portableRoot: neutralinoRoot });
     } else {
       process.env.SPIRIT_VALE_PACKAGED = "1";
     }
-    process.env.SPIRIT_VALE_HOTKEY_HELPER ??= path.join(neutralinoRoot, "extensions", "bin", executableNames.hotkeyHelper);
+    process.env.SPIRIT_VALE_HOTKEY_HELPER ??= path.join(neutralinoRoot, bundledHotkeyHelperPath());
 
     phase = "Neutralino runtime";
-    await initializeNeutralinoRuntime({ version: "0.10.4" });
+    await initializeNeutralinoRuntime({ version: neutralinoConfig.version });
     runtimeReady = true;
     logBackend("Neutralino runtime initialized");
 
@@ -85,7 +88,7 @@ async function startBackend(): Promise<void> {
 }
 
 function startupFailure(error: unknown, phase: string): StartupFailure {
-  const logPaths = [path.join(neutralinoRoot, "neutralinojs.log"), backendLog];
+  const logPaths = [path.join(neutralinoRoot, bundleLayout.neutralinoLog), backendLog];
   if (error instanceof StartupPreflightError) {
     const { phase: category, ...details } = error.details;
     return {
