@@ -34,12 +34,12 @@ export function buildMinimapSettingsSection({ state, busy, actions }: SettingsSe
   const { minimapEnabled, minimapRarityFilter, minimapLootChanceFilter } = state.overlay;
   return {
     id: "minimap",
-    label: "Minimap",
+    label: "Minimap / Loot",
     description: "Turn the minimap on or off, and set the loot thresholds it shares with loot notifications.",
     items: [
       {
         id: "minimap-enabled",
-        searchText: "Minimap enable disable off on turn feature radar tab keybind",
+        searchText: "Minimap loot enable disable off on turn feature radar tab keybind",
         content: <>
           <label class="settings-check">
             <input

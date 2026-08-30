@@ -35,14 +35,14 @@ export function buildOverlaySettingsSection({ state, busy, actions }: SettingsSe
         id: "visible-elements",
         searchText: `Visible elements tiles display monitor enable disable ${OVERLAY_ELEMENT_IDS.map((id) => OVERLAY_ELEMENT_LABELS[id]).join(" ")}`,
         content: <><div class="settings-card"><h2>Visible elements</h2>{OVERLAY_ELEMENT_IDS.map((id) => {
-          // The minimap has its own master switch in the Minimap section.
+          // The minimap has its own master switch in the Minimap / Loot section.
           const rowDisabled = id === "minimap" && !overlay.minimapEnabled;
           return <div class="settings-element-row" key={id}>
             <label class="settings-check settings-element"><input type="checkbox" checked={overlay.elements[id].enabled} disabled={busy || rowDisabled} onChange={(event) => actions.setOverlayElementEnabled(id, event.currentTarget.checked)} /><span>{OVERLAY_ELEMENT_LABELS[id]}</span></label>
             {/* Tiles cannot be dragged between monitors — separate documents — so the move happens here. */}
             {overlay.displays.length > 1 && <CustomSelect ariaLabel={`Display for ${OVERLAY_ELEMENT_LABELS[id]}`} disabled={busy || rowDisabled} value={overlay.elements[id].display} options={displayOptions} onChange={(value) => actions.setOverlayElementDisplay(id, value)} />}
           </div>;
-        })}</div>{!overlay.minimapEnabled && <p class="settings-hint">Enable the minimap in the Minimap section to use its row.</p>}<p class="settings-hint">{overlay.personalName ? `Detected character: ${overlay.personalName}` : "Waiting to detect your active character."}</p></>,
+        })}</div>{!overlay.minimapEnabled && <p class="settings-hint">Enable the minimap in the Minimap / Loot section to use its row.</p>}<p class="settings-hint">{overlay.personalName ? `Detected character: ${overlay.personalName}` : "Waiting to detect your active character."}</p></>,
       },
     ],
   };
