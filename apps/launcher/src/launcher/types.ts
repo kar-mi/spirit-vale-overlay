@@ -50,6 +50,7 @@ export interface LauncherState {
   minimizeToTray: boolean;
   resetMeterOnMapChange: boolean;
   resetGoldOnMapChange: boolean;
+  pastLogLimit: number;
   overlayShortcuts?: Record<KeybindAction, string>;
   update?: {
     version: string;
@@ -106,6 +107,7 @@ export type LauncherSettingsRpc = {
     setMinimizeToTray: { params: { minimizeToTray: boolean }; response: SharedSettingsState };
     setResetMeterOnMapChange: { params: { resetMeterOnMapChange: boolean }; response: SharedSettingsState };
     setResetGoldOnMapChange: { params: { resetGoldOnMapChange: boolean }; response: SharedSettingsState };
+    setPastLogLimit: { params: { pastLogLimit: number }; response: SharedSettingsState };
     refreshCaptureDevices: { params: Record<string, never>; response: SharedSettingsState };
     openNpcapDownload: { params: Record<string, never>; response: void };
     setOverlayLocked: { params: { locked: boolean }; response: SharedSettingsState };

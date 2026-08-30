@@ -1,5 +1,6 @@
 import { UI_SCALE_VALUES } from "@svoverlay/desktop-platform/ui-scale";
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
+import { useEffect, useState } from "preact/hooks";
 import type { SettingsSection, SettingsSectionContext } from "../settings-section.ts";
 
 const UI_SCALE_OPTIONS = UI_SCALE_VALUES.map((value) => ({ value: String(value), label: `${Math.round(value * 100)}%` }));
@@ -7,6 +8,36 @@ const PERSONAL_DPS_MODE_OPTIONS = [
   { value: "encounter", label: "Encounter average" },
   { value: "live", label: "Live (recent rate)" },
 ];
+
+function PastLogLimitInput({ value, disabled, onChange }: { value: number; disabled: boolean; onChange: (next: number) => void }) {
+  const [text, setText] = useState(() => String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setText(String(value));
+  }, [value, focused]);
+
+  const commit = () => {
+    setFocused(false);
+    const parsed = Number(text);
+    if (Number.isFinite(parsed)) onChange(parsed);
+    else setText(String(value));
+  };
+
+  return <input
+    class="input settings-number"
+    type="number"
+    min="100"
+    max="5000"
+    step="1"
+    value={text}
+    disabled={disabled}
+    onFocus={() => setFocused(true)}
+    onInput={(event) => setText(event.currentTarget.value)}
+    onBlur={commit}
+    onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+  />;
+}
 
 export function buildBasicSettingsSections({ state, busy, actions }: SettingsSectionContext): SettingsSection[] {
   const { launcher, overlay } = state;
@@ -71,6 +102,11 @@ export function buildBasicSettingsSections({ state, busy, actions }: SettingsSec
           id: "reset-gold",
           searchText: "Reset gold map channel change all-time tracker zone",
           content: <><label class="settings-check"><input type="checkbox" checked={launcher.resetGoldOnMapChange} disabled={busy} onChange={(event) => actions.setResetGoldOnMapChange(event.currentTarget.checked)} /><span>Reset gold on map/channel change</span></label><p class="settings-hint">Resets the all-time gold tracker whenever you zone or switch channel.</p></>,
+        },
+        {
+          id: "past-log-limit",
+          searchText: "Past logs rewards replays history session count limit",
+          content: <><label class="settings-field"><span>Past sessions shown</span><PastLogLimitInput value={launcher.pastLogLimit} disabled={busy} onChange={actions.setPastLogLimit} /></label><p class="settings-hint">Applies to Combat Past logs and Rewards Replays. Choose between 100 and 5000 sessions.</p></>,
         },
         {
           id: "personal-dps",

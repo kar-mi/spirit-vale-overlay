@@ -3,6 +3,7 @@ import path from "node:path";
 import { normalizeUiScale, type UiScale } from "@svoverlay/desktop-platform/ui-scale";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
 import { loadJsonSettings, writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
+import { DEFAULT_HISTORY_SESSION_LIMIT, normalizeHistorySessionLimit } from "@svoverlay/desktop-platform/history-limit";
 
 export interface LauncherSettings {
   captureAdapter: "auto" | string;
@@ -10,6 +11,7 @@ export interface LauncherSettings {
   minimizeToTray: boolean;
   resetMeterOnMapChange: boolean;
   resetGoldOnMapChange: boolean;
+  pastLogLimit: number;
   skippedUpdateVersion?: string;
 }
 
@@ -19,6 +21,7 @@ const defaults: LauncherSettings = {
   minimizeToTray: false,
   resetMeterOnMapChange: true,
   resetGoldOnMapChange: false,
+  pastLogLimit: DEFAULT_HISTORY_SESSION_LIMIT,
 };
 
 export function defaultLauncherSettings(): LauncherSettings {
@@ -37,6 +40,7 @@ export async function loadLauncherSettings(file = defaultSettingsFile()): Promis
         ? candidate.resetMeterOnMapChange
         : defaults.resetMeterOnMapChange,
       resetGoldOnMapChange: candidate.resetGoldOnMapChange === true,
+      pastLogLimit: normalizeHistorySessionLimit(candidate.pastLogLimit),
       skippedUpdateVersion: typeof candidate.skippedUpdateVersion === "string" && candidate.skippedUpdateVersion.trim()
         ? candidate.skippedUpdateVersion
         : undefined,

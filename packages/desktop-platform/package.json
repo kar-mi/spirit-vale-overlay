@@ -19,9 +19,10 @@
     "./json-settings": "./json-settings.ts",
     "./managed-session": "./managed-session.ts",
     "./location": "./location.ts",
+    "./history-limit": "./history-limit.ts",
     "./session-picker": "./session-picker.ts",
     "./session-picker-types": "./session-picker-types.ts",
-    "./session-summary-cache": "./session-summary-cache.ts",
+    "./session-summary-journal": "./session-summary-journal.ts",
     "./disposable-store": "./disposable-store.ts"
   },
   "dependencies": {

@@ -65,6 +65,7 @@ export interface RewardsWindowOptions {
   getCharacterState(): { snapshot?: { level: number; experience: number } };
   subscribeCharacter(listener: () => void): () => void;
   settingsPath?: string;
+  getHistorySessionLimit?: () => number;
   placements?: WindowPlacementStore;
   onClosed?: () => void;
   onReset?: () => Promise<void>;
@@ -106,6 +107,7 @@ const replayPicker = createSessionPicker({
   stream: "rewards",
   title: "Rewards replays",
   summarize: inspectRewardsReplaySummary,
+  ...(options.getHistorySessionLimit === undefined ? {} : { getSessionLimit: options.getHistorySessionLimit }),
   loadReplay: loadReplayPath,
   placements: options.placements,
   placementKey: "rewards-session-picker",
