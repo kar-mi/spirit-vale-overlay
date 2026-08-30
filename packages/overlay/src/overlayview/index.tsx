@@ -8,6 +8,9 @@ import { InteractiveChart } from "@svoverlay/ui-kit/interactive-chart";
 import type { ChartRange, ChartRenderResult } from "@svoverlay/ui-kit/interactive-chart";
 import { classIconUrlForArchetype, classIconUrlForName } from "@svoverlay/ui-kit/class-display";
 import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
+import { useTranslator } from "@svoverlay/i18n/browser";
+import type { Translator } from "@svoverlay/i18n/translate";
+import type { MessageKey } from "@svoverlay/i18n/messages";
 
 import type { FishNetActiveStatus } from "@kar-mi/spirit-vale-tools-combat";
 import {
@@ -24,7 +27,6 @@ import {
 import type { BossTimerPhase } from "@svoverlay/contracts/boss-timers";
 import {
   OVERLAY_ELEMENT_IDS,
-  OVERLAY_ELEMENT_LABELS,
   type BossTimer,
   type BossTimerState,
   type KeybindAction,
@@ -47,9 +49,11 @@ import {
 } from "../app-types.ts";
 import { constrainRectToBounds, displayForRect } from "../display-layout.ts";
 import { resourceFill } from "../personal-resources.ts";
-import { rarityColor, rarityLabel } from "../rarity.ts";
+import { rarityColor, rarityLabelKey } from "../rarity.ts";
 import { weightWarnLevel, type WeightWarnLevel } from "../weight-warning.ts";
 import { ewmaSeries } from "@kar-mi/spirit-vale-tools-metrics";
+
+const elementLabel = (t: Translator, id: OverlayElementId): string => t(`overlay.element.${id}`);
 
 const RADAR_WORLD_RADIUS = 60;
 const RADAR_RING_COUNT = 3;
@@ -225,6 +229,7 @@ function applyBossTimers(next: BossTimerState): void {
 }
 
 function App() {
+  const t = useTranslator();
   const next = chromeState.value;
   if (!next) return <main class="overlay-root" />;
   return (
@@ -234,9 +239,10 @@ function App() {
       {!next.locked && (
         <div class="edit-controls">
           <p class="edit-hint">
-            {next.displayLayout.length > 1
-              ? `Drag elements to arrange the overlay, or onto another screen to move them there. Press ${next.shortcuts.toggleLock} to lock or unlock.`
-              : `Drag elements to arrange the overlay. Press ${next.shortcuts.toggleLock} to lock or unlock.`}
+            {t(
+              next.displayLayout.length > 1 ? "overlay.edit.hintMultiDisplay" : "overlay.edit.hint",
+              { shortcut: next.shortcuts.toggleLock },
+            )}
           </p>
           <div class="edit-buttons">
             <button
@@ -244,9 +250,9 @@ function App() {
               type="button"
               onClick={() => { gridEnabled.value = !gridEnabled.value; }}
             >
-              {gridEnabled.value ? "Grid: On" : "Grid: Off"}
+              {t(gridEnabled.value ? "overlay.edit.gridOn" : "overlay.edit.gridOff")}
             </button>
-            <button class="lock-pill" type="button" onClick={() => void setLocked(true)}>Lock overlay</button>
+            <button class="lock-pill" type="button" onClick={() => void setLocked(true)}>{t("overlay.edit.lock")}</button>
           </div>
         </div>
       )}
@@ -299,6 +305,7 @@ function App() {
 }
 
 function DragGhost({ surface }: { surface?: OverlayDisplayPlacement }) {
+  const t = useTranslator();
   const preview = dragPreview.value;
   if (!preview || !surface || preview.origin === surface.display) return null;
   const x = preview.rect.x - surface.bounds.x;
@@ -311,7 +318,7 @@ function DragGhost({ surface }: { surface?: OverlayDisplayPlacement }) {
       aria-hidden="true"
       style={{ left: `${x}px`, top: `${y}px`, width: `${preview.rect.width}px`, height: `${preview.rect.height}px` }}
     >
-      <span>{OVERLAY_ELEMENT_LABELS[preview.id]}</span>
+      <span>{elementLabel(t, preview.id)}</span>
     </div>
   );
 }
@@ -350,6 +357,7 @@ function StatusOverlayElement({
 }
 
 function OverlayElement({ id, locked, warn, weightWarn, bossAlert, children }: OverlayElementProps) {
+  const t = useTranslator();
   const [gesture, setGesture] = useState<PointerGesture>();
   const [preview, setPreview] = useState<ElementRect>();
   const elementRef = useRef<HTMLElement>(null);
@@ -472,10 +480,10 @@ function OverlayElement({ id, locked, warn, weightWarn, bossAlert, children }: O
           <div class="overlay-surface" style={`--element-background-alpha:${settings.opacity * 0.76}`}>
             {children}
           </div>
-          {!locked && <span class="element-title-badge">{OVERLAY_ELEMENT_LABELS[id]}</span>}
+          {!locked && <span class="element-title-badge">{elementLabel(t, id)}</span>}
         </>
       ) : (
-        <div class="disabled-element-placeholder">{OVERLAY_ELEMENT_LABELS[id]}</div>
+        <div class="disabled-element-placeholder">{elementLabel(t, id)}</div>
       )}
       {!locked && settings.enabled && selected && RESIZE_EDGES.map((edge) => (
         <span
@@ -504,6 +512,7 @@ function OverlayElement({ id, locked, warn, weightWarn, bossAlert, children }: O
 }
 
 function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | undefined }) {
+  const t = useTranslator();
   const [headerDrag, setHeaderDrag] = useState<{
     pointerId: number;
     originX: number;
@@ -536,11 +545,11 @@ function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | 
         onPointerUp={() => setHeaderDrag(undefined)}
         onPointerCancel={() => setHeaderDrag(undefined)}
       >
-        <span>{OVERLAY_ELEMENT_LABELS[selectedId]}</span>
+        <span>{elementLabel(t, selectedId)}</span>
         <button
           type="button"
           class="inspector-close"
-          aria-label="Close inspector"
+          aria-label={t("overlay.inspector.close")}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => { selectedElementId.value = undefined; }}
         >
@@ -548,7 +557,7 @@ function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | 
         </button>
       </div>
       <label class="inspector-row">
-        <span>Tile opacity</span>
+        <span>{t("overlay.inspector.opacity")}</span>
         <output>{Math.round(settings.opacity * 100)}%</output>
         <input
           type="range"
@@ -571,7 +580,7 @@ function ElementInspectorPanel({ selectedId }: { selectedId: OverlayElementId | 
           checked={settings.enabled}
           onChange={() => void setElementEnabled(selectedId, !settings.enabled)}
         />
-        Visible
+        {t("overlay.inspector.visible")}
       </label>
     </div>
   );
@@ -662,6 +671,7 @@ function meterMetricLabel(next: OverlayChrome): string {
 }
 
 function DpsChartElement() {
+  const t = useTranslator();
   const meter = meterState.value;
   const control = chromeState.value!;
   const metricLabel = meterMetricLabel(control);
@@ -669,7 +679,7 @@ function DpsChartElement() {
   const duration = meter?.chartDurationMs ?? 0;
   return (
     <div class="element-content">
-      <h2 class="element-title">{meter?.personalChart ? `Personal ${metricLabel} over time` : `Map ${metricLabel} over time`}</h2>
+      <h2 class="element-title">{t(meter?.personalChart ? "overlay.chart.personal" : "overlay.chart.map", { metric: metricLabel })}</h2>
       {points.length ? <DamageChart points={points} durationMs={duration} metricLabel={metricLabel} /> : <WaitingForDps />}
     </div>
   );
@@ -678,6 +688,7 @@ function DpsChartElement() {
 function DamageChart(
   { points, durationMs, metricLabel }: { points: readonly OverlayMeterPoint[]; durationMs: number; metricLabel: string },
 ) {
+  const t = useTranslator();
   const width = 640;
   const height = 220;
   const left = 42;
@@ -692,7 +703,7 @@ function DamageChart(
     return `${x},${y}`;
   }).join(" ");
   return (
-    <svg class="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${metricLabel} over time chart`}>
+    <svg class="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t("overlay.chart.aria", { metric: metricLabel })}>
       <line class="chart-grid" x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} />
       <polyline class="chart-line" points={linePoints} />
       <text class="chart-label" x="0" y={top + 4}>{compactFormat.format(maxValue)}</text>
@@ -703,6 +714,7 @@ function DamageChart(
 }
 
 function PersonalDpsElement() {
+  const t = useTranslator();
   const personal = meterState.value?.personal;
   const personalDpsMode = chromeState.value?.personalDpsMode;
   return (
@@ -710,16 +722,16 @@ function PersonalDpsElement() {
       <div class="personal-heading">
         <img class="personal-class-icon" src={overlayClassIcon(personal?.archetype)} alt="" aria-hidden="true" />
         <div>
-          <h2 class="element-title">{personalDpsMode === "live" ? "Live DPS" : "Encounter DPS"}</h2>
+          <h2 class="element-title">{t(personalDpsMode === "live" ? "overlay.personal.live" : "overlay.personal.encounter")}</h2>
           {personalDpsMode !== "live" && <span class="personal-duration">{formatDuration(personal?.durationMs ?? 0)}</span>}
         </div>
       </div>
       {personal ? (
         <>
-          <span class="personal-value">{formatDps(personal.currentDps)}</span><span class="personal-unit">DPS</span>
+          <span class="personal-value">{formatDps(personal.currentDps)}</span><span class="personal-unit">{t("overlay.personal.unit")}</span>
           <div class="personal-details">
-            <span>Damage<strong>{compactFormat.format(personal.damage)}</strong></span>
-            <span>Crit rate<strong>{personal.critRate === undefined ? "—" : `${Math.round(personal.critRate * 100)}%`}</strong></span>
+            <span>{t("overlay.personal.damage")}<strong>{compactFormat.format(personal.damage)}</strong></span>
+            <span>{t("overlay.personal.critRate")}<strong>{personal.critRate === undefined ? "—" : `${Math.round(personal.critRate * 100)}%`}</strong></span>
           </div>
         </>
       ) : <WaitingForDps />}
@@ -736,28 +748,30 @@ function WeightOverlayElement({ locked }: { locked: boolean }) {
 }
 
 function WeightElement() {
+  const t = useTranslator();
   const weight = characterState.value?.weight;
   return (
     <div class={`weight-value${weight ? "" : " weight-waiting"}`}>
-      <strong class="weight-label">Weight</strong>
+      <strong class="weight-label">{t("overlay.weight.label")}</strong>
       {weight ? (
-        <span class="weight-numbers" aria-label={`Weight ${weight.current} of ${weight.maximum}`}>
+        <span class="weight-numbers" aria-label={t("overlay.weight.aria", { current: weight.current, maximum: weight.maximum })}>
           <strong>{numberFormat.format(weight.current)}</strong>
           <span>/</span>
           <strong>{numberFormat.format(weight.maximum)}</strong>
         </span>
-      ) : <span class="weight-empty">Waiting</span>}
+      ) : <span class="weight-empty">{t("overlay.waiting")}</span>}
     </div>
   );
 }
 
 function XpTrackerElement({ locked }: { locked: boolean }) {
+  const t = useTranslator();
   const xp = characterState.value?.xp;
-  if (!xp) return <WaitingForDps label="Waiting for XP" />;
+  if (!xp) return <WaitingForDps label={t("overlay.xp.waiting")} />;
   return (
     <div class="element-content xp-tracker">
-      <h2 class="element-title">Character XP</h2>
-      <div class="xp-total"><small>Total</small>{compactFormat.format(xp.total)}</div>
+      <h2 class="element-title">{t("overlay.xp.heading")}</h2>
+      <div class="xp-total"><small>{t("overlay.total")}</small>{compactFormat.format(xp.total)}</div>
       <div class="xp-rates">
         <span>{compactFormat.format(xp.perSecond)}<small>/s</small></span>
         <span>{compactFormat.format(xp.perHour)}<small>/hr</small></span>
@@ -771,7 +785,7 @@ function XpTrackerElement({ locked }: { locked: boolean }) {
             void desktopView.rpc?.request.resetXpTracker({}).then((nextState) => { characterState.value = nextState; });
           }}
         >
-          Reset
+          {t("overlay.reset")}
         </button>
       )}
     </div>
@@ -779,12 +793,13 @@ function XpTrackerElement({ locked }: { locked: boolean }) {
 }
 
 function GoldTrackerElement({ locked }: { locked: boolean }) {
+  const t = useTranslator();
   const gold = characterState.value?.gold;
-  if (!gold) return <WaitingForDps label="Waiting for gold" />;
+  if (!gold) return <WaitingForDps label={t("overlay.gold.waiting")} />;
   return (
     <div class="element-content gold-tracker">
-      <h2 class="element-title">Gold dropped</h2>
-      <div class="gold-total"><small>Total</small>{compactFormat.format(gold.total)}</div>
+      <h2 class="element-title">{t("overlay.gold.heading")}</h2>
+      <div class="gold-total"><small>{t("overlay.total")}</small>{compactFormat.format(gold.total)}</div>
       <div class="gold-rates">
         <span>{compactFormat.format(gold.perSecond)}<small>/s</small></span>
         <span>{compactFormat.format(gold.perHour)}<small>/hr</small></span>
@@ -798,7 +813,7 @@ function GoldTrackerElement({ locked }: { locked: boolean }) {
             void desktopView.rpc?.request.resetGoldTracker({}).then((nextState) => { characterState.value = nextState; });
           }}
         >
-          Reset
+          {t("overlay.reset")}
         </button>
       )}
     </div>
@@ -806,6 +821,7 @@ function GoldTrackerElement({ locked }: { locked: boolean }) {
 }
 
 function XpChartElement() {
+  const t = useTranslator();
   const buckets = characterState.value?.xp.timeline ?? [];
   const rangeEnd = Date.now();
   const rollingRange = { start: rangeEnd - 10 * 60_000, end: rangeEnd };
@@ -817,21 +833,21 @@ function XpChartElement() {
         time: point.time,
         ratio: maximum > 0 ? point.value / maximum : 0,
         primary: `${compactFormat.format(point.value)}/sec`,
-        secondary: "20-second EWMA",
+        secondary: t("overlay.xpChart.ewma"),
       })),
       yLabels: Array.from({ length: 5 }, (_, tick) => compactFormat.format((maximum * tick) / 4)),
     };
-  }, [buckets]);
+  }, [buckets, t]);
 
   return (
     <div class="element-content xp-chart">
-      <h2 class="element-title">Character XP over time</h2>
+      <h2 class="element-title">{t("overlay.xpChart.heading")}</h2>
       <InteractiveChart
         extent={rollingRange}
         computeRender={computeRender}
         stepped={false}
-        emptyLabel="Waiting for XP"
-        ariaLabel="Character XP rate over time"
+        emptyLabel={t("overlay.xp.waiting")}
+        ariaLabel={t("overlay.xpChart.aria")}
         resetKey="xp-chart"
         interactive={false}
         xAxisTickCount={2}
@@ -842,14 +858,19 @@ function XpChartElement() {
 
 type ResourceKind = "health" | "mana" | "character-xp" | "job-xp";
 
+const RESOURCE_LABEL_KEYS: Record<ResourceKind, MessageKey> = {
+  health: "overlay.resource.health",
+  mana: "overlay.resource.mana",
+  "character-xp": "overlay.resource.characterXp",
+  "job-xp": "overlay.resource.jobXp",
+};
+
 function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: OverlayResource | undefined }) {
-  const label = kind === "health" ? "HP"
-    : kind === "mana" ? "MP"
-    : kind === "character-xp" ? "XP"
-    : "JOB XP";
+  const t = useTranslator();
+  const label = t(RESOURCE_LABEL_KEYS[kind]);
   const description = resource
-    ? `${label} ${resource.current} of ${resource.maximum}`
-    : `Waiting for ${label}`;
+    ? t("overlay.resource.aria", { label, current: resource.current, maximum: resource.maximum })
+    : t("overlay.resource.waitingFor", { label });
   return (
     <div
       class={`resource-value resource-${kind}${resource ? "" : " resource-waiting"}`}
@@ -863,7 +884,7 @@ function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: Ove
           <span>/</span>
           <strong>{numberFormat.format(resource.maximum)}</strong>
         </span>
-      ) : <span class="resource-empty">Waiting</span>}
+      ) : <span class="resource-empty">{t("overlay.waiting")}</span>}
     </div>
   );
 }
@@ -878,6 +899,7 @@ function CharacterResourceElement({ kind }: { kind: ResourceKind }) {
 }
 
 function PartyRankingElement() {
+  const t = useTranslator();
   const meter = meterState.value;
   const control = chromeState.value!;
   const metricLabel = meterMetricLabel(control);
@@ -888,10 +910,10 @@ function PartyRankingElement() {
     <div class="element-content">
       <div class="party-heading">
         <div>
-          <h2 class="element-title">Map encounter {metricLabel}</h2>
+          <h2 class="element-title">{t("overlay.party.heading", { metric: metricLabel })}</h2>
           <span class="party-duration">{formatDuration(duration)}</span>
         </div>
-        <span class="party-reset-hint">{control.shortcuts.resetSession} to reset · {control.shortcuts.cycleMeterStatType} to switch</span>
+        <span class="party-reset-hint">{t("overlay.party.resetHint", { reset: control.shortcuts.resetSession, cycle: control.shortcuts.cycleMeterStatType })}</span>
       </div>
       {actors.length ? <div class="ranking">{actors.map((actor, index) => (
         <div
@@ -918,11 +940,12 @@ function StatusGridElement(
     flashExpiring?: boolean;
   },
 ) {
+  const t = useTranslator();
   const list = statuses ?? [];
   if (list.length === 0) {
     return (
       <div class="status-grid-empty">
-        <span>None active</span>
+        <span>{t("overlay.status.none")}</span>
       </div>
     );
   }
@@ -1024,11 +1047,12 @@ function BossTimersElement(
     playerName: string | undefined;
   },
 ) {
+  const t = useTranslator();
   const regions = bossRegionsPresent(timers);
   if (timers.length === 0) {
     return (
       <div class="boss-timers-empty">
-        <span>No boss timers</span>
+        <span>{t("overlay.bossTimers.empty")}</span>
       </div>
     );
   }
@@ -1046,7 +1070,7 @@ function BossTimersElement(
     : regions[0]!;
   return (
     <div class="boss-timers">
-      <div class="boss-timer-tabs" role="tablist" aria-label="Boss timers by region">
+      <div class="boss-timer-tabs" role="tablist" aria-label={t("overlay.bossTimers.regions")}>
         {regions.map((candidate) => (
           <span
             key={candidate}
@@ -1089,18 +1113,19 @@ function BossTimerRow(
     playerName: string | undefined;
   },
 ) {
+  const t = useTranslator();
   const phase = bossTimerPhase(timer, nowMs);
   const placeLabel = region === undefined
     ? bossPlaceLabel(timer)
-    : `Ch ${timer.channel ?? UNKNOWN_BOSS_CHANNEL}`;
-  const { status, description } = bossTimerStatus(timer, phase, nowMs);
+    : t("overlay.bossTimers.channel", { channel: timer.channel ?? UNKNOWN_BOSS_CHANNEL });
+  const { status, description } = bossTimerStatus(t, timer, phase, nowMs);
   // The tile is compact, so the machine only appears in the tooltip; the Bosses settings tab lists it in full.
   const place = timer.instanceId === undefined ? placeLabel : `${placeLabel} (${timer.instanceId})`;
   return (
-    <div class={`boss-timer-row boss-${phase}`} title={`${timer.bossName} · ${place} — ${description}`}>
+    <div class={`boss-timer-row boss-${phase}`} title={t("overlay.bossTimers.tooltip", { boss: timer.bossName, place, description })}>
       <span class="boss-timer-name">
         <span class="boss-timer-name-text">{timer.bossName}</span>
-        {isOwnBossKill(timer, playerName) && <span class="boss-own-kill" aria-label="Your kill">✓</span>}
+        {isOwnBossKill(timer, playerName) && <span class="boss-own-kill" aria-label={t("overlay.bossTimers.ownKill")}>✓</span>}
       </span>
       <span class="boss-timer-channel">{placeLabel}</span>
       <span class="boss-timer-status">{status}</span>
@@ -1113,25 +1138,26 @@ function bossPlaceLabel(timer: BossTimer): string {
 }
 
 function bossTimerStatus(
+  t: Translator,
   timer: BossTimer,
   phase: BossTimerPhase,
   nowMs: number,
 ): { status: string; description: string } {
   if (phase === "waiting") {
     return {
-      status: `in ${formatBossCountdown(bossEligibleAtMs(timer) - nowMs)}`,
-      description: `can spawn from ${formatBossClock(bossEligibleAtMs(timer))}`,
+      status: t("overlay.boss.waiting.status", { countdown: formatBossCountdown(bossEligibleAtMs(timer) - nowMs) }),
+      description: t("overlay.boss.waiting.description", { clock: formatBossClock(bossEligibleAtMs(timer)) }),
     };
   }
   if (phase === "window") {
     return {
-      status: `spawnable ${formatBossCountdown(bossDueAtMs(timer) - nowMs)}`,
-      description: `eligible to spawn now, guaranteed by ${formatBossClock(bossDueAtMs(timer))}`,
+      status: t("overlay.boss.window.status", { countdown: formatBossCountdown(bossDueAtMs(timer) - nowMs) }),
+      description: t("overlay.boss.window.description", { clock: formatBossClock(bossDueAtMs(timer)) }),
     };
   }
   return {
-    status: "spawned",
-    description: `must have spawned by now (window closed at ${formatBossClock(bossDueAtMs(timer))})`,
+    status: t("overlay.boss.spawned.status"),
+    description: t("overlay.boss.spawned.description", { clock: formatBossClock(bossDueAtMs(timer)) }),
   };
 }
 
@@ -1159,6 +1185,7 @@ const minimapDots = computed<RadarDot[]>(() => {
 });
 
 function MinimapElement() {
+  const t = useTranslator();
   const state = minimapState.value;
   return (
     <div class="minimap-radar">
@@ -1179,7 +1206,7 @@ function MinimapElement() {
           />
           {minimapDots.value.map((dot) => <MinimapLootDot key={dot.objectId} dot={dot} />)}
         </>
-      ) : <span class="minimap-empty">Waiting for position</span>}
+      ) : <span class="minimap-empty">{t("overlay.minimap.waiting")}</span>}
     </div>
   );
 }
@@ -1192,6 +1219,7 @@ function MinimapRangeRings() {
 }
 
 function MinimapLootDot({ dot }: { dot: RadarDot }) {
+  const t = useTranslator();
   const color = rarityColor(dot.rarity);
   return (
     <span
@@ -1202,7 +1230,7 @@ function MinimapLootDot({ dot }: { dot: RadarDot }) {
         backgroundColor: color,
         "--dot-color": color,
       }}
-      title={`${dot.displayName ?? "Loot"} (${rarityLabel(dot.rarity)}${dot.lootChance !== undefined ? `, ${dot.lootChance.toFixed(2)}%` : ""})`}
+      title={`${dot.displayName ?? t("overlay.loot.fallbackName")} (${t(rarityLabelKey(dot.rarity))}${dot.lootChance !== undefined ? `, ${dot.lootChance.toFixed(2)}%` : ""})`}
     />
   );
 }
@@ -1217,23 +1245,25 @@ function LootToastElement() {
 }
 
 function LootToastCard({ event }: { event: OverlayLootToastEvent }) {
+  const t = useTranslator();
   const color = rarityColor(event.rarity);
   return (
     <div class="loot-toast-card" style={{ "--rarity-color": color }}>
-      <span class="loot-toast-name">{event.displayName ?? "Loot"}</span>
-      <span class="loot-toast-rarity">{rarityLabel(event.rarity)}</span>
+      <span class="loot-toast-name">{event.displayName ?? t("overlay.loot.fallbackName")}</span>
+      <span class="loot-toast-rarity">{t(rarityLabelKey(event.rarity))}</span>
     </div>
   );
 }
 
-function WaitingForDps({ label = "Waiting for DPS" }: { label?: string } = {}) {
+function WaitingForDps({ label }: { label?: string } = {}) {
+  const t = useTranslator();
   const toggleLockShortcut = chromeState.value?.shortcuts.toggleLock;
   return (
     <div class="empty">
-      <span>{label}</span>
+      <span>{label ?? t("overlay.waitingForDps")}</span>
       <span class="empty-help">{toggleLockShortcut
-        ? `Press ${toggleLockShortcut} to toggle edit mode, or open Settings from any app window`
-        : "Open Settings from any app window to toggle edit mode"}</span>
+        ? t("overlay.waitingHelp.shortcut", { shortcut: toggleLockShortcut })
+        : t("overlay.waitingHelp")}</span>
     </div>
   );
 }

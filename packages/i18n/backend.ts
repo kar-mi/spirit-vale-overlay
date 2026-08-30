@@ -4,6 +4,7 @@ import { createTranslator, type Translator } from "./translate.ts";
 
 let locale: LocaleCode = DEFAULT_LOCALE;
 let translator: Translator = createTranslator(locale);
+const english: Translator = createTranslator(DEFAULT_LOCALE);
 
 /** The locale used by backend-owned surfaces and newly created windows. */
 export function backendLocale(): LocaleCode {
@@ -30,6 +31,16 @@ export function translateText(value: LocalizedText): string;
 export function translateText(value: LocalizedText | undefined): string | undefined;
 export function translateText(value: LocalizedText | undefined): string | undefined {
   return translator.text(value);
+}
+
+/**
+ * Renders `LocalizedText` in English regardless of the current locale, for diagnostic logs. Support
+ * reads those logs; they must not arrive in whatever language the player happened to pick.
+ */
+export function englishText(value: LocalizedText): string;
+export function englishText(value: LocalizedText | undefined): string | undefined;
+export function englishText(value: LocalizedText | undefined): string | undefined {
+  return english.text(value);
 }
 
 /** Creates deferred RPC text that will be translated by the receiving view. */

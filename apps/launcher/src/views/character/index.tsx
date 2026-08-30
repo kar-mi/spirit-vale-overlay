@@ -18,6 +18,8 @@ import type {
   GearStatTotal,
 } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterRpc } from "../../character/rpc.ts";
+import { useTranslator } from "@svoverlay/i18n/browser";
+import type { Translator } from "@svoverlay/i18n/translate";
 import { formatItemEffects } from "./item-effects.ts";
 
 const ATTRIBUTE_NAMES = ["STR", "VIT", "AGI", "DEX", "INT", "LUK"] as const;
@@ -36,6 +38,7 @@ disableWebChrome();
 void ensureInitialWindowSize(desktopView.rpc?.request, { width: 680, height: 520 });
 
 function App() {
+  const t = useTranslator();
   const [tab, setTab] = useState<Tab>("basic");
   const chromeRef = useRef<WindowChrome | undefined>(undefined);
   const titlebarRef = (node: HTMLElement | null): void => {
@@ -55,52 +58,52 @@ function App() {
       <header ref={titlebarRef} class="titlebar">
         <div class="brand">
           <img class="brand-icon" src="views://assets/app-icon.png" alt="" />
-          <span>Character</span>
-          <span class="brand-tag">{next?.status === "live" ? "Live" : next?.status === "cached" ? "Last known" : "Waiting"}</span>
+          <span>{t("character.brand")}</span>
+          <span class="brand-tag">{t(next?.status === "live" ? "character.status.live" : next?.status === "cached" ? "character.status.cached" : "character.status.waiting")}</span>
         </div>
         <div class="window-controls">
-          <button class="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => void desktopView.rpc?.request.openSettings({})}>⚙</button>
-          <button class="icon-button" type="button" aria-label="Minimize" onClick={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}>−</button>
-          <button class="icon-button close-button" type="button" aria-label="Close" onClick={() => void desktopView.rpc?.request.windowAction({ action: "close" })}>×</button>
+          <button class="icon-button" type="button" aria-label={t("settingsButton.label")} title={t("settingsButton.label")} onClick={() => void desktopView.rpc?.request.openSettings({})}>⚙</button>
+          <button class="icon-button" type="button" aria-label={t("titleBar.minimize")} onClick={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}>−</button>
+          <button class="icon-button close-button" type="button" aria-label={t("titleBar.close")} onClick={() => void desktopView.rpc?.request.windowAction({ action: "close" })}>×</button>
         </div>
       </header>
       <div class="content">
         {!character && (
           <section class="empty-state">
-            <strong>Waiting for your character</strong>
-            <p>Open or switch to a character in Spirit Vale while capture is active.</p>
+            <strong>{t("character.empty.heading")}</strong>
+            <p>{t("character.empty.hint")}</p>
           </section>
         )}
         {character && next && (
           <div>
             <section class="hero card">
               <div>
-                <p class="eyebrow">Current character</p>
+                <p class="eyebrow">{t("character.eyebrow")}</p>
                 <h1>{character.title ? `${character.name} · ${character.title}` : character.name}</h1>
-                <p class="muted">{character.archetypes.length ? character.archetypes.join(" / ") : "Novice"}</p>
+                <p class="muted">{character.archetypes.length ? character.archetypes.join(" / ") : t("character.archetype.novice")}</p>
               </div>
               <div class="progression">
-                <div><span>Level</span><strong>{format(character.level)}</strong></div>
-                <div><span>Job</span><strong>{format(character.jobLevel)}</strong></div>
-                <div><span>XP</span><strong>{format(character.experience)}</strong></div>
-                <div><span>Job XP</span><strong>{format(character.jobExperience)}</strong></div>
+                <div><span>{t("character.progression.level")}</span><strong>{format(character.level)}</strong></div>
+                <div><span>{t("character.progression.job")}</span><strong>{format(character.jobLevel)}</strong></div>
+                <div><span>{t("character.progression.xp")}</span><strong>{format(character.experience)}</strong></div>
+                <div><span>{t("character.progression.jobXp")}</span><strong>{format(character.jobExperience)}</strong></div>
                 {next.records?.maxHealth !== undefined && (
-                  <div class="record-tile"><span>HP · live</span><strong>{format(next.records.maxHealth)}</strong></div>
+                  <div class="record-tile"><span>{t("character.progression.hpLive")}</span><strong>{format(next.records.maxHealth)}</strong></div>
                 )}
                 {next.records?.maxMana !== undefined && (
-                  <div class="record-tile"><span>MP · live</span><strong>{format(next.records.maxMana)}</strong></div>
+                  <div class="record-tile"><span>{t("character.progression.mpLive")}</span><strong>{format(next.records.maxMana)}</strong></div>
                 )}
                 {next.records?.moveSpeed !== undefined && (
-                  <div class="record-tile"><span>Speed · live</span><strong>{next.records.moveSpeed.toFixed(2)}</strong></div>
+                  <div class="record-tile"><span>{t("character.progression.speedLive")}</span><strong>{next.records.moveSpeed.toFixed(2)}</strong></div>
                 )}
               </div>
             </section>
             <p class="status-detail">
               {next.status === "cached"
-                ? `${next.statusDetail} · updated ${new Date(character.updatedAt).toLocaleString()}`
+                ? t("character.statusDetail.cached", { detail: next.statusDetail, when: new Date(character.updatedAt).toLocaleString() })
                 : next.statusDetail}
             </p>
-            <div class="tab-bar" role="tablist" aria-label="Character information">
+            <div class="tab-bar" role="tablist" aria-label={t("character.tabs.label")}>
               {(["basic", "gear", "advanced", "skills"] as const).map((tabId) => (
                 <button
                   key={tabId}
@@ -110,38 +113,38 @@ function App() {
                   aria-selected={tab === tabId}
                   onClick={() => setTab(tabId)}
                 >
-                  {tabId === "basic" ? "Basic" : tabId === "gear" ? "Gear" : tabId === "advanced" ? "Advanced" : "Skills"}
+                  {t(`character.tab.${tabId}`)}
                 </button>
               ))}
             </div>
             <div class="tab-panel" role="tabpanel" hidden={tab !== "basic"}>
-              <section class="card"><h2>Attributes</h2><Attributes attributes={character.attributes} /></section>
-              {history(character).length > 0 && (
-                <section class="card"><h2>Character history</h2><HistoryGrid entries={history(character)} /></section>
+              <section class="card"><h2>{t("character.section.attributes")}</h2><Attributes attributes={character.attributes} /></section>
+              {history(t, character).length > 0 && (
+                <section class="card"><h2>{t("character.section.history")}</h2><HistoryGrid entries={history(t, character)} /></section>
               )}
               <section class="card">
-                <div class="section-heading"><div><h2>Calculated stats</h2><p>Static, unbuffed values from the current saved build.</p></div></div>
+                <div class="section-heading"><div><h2>{t("character.section.calculated")}</h2><p>{t("character.section.calculatedHint")}</p></div></div>
                 <StatGroups stats={next.stats} tab="basic" />
               </section>
             </div>
             <div class="tab-panel" role="tabpanel" hidden={tab !== "gear"}>
               <section class="card">
-                <div class="section-heading"><div><h2>Build</h2><p>{character.activeLoadout} loadout · rolled substats shown at their in-game scaled values</p></div></div>
+                <div class="section-heading"><div><h2>{t("character.section.build")}</h2><p>{t("character.section.buildHint", { loadout: character.activeLoadout })}</p></div></div>
                 <div class="build-columns">
-                  <div><h3>Equipment</h3><Build items={equipmentBuildItems(character.equipment)} /></div>
-                  <div><h3>Artifacts</h3><Build items={artifactBuildItems(character.artifacts)} /></div>
+                  <div><h3>{t("character.section.equipment")}</h3><Build items={equipmentBuildItems(t, character.equipment)} /></div>
+                  <div><h3>{t("character.section.artifacts")}</h3><Build items={artifactBuildItems(t, character.artifacts)} /></div>
                 </div>
               </section>
-              <section class="card"><h2>Gear totals</h2><GearTotals totals={next.gearTotals} /></section>
+              <section class="card"><h2>{t("character.section.gearTotals")}</h2><GearTotals totals={next.gearTotals} /></section>
             </div>
             <div class="tab-panel" role="tabpanel" hidden={tab !== "advanced"}>
               <section class="card">
-                <div class="section-heading"><div><h2>Advanced stats</h2><p>Gear-granted values only; no base formula is known for these effects.</p></div></div>
+                <div class="section-heading"><div><h2>{t("character.section.advanced")}</h2><p>{t("character.section.advancedHint")}</p></div></div>
                 <StatGroups stats={next.stats} tab="advanced" />
               </section>
             </div>
             <div class="tab-panel" role="tabpanel" hidden={tab !== "skills"}>
-              <section class="card"><h2>Skills</h2><Skills skills={character.skills} /></section>
+              <section class="card"><h2>{t("character.section.skills")}</h2><Skills skills={character.skills} /></section>
             </div>
           </div>
         )}
@@ -160,12 +163,12 @@ function Attributes({ attributes }: { attributes: CharacterSnapshot["attributes"
   );
 }
 
-function history(character: CharacterSnapshot): Array<[string, string]> {
+function history(t: Translator, character: CharacterSnapshot): Array<[string, string]> {
   return [
-    ["Playtime", character.playtimeSeconds === undefined ? undefined : duration(character.playtimeSeconds)],
-    ["Monster kills", character.monsterKills === undefined ? undefined : format(character.monsterKills)],
-    ["Boss kills", character.bossKills === undefined ? undefined : format(character.bossKills)],
-    ["Deaths", character.deaths === undefined ? undefined : format(character.deaths)],
+    [t("character.history.playtime"), character.playtimeSeconds === undefined ? undefined : duration(character.playtimeSeconds)],
+    [t("character.history.monsterKills"), character.monsterKills === undefined ? undefined : format(character.monsterKills)],
+    [t("character.history.bossKills"), character.bossKills === undefined ? undefined : format(character.bossKills)],
+    [t("character.history.deaths"), character.deaths === undefined ? undefined : format(character.deaths)],
   ].filter((entry): entry is [string, string] => entry[1] !== undefined);
 }
 
@@ -180,7 +183,8 @@ function HistoryGrid({ entries }: { entries: Array<[string, string]> }) {
 }
 
 function Build({ items }: { items: BuildItem[] }) {
-  if (!items.length) return <div class="build-list"><div class="build-empty">No items captured in this loadout.</div></div>;
+  const t = useTranslator();
+  if (!items.length) return <div class="build-list"><div class="build-empty">{t("character.build.empty")}</div></div>;
   return (
     <div class="build-list">
       {items.map((item, index) => (
@@ -194,7 +198,7 @@ function Build({ items }: { items: BuildItem[] }) {
                   <span class="build-detail-value">{section.value}</span>
                 </div>
               ))
-              : <div class="build-empty">No stats or effects</div>}
+              : <div class="build-empty">{t("character.build.noEffects")}</div>}
           </div>
         </div>
       ))}
@@ -202,35 +206,37 @@ function Build({ items }: { items: BuildItem[] }) {
   );
 }
 
-function equipmentBuildItems(equipment: CharacterEquipment[]): BuildItem[] {
+function equipmentBuildItems(t: Translator, equipment: CharacterEquipment[]): BuildItem[] {
   return equipment.map((item) => ({
     slot: item.slot, name: item.itemId, refine: item.refine,
     sections: [
-      ...itemEffectSections(2, item.itemId, item.refine),
-      ...(item.substats.length ? [{ label: "Rolled stats", value: substatText(item.substats) }] : []),
-      ...(item.cards.length ? [{ label: "Cards", value: item.cards.map((card) => `${card}${itemEffectSummary(4, card)}`).join(" · ") }] : []),
+      ...itemEffectSections(t, 2, item.itemId, item.refine),
+      ...(item.substats.length ? [{ label: t("character.build.rolledStats"), value: substatText(t, item.substats) }] : []),
+      ...(item.cards.length ? [{ label: t("character.build.cards"), value: item.cards.map((card) => `${card}${itemEffectSummary(t, 4, card)}`).join(" · ") }] : []),
     ],
   }));
 }
 
-function artifactBuildItems(artifacts: CharacterArtifact[]): BuildItem[] {
+function artifactBuildItems(t: Translator, artifacts: CharacterArtifact[]): BuildItem[] {
   const artifactCounts = new Map<string, number>();
   for (const artifact of artifacts) artifactCounts.set(artifact.itemId, (artifactCounts.get(artifact.itemId) ?? 0) + 1);
   return artifacts.map((item) => ({
     slot: item.slot, name: item.itemId, refine: item.refine,
     sections: [
-      ...itemEffectSections(3, item.itemId, item.refine, artifactCounts.get(item.itemId) ?? 0, item.slot),
-      ...(item.substats.length ? [{ label: "Rolled stats", value: substatText(item.substats) }] : []),
-      ...(item.gems.length ? [{ label: "Gems", value: item.gems.map((gem) => `${gem.id}${gem.refine ? ` +${gem.refine}` : ""}${itemEffectSummary(5, gem.id, gem.refine)}`).join(" · ") }] : []),
+      ...itemEffectSections(t, 3, item.itemId, item.refine, artifactCounts.get(item.itemId) ?? 0, item.slot),
+      ...(item.substats.length ? [{ label: t("character.build.rolledStats"), value: substatText(t, item.substats) }] : []),
+      ...(item.gems.length ? [{ label: t("character.build.gems"), value: item.gems.map((gem) => `${gem.id}${gem.refine ? ` +${gem.refine}` : ""}${itemEffectSummary(t, 5, gem.id, gem.refine)}`).join(" · ") }] : []),
     ],
   }));
 }
 
-function substatText(stats: CharacterSubstat[]): string {
-  return stats.map((stat) => stat.value === undefined ? `${stat.name} (roll ${stat.roll})` : `${stat.name} ${stat.value}${stat.percent ? "%" : ""}`).join(" · ");
+function substatText(t: Translator, stats: CharacterSubstat[]): string {
+  return stats.map((stat) => stat.value === undefined
+    ? t("character.build.unrolled", { stat: stat.name, roll: stat.roll })
+    : `${stat.name} ${stat.value}${stat.percent ? "%" : ""}`).join(" · ");
 }
 
-function itemEffectSections(itemType: number, itemId: string, refine: number, pieces?: number, artifactSlot?: string): BuildSection[] {
+function itemEffectSections(t: Translator, itemType: number, itemId: string, refine: number, pieces?: number, artifactSlot?: string): BuildSection[] {
   const definition = resolveFishNetItem(itemType, itemId);
   if (!definition) return [];
   const show = formatItemEffects;
@@ -238,33 +244,34 @@ function itemEffectSections(itemType: number, itemId: string, refine: number, pi
   const slot = isArtifactSlot(artifactSlot) ? artifactSlot : undefined;
   const baseEffects = [...(definition.effects ?? []), ...(slot ? definition.artifactSlotEffects?.[slot] ?? [] : [])];
   const base = show(baseEffects);
-  if (base) sections.push({ label: "Base", value: base });
+  if (base) sections.push({ label: t("character.build.base"), value: base });
   const refineEffects = [...(definition.refineEffects ?? []), ...(slot ? definition.artifactSlotRefineEffects?.[slot] ?? [] : [])];
   if (refine && refineEffects.length) {
     const refined = refineEffects.map((effect) => ({ ...effect, value: effect.value * refine }));
     const text = show(refined);
-    if (text) sections.push({ label: `Refine +${refine}`, value: text, tone: "active" });
+    if (text) sections.push({ label: t("character.build.refine", { refine }), value: text, tone: "active" });
   }
   if (definition.artifactSet && pieces !== undefined) {
     const set = definition.artifactSet;
     const perPiece = show(set.perPiece);
-    if (perPiece) sections.push({ label: `Set ${pieces}/${set.requiredPieces}`, value: perPiece, tone: "active" });
+    if (perPiece) sections.push({ label: t("character.build.set", { pieces, required: set.requiredPieces }), value: perPiece, tone: "active" });
     const full = show(set.fullSet);
-    if (full) sections.push({ label: "Full set", value: full, tone: pieces >= set.requiredPieces ? "active" : "muted" });
+    if (full) sections.push({ label: t("character.build.fullSet"), value: full, tone: pieces >= set.requiredPieces ? "active" : "muted" });
   }
   return sections;
 }
-function itemEffectSummary(itemType: number, itemId: string, refine = 0): string { const values = itemEffectSections(itemType, itemId, refine).map((section) => section.value).join(", "); return values ? ` (${values})` : ""; }
+function itemEffectSummary(t: Translator, itemType: number, itemId: string, refine = 0): string { const values = itemEffectSections(t, itemType, itemId, refine).map((section) => section.value).join(", "); return values ? ` (${values})` : ""; }
 function isArtifactSlot(value: string | undefined): value is FishNetArtifactSlot { return value === "Rune" || value === "Jewel" || value === "Scroll" || value === "Relic"; }
 
 function GearTotals({ totals }: { totals: GearStatTotal[] }) {
-  if (!totals.length) return <div class="gear-totals"><div class="build-empty">No rolled substats captured in this loadout.</div></div>;
+  const t = useTranslator();
+  if (!totals.length) return <div class="gear-totals"><div class="build-empty">{t("character.gearTotals.empty")}</div></div>;
   return (
     <div class="gear-totals">
       {totals.map((stat) => (
         <div class="gear-total" key={stat.name}>
           <span>{stat.name}</span>
-          <strong>{signed(stat.total, stat.percent ? "%" : undefined)}{stat.unresolvedRolls ? ` · roll ${stat.unresolvedRolls}` : ""}</strong>
+          <strong>{signed(stat.total, stat.percent ? "%" : undefined)}{stat.unresolvedRolls ? t("character.gearTotals.unresolvedRolls", { count: stat.unresolvedRolls }) : ""}</strong>
         </div>
       ))}
     </div>
@@ -272,14 +279,15 @@ function GearTotals({ totals }: { totals: GearStatTotal[] }) {
 }
 
 function Skills({ skills }: { skills: CharacterSkill[] }) {
-  if (!skills.length) return <div class="gear-totals"><div class="build-empty">No learned skills captured.</div></div>;
+  const t = useTranslator();
+  if (!skills.length) return <div class="gear-totals"><div class="build-empty">{t("character.skills.empty")}</div></div>;
   return (
     <div class="gear-totals">
       {skills.map((skill) => (
         <div class="gear-total" key={skill.id}>
           <span>{skill.displayName}</span>
           <strong>
-            Lv {format(skill.level)}
+            {t("character.skills.level", { level: format(skill.level) })}
             {skill.effects.length ? ` → ${skill.effects.map((effect) => `${signed(effect.value, effect.percent ? "%" : undefined)} ${effect.label}`).join(", ")}` : ""}
           </strong>
         </div>
@@ -289,9 +297,10 @@ function Skills({ skills }: { skills: CharacterSkill[] }) {
 }
 
 function StatGroups({ stats, tab }: { stats: CharacterStatBreakdown[]; tab: CharacterStatBreakdown["tab"] }) {
+  const t = useTranslator();
   const displayed = stats.filter((stat) => stat.tab === tab);
   if (!displayed.length) {
-    return <div class="stat-groups"><div class="build-empty">{tab === "advanced" ? "No additional gear-granted stats in this loadout." : "No calculated stats available."}</div></div>;
+    return <div class="stat-groups"><div class="build-empty">{t(tab === "advanced" ? "character.stats.emptyAdvanced" : "character.stats.empty")}</div></div>;
   }
   const categories = [...new Set(displayed.map((stat) => stat.category))];
   return (
@@ -299,7 +308,7 @@ function StatGroups({ stats, tab }: { stats: CharacterStatBreakdown[]; tab: Char
       {categories.map((category) => (
         <section class="stat-group" key={category}>
           <h3>{category}</h3>
-          <div class="stat-column-headings"><span></span><span>Base</span><span>Calc</span><span>Actual</span></div>
+          <div class="stat-column-headings"><span></span><span>{t("character.stats.base")}</span><span>{t("character.stats.calc")}</span><span>{t("character.stats.actual")}</span></div>
           {displayed.filter((entry) => entry.category === category).map((stat) => <StatRow stat={stat} key={stat.id} />)}
         </section>
       ))}
@@ -308,8 +317,9 @@ function StatGroups({ stats, tab }: { stats: CharacterStatBreakdown[]; tab: Char
 }
 
 function StatRow({ stat }: { stat: CharacterStatBreakdown }) {
+  const t = useTranslator();
   const drift = stat.record !== undefined && Math.abs(stat.record - stat.value) > Math.max(1, Math.abs(stat.value) * 0.01);
-  const inputs = [`Gear ${signed(stat.gear, stat.unit)}`, ...Object.entries(stat.inputs).map(([key, value]) => `${key} ${format(value)}`)].join(" · ");
+  const inputs = [t("character.stats.gear", { value: signed(stat.gear, stat.unit) }), ...Object.entries(stat.inputs).map(([key, value]) => `${key} ${format(value)}`)].join(" · ");
   return (
     <details class="stat-row">
       <summary>
@@ -321,7 +331,7 @@ function StatRow({ stat }: { stat: CharacterStatBreakdown }) {
         </span>
       </summary>
       <div class="breakdown">
-        {drift && <div class="drift-note">{`Server reports ${displayedValue(stat, stat.record!)} — the calculation misses a cap or modifier.`}</div>}
+        {drift && <div class="drift-note">{t("character.stats.drift", { value: displayedValue(stat, stat.record!) })}</div>}
         <div class="formula">{stat.formula}</div>
         <div class="inputs">{inputs}</div>
       </div>

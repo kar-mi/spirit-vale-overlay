@@ -8,6 +8,10 @@ const REQUIRED_STATUS_LABEL_KEYS: Record<RequiredStatusCategory, MessageKey> = {
   buffs: "settings.status.category.buffs",
   toggles: "settings.status.category.toggles",
 };
+const WARN_WHEN_MISSING_KEYS: Record<RequiredStatusCategory, MessageKey> = {
+  buffs: "settings.status.warnWhenMissing.buffs",
+  toggles: "settings.status.warnWhenMissing.toggles",
+};
 const REQUIRED_STATUS_OPTIONS = Object.fromEntries(REQUIRED_STATUS_CATEGORIES.map((category) => [
   category,
   requiredStatusOptions(category).map((option) => ({
@@ -36,7 +40,7 @@ export function buildStatusSettingsSection({ state, actions, t }: SettingsSectio
             options={REQUIRED_STATUS_OPTIONS[category]}
             selected={armed}
             onChange={(selected) => setArmed([...selected])}
-            ariaLabel={t("settings.status.warnWhenMissing", { category: categoryLabel.toLocaleLowerCase() })}
+            ariaLabel={t(WARN_WHEN_MISSING_KEYS[category])}
             searchPlaceholder={t("settings.status.searchPlaceholder")}
             clearLabel={t("settings.status.clear")}
             noMatchLabel={(query) => t("settings.status.noMatch", { query })}

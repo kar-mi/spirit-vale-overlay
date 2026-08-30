@@ -53,7 +53,7 @@ function App() {
         <div><h1>{t("deathLog.heading")}</h1><p>{next.fileName}</p></div>
         <span class="pill">{t.plural("deathLog.count", next.deaths.length)}</span>
       </section>
-      {next.invalidLines > 0 && <p class="banner is-warn">{t.plural("deathLog.malformed", next.invalidLines)}</p>}
+      {next.invalidLines > 0 && <p class="banner is-warn">{t.plural("common.malformedRecords", next.invalidLines)}</p>}
       {next.deaths.length === 0 ? <p class="empty-state">{t("deathLog.empty")}</p> : <>
         <section class="death-list-section">
           <div class="section-head">

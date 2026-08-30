@@ -67,7 +67,7 @@ export function PastAnalysisPanel({
     state.snapshot;
   const metricLabel = state.statType === "tanked" ? "TPS" : state.statType === "heal" ? "HPS" : "DPS";
   const t = useTranslator();
-  const damageLabel = state.statType === "tanked" ? t("combat.past.amount.damageTaken") : state.statType === "heal" ? t("combat.past.amount.healing") : t("combat.past.amount.damage");
+  const damageLabel = state.statType === "tanked" ? t("amount.damageTaken") : state.statType === "heal" ? t("amount.healing") : t("amount.damage");
   const amount = damageLabel.toLocaleLowerCase();
   const rows = activeSnapshot?.actors ?? [];
   const filteredRows = applyEnemyFilter(state, rows, selectedEnemyIds);
@@ -112,7 +112,7 @@ export function PastAnalysisPanel({
       </section>
       <p class="analysis-status" aria-live="polite">{[t.text(state.statusDetail), t.text(state.statusDetailExtra)].filter(Boolean).join(" · ")}</p>
       <p class="banner is-warn" hidden={state.invalidLines === 0}>
-        {state.invalidLines === 0 ? "" : t.plural("combat.past.malformed", state.invalidLines)}
+        {state.invalidLines === 0 ? "" : t.plural("common.malformedRecords", state.invalidLines)}
       </p>
       <div class="table-scroll totals">
         <table class="data-table summary-table" aria-label={t("combat.past.totals.label")}>

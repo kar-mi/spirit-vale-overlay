@@ -1,4 +1,5 @@
-import { countedMessage, message } from "@svoverlay/i18n/backend";
+import { countedMessage, message, translate } from "@svoverlay/i18n/backend";
+import type { MessageKey } from "@svoverlay/i18n/messages";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -23,7 +24,7 @@ const MAX_SCANNED_SESSIONS = MAX_RECENT_SESSIONS * 3;
 export interface SessionPickerOptions {
   logDirectory: string;
   stream: Extract<LogStream, "combat" | "rewards">;
-  title: string;
+  titleKey: MessageKey;
   summarize: (path: string) => Promise<{ recordCount: number; summary: string }>;
   loadReplay: (path: string) => Promise<void>;
   placements?: WindowPlacementStore;
@@ -40,7 +41,7 @@ export interface SessionPicker {
 
 export function createSessionPicker(options: SessionPickerOptions): SessionPicker {
   let window: BrowserWindow | undefined;
-  let state: SessionPickerState = loadingState(options.title);
+  let state: SessionPickerState = loadingState(options.titleKey);
   let paths = new Map<string, string>();
   let refreshSequence = 0;
   let cachePromise: Promise<SessionSummaryCache> | undefined;
@@ -84,7 +85,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
       } else {
         const lifecycle = new DisposableStore();
         const nextWindow = new BrowserWindow({
-          title: options.title,
+          title: translate(options.titleKey),
           url: "views://sessionpickerview/index.html",
           frame: pickerFrame() ?? options.defaultFrame ?? { x: 120, y: 120, width: 640, height: 560 },
           titleBarStyle: "hidden",
@@ -107,7 +108,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
           lifecycle.dispose();
           if (window === nextWindow) window = undefined;
           paths.clear();
-          state = loadingState(options.title);
+          state = loadingState(options.titleKey);
         }));
       }
       void refresh();
@@ -126,7 +127,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
 
   async function refresh(): Promise<void> {
     const sequence = ++refreshSequence;
-    state = loadingState(options.title);
+    state = loadingState(options.titleKey);
     publish();
     try {
       const cache = await summaryCache();
@@ -147,7 +148,6 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
             return {
               id: session.id,
               createdAt: session.createdAt,
-              summary: "Summary unavailable",
               active: session.active,
               disabled: true,
             };
@@ -159,7 +159,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         if (sequence !== refreshSequence) return;
         paths = nextPaths;
         state = {
-          title: options.title,
+          title: message(options.titleKey),
           status: "loading",
           statusDetail: countedMessage("sessions.scanning", items.length),
           sessions: items.slice(),
@@ -170,7 +170,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
       if (sequence !== refreshSequence) return;
       paths = nextPaths;
       state = {
-        title: options.title,
+        title: message(options.titleKey),
         status: "ready",
         statusDetail: items.length === 0 ? message("sessions.none") : countedMessage("sessions.recent", items.length),
         sessions: items,
@@ -185,7 +185,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
     } catch {
       if (sequence !== refreshSequence) return;
       paths.clear();
-      state = { title: options.title, status: "error", statusDetail: message("sessions.scanFailed"), sessions: [], canOpenLogFolder: options.openLogFolder !== undefined };
+      state = { title: message(options.titleKey), status: "error", statusDetail: message("sessions.scanFailed"), sessions: [], canOpenLogFolder: options.openLogFolder !== undefined };
     }
     publish();
   }
@@ -222,6 +222,6 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
   }
 }
 
-function loadingState(title: string): SessionPickerState {
-  return { title, status: "loading", statusDetail: message("sessions.scanningRecent"), sessions: [], canOpenLogFolder: false };
+function loadingState(titleKey: MessageKey): SessionPickerState {
+  return { title: message(titleKey), status: "loading", statusDetail: message("sessions.scanningRecent"), sessions: [], canOpenLogFolder: false };
 }

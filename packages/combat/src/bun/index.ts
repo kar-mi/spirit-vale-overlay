@@ -494,7 +494,7 @@ async function refreshPastSessions(): Promise<void> {
       past = {
         view: "selector",
         picker: {
-          title: "Past combat logs",
+          title: localized("sessions.title.pastCombatLogs"),
           status: "loading",
           statusDetail: localizedCount("sessions.scanning", items.length),
           sessions: items.slice(),
@@ -508,7 +508,7 @@ async function refreshPastSessions(): Promise<void> {
     past = {
       view: "selector",
       picker: {
-        title: "Past combat logs",
+        title: localized("sessions.title.pastCombatLogs"),
         status: "ready",
         statusDetail: items.length === 0 ? localized("sessions.none") : localizedCount("sessions.recent", items.length),
         sessions: items,
@@ -528,7 +528,7 @@ async function refreshPastSessions(): Promise<void> {
     past = {
       view: "selector",
       picker: {
-        title: "Past combat logs",
+        title: localized("sessions.title.pastCombatLogs"),
         status: "error",
         statusDetail: localized("sessions.scanFailed"),
         sessions: [],
@@ -565,7 +565,7 @@ async function openPastPath(selectedPath: string): Promise<void> {
 
 function pastPickerLoadingState(): SessionPickerState {
   return {
-    title: "Past combat logs",
+    title: localized("sessions.title.pastCombatLogs"),
     status: "loading",
     statusDetail: localized("sessions.scanningRecent"),
     sessions: [],

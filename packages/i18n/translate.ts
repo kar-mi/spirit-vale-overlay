@@ -14,9 +14,11 @@ export interface Translator {
 const PLACEHOLDER = /\{(\w+)\}/gu;
 
 export function createTranslator(locale: LocaleCode): Translator {
-  const catalog: Record<string, string | undefined> = LOCALES[locale] ?? LOCALES[DEFAULT_LOCALE];
+  const resolved = LOCALES[locale] ? locale : DEFAULT_LOCALE;
+  const catalog: Record<string, string | undefined> = LOCALES[resolved];
   const fallback: Record<string, string | undefined> = en;
-  const pluralRules = new Intl.PluralRules(locale);
+  // Built from the resolved code: Intl throws on a malformed tag, and nothing here may throw.
+  const pluralRules = new Intl.PluralRules(resolved);
   const lookup = (key: string): string | undefined => catalog[key] ?? fallback[key];
 
   // Never throws: an unknown key renders as itself.

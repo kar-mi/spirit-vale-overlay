@@ -53,10 +53,21 @@ for native surfaces, `translateText(...)` when backend code must render a `Local
 `message(...)` / `countedMessage(...)` for deferred text sent to a view. `setBackendLocale(...)`
 owns the single current backend translator.
 
+**Diagnostic logs use `englishText(...)`, never `translateText(...)`.** Support reads those logs;
+they must not arrive in whatever language the player picked. A warning that is both logged and shown
+should carry its English string and its `LocalizedText` side by side rather than being recovered from
+the rendered text later.
+
 ## Known gaps
 
+- Native window titles are translated once, when the window is built. `BrowserWindow.title` is
+  readonly with no runtime `setTitle`, so a language change relabels the tray menu but leaves
+  taskbar and Alt-Tab entries in the previous language until the window is reopened.
 - `normalizeSettingsSearch` splits queries on whitespace, which will not serve CJK locales.
 - About a dozen `Intl.NumberFormat`/`DateTimeFormat` sites still pass `undefined` and so follow
   the OS locale rather than this setting.
 - Skill, status, monster and class display names come from the `@kar-mi/spirit-vale-tools-*`
-  packages and are not translatable from here.
+  packages and are not translatable from here. So are session summaries, the character window's
+  `statusDetail`, and the build-export notes: each arrives as composed English and is rendered as-is.
+- `overlay.personal.unit` is a static "DPS" even when the meter is showing TPS or HPS. That predates
+  this package — the tile has always read DPS — and was kept rather than changed while translating.

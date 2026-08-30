@@ -3,6 +3,7 @@ import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
 import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
+import { localized, localizedCount } from "@svoverlay/i18n/messages";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { normalizeName } from "@kar-mi/spirit-vale-tools-combat";
@@ -113,7 +114,7 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
       return {
         ...base,
         status: "waiting",
-        statusDetail: "Waiting for character data. Log in, or change map, and the game will send it. Inspect another player to add them here.",
+        statusDetail: localized("buildExport.status.waiting"),
       };
     }
 
@@ -124,10 +125,11 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
       ...base,
       status: "ready",
       statusDetail: missing === 0
-        ? "Every item resolved."
-        : `${missing} ${missing === 1 ? "entry" : "entries"} could not be matched and will be left out.`,
+        ? localized("buildExport.status.resolved")
+        : localizedCount("buildExport.status.missing", missing),
       character: {
-        name: build.name || "Unnamed character",
+        // Left empty rather than filled in here: the view names the nameless, in the viewer's language.
+        name: build.name,
         cls: build.cls,
         ...(build.base ? { base: build.base } : {}),
         level: build.lv,

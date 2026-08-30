@@ -10,7 +10,7 @@ import type { LauncherRpc, LauncherSettingsRpc, LauncherState, SettingsSectionId
 import { loadLauncherSettings, saveLauncherSettings } from "../launcher/settings.ts";
 import type { LocaleCode } from "@svoverlay/i18n/locale";
 import type { LocalizedText } from "@svoverlay/i18n/messages";
-import { message, translate, translateText } from "@svoverlay/i18n/backend";
+import { englishText, message, translate } from "@svoverlay/i18n/backend";
 import {
   applyImport,
   exportSingleSetting,
@@ -49,7 +49,7 @@ import { createDeathLogWindow, createDpsWindow } from "@svoverlay/combat";
 import { createOverlayWindow } from "@svoverlay/overlay";
 import { KEYBIND_ACTIONS, type KeybindAction } from "@svoverlay/overlay/app-types";
 import { resolveLocalRoot } from "./paths.ts";
-import { SafeSaveQueue, STORAGE_WARNING } from "@svoverlay/desktop-platform/safe-save";
+import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { WindowSlot } from "./window-slot.ts";
 import { resolveDesktopStoragePaths } from "./portable-paths.ts";
 import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
@@ -96,19 +96,31 @@ await verifyWritableDirectories([
   },
 });
 const reportedStorageWarnings = new Map<string, string>();
+
+/** A storage failure in both forms it is needed in: English for the error log, a code for the view. */
+interface StorageWarning {
+  english: string;
+  text: LocalizedText;
+}
+
+/** Every `SafeSaveQueue`/`onWarning` producer reports the same single failure mode. */
+function saveFailure(warning: string | undefined): StorageWarning | undefined {
+  return warning === undefined ? undefined : { english: warning, text: message("storage.saveFailed") };
+}
+
 const readModel = await createReadModelService({ logDirectory });
 const xpTracker = createXpTrackerCoordinator({ logDirectory });
-let bossTimerStorageWarning: string | undefined;
+let bossTimerStorageWarning: StorageWarning | undefined;
 const bossTimers = await createBossTimerCoordinator({
   storagePath: storagePaths.bossTimersPath,
-  onWarning: (warning) => { bossTimerStorageWarning = warning; recordStorageWarning("boss timers", warning); updateStorageWarning(); },
+  onWarning: (warning) => { bossTimerStorageWarning = saveFailure(warning); recordStorageWarning("boss timers", warning); updateStorageWarning(); },
 });
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
 setActiveLocale(settings.language);
-let placementStorageWarning: string | undefined;
+let placementStorageWarning: StorageWarning | undefined;
 const placements = await WindowPlacementStore.load(storagePaths.windowPlacementsPath, {
-  onWarning: (warning) => { placementStorageWarning = warning; recordStorageWarning("window placements", warning); updateStorageWarning(); },
+  onWarning: (warning) => { placementStorageWarning = saveFailure(warning); recordStorageWarning("window placements", warning); updateStorageWarning(); },
 });
 let launcherWindow: BrowserWindow;
 let settingsWindow: BrowserWindow | undefined;
@@ -132,11 +144,10 @@ let launcherState: LauncherState = {
   resetGoldOnMapChange: settings.resetGoldOnMapChange,
 };
 let shuttingDown = false;
-let characterStorageWarning: string | undefined;
-let inspectedCharacterStorageWarning: string | undefined;
-let inspectedCharacterStorageReason: string | undefined;
-let launcherSettingsStorageWarning: string | undefined;
-let actorIdentityStorageWarning: string | undefined;
+let characterStorageWarning: StorageWarning | undefined;
+let inspectedCharacterStorageWarning: StorageWarning | undefined;
+let launcherSettingsStorageWarning: StorageWarning | undefined;
+let actorIdentityStorageWarning: StorageWarning | undefined;
 let liveCombatLogPath: string | undefined;
 
 const liveDeathLogWindow = createDeathLogWindow({
@@ -151,7 +162,7 @@ const liveDeathLogWindow = createDeathLogWindow({
 const launcherSettingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "launcher settings",
   save: (value) => saveLauncherSettings(value, storagePaths.launcherSettingsPath),
-  onWarning: (warning) => { launcherSettingsStorageWarning = warning; recordStorageWarning("launcher settings", warning); updateStorageWarning(); },
+  onWarning: (warning) => { launcherSettingsStorageWarning = saveFailure(warning); recordStorageWarning("launcher settings", warning); updateStorageWarning(); },
 });
 let characterCache: CharacterSnapshotCache = { characters: [] };
 const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
@@ -159,18 +170,19 @@ const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
   // `updateCharacterCache` returns a fresh cache that nothing mutates afterwards, so the queue does not need its own copy.
   clone: false,
   save: (value) => saveCharacterCache(value, storagePaths.characterStatePath),
-  onWarning: (warning) => { characterStorageWarning = warning; recordStorageWarning("character snapshot", warning); updateStorageWarning(); },
+  onWarning: (warning) => { characterStorageWarning = saveFailure(warning); recordStorageWarning("character snapshot", warning); updateStorageWarning(); },
 });
 const inspectedCharacterStore = new InspectedCharacterStore(storagePaths.inspectedCharactersPath);
 const inspectedCharacterRoster = new DurableInspectedCharacterRoster(inspectedCharacterStore, {
   onPersistenceError: (error) => {
-    inspectedCharacterStorageReason = error === undefined
+    const reason = error === undefined
       ? undefined
       : error instanceof Error ? error.message : String(error);
-    inspectedCharacterStorageWarning = inspectedCharacterStorageReason === undefined
-      ? undefined
-      : `Could not save inspected characters: ${inspectedCharacterStorageReason}`;
-    recordStorageWarning("inspected characters", inspectedCharacterStorageWarning);
+    inspectedCharacterStorageWarning = reason === undefined ? undefined : {
+      english: `Could not save inspected characters: ${reason}`,
+      text: message("storage.inspectedCharactersFailed", { reason }),
+    };
+    recordStorageWarning("inspected characters", inspectedCharacterStorageWarning?.english);
     updateStorageWarning();
   },
 });
@@ -179,7 +191,7 @@ const actorIdentityPersistence = new SafeSaveQueue<ActorIdentityCache>({
   label: "actor identities",
   clone: false,
   save: (value) => saveActorIdentityCache(value, storagePaths.actorIdentitiesPath),
-  onWarning: (warning) => { actorIdentityStorageWarning = warning; recordStorageWarning("actor identities", warning); updateStorageWarning(); },
+  onWarning: (warning) => { actorIdentityStorageWarning = saveFailure(warning); recordStorageWarning("actor identities", warning); updateStorageWarning(); },
 });
 
 const combatWindow = new WindowSlot((onClosed) => createDpsWindow({
@@ -574,7 +586,7 @@ async function initializeCapture(): Promise<void> {
   if (launcherState.npcapAvailability !== "ready") {
     errorLog.write({
       title: "Capture could not start",
-      reason: translateText(launcherState.npcapDetail),
+      reason: englishText(launcherState.npcapDetail),
       details: { "Npcap status": launcherState.npcapAvailability },
     });
     launcherState = { ...launcherState, captureStatus: "unavailable", statusDetail: launcherState.npcapDetail };
@@ -926,18 +938,8 @@ async function publishSettings(overlayState?: Awaited<ReturnType<typeof sharedSe
 
 function updateStorageWarning(): void {
   const warning = characterStorageWarning ?? inspectedCharacterStorageWarning ?? launcherSettingsStorageWarning ?? placementStorageWarning ?? actorIdentityStorageWarning ?? bossTimerStorageWarning;
-  launcherState = { ...launcherState, storageWarning: storageWarningText(warning) };
+  launcherState = { ...launcherState, storageWarning: warning?.text };
   publish();
-}
-
-/** Warnings stay English for the error log; the view gets a code. */
-function storageWarningText(warning: string | undefined): LocalizedText | undefined {
-  if (!warning) return undefined;
-  if (warning === STORAGE_WARNING) return message("storage.saveFailed");
-  if (inspectedCharacterStorageReason !== undefined && warning === inspectedCharacterStorageWarning) {
-    return message("storage.inspectedCharactersFailed", { reason: inspectedCharacterStorageReason });
-  }
-  return message("common.passthrough", { text: warning });
 }
 
 function recordStorageWarning(source: string, warning: string | undefined): void {

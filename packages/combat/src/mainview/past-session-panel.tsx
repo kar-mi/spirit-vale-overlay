@@ -69,7 +69,7 @@ function SessionRow({ session, onOpen }: { session: SessionPickerItem; onOpen():
         {zone && <span class="zone-pill" title={t("sessions.zonesVisited", { zones: locations.map(formatZone).join(", ") })}>{zone}</span>}
         {session.active && <span class="pill active-badge">{t("sessions.active")}</span>}
       </span>
-      <span class="session-summary">{session.summary}</span>
+      <span class="session-summary">{session.summary ?? t("sessions.summaryUnavailable")}</span>
     </button>
   );
 }

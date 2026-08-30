@@ -1,13 +1,15 @@
+import type { MessageKey } from "@svoverlay/i18n/messages";
+
 export interface RarityTier {
   value: number;
-  label: string;
+  labelKey: MessageKey;
   color: string;
 }
 
 export const RARITY_TIERS: readonly RarityTier[] = [
-  { value: 0, label: "Common", color: "#f2f2f2" },
-  { value: 2, label: "Rare", color: "#2ecc71" },
-  { value: 3, label: "Epic", color: "#a35bff" },
+  { value: 0, labelKey: "rarity.common", color: "#f2f2f2" },
+  { value: 2, labelKey: "rarity.rare", color: "#2ecc71" },
+  { value: 3, labelKey: "rarity.epic", color: "#a35bff" },
 ];
 
 const DEFAULT_TIER = RARITY_TIERS[0]!;
@@ -21,8 +23,8 @@ export function rarityTier(rarity: number | undefined): RarityTier {
   return match;
 }
 
-export function rarityLabel(rarity: number | undefined): string {
-  return rarityTier(rarity).label;
+export function rarityLabelKey(rarity: number | undefined): MessageKey {
+  return rarityTier(rarity).labelKey;
 }
 
 export function rarityColor(rarity: number | undefined): string {

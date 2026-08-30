@@ -1,13 +1,13 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import type { KeybindAction } from "@svoverlay/overlay/app-types";
-import { createTranslator } from "@svoverlay/i18n/translate";
+import { useTranslator } from "@svoverlay/i18n/browser";
 import type { LauncherSettingsRpc, SharedSettingsState } from "../../launcher/types.ts";
 import { SettingsLayout, type SectionRequest } from "./settings-layout.tsx";
 import type { SettingsActions, SettingsSectionContext } from "./settings-section.ts";
@@ -44,9 +44,9 @@ void ensureInitialWindowSize(desktopView.rpc?.request, { width: 560, height: 420
 function App() {
   const [busy, setBusy] = useState(false);
   const next = state.value;
-  const language = next?.launcher.language;
-  // Every index.html ships `lang="en"`.
-  useEffect(() => { if (language) document.documentElement.lang = language; }, [language]);
+  // Reads `activeLocale`, so a language push re-renders this window. `setActiveLocale` owns
+  // `document.documentElement.lang`, which every index.html ships as `en`.
+  const t = useTranslator();
   if (!next) return <main class="app-shell" />;
 
   const update = (request: Promise<SharedSettingsState> | undefined): void => {
@@ -87,7 +87,6 @@ function App() {
     beginShortcutCapture: (action) => { void beginShortcutCapture(action); },
     captureShortcut: (action, event) => { void captureShortcut(action, event); },
   };
-  const t = createTranslator(next.launcher.language);
   const context: SettingsSectionContext = { state: next, t, busy, recordingAction: recordingAction.value, actions };
   const basicSections = buildBasicSettingsSections(context);
   const sections = [

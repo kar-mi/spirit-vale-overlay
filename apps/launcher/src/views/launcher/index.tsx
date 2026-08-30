@@ -7,8 +7,8 @@ import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { formatBytes, formatMeasuredAt } from "@svoverlay/ui-kit/format";
-import { DEFAULT_LOCALE } from "@svoverlay/i18n/locale";
-import { createTranslator } from "@svoverlay/i18n/translate";
+import { useTranslator } from "@svoverlay/i18n/browser";
+import type { MessageKey } from "@svoverlay/i18n/messages";
 import type { LauncherRpc, LauncherState, ToolWindow } from "../../launcher/types.ts";
 
 const DEFAULT_WIDTH = 960;
@@ -16,12 +16,12 @@ const DEFAULT_HEIGHT = 430;
 const MINIMUM_WIDTH = 900;
 const MINIMUM_HEIGHT = 430;
 
-const TOOLS: Array<{ tool: ToolWindow; title: string; description: string }> = [
-  { tool: "combat", title: "Combat", description: "Live DPS and combat replay" },
-  { tool: "rewards", title: "Rewards", description: "Mob rewards and catalog" },
-  { tool: "character", title: "Character", description: "Your build and calculated stats" },
-  { tool: "boss-timers", title: "Boss Timers", description: "World boss respawns by region and channel" },
-  { tool: "build-export", title: "Build Export", description: "Open your character in the spiritvalers.com planner" },
+const TOOLS: Array<{ tool: ToolWindow; titleKey: MessageKey; descriptionKey: MessageKey }> = [
+  { tool: "combat", titleKey: "launcher.tool.combat", descriptionKey: "launcher.tool.combat.description" },
+  { tool: "rewards", titleKey: "launcher.tool.rewards", descriptionKey: "launcher.tool.rewards.description" },
+  { tool: "character", titleKey: "launcher.tool.character", descriptionKey: "launcher.tool.character.description" },
+  { tool: "boss-timers", titleKey: "launcher.tool.bossTimers", descriptionKey: "launcher.tool.bossTimers.description" },
+  { tool: "build-export", titleKey: "launcher.tool.buildExport", descriptionKey: "launcher.tool.buildExport.description" },
 ];
 
 const state = signal<LauncherState | undefined>(undefined);
@@ -48,8 +48,7 @@ function App() {
   };
 
   const next = state.value;
-  // Only backend-produced text is translated so far; this view's own labels are still English.
-  const t = createTranslator(next?.language ?? DEFAULT_LOCALE);
+  const t = useTranslator();
   const unavailable = next?.captureStatus === "unavailable";
   const warning = next?.captureWarning !== undefined;
 
@@ -60,35 +59,35 @@ function App() {
           <img class="brand-icon" src="views://assets/app-icon.png" alt="" />
           <span>Spirit Vale Overlay</span>
           <span class="brand-version">{next ? `v${next.appVersion}` : ""}</span>
-          <span class="brand-tag">Tools</span>
+          <span class="brand-tag">{t("launcher.brandTag")}</span>
         </div>
         <div class="window-controls">
-          <button class="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => void desktopView.rpc?.request.openSettings({})}>⚙</button>
-          <button class="icon-button" type="button" aria-label="Minimize" title="Minimize" onClick={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}>−</button>
-          <button class="icon-button close-button" type="button" aria-label="Close" title="Close" onClick={() => void desktopView.rpc?.request.windowAction({ action: "close" })}>×</button>
+          <button class="icon-button" type="button" aria-label={t("settingsButton.label")} title={t("settingsButton.label")} onClick={() => void desktopView.rpc?.request.openSettings({})}>⚙</button>
+          <button class="icon-button" type="button" aria-label={t("titleBar.minimize")} title={t("titleBar.minimize")} onClick={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}>−</button>
+          <button class="icon-button close-button" type="button" aria-label={t("titleBar.close")} title={t("titleBar.close")} onClick={() => void desktopView.rpc?.request.windowAction({ action: "close" })}>×</button>
         </div>
       </header>
 
       <section class="launcher-content">
         <div class={`capture-status${unavailable ? " is-error" : warning ? " is-warning" : ""}`} aria-live="polite">
           <span class={`status-dot ${unavailable ? "is-err" : warning ? "is-warn" : next?.captureStatus === "capturing" ? "is-ok" : "is-idle"}`} />
-          <div><strong>Central capture</strong><p>{t.text(next?.statusDetail) ?? t("capture.status.starting")}</p></div>
+          <div><strong>{t("launcher.capture.heading")}</strong><p>{t.text(next?.statusDetail) ?? t("capture.status.starting")}</p></div>
         </div>
 
         {next?.storageWarning && <div class="banner is-warn" aria-live="polite">{t.text(next.storageWarning)}</div>}
 
         {next?.update && <UpdateNotification version={next.update.version} />}
 
-        <div class="tool-grid" aria-label="Spirit Vale tools">
-          {TOOLS.map(({ tool, title, description }) => (
+        <div class="tool-grid" aria-label={t("launcher.tools.label")}>
+          {TOOLS.map(({ tool, titleKey, descriptionKey }) => (
             <button
               key={tool}
               class="tool-button"
               type="button"
               onClick={() => void desktopView.rpc?.request.openTool({ tool })}
             >
-              <strong>{title}</strong>
-              <span>{description}</span>
+              <strong>{t(titleKey)}</strong>
+              <span>{t(descriptionKey)}</span>
             </button>
           ))}
           <button
@@ -96,8 +95,8 @@ function App() {
             type="button"
             onClick={() => void desktopView.rpc?.request.openSettings({ section: "manage" })}
           >
-            <strong>Manage Settings</strong>
-            <span>Import, locate, or reset your settings</span>
+            <strong>{t("launcher.manageSettings.title")}</strong>
+            <span>{t("launcher.manageSettings.description")}</span>
           </button>
         </div>
       </section>
@@ -109,32 +108,35 @@ function App() {
 }
 
 function OverlayHints({ shortcuts }: { shortcuts: NonNullable<LauncherState["overlayShortcuts"]> }) {
+  const t = useTranslator();
   return (
     <footer class="overlay-hints">
-      <span><kbd>{shortcuts.toggleLock}</kbd> — Edit overlay</span>
-      <span><kbd>{shortcuts.toggleOverlayVisible}</kbd> — Toggle overlay</span>
+      <span><kbd>{shortcuts.toggleLock}</kbd> — {t("launcher.hint.editOverlay")}</span>
+      <span><kbd>{shortcuts.toggleOverlayVisible}</kbd> — {t("launcher.hint.toggleOverlay")}</span>
     </footer>
   );
 }
 
 function LogStorage({ usage }: { usage: NonNullable<LauncherState["logStorage"]> }) {
+  const t = useTranslator();
   return (
-    <footer class="log-storage" title={`${usage.files.toLocaleString()} files in the logs folder`}>
-      <span class="log-storage-label">Logs</span>
+    <footer class="log-storage" title={t("launcher.logs.files", { count: usage.files.toLocaleString() })}>
+      <span class="log-storage-label">{t("launcher.logs.label")}</span>
       <strong>{formatBytes(usage.bytes)}</strong>
-      <span class="log-storage-time">{`measured ${formatMeasuredAt(usage.measuredAt)}`}</span>
+      <span class="log-storage-time">{t("launcher.logs.measured", { when: formatMeasuredAt(usage.measuredAt) })}</span>
     </footer>
   );
 }
 
 function UpdateNotification({ version }: { version: string }) {
+  const t = useTranslator();
   return (
     <div class="update-notification" aria-live="polite">
-      <div><strong>Update available</strong><p>{`Version ${version} is available on GitHub.`}</p></div>
+      <div><strong>{t("launcher.update.heading")}</strong><p>{t("launcher.update.body", { version })}</p></div>
       <div class="update-actions">
-        <button class="update-button" type="button" onClick={() => void desktopView.rpc?.request.openUpdateRelease({})}>View download</button>
-        <button class="update-skip-button" type="button" onClick={() => void desktopView.rpc?.request.skipUpdateVersion({})}>Skip version</button>
-        <button class="update-dismiss-button" type="button" aria-label="Dismiss update notification" title="Dismiss" onClick={() => void desktopView.rpc?.request.dismissUpdateNotification({})}>×</button>
+        <button class="update-button" type="button" onClick={() => void desktopView.rpc?.request.openUpdateRelease({})}>{t("launcher.update.view")}</button>
+        <button class="update-skip-button" type="button" onClick={() => void desktopView.rpc?.request.skipUpdateVersion({})}>{t("launcher.update.skip")}</button>
+        <button class="update-dismiss-button" type="button" aria-label={t("launcher.update.dismissAria")} title={t("launcher.update.dismiss")} onClick={() => void desktopView.rpc?.request.dismissUpdateNotification({})}>×</button>
       </div>
     </div>
   );
