@@ -396,7 +396,7 @@ export class CaptureCoordinator {
     } catch (error) {
       const message = errorMessage(error);
       this.logCaptureError(message, "Capture could not start");
-      this.setStatus("unavailable", "Unable to capture data");
+      this.setStatus("unavailable", "Unable to capture data, please close the app and restart it");
     }
   }
 
@@ -424,7 +424,7 @@ export class CaptureCoordinator {
         this.reportError("The previous capture adapter could not be restored", errorMessage(rollbackError), {
           "Previous adapter": previous ?? "Automatic selection",
         });
-        this.setStatus("unavailable", "Unable to capture data");
+        this.setStatus("unavailable", "Unable to capture data, please close the app and restart it");
         throw new Error(`Could not switch capture adapter and restore the previous adapter: ${requestedError}`);
       }
     } finally {
@@ -694,7 +694,7 @@ export class CaptureCoordinator {
 
   private captureError(error: Error): void {
     this.logCaptureError(error.message, "Packet capture stopped unexpectedly");
-    if (!this.stopping) this.setStatus("unavailable", "Unable to capture data");
+    if (!this.stopping) this.setStatus("unavailable", "Unable to capture data, please close the app and restart it");
   }
 
   private captureStopped(): void {
