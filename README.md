@@ -2,9 +2,9 @@
 
 Spirit Vale Overlay is a passive Windows companion app for live combat, character, reward, and in-game overlay information. It uses your existing Npcap installation in non-promiscuous mode and never sends, modifies, drops, or injects game traffic. Disclaimer for packet capture dps tools, packet capture is based on proxmity, so dps for other players will go down when out of range.
 
-**[Installation guide →](https://kar-mi.github.io/spirit-vale-overlay/)** · [Troubleshooting](https://kar-mi.github.io/spirit-vale-overlay/troubleshooting/)
+**[Installation guide →](https://kar-mi.github.io/spirit-vale-overlay/install/)** · [Troubleshooting](https://kar-mi.github.io/spirit-vale-overlay/troubleshooting/) · [Discord support](https://discord.gg/XtZbkspzpZ)
 
-The same guides live in this repository: [docs/install.md](docs/install.md) and
+The same guides live in this repository: [docs/install/index.md](docs/install/index.md) and
 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 > Looking for the pacakges to use for development? See
@@ -116,6 +116,11 @@ plus connection-admission decisions and status-RPC decoder input/output. Raw tra
 bounded to 8 MiB before and 32 MiB after authentication; a `capture.diagnosticLimit` record reports
 truncation. Diagnostic logs contain raw game-network payloads and endpoint addresses, so review them
 before sharing and disable the environment variable after reproducing the issue.
+
+## Support
+
+Ask for help in the [Spirit Vale Overlay Discord](https://discord.gg/XtZbkspzpZ), or open a
+[GitHub issue](https://github.com/kar-mi/spirit-vale-overlay/issues) for a reproducible bug.
 
 ## VPN Issues
 
