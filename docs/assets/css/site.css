@@ -162,7 +162,7 @@ a:hover {
 
 /* Marks the links that leave the site (they also open in a new tab). */
 .nav-external::after {
-  content: "97";
+  content: "\2197";
   margin-left: 0.15em;
   font-size: 0.85em;
   opacity: 0.7;
