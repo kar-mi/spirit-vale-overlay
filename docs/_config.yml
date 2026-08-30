@@ -1,0 +1,52 @@
+title: Spirit Vale Overlay
+tagline: Passive Windows companion overlay for live combat, character, and reward data
+description: >-
+  Install Spirit Vale Overlay, a passive Windows x64 companion app that reads
+  live combat, character, reward, and in-game overlay information without
+  sending, modifying, dropping, or injecting game traffic.
+
+url: https://kar-mi.github.io
+baseurl: /spirit-vale-overlay
+
+repository: kar-mi/spirit-vale-overlay
+github_repo_url: https://github.com/kar-mi/spirit-vale-overlay
+releases_latest_url: https://github.com/kar-mi/spirit-vale-overlay/releases/latest
+releases_api_url: https://api.github.com/repos/kar-mi/spirit-vale-overlay/releases/latest
+issues_url: https://github.com/kar-mi/spirit-vale-overlay/issues
+
+lang: en
+
+plugins:
+  - jekyll-relative-links
+  - jekyll-seo-tag
+
+relative_links:
+  enabled: true
+  collections: false
+
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  auto_ids: true
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - heal-attribution.md
+  - WORKFLOW.MD
+
+nav:
+  - title: Install
+    url: /
+  - title: Troubleshooting
+    url: /troubleshooting/
+  - title: VPN issues
+    url: /vpn/

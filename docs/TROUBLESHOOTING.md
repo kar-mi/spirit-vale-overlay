@@ -1,4 +1,11 @@
-# Troubleshooting Spirit Vale Overlay on Windows
+---
+title: Troubleshooting Spirit Vale Overlay on Windows
+permalink: /troubleshooting/
+description: >-
+  Fixes for the portable Windows x64 release of Spirit Vale Overlay: startup
+  failures, blank windows, Npcap and capture problems, VPN conflicts, overlay
+  issues, and the logs to attach to a bug report.
+---
 
 This guide covers the portable Windows x64 release of Spirit Vale Overlay. Work through the sections that match the symptom you see.
 

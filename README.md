@@ -2,7 +2,10 @@
 
 Spirit Vale Overlay is a passive Windows companion app for live combat, character, reward, and in-game overlay information. It uses your existing Npcap installation in non-promiscuous mode and never sends, modifies, drops, or injects game traffic. Disclaimer for packet capture dps tools, packet capture is based on proxmity, so dps for other players will go down when out of range.
 
-**[Jump to Installation ↓](#installation)**
+**[Installation guide →](https://kar-mi.github.io/spirit-vale-overlay/)** · [Troubleshooting](https://kar-mi.github.io/spirit-vale-overlay/troubleshooting/)
+
+The same guides live in this repository: [docs/install.md](docs/install.md) and
+[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 > Looking for the pacakges to use for development? See
 > [spirit-vale-tools](https://github.com/kar-mi/spirit-vale-tools).
