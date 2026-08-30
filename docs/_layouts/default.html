@@ -26,7 +26,8 @@
                 <a href="{{ item_url }}"{% if page.url == item.url %} aria-current="page"{% endif %}>{{ item.title }}</a>
               </li>
             {% endfor %}
-            <li><a class="nav-external" href="{{ site.github_repo_url }}" rel="noopener">GitHub</a></li>
+            <li><a class="nav-external" href="{{ site.discord_url }}" rel="noopener noreferrer" target="_blank">Discord</a></li>
+            <li><a class="nav-external" href="{{ site.github_repo_url }}" rel="noopener noreferrer" target="_blank">GitHub</a></li>
           </ul>
         </nav>
       </div>
@@ -38,7 +39,8 @@
           <p class="eyebrow">Windows x64 &middot; portable</p>
           <h1>{{ page.hero_title | default: site.title }}</h1>
           <p class="lede">{{ page.hero_lede | default: site.tagline }}</p>
-          {% include download.html %}
+          {% assign install_url = '/install/' | relative_url %}
+          {% include download.html secondary_url=install_url secondary_text='Installation guide' %}
         </div>
       </section>
     {% endif %}
@@ -58,9 +60,10 @@
           Spirit Vale Overlay captures passively and never sends, modifies, drops, or injects game traffic.
         </p>
         <p class="footer-links">
-          <a href="{{ site.github_repo_url }}" rel="noopener">Source</a>
-          <a href="{{ site.releases_latest_url }}" rel="noopener">Releases</a>
-          <a href="{{ site.issues_url }}" rel="noopener">Report an issue</a>
+          <a href="{{ site.discord_url }}" rel="noopener noreferrer" target="_blank">Discord support</a>
+          <a href="{{ site.github_repo_url }}" rel="noopener noreferrer" target="_blank">Source</a>
+          <a href="{{ site.releases_latest_url }}" rel="noopener noreferrer" target="_blank">Releases</a>
+          <a href="{{ site.issues_url }}" rel="noopener noreferrer" target="_blank">Report an issue</a>
         </p>
       </div>
     </footer>

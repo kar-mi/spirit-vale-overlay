@@ -3,9 +3,14 @@
      data-api="{{ site.releases_api_url }}"
      data-asset-prefix="spirit-vale-overlay-windows-x64-v"
      data-fallback="{{ site.releases_latest_url }}">
-  <a class="btn btn-primary" data-download-link href="{{ site.releases_latest_url }}" rel="noopener">
-    <span data-download-label>Download for Windows</span>
-  </a>
+  <div class="download-actions">
+    <a class="btn btn-primary" data-download-link href="{{ site.releases_latest_url }}" rel="noopener">
+      <span data-download-label>Download for Windows</span>
+    </a>
+    {% if include.secondary_url %}
+      <a class="btn btn-ghost" href="{{ include.secondary_url }}">{{ include.secondary_text }}</a>
+    {% endif %}
+  </div>
   <p class="download-status" data-download-status role="status" aria-live="polite">
     Latest portable ZIP from GitHub Releases.
   </p>

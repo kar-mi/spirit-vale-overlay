@@ -155,6 +155,11 @@ Include:
 
 Review logs before sharing them. Diagnostic logs may contain endpoint addresses and raw game-network payloads.
 
+### Where to ask
+
+- For help working through a problem, or if you are not sure what the logs are telling you, ask in the [Spirit Vale Overlay Discord](https://discord.gg/XtZbkspzpZ).
+- For a reproducible bug, open a [GitHub issue](https://github.com/kar-mi/spirit-vale-overlay/issues) with the details above.
+
 ## Developer-only checks
 
 These steps apply only when running from source. The portable release does not require a system Bun installation.
