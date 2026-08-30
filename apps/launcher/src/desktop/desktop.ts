@@ -73,7 +73,7 @@ const storagePaths = resolveDesktopStoragePaths({
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,
 });
 const logDirectory = storagePaths.logDirectory;
-const summaryJournal = loadSessionSummaryJournal(logDirectory);
+let summaryJournalPromise: ReturnType<typeof loadSessionSummaryJournal> | undefined;
 const errorLog = new HumanReadableErrorLog(localRoot);
 const warningLog = new HumanReadableErrorLog(localRoot, "warning.log");
 await verifyWritableDirectories([
@@ -939,7 +939,7 @@ function recordStorageWarning(source: string, warning: string | undefined): void
 }
 
 async function finalizeSessionSummaries(sessionId: string): Promise<void> {
-  const journal = await summaryJournal;
+  const journal = await sessionSummaryJournal();
   const results = await Promise.allSettled([
     (async () => {
       const sourcePath = streamSessionPath("combat", sessionId, logDirectory);
@@ -963,6 +963,11 @@ async function finalizeSessionSummaries(sessionId: string): Promise<void> {
       details: { "Session ID": sessionId, "Log directory": logDirectory },
     });
   }
+}
+
+function sessionSummaryJournal(): ReturnType<typeof loadSessionSummaryJournal> {
+  summaryJournalPromise ??= loadSessionSummaryJournal(logDirectory);
+  return summaryJournalPromise;
 }
 
 async function closeAllWindowsAndFlush(): Promise<void> {

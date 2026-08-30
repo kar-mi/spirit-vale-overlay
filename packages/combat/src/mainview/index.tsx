@@ -283,6 +283,7 @@ function App() {
             onOpenSession={(id) => void desktopView.rpc?.request.openPastSession({ id })}
             onChooseFile={() => void desktopView.rpc?.request.choosePastFile({})}
             onOpenLogFolder={() => void desktopView.rpc?.request.openPastLogFolder({})}
+            onDateRangeChange={(dateRange) => void desktopView.rpc?.request.setPastDateRange(dateRange)}
           />
         : <PastAnalysisPanel
             state={next.past.analysis}

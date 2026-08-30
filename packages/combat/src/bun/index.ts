@@ -11,7 +11,6 @@ import {
   LiveCombatService,
 } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
-import { listLogSessions } from "@kar-mi/spirit-vale-tools-logging";
 import type { CombatEncounterRecord, DpsLogBatch } from "@kar-mi/spirit-vale-tools-combat";
 import { loadDpsAppSettings, saveDpsAppSettings } from "../settings.ts";
 import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppStatus } from "../app-types.ts";
@@ -21,7 +20,7 @@ import { registerUiScaleWindow, scaledSize, unscaledSize } from "@svoverlay/desk
 import { visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DPS_WINDOW_MINIMUM_HEIGHT, DPS_WINDOW_MINIMUM_WIDTH } from "../window-size.ts";
 import { historyScanLimit, normalizeHistorySessionLimit } from "@svoverlay/desktop-platform/history-limit";
-import { loadSessionSummaryJournal, type SessionSummaryJournal } from "@svoverlay/desktop-platform/session-summary-journal";
+import { loadSessionSummaryJournal, type SessionDateRange, type SessionSummaryJournal } from "@svoverlay/desktop-platform/session-summary-journal";
 import type { SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
 import { activeDeathLogSource } from "../combat-navigation.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
@@ -73,6 +72,7 @@ let lastEventWallMs: number | undefined;
 let currentLiveLogPath: string | undefined;
 let currentLiveLocation: SpiritValeLocation | undefined;
 let screen: CombatLogScreen = "live";
+let pastDateRange: SessionDateRange = {};
 let past: DpsAppState["past"] = { view: "selector", picker: pastPickerLoadingState() };
 let pastPaths = new Map<string, string>();
 let pastRefreshSequence = 0;
@@ -107,6 +107,11 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
         return appState();
       },
       refreshPastSessions: () => { void refreshPastSessions(); },
+      setPastDateRange: (dateRange) => {
+        pastDateRange = normalizeDateRange(dateRange);
+        if (screen === "past" && past.view === "selector") void refreshPastSessions();
+        return appState();
+      },
       openPastSession: ({ id }) => {
         const selectedPath = pastPaths.get(id);
         if (selectedPath) void openPastPath(selectedPath);
@@ -446,14 +451,17 @@ async function refreshPastSessions(): Promise<void> {
   try {
     const journal = await pastSummaryJournal();
     const sessionLimit = normalizeHistorySessionLimit(options.getHistorySessionLimit?.());
-    const sessions = await listLogSessions("combat", options.logDirectory, historyScanLimit(sessionLimit));
+    const sessions = await journal.list("combat", { limit: historyScanLimit(sessionLimit), dateRange: pastDateRange });
     const nextPaths = new Map<string, string>();
     const items: SessionPickerState["sessions"] = [];
     for (let offset = 0; offset < sessions.length && items.length < sessionLimit; offset += 10) {
-      const inspected = await Promise.all(sessions.slice(offset, offset + 10).map(async (session) => {
+      const batch = sessions.slice(offset, offset + 10);
+      const publishProgress = batch.some((session) => session.cachedSummary === undefined);
+      const inspected = await Promise.all(batch.map(async (session) => {
         try {
-          const result = await journal.ensure(session.id, "combat", {
+          const result = session.cachedSummary ?? await journal.ensure(session.id, "combat", {
             persist: !session.active,
+            createdAt: session.createdAt,
             calculate: async () => ({
               ...await inspectCombatReplaySummary(session.path),
               locations: await readCombatLocations(session.path),
@@ -483,6 +491,7 @@ async function refreshPastSessions(): Promise<void> {
         if (item && items.length < sessionLimit) items.push(item);
       }
       if (sequence !== pastRefreshSequence || screen !== "past" || past.view !== "selector") return;
+      if (!publishProgress) continue;
       pastPaths = nextPaths;
       past = {
         view: "selector",
@@ -492,6 +501,7 @@ async function refreshPastSessions(): Promise<void> {
           statusDetail: `Scanning… ${items.length} session${items.length === 1 ? "" : "s"} found so far`,
           sessions: items.slice(),
           canOpenLogFolder: true,
+          dateRange: pastDateRange,
         },
       };
       publish();
@@ -503,9 +513,12 @@ async function refreshPastSessions(): Promise<void> {
       picker: {
         title: "Past combat logs",
         status: "ready",
-        statusDetail: items.length === 0 ? "No managed sessions found." : `${items.length} recent session${items.length === 1 ? "" : "s"}`,
+        statusDetail: items.length === 0
+          ? (pastDateRange.fromMs !== undefined || pastDateRange.toMs !== undefined ? "No sessions match the selected date range." : "No managed sessions found.")
+          : `${items.length} session${items.length === 1 ? "" : "s"}${pastDateRange.fromMs !== undefined || pastDateRange.toMs !== undefined ? " in the selected range" : ""}`,
         sessions: items,
         canOpenLogFolder: true,
+        dateRange: pastDateRange,
       },
     };
     publish();
@@ -520,6 +533,7 @@ async function refreshPastSessions(): Promise<void> {
         statusDetail: "Recent sessions could not be scanned.",
         sessions: [],
         canOpenLogFolder: true,
+        dateRange: pastDateRange,
       },
     };
     publish();
@@ -557,6 +571,14 @@ function pastPickerLoadingState(): SessionPickerState {
     statusDetail: "Scanning recent sessions…",
     sessions: [],
     canOpenLogFolder: true,
+    dateRange: pastDateRange,
+  };
+}
+
+function normalizeDateRange(value: SessionDateRange): SessionDateRange {
+  return {
+    ...(typeof value.fromMs === "number" && Number.isFinite(value.fromMs) ? { fromMs: value.fromMs } : {}),
+    ...(typeof value.toMs === "number" && Number.isFinite(value.toMs) ? { toMs: value.toMs } : {}),
   };
 }
 

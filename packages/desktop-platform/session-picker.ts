@@ -1,7 +1,6 @@
 import path from "node:path";
 
 import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
-import { listLogSessions } from "@kar-mi/spirit-vale-tools-logging";
 import type { LogStream } from "@kar-mi/spirit-vale-tools-logging";
 import { applyRoundedCorners, setWindowIcon } from "./win32.ts";
 import { appIconPath } from "./window-publish.ts";
@@ -124,14 +123,17 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
     try {
       const journal = await summaryJournal();
       const sessionLimit = normalizeHistorySessionLimit(options.getSessionLimit?.());
-      const sessions = await listLogSessions(options.stream, options.logDirectory, historyScanLimit(sessionLimit));
+      const sessions = await journal.list(options.stream, { limit: historyScanLimit(sessionLimit) });
       const nextPaths = new Map<string, string>();
       const items: SessionPickerState["sessions"] = [];
       for (let offset = 0; offset < sessions.length && items.length < sessionLimit; offset += 10) {
-        const inspected = await Promise.all(sessions.slice(offset, offset + 10).map(async (session) => {
+        const batch = sessions.slice(offset, offset + 10);
+        const publishProgress = batch.some((session) => session.cachedSummary === undefined);
+        const inspected = await Promise.all(batch.map(async (session) => {
           try {
-            const result = await journal.ensure(session.id, options.stream, {
+            const result = session.cachedSummary ?? await journal.ensure(session.id, options.stream, {
               persist: !session.active,
+              createdAt: session.createdAt,
               calculate: () => options.summarize(session.path),
             });
             if (result.recordCount === 0) return undefined;
@@ -151,6 +153,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
           if (item && items.length < sessionLimit) items.push(item);
         }
         if (sequence !== refreshSequence) return;
+        if (!publishProgress) continue;
         paths = nextPaths;
         state = {
           title: options.title,

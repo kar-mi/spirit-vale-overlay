@@ -1,5 +1,6 @@
 import type { RPCSchema } from "@svoverlay/contracts/rpc";
 import type { SpiritValeLocation } from "./location.ts";
+import type { SessionDateRange } from "./session-summary-journal.ts";
 
 export interface SessionPickerItem {
   id: string;
@@ -16,6 +17,7 @@ export interface SessionPickerState {
   status: "loading" | "ready" | "error";
   statusDetail: string;
   sessions: SessionPickerItem[];
+  dateRange?: SessionDateRange;
 }
 
 export type SessionPickerRpc = {

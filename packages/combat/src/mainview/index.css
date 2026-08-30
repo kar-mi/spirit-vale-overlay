@@ -121,7 +121,7 @@ body {
 
 .past-session-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 14px;
   min-height: 0;
   padding: 10px 16px 16px;
@@ -131,6 +131,10 @@ body {
 .picker-intro h1 { margin: 0; font-size: 18px; font-weight: 500; }
 .picker-intro p { margin: 5px 0 0; color: var(--on-surface-variant); font-size: 12px; }
 .picker-status.is-error { color: var(--error); }
+.past-date-filter { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) auto; align-items: end; gap: 8px; }
+.past-date-filter label { display: grid; gap: 4px; color: var(--on-surface-variant); font-size: 11px; }
+.past-date-filter .input { width: 100%; min-width: 0; }
+.past-date-filter .btn { white-space: nowrap; }
 .session-list { display: grid; align-content: start; gap: 7px; min-height: 0; overflow: auto; padding-right: 3px; }
 .session-list-item { min-width: 0; }
 .session-row { display: grid; gap: 6px; width: 100%; padding: 12px 14px; border: 1px solid transparent; border-radius: var(--shape-md); background: var(--surface-container-low); color: var(--on-surface); text-align: left; }
@@ -163,6 +167,8 @@ body {
 .past-analysis-panel .combat-table .player-row:focus > * { color: var(--on-secondary-container); }
 
 @media (max-width: 760px) {
+  .past-date-filter { grid-template-columns: 1fr 1fr; }
+  .past-date-filter .btn { grid-column: 1 / -1; justify-self: start; }
   .past-analysis-panel .toolbar { flex-wrap: wrap; }
   .past-analysis-panel .toolbar-meta { flex: 0; justify-content: flex-start; }
 }
