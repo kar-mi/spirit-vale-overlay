@@ -903,6 +903,86 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("follows a reconnect the transport reports even when no authentication arrives", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reconnect-transport-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        diagnosticLogging: true,
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1_000, "conn-a"));
+      capture.packet(identityPacket(1_010, 10, "Alpha", "conn-a"));
+      capture.connection("conn-a", "closed");
+      capture.connection("conn-b", "opened");
+      capture.packet(identityPacket(60, 20, "Bravo", "conn-b"));
+      await coordinator.stop();
+
+      const combatPointer = await readCurrentLogStream("combat", directory);
+      const combat = records(await readFile(combatPointer!.path, "utf8"))
+        .filter((record) => record.type === "combat.actorIdentity") as Array<{ type: string; data: { displayName?: string } }>;
+      expect(combat.map((record) => record.data.displayName)).toEqual([undefined, "Alpha", "Bravo"]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("leaves the live connection alone when an older one closes", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-stale-close-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        diagnosticLogging: true,
+      });
+      await coordinator.start();
+
+      capture.connection("conn-b", "opened");
+      capture.packet(identityPacket(60, 20, "Bravo", "conn-b"));
+      capture.connection("conn-a", "closed");
+      capture.packet(identityPacket(70, 30, "Ghost", "conn-a"));
+      await coordinator.stop();
+
+      const combatPointer = await readCurrentLogStream("combat", directory);
+      const combat = records(await readFile(combatPointer!.path, "utf8"))
+        .filter((record) => record.type === "combat.actorIdentity") as Array<{ type: string; data: { displayName?: string } }>;
+      expect(combat.map((record) => record.data.displayName)).toEqual(["Bravo"]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("refuses stragglers from a closed connection so the next one can claim the slot", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-straggler-"));
+    const capture = new FakeCapture();
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        diagnosticLogging: true,
+      });
+      await coordinator.start();
+
+      capture.connection("conn-a", "opened");
+      capture.packet(identityPacket(1_010, 10, "Alpha", "conn-a"));
+      capture.connection("conn-a", "closed");
+      capture.packet(identityPacket(1_020, 11, "Straggler", "conn-a"));
+      capture.packet(identityPacket(60, 20, "Bravo", "conn-b"));
+      await coordinator.stop();
+
+      const combatPointer = await readCurrentLogStream("combat", directory);
+      const combat = records(await readFile(combatPointer!.path, "utf8"))
+        .filter((record) => record.type === "combat.actorIdentity") as Array<{ type: string; data: { displayName?: string } }>;
+      expect(combat.map((record) => record.data.displayName)).toEqual(["Alpha", "Bravo"]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("routes local character callbacks before filtering overlapping connections", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-character-"));
     const capture = new FakeCapture();
@@ -1775,6 +1855,43 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("does not stamp a gravestone with the channel the player just left", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gravestone-stale-channel-"));
+    const capture = new FakeCapture();
+    const kills: Array<{
+      mobId: string;
+      bossName: string;
+      killedBy?: string;
+      channel?: number;
+      instanceId?: string;
+      diedAtMs: number;
+    }> = [];
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        onBossGravestone: (gravestone) => kills.push(gravestone),
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "test-connection"));
+      capture.packet(channelListPacket(2, 1, "na3-12"));
+      const diedAtMs = Math.floor((Date.now() - 40 * 60_000) / 1_000) * 1_000;
+      capture.connection("conn-b", "opened");
+      capture.packet(gravestonePacket(3, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie", "conn-b"));
+
+      expect(kills).toEqual([{
+        mobId: "Sunflora Pixie",
+        bossName: "Lady Fey",
+        killedBy: "Testerson",
+        diedAtMs,
+      }]);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("re-reports a gravestone first seen before the channel list arrived", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gravestone-late-"));
     const capture = new FakeCapture();
@@ -1935,6 +2052,10 @@ class FakeCapture extends EventEmitter {
 
   udp(packet: CapturedLiteNetLibPacket["udpPacket"]): void {
     this.emit("udpPacket", packet);
+  }
+
+  connection(connectionId: string, state: "opened" | "closed"): void {
+    this.emit("connection", { connectionId, state });
   }
 
   fail(error: Error): void {
