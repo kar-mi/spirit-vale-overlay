@@ -467,9 +467,12 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
 launcherWindow = new BrowserWindow({
   title: "Spirit Vale Overlay",
   url: "views://launcherview/index.html",
-  frame: placements.frame("launcher", { x: 80, y: 80, width: 1200, height: 538 }, { width: 900, height: 430 }),
+  frame: placements.frame("launcher", { x: 80, y: 80, width: 960, height: 430 }, { width: 900, height: 430 }),
   titleBarStyle: "hidden",
   transparent: false,
+  // Neutralino creates the root window from neutralino.config.json, so a saved placement only
+  // takes effect if we push it once the launcher view connects. A first run keeps the OS default.
+  restoreFrameOnAttach: placements.has("launcher"),
   rpc,
 });
 applyRoundedCorners(launcherWindow.ptr);
