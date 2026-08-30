@@ -470,8 +470,9 @@ launcherWindow = new BrowserWindow({
   frame: placements.frame("launcher", { x: 80, y: 80, width: 960, height: 430 }, { width: 900, height: 430 }),
   titleBarStyle: "hidden",
   transparent: false,
-  // Neutralino creates the root window from neutralino.config.json, so a saved placement only
-  // takes effect if we push it once the launcher view connects. A first run keeps the OS default.
+  // Neutralino creates the root window from neutralino.config.json and restores its own saved
+  // state there, which paints close to the right spot immediately. This push makes the saved
+  // placement authoritative once the launcher view connects. A first run keeps the OS default.
   restoreFrameOnAttach: placements.has("launcher"),
   rpc,
 });
