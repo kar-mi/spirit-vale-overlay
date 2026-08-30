@@ -1,4 +1,10 @@
-# VPN Issues
+---
+title: VPN and network optimizer issues
+permalink: /vpn/
+description: >-
+  Known VPN and network-optimizer settings, including ExitLag, that stop Spirit
+  Vale Overlay from capturing game traffic.
+---
 
 Some VPN and network-optimization tools change how game packets reach your
 machine, which can stop Spirit Vale Overlay from capturing traffic.

@@ -10,3 +10,9 @@ logs/
 .npmrc
 
 .agents/
+
+# Jekyll (docs site)
+_site/
+docs/_site/
+.jekyll-cache/
+.jekyll-metadata

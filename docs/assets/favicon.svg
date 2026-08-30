@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Spirit Vale Overlay">
+  <rect width="32" height="32" rx="7" fill="#0b0e14"/>
+  <path d="M16 5l9 5.2v10.4L16 26l-9-5.4V10.2z" fill="none" stroke="#7aa2ff" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="16" cy="15.8" r="3.4" fill="#b489ff"/>
+</svg>
