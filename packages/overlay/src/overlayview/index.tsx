@@ -92,6 +92,7 @@ interface OverlayChrome {
   shortcuts: Record<KeybindAction, string>;
   surface?: OverlayDisplayPlacement;
   displayLayout: OverlayDisplayPlacement[];
+  minimapEnabled: boolean;
 }
 
 const chromeState = signal<OverlayChrome | undefined>(undefined);
@@ -153,6 +154,7 @@ function applyControl(next: OverlayControlState): void {
       shortcuts: next.shortcuts,
       surface: next.surface,
       displayLayout: next.displayLayout,
+      minimapEnabled: next.minimapEnabled,
     };
     const chromeJson = JSON.stringify(chrome);
     if (chromeJson !== lastChromeJson) {
@@ -284,9 +286,9 @@ function App() {
       {/* Debuffs deliberately do not flash: one running out is good news. */}
       <StatusOverlayElement id="debuffs" locked={next.locked} category="debuffs" />
       <StatusOverlayElement id="toggles" locked={next.locked} category="toggles" />
-      <OverlayElement id="minimap" locked={next.locked}>
+      {next.minimapEnabled && <OverlayElement id="minimap" locked={next.locked}>
         <MinimapElement />
-      </OverlayElement>
+      </OverlayElement>}
       <OverlayElement id="lootToast" locked={next.locked}>
         <LootToastElement />
       </OverlayElement>

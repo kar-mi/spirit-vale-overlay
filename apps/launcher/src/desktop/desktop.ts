@@ -253,7 +253,10 @@ const capture = new CaptureCoordinator({
   }),
   resetOnMapChange: () => settings.resetMeterOnMapChange,
   onGoldMapChange: () => { if (settings.resetGoldOnMapChange) xpTracker.resetCoins(); },
-  minimapEnabled: () => overlayWindow.current?.getSettingsState().elements.minimap.enabled ?? true,
+  minimapEnabled: () => {
+    const state = overlayWindow.current?.getSettingsState();
+    return state === undefined ? true : state.minimapEnabled && state.elements.minimap.enabled;
+  },
   getMinimapRarityFilter: () => overlayWindow.current?.getSettingsState().minimapRarityFilter ?? 2,
   getMinimapLootChanceFilter: () => overlayWindow.current?.getSettingsState().minimapLootChanceFilter ?? 100,
   knownIdentities: [...actorIdentityCache.entries.values()],
@@ -437,6 +440,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       },
       setPersonalDpsMode: async ({ mode }) => {
         await overlayWindow.withWindow((overlay) => overlay.setPersonalDpsMode(mode));
+        return sharedSettingsState();
+      },
+      setMinimapEnabled: async ({ enabled }) => {
+        await overlayWindow.withWindow((overlay) => overlay.setMinimapEnabled(enabled));
         return sharedSettingsState();
       },
       setMinimapRarityFilter: async ({ rarity }) => {

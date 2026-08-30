@@ -73,6 +73,8 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .settings-row output { color: var(--on-surface-variant); font-size: 12px; font-variant-numeric: tabular-nums; }
 .settings-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .settings-hint { min-height: 30px; }
+.settings-hint-list { padding-left: 15px; }
+.settings-hint-list li + li { margin-top: 3px; }
 .settings-actions { justify-content: flex-end; }
 .settings-card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--outline-variant); border-radius: var(--shape-md); background: var(--surface-container-low); }
 .settings-card h2 { margin: 0 0 4px; font-size: 14px; }

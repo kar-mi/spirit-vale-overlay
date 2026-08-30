@@ -78,6 +78,10 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
         },
         resetXpTracker: () => controller.resetXpTracker(),
         resetGoldTracker: () => controller.resetGoldTracker(),
+        setMinimapEnabled: ({ enabled }) => {
+          controller.setMinimapEnabled(enabled);
+          return controller.controlState(key);
+        },
         setMinimapRarityFilter: ({ rarity }) => controller.setMinimapRarityFilter(rarity),
         setMinimapLootChanceFilter: ({ chance }) => controller.setMinimapLootChanceFilter(chance),
       },

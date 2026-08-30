@@ -33,6 +33,7 @@ export interface SettingsActions {
   setResetMeterOnMapChange(value: boolean): void;
   setResetGoldOnMapChange(value: boolean): void;
   setPersonalDpsMode(value: SharedSettingsState["overlay"]["personalDpsMode"]): void;
+  setMinimapEnabled(value: boolean): void;
   setMinimapRarityFilter(value: number): void;
   setMinimapLootChanceFilter(value: number): void;
   setRequiredStatuses(category: RequiredStatusCategory, statusIds: string[]): void;
