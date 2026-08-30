@@ -14,7 +14,6 @@ export function buildLanguageSettingsSection({ state, busy, actions, t }: Settin
         content: <>
           <label class="settings-field">
             <span>{t("settings.language.select.label")}</span>
-            {/* Locale names stay in their own language, so they read to someone who cannot read the current one. */}
             <CustomSelect
               ariaLabel={t("settings.language.select.label")}
               disabled={busy}

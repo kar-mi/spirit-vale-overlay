@@ -48,7 +48,7 @@ function App() {
   };
 
   const next = state.value;
-  // This view's own labels are still English; only backend-produced text is translated so far.
+  // Only backend-produced text is translated so far; this view's own labels are still English.
   const t = createTranslator(next?.language ?? DEFAULT_LOCALE);
   const unavailable = next?.captureStatus === "unavailable";
   const warning = next?.captureWarning !== undefined;

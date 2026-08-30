@@ -10,12 +10,11 @@ test("normalizes a known code", () => {
 test("normalizes case and region variants to the base language", () => {
   expect(normalizeLocale("EN")).toBe("en");
   expect(normalizeLocale("en-GB")).toBe("en");
-  expect(normalizeLocale("de-AT")).toBe("de");
   expect(normalizeLocale(" en_US ")).toBe("en");
 });
 
 test("falls back for anything unrecognized so a newer settings file still loads", () => {
-  expect(normalizeLocale("zz")).toBe(DEFAULT_LOCALE);
+  expect(normalizeLocale("de")).toBe(DEFAULT_LOCALE);
   expect(normalizeLocale("")).toBe(DEFAULT_LOCALE);
   expect(normalizeLocale(undefined)).toBe(DEFAULT_LOCALE);
   expect(normalizeLocale(42)).toBe(DEFAULT_LOCALE);

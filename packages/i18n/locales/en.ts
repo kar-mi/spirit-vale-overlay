@@ -1,14 +1,8 @@
-/**
- * The source of truth for every user-facing string. Other locales are typed against this
- * object, so adding a key here makes every other locale fail to compile until it catches up.
- *
- * Keys read `<area>.<feature>.<element>`. Settings items contribute `.label`, an optional
- * `.hint`, and a `.search` bag of synonyms that the settings search matches against.
- */
+/** The complete catalog and the fallback for every other locale. See README.md. */
 export const en = {
   "app.name": "Spirit Vale Overlay",
 
-  /** Text from outside the app — a driver's own wording, an OS error — shown verbatim. */
+  /** Text from outside the app, shown verbatim. */
   "common.passthrough": "{text}",
 
   "settings.window.title": "Spirit Vale Overlay Settings",

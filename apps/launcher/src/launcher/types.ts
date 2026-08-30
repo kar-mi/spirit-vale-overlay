@@ -17,7 +17,7 @@ export type CaptureWarningCode = "no-game-udp" | "unrecognized-game-udp" | "fish
 
 export interface CaptureHealthWarning {
   code: CaptureWarningCode;
-  /** English, for the capture logs. Views render `code` through `capture.warning.<code>`. */
+  /** English, for the capture logs; views render `code` instead. */
   message: string;
   detectedAt: string;
 }

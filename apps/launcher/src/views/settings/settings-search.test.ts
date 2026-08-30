@@ -54,7 +54,7 @@ describe("settings search", () => {
     expect(filterSettingsSections("audio", sections)).toEqual([]);
   });
 
-  // Guards the catalog's own keywords, which are what the shipped Language section searches on.
+  // Guards the catalog keywords the shipped Language section searches on.
   test("the language setting is reachable by the words people would type", () => {
     const languageSection = [{
       id: "language",

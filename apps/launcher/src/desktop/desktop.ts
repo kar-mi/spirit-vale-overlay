@@ -104,7 +104,7 @@ const bossTimers = await createBossTimerCoordinator({
 });
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
-// Surfaces the OS owns — tray, window titles, native dialogs — have no renderer to translate them.
+// Tray, window titles and native dialogs have no renderer to translate them.
 let t: Translator = createTranslator(settings.language);
 let placementStorageWarning: string | undefined;
 const placements = await WindowPlacementStore.load(storagePaths.windowPlacementsPath, {
@@ -928,10 +928,7 @@ function updateStorageWarning(): void {
   publish();
 }
 
-/**
- * The warning strings stay English for the error log; the view gets a code. Everything but the
- * inspected-character failure is the one shared `STORAGE_WARNING`.
- */
+/** Warnings stay English for the error log; the view gets a code. */
 function storageWarningText(warning: string | undefined): LocalizedText | undefined {
   if (!warning) return undefined;
   if (warning === STORAGE_WARNING) return localized("storage.saveFailed");

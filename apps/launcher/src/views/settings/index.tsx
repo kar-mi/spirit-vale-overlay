@@ -45,7 +45,7 @@ function App() {
   const [busy, setBusy] = useState(false);
   const next = state.value;
   const language = next?.launcher.language;
-  // Every index.html ships `lang="en"`; keep the document honest about what it is showing.
+  // Every index.html ships `lang="en"`.
   useEffect(() => { if (language) document.documentElement.lang = language; }, [language]);
   if (!next) return <main class="app-shell" />;
 

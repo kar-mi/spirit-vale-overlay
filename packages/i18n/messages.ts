@@ -2,23 +2,20 @@ import type { en } from "./locales/en.ts";
 
 export type MessageKey = keyof typeof en;
 
-/** The complete catalog. Only English has to satisfy this — it is the fallback for everything else. */
+/** The complete catalog. Only English has to satisfy this. */
 export type Messages = Record<MessageKey, string>;
 
-/**
- * What a contributed locale supplies. Keys may be missing — those fall back to English at
- * runtime — but every key present must be a real one, so typos still fail `tsc`.
- */
+/** A contributed locale: missing keys fall back to English, unknown keys fail `tsc`. */
 export type PartialMessages = Partial<Messages>;
 
 export type MessageParams = Record<string, string | number>;
 
 type PluralStem<K> = K extends `${infer Stem}.other` ? Stem : never;
 
-/** Keys that carry `.one`/`.other` variants, addressed by their stem through `t.plural`. */
+/** Stems of keys carrying `.one`/`.other` variants. */
 export type PluralKey = PluralStem<MessageKey>;
 
-/** Text produced outside a renderer — it travels as a key and is translated where it is shown. */
+/** Text produced outside a renderer, translated where it is shown. */
 export interface LocalizedText {
   code: MessageKey;
   params?: MessageParams;

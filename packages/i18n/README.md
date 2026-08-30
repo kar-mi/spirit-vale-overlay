@@ -12,13 +12,13 @@ every browser bundle alike.
    ```
 2. Register it in `locale.ts` — one entry in `LOCALES`, one in `LOCALE_OPTIONS`.
 
-**English is always the fallback.** A locale supplies whatever it has translated; every key it
-omits renders the English string, so a translation can land a handful of strings at a time and
-the UI is never blank or showing a raw key. `locales/en.ts` is the one catalog typed as the
-complete `Messages`, which is what makes it safe to fall back to.
+`locales/de.ts` is a one-key example of step 1 without step 2: it typechecks, but the app does
+not offer it.
 
-Keys are still checked: `PartialMessages` permits missing keys but rejects unknown ones, so a
-misspelled key fails `bun run typecheck` rather than silently never being used.
+**English is always the fallback.** A locale supplies whatever it has translated; every key it
+omits renders the English string, so a translation can land a few strings at a time and the UI
+never shows a blank or a raw key. `PartialMessages` permits missing keys but rejects unknown
+ones, so a misspelled key fails `bun run typecheck`.
 
 Locale names in `LOCALE_OPTIONS` are endonyms — "Deutsch", never "German". Someone hunting for
 their language has to recognise it while the interface is still in one they cannot read.
