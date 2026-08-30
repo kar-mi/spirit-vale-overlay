@@ -65,6 +65,7 @@ function App() {
     setResetMeterOnMapChange: (resetMeterOnMapChange) => update(desktopView.rpc?.request.setResetMeterOnMapChange({ resetMeterOnMapChange })),
     setResetGoldOnMapChange: (resetGoldOnMapChange) => update(desktopView.rpc?.request.setResetGoldOnMapChange({ resetGoldOnMapChange })),
     setPersonalDpsMode: (mode) => update(desktopView.rpc?.request.setPersonalDpsMode({ mode })),
+    setMinimapEnabled: (enabled) => update(desktopView.rpc?.request.setMinimapEnabled({ enabled })),
     setMinimapRarityFilter: (rarity) => update(desktopView.rpc?.request.setMinimapRarityFilter({ rarity })),
     setMinimapLootChanceFilter: (chance) => update(desktopView.rpc?.request.setMinimapLootChanceFilter({ chance })),
     importSettings: () => { void desktopView.rpc?.request.importSettings({}); },

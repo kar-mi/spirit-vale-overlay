@@ -122,6 +122,7 @@ export type LauncherSettingsRpc = {
       response: SharedSettingsState;
     };
     setPersonalDpsMode: { params: { mode: PersonalDpsMode }; response: SharedSettingsState };
+    setMinimapEnabled: { params: { enabled: boolean }; response: SharedSettingsState };
     setMinimapRarityFilter: { params: { rarity: number }; response: SharedSettingsState };
     setMinimapLootChanceFilter: { params: { chance: number }; response: SharedSettingsState };
     importSettings: { params: Record<string, never>; response: void };

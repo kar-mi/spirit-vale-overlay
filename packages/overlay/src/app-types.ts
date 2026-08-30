@@ -86,6 +86,7 @@ export interface OverlayControlState {
   shortcutErrors: Partial<Record<KeybindAction, string>>;
   overlayVisible: boolean;
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
+  minimapEnabled: boolean;
 }
 
 export interface OverlayCharacterState {
@@ -182,6 +183,7 @@ export interface OverlaySettingsState {
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
   personalDpsMode: PersonalDpsMode;
   autoHideWhenUnfocused: boolean;
+  minimapEnabled: boolean;
   minimapRarityFilter: number;
   minimapLootChanceFilter: number;
 }
@@ -208,6 +210,7 @@ type OverlaySharedRequests = {
   setPersonalDpsMode: { params: { mode: PersonalDpsMode }; response: OverlayControlState };
   resetXpTracker: { params: Record<string, never>; response: OverlayCharacterState };
   resetGoldTracker: { params: Record<string, never>; response: OverlayCharacterState };
+  setMinimapEnabled: { params: { enabled: boolean }; response: OverlayControlState };
   setMinimapRarityFilter: { params: { rarity: number }; response: OverlayMinimapState };
   setMinimapLootChanceFilter: { params: { chance: number }; response: OverlayMinimapState };
 };

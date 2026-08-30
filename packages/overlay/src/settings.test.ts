@@ -345,6 +345,33 @@ describe("overlay settings", () => {
     });
   });
 
+  test("defaults the minimap feature to off", () => {
+    const settings = defaultOverlaySettings(displays);
+    expect(settings.minimapEnabled).toBe(false);
+    expect(settings.elements.minimap.enabled).toBe(false);
+  });
+
+  test("adopts the stored tile state for profiles written before the minimap toggle", () => {
+    expect(normalizeOverlaySettings({
+      schemaVersion: 7,
+      elements: { minimap: { enabled: true } },
+    }, displays)).toMatchObject({ minimapEnabled: true });
+    expect(normalizeOverlaySettings({
+      schemaVersion: 7,
+      elements: { minimap: { enabled: false } },
+    }, displays)).toMatchObject({ minimapEnabled: false });
+  });
+
+  test("forces the minimap tile off while the feature is disabled", () => {
+    const settings = normalizeOverlaySettings({
+      schemaVersion: 7,
+      minimapEnabled: false,
+      elements: { minimap: { enabled: true } },
+    }, displays);
+
+    expect(settings.elements.minimap.enabled).toBe(false);
+  });
+
   test("keeps only selectable status ids for each warning category", () => {
     const settings = normalizeOverlaySettings({
       schemaVersion: 4,

@@ -280,6 +280,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     setShortcutCapture,
     setRequiredStatuses,
     setPersonalDpsMode,
+    setMinimapEnabled,
     setMinimapRarityFilter,
     setMinimapLootChanceFilter,
     resetXpTracker: () => {
@@ -351,6 +352,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       shortcutErrors: Object.fromEntries(shortcutErrors),
       overlayVisible,
       requiredStatuses: settings.requiredStatuses,
+      minimapEnabled: settings.minimapEnabled,
     };
   }
 
@@ -368,6 +370,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       requiredStatuses: control.requiredStatuses,
       personalDpsMode: control.personalDpsMode,
       autoHideWhenUnfocused: settings.autoHideWhenUnfocused,
+      minimapEnabled: settings.minimapEnabled,
       minimapRarityFilter: settings.minimapRarityFilter,
       minimapLootChanceFilter: settings.minimapLootChanceFilter,
     };
@@ -395,6 +398,19 @@ export async function createOverlayController(options: OverlayControllerOptions)
       rarityFilter: settings.minimapRarityFilter,
       lootChanceFilter: settings.minimapLootChanceFilter,
     };
+  }
+
+  function setMinimapEnabled(enabled: boolean): OverlayControlState {
+    if (settings.minimapEnabled === enabled) return controlState();
+    settings = normalizeOverlaySettings({
+      ...settings,
+      minimapEnabled: enabled,
+      elements: { ...settings.elements, minimap: { ...settings.elements.minimap, enabled } },
+    }, displays);
+    persist();
+    publishControl();
+    void options.onSurfacesChanged?.();
+    return controlState();
   }
 
   function setMinimapRarityFilter(rarity: number): OverlayMinimapState {
@@ -735,7 +751,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
       options.xp.resetCoins();
       publishCharacter();
     } else if (action === "toggleMinimap") {
-      setElementEnabled("minimap", !settings.elements.minimap.enabled);
+      if (settings.minimapEnabled) setElementEnabled("minimap", !settings.elements.minimap.enabled);
     } else if (action === "cycleBossRegion") {
       cycleBossRegion();
     }

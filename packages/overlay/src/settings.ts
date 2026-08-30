@@ -42,6 +42,7 @@ export interface OverlaySettings {
   personalDpsMode: PersonalDpsMode;
   requiredStatuses: Record<RequiredStatusCategory, string[]>;
   autoHideWhenUnfocused: boolean;
+  minimapEnabled: boolean;
   minimapRarityFilter: number;
   minimapLootChanceFilter: number;
 }
@@ -60,6 +61,7 @@ const DEFAULT_SHORTCUTS: Record<KeybindAction, string> = {
 
 const DEFAULT_LOCKED = true;
 const DEFAULT_AUTO_HIDE_WHEN_UNFOCUSED = true;
+const DEFAULT_MINIMAP_ENABLED = false;
 
 const DEFAULT_ELEMENTS: Record<OverlayElementId, Omit<OverlayElementSettings, "display">> = {
   dpsChart: { enabled: false, opacity: 1, x: 453, y: 342, width: 286, height: 203 },
@@ -136,6 +138,7 @@ export function normalizeOverlaySettings(
   const sourceElements = source.elements && typeof source.elements === "object"
     ? source.elements as Record<string, unknown>
     : {};
+  const minimapEnabled = resolveMinimapEnabled(source.minimapEnabled, sourceElements.minimap);
   const elements = Object.fromEntries(OVERLAY_ELEMENT_IDS.map((id) => {
     const defaults = DEFAULT_ELEMENTS[id];
     const value = sourceElements[id] && typeof sourceElements[id] === "object"
@@ -156,8 +159,9 @@ export function normalizeOverlaySettings(
       width,
       height,
     }, { x: 0, y: 0, width: bounds.width, height: bounds.height });
+    const enabled = typeof value.enabled === "boolean" ? value.enabled : defaults.enabled;
     return [id, {
-      enabled: typeof value.enabled === "boolean" ? value.enabled : defaults.enabled,
+      enabled: id === "minimap" ? minimapEnabled && enabled : enabled,
       opacity: normalizeOpacity(value.opacity, defaults.opacity),
       x: constrained.x,
       y: constrained.y,
@@ -179,9 +183,19 @@ export function normalizeOverlaySettings(
     autoHideWhenUnfocused: typeof source.autoHideWhenUnfocused === "boolean"
       ? source.autoHideWhenUnfocused
       : DEFAULT_AUTO_HIDE_WHEN_UNFOCUSED,
+    minimapEnabled,
     minimapRarityFilter: normalizeRarityFilter(source.minimapRarityFilter),
     minimapLootChanceFilter: normalizeLootChanceFilter(source.minimapLootChanceFilter),
   };
+}
+
+// Profiles written before the master toggle existed carry the feature state on the tile itself.
+function resolveMinimapEnabled(value: unknown, storedElement: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  const element = storedElement && typeof storedElement === "object"
+    ? storedElement as Record<string, unknown>
+    : {};
+  return typeof element.enabled === "boolean" ? element.enabled : DEFAULT_MINIMAP_ENABLED;
 }
 
 const DEFAULT_RARITY_FILTER = 2;
