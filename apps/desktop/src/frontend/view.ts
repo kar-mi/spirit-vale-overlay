@@ -179,14 +179,10 @@ export class DesktopView<T extends { setTransport(transport: DesktopTransport): 
         if (property === "getWindowFrame") return async () => {
           const [position, size] = await Promise.all([neutralinoWindow.getPosition(), neutralinoWindow.getSize()]);
           const frame = { x: position.x!, y: position.y!, width: size.width!, height: size.height! };
-          reportFrame(frame);
           lastFrame = frame;
           return frame;
         };
         if (property === "setWindowFrame") return async (frame: WindowFrame) => {
-          // Only touch move()/setSize() when their inputs actually changed: calling
-          // setSize() on every drag frame (even with unchanged dimensions) triggers a
-          // WebView2 repaint glitch on Windows that leaves an artifact at the top edge.
           if (!lastFrame || frame.x !== lastFrame.x || frame.y !== lastFrame.y) {
             await neutralinoWindow.move(frame.x, frame.y);
           }
