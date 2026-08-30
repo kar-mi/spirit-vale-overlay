@@ -286,7 +286,6 @@ function App() {
       {/* Debuffs deliberately do not flash: one running out is good news. */}
       <StatusOverlayElement id="debuffs" locked={next.locked} category="debuffs" />
       <StatusOverlayElement id="toggles" locked={next.locked} category="toggles" />
-      {/* Disabling the feature also hides the edit-mode ghost the tile would otherwise leave behind. */}
       {next.minimapEnabled && <OverlayElement id="minimap" locked={next.locked}>
         <MinimapElement />
       </OverlayElement>}

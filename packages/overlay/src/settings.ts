@@ -189,7 +189,7 @@ export function normalizeOverlaySettings(
   };
 }
 
-// Profiles written before the master toggle existed carry the feature state on the tile itself.
+// Profiles predating the toggle carry the feature state on the tile itself.
 function resolveMinimapEnabled(value: unknown, storedElement: unknown): boolean {
   if (typeof value === "boolean") return value;
   const element = storedElement && typeof storedElement === "object"

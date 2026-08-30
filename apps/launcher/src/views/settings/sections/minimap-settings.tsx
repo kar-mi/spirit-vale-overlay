@@ -50,7 +50,10 @@ export function buildMinimapSettingsSection({ state, busy, actions }: SettingsSe
             />
             <span>Enable the minimap</span>
           </label>
-          <p class="settings-hint">Off by default. While disabled the minimap never appears: the Show/hide minimap keybind (TAB by default) does nothing, and the Minimap row in Overlay &gt; Visible elements is inactive. Enabling it also shows the tile; the keybind then shows and hides it.</p>
+          <ul class="settings-hint settings-hint-list">
+            <li>Off hides the minimap completely — the show/hide keybind does nothing, and its row in Overlay &gt; Visible elements is inactive.</li>
+            <li>On shows the tile; the keybind hides and shows it from there.</li>
+          </ul>
         </>,
       },
       {
@@ -75,7 +78,7 @@ export function buildMinimapSettingsSection({ state, busy, actions }: SettingsSe
               ))}
             </div>
           </label>
-          <p class="settings-hint">A minimum, not an exact match: choosing Rare keeps both Rare and Epic loot, and choosing Common keeps everything.</p>
+          <p class="settings-hint">A minimum: Rare keeps Rare and Epic.</p>
           <label class="settings-field">
             <span class="settings-row">
               <span>Maximum drop chance (%)</span>
@@ -91,8 +94,8 @@ export function buildMinimapSettingsSection({ state, busy, actions }: SettingsSe
               onInput={(event) => actions.setMinimapLootChanceFilter(event.currentTarget.valueAsNumber)}
             />
           </label>
-          <p class="settings-hint">A maximum: loot that drops more often than this is hidden, so lower values keep only the rarer drops.</p>
-          <p class="settings-hint">Both filters are shared with Loot notifications, which have their own toggle in Overlay &gt; Visible elements and keep working while the minimap is disabled — so these thresholds stay in effect either way.</p>
+          <p class="settings-hint">A maximum: loot that drops more often than this is hidden.</p>
+          <p class="settings-hint">Both filters also apply to Loot notifications, which stay active while the minimap is off.</p>
         </div>,
       },
     ],
