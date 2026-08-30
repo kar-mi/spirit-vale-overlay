@@ -2,6 +2,7 @@ import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
 import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
+import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { normalizeName } from "@kar-mi/spirit-vale-tools-combat";
@@ -218,6 +219,7 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
   applyRoundedCorners(window.ptr);
   setWindowIcon(window.ptr, appIconPath);
   lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: !options.placements }));
+  lifecycle.add(registerLocaleWindow(window));
   const disposePlacement = options.placements?.track("build-export", window);
   if (disposePlacement) lifecycle.add(disposePlacement);
   lifecycle.add(options.subscribeCharacter(() => publish()));

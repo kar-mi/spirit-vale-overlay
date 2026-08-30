@@ -1,4 +1,5 @@
 import type { RPCSchema } from "@svoverlay/contracts/rpc";
+import type { LocalizedText } from "@svoverlay/i18n/messages";
 import type { SpiritValeLocation } from "./location.ts";
 
 export interface SessionPickerItem {
@@ -14,7 +15,7 @@ export interface SessionPickerState {
   title: string;
   canOpenLogFolder: boolean;
   status: "loading" | "ready" | "error";
-  statusDetail: string;
+  statusDetail: LocalizedText;
   sessions: SessionPickerItem[];
 }
 

@@ -1,3 +1,4 @@
+import { useTranslator } from "@svoverlay/i18n/browser";
 import type { SessionPickerItem, SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
 import { formatZone, formatZoneSummary } from "../zone-label.ts";
 
@@ -16,16 +17,17 @@ export function PastSessionPanel({
   onChooseFile,
   onOpenLogFolder,
 }: PastSessionPanelProps) {
+  const t = useTranslator();
   return (
     <section class="past-session-panel">
       <div class="picker-intro">
         <div>
-          <h1>Recent sessions</h1>
-          <p class={`picker-status is-${state.status}`} aria-live="polite">{state.statusDetail}</p>
+          <h1>{t("sessions.heading")}</h1>
+          <p class={`picker-status is-${state.status}`} aria-live="polite">{t.text(state.statusDetail)}</p>
         </div>
-        <button class="btn" type="button" onClick={onRefresh}>Refresh</button>
+        <button class="btn" type="button" onClick={onRefresh}>{t("sessions.refresh")}</button>
       </div>
-      <div class="session-list" role="list" aria-label="Recent combat sessions">
+      <div class="session-list" role="list" aria-label={t("sessions.listLabel")}>
         {state.sessions.length > 0
           ? state.sessions.map((session) => (
               <div class="session-list-item" role="listitem" key={session.id}>
@@ -36,13 +38,13 @@ export function PastSessionPanel({
               </div>
             ))
           : state.status === "loading"
-            ? <div class="empty-state">Loading recent sessions…</div>
-            : <div class="empty-state">{state.status === "error" ? "Refresh to try scanning again." : "You can still choose a specific JSON file."}</div>}
+            ? <div class="empty-state">{t("sessions.loading")}</div>
+            : <div class="empty-state">{state.status === "error" ? t("sessions.errorHint") : t("sessions.emptyHint")}</div>}
       </div>
       <div class="picker-actions">
-        <button class="btn btn-ghost" type="button" onClick={onChooseFile}>Choose JSON file…</button>
+        <button class="btn btn-ghost" type="button" onClick={onChooseFile}>{t("sessions.chooseFile")}</button>
         {state.canOpenLogFolder && (
-          <button class="btn btn-ghost" type="button" onClick={onOpenLogFolder}>Open log folder</button>
+          <button class="btn btn-ghost" type="button" onClick={onOpenLogFolder}>{t("sessions.openFolder")}</button>
         )}
       </div>
     </section>
@@ -50,6 +52,7 @@ export function PastSessionPanel({
 }
 
 function SessionRow({ session, onOpen }: { session: SessionPickerItem; onOpen(): void }) {
+  const t = useTranslator();
   const locations = session.locations ?? [];
   const zone = formatZoneSummary(locations);
   return (
@@ -63,8 +66,8 @@ function SessionRow({ session, onOpen }: { session: SessionPickerItem; onOpen():
         <span class="session-time">
           {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(session.createdAt))}
         </span>
-        {zone && <span class="zone-pill" title={`Zones visited: ${locations.map(formatZone).join(", ")}`}>{zone}</span>}
-        {session.active && <span class="pill active-badge">Active</span>}
+        {zone && <span class="zone-pill" title={t("sessions.zonesVisited", { zones: locations.map(formatZone).join(", ") })}>{zone}</span>}
+        {session.active && <span class="pill active-badge">{t("sessions.active")}</span>}
       </span>
       <span class="session-summary">{session.summary}</span>
     </button>

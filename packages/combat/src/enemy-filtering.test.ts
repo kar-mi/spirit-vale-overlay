@@ -25,7 +25,7 @@ function actor(rowId: string, displayName: string, damage: number, actorId = 7):
 function state(actors: MeterActorRow[]): CombatAnalysisState {
   return {
     status: "ready",
-    statusDetail: "ready",
+    statusDetail: { code: "combat.status.loadingLog" },
     invalidLines: 0,
     encounters: [],
     statType: "damage",

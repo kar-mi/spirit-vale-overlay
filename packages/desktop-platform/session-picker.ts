@@ -1,3 +1,4 @@
+import { localized, localizedCount } from "@svoverlay/i18n/messages";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -9,6 +10,7 @@ import { appIconPath } from "./window-publish.ts";
 import { loadSessionSummaryCache } from "./session-summary-cache.ts";
 import type { SessionSummaryCache } from "./session-summary-cache.ts";
 import { registerUiScaleWindow, scaledSize } from "./ui-scale-window.ts";
+import { registerLocaleWindow } from "./locale-window.ts";
 import type { WindowPlacementStore } from "./window-placement.ts";
 
 import type { SessionPickerRpc, SessionPickerState } from "./session-picker-types.ts";
@@ -93,6 +95,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         applyRoundedCorners(nextWindow.ptr);
         setWindowIcon(nextWindow.ptr, appIconPath);
         lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
+        lifecycle.add(registerLocaleWindow(nextWindow));
         const disposePlacement = options.placementKey ? options.placements?.track(options.placementKey, nextWindow) : undefined;
         if (disposePlacement) lifecycle.add(disposePlacement);
         lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
@@ -158,7 +161,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         state = {
           title: options.title,
           status: "loading",
-          statusDetail: `Scanning… ${items.length} session${items.length === 1 ? "" : "s"} found so far`,
+          statusDetail: localizedCount("sessions.scanning", items.length),
           sessions: items.slice(),
           canOpenLogFolder: options.openLogFolder !== undefined,
         };
@@ -169,7 +172,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
       state = {
         title: options.title,
         status: "ready",
-        statusDetail: items.length === 0 ? "No managed sessions found." : `${items.length} recent session${items.length === 1 ? "" : "s"}`,
+        statusDetail: items.length === 0 ? localized("sessions.none") : localizedCount("sessions.recent", items.length),
         sessions: items,
         canOpenLogFolder: options.openLogFolder !== undefined,
       };
@@ -182,7 +185,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
     } catch {
       if (sequence !== refreshSequence) return;
       paths.clear();
-      state = { title: options.title, status: "error", statusDetail: "Recent sessions could not be scanned.", sessions: [], canOpenLogFolder: options.openLogFolder !== undefined };
+      state = { title: options.title, status: "error", statusDetail: localized("sessions.scanFailed"), sessions: [], canOpenLogFolder: options.openLogFolder !== undefined };
     }
     publish();
   }
@@ -220,5 +223,5 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
 }
 
 function loadingState(title: string): SessionPickerState {
-  return { title, status: "loading", statusDetail: "Scanning recent sessions…", sessions: [], canOpenLogFolder: false };
+  return { title, status: "loading", statusDetail: localized("sessions.scanningRecent"), sessions: [], canOpenLogFolder: false };
 }

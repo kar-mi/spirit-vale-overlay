@@ -7,6 +7,11 @@
   "exports": {
     "./messages": "./messages.ts",
     "./locale": "./locale.ts",
-    "./translate": "./translate.ts"
+    "./translate": "./translate.ts",
+    "./browser": "./browser.ts"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.9.4",
+    "preact": "^10.29.7"
   }
 }

@@ -31,6 +31,7 @@ import { xpToLevelUp } from "../xp-to-level.ts";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { createSessionPicker } from "@svoverlay/desktop-platform/session-picker";
 import { registerUiScaleWindow, scaledSize, unscaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
+import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
 import { visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { managedSessionId } from "@svoverlay/desktop-platform/managed-session";
@@ -218,6 +219,7 @@ window = new BrowserWindow({
 window.setAlwaysOnTop(settings.pinned);
 mountRoundedWindow(window);
 lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: false }));
+lifecycle.add(registerLocaleWindow(window));
 
 lifecycle.add(onWindowEvent(window, "move", (event: { data: typeof settings.frame }) => {
   if (window.isMaximized()) return;
@@ -317,6 +319,7 @@ function openCatalog(): void {
   nextWindow.setAlwaysOnTop(settings.pinned);
   mountRoundedWindow(nextWindow);
   nextLifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
+  nextLifecycle.add(registerLocaleWindow(nextWindow));
 
   nextLifecycle.add(onWindowEvent(nextWindow, "move", (event: { data: typeof settings.catalogFrame }) => {
     if (nextWindow.isMaximized()) return;

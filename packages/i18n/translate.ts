@@ -25,7 +25,10 @@ export function createTranslator(locale: LocaleCode): Translator {
   }
 
   function text(value: LocalizedText | undefined): string | undefined {
-    return value && translate(value.code, value.params);
+    if (!value) return undefined;
+    return value.count === undefined
+      ? translate(value.code as MessageKey, value.params)
+      : plural(value.code as PluralKey, value.count, value.params);
   }
 
   function plural(key: PluralKey, count: number, params?: MessageParams): string {

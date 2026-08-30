@@ -4,6 +4,7 @@ import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
 import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
+import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 
@@ -153,6 +154,7 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
     applyRoundedCorners(nextWindow.ptr);
     setWindowIcon(nextWindow.ptr, appIconPath);
     lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
+    lifecycle.add(registerLocaleWindow(nextWindow));
     const disposePlacement = options.placements?.track(placementKey, nextWindow);
     if (disposePlacement) lifecycle.add(disposePlacement);
     lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {

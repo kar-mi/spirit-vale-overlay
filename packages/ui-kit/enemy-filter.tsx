@@ -1,3 +1,4 @@
+import { useTranslator } from "@svoverlay/i18n/browser";
 import { CheckboxMultiSelect } from "./checkbox-multi-select.tsx";
 
 export interface EnemyFilterOption {
@@ -12,20 +13,21 @@ export interface EnemyFilterControlProps {
 }
 
 export function EnemyFilterControl({ enemies, selected, onChange }: EnemyFilterControlProps) {
+  const t = useTranslator();
   return (
     <CheckboxMultiSelect
       options={enemies.map((enemy) => ({ value: enemy.targetId, label: enemy.label }))}
       selected={selected}
       onChange={onChange}
-      ariaLabel="Filter by enemy"
-      searchPlaceholder="Search enemies"
-      clearLabel="Clear filter"
-      noMatchLabel={(query) => `No enemies match "${query}".`}
+      ariaLabel={t("enemyFilter.aria")}
+      searchPlaceholder={t("enemyFilter.searchPlaceholder")}
+      clearLabel={t("enemyFilter.clear")}
+      noMatchLabel={(query) => t("enemyFilter.noMatch", { query })}
       summarize={(chosen, options) => chosen.size === 0
-        ? "All enemies"
+        ? t("enemyFilter.all")
         : chosen.size === 1
-          ? options.find((option) => chosen.has(option.value))?.label ?? "1 enemy"
-          : `${chosen.size} enemies`}
+          ? options.find((option) => chosen.has(option.value))?.label ?? t.plural("enemyFilter.count", 1)
+          : t.plural("enemyFilter.count", chosen.size)}
     />
   );
 }

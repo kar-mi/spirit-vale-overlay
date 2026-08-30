@@ -54,6 +54,7 @@ import { WindowSlot } from "./window-slot.ts";
 import { resolveDesktopStoragePaths } from "./portable-paths.ts";
 import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
 import { registerUiScaleWindow, scaledSize, setUiScale } from "@svoverlay/desktop-platform/ui-scale-window";
+import { registerLocaleWindow, setActiveLocale } from "@svoverlay/desktop-platform/locale-window";
 import { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { launcherMinimizeAction, trayAction } from "./launcher-tray-actions.ts";
 import { findAvailableUpdate } from "../launcher/update-check.ts";
@@ -104,6 +105,7 @@ const bossTimers = await createBossTimerCoordinator({
 });
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
+setActiveLocale(settings.language);
 // Tray, window titles and native dialogs have no renderer to translate them.
 let t: Translator = createTranslator(settings.language);
 let placementStorageWarning: string | undefined;
@@ -499,6 +501,7 @@ launcherWindow = new BrowserWindow({
 applyRoundedCorners(launcherWindow.ptr);
 setWindowIcon(launcherWindow.ptr, appIconPath);
 launcherLifecycle.add(registerUiScaleWindow(launcherWindow, { scaleInitialFrame: false }));
+launcherLifecycle.add(registerLocaleWindow(launcherWindow));
 launcherLifecycle.add(placements.track("launcher", launcherWindow));
 
 const tray = new Tray({
@@ -648,7 +651,7 @@ async function importSettingsAndClose(): Promise<void> {
       type: "info",
       title: t("dialog.manageSettings.title"),
       message: t("dialog.manageSettings.sameFolder"),
-      buttons: ["OK"],
+      buttons: [t("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -659,7 +662,7 @@ async function importSettingsAndClose(): Promise<void> {
       type: "warning",
       title: t("dialog.manageSettings.title"),
       message: t("dialog.manageSettings.notFound"),
-      buttons: ["OK"],
+      buttons: [t("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -672,7 +675,7 @@ async function importSettingsAndClose(): Promise<void> {
       type: "info",
       title: t("dialog.manageSettings.title"),
       message: t("dialog.manageSettings.imported"),
-      buttons: ["OK"],
+      buttons: [t("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -697,7 +700,7 @@ async function importSingleSettingAndClose(kind: SettingsKind): Promise<void> {
       type: "info",
       title: t("dialog.manageSettings.title"),
       message: t("dialog.manageSettings.imported"),
-      buttons: ["OK"],
+      buttons: [t("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -717,7 +720,7 @@ async function exportSettingAndNotify(kind: SettingsKind): Promise<void> {
     type: "info",
     title: t("dialog.manageSettings.title"),
     message: t("dialog.manageSettings.exported"),
-    buttons: ["OK"],
+    buttons: [t("common.ok")],
     defaultId: 0,
     cancelId: 0,
   });
@@ -735,7 +738,7 @@ async function resetSettingsAndClose(): Promise<void> {
       type: "info",
       title: t("dialog.manageSettings.title"),
       message: t("dialog.manageSettings.reset"),
-      buttons: ["OK"],
+      buttons: [t("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -792,6 +795,7 @@ function openSettings(section?: SettingsSectionId): void {
   applyRoundedCorners(nextWindow.ptr);
   setWindowIcon(nextWindow.ptr, appIconPath);
   lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
+  lifecycle.add(registerLocaleWindow(nextWindow));
   lifecycle.add(placements.track("launcher-settings", nextWindow));
   lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
     const width = Math.max(scaledSize(560), event.data.width);
@@ -830,6 +834,7 @@ async function setLauncherUiScale(uiScale: typeof settings.uiScale): Promise<Lau
 function setLanguage(language: LocaleCode): LauncherState {
   settings.language = language;
   t = createTranslator(language);
+  setActiveLocale(language);
   launcherState = { ...launcherState, language };
   refreshTrayMenu();
   launcherSettingsPersistence.schedule(settings);

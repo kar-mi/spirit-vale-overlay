@@ -1,6 +1,13 @@
 import { useEffect, useState } from "preact/hooks";
 import { RARITY_TIERS } from "@svoverlay/overlay/rarity";
+import type { MessageKey } from "@svoverlay/i18n/messages";
 import type { SettingsSection, SettingsSectionContext } from "../settings-section.ts";
+
+const RARITY_LABEL_KEYS: Record<number, MessageKey> = {
+  0: "settings.minimap.rarity.common",
+  2: "settings.minimap.rarity.rare",
+  3: "settings.minimap.rarity.epic",
+};
 
 function LootChanceNumberInput({ value, onChange }: { value: number; onChange: (next: number) => void }) {
   const [text, setText] = useState(() => String(value));
@@ -73,7 +80,7 @@ export function buildMinimapSettingsSection({ state, busy, actions, t }: Setting
                     onChange={() => actions.setMinimapRarityFilter(tier.value)}
                   />
                   <span class="settings-tier-swatch" style={{ backgroundColor: tier.color }} />
-                  <span>{tier.label}</span>
+                  <span>{t(RARITY_LABEL_KEYS[tier.value] ?? "settings.minimap.rarity.common")}</span>
                 </label>
               ))}
             </div>

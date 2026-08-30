@@ -15,6 +15,7 @@
     "@neutralinojs/lib": "6.9.0",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/desktop-platform": "workspace:*",
+    "@svoverlay/i18n": "workspace:*",
     "@svoverlay/overlay": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*",
     "preact": "^10.29.7"

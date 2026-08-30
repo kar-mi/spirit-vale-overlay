@@ -17,12 +17,18 @@ export type PluralKey = PluralStem<MessageKey>;
 
 /** Text produced outside a renderer, translated where it is shown. */
 export interface LocalizedText {
-  code: MessageKey;
+  code: MessageKey | PluralKey;
   params?: MessageParams;
+  /** Present for counted text: the plural form is chosen in the viewer's language. */
+  count?: number;
 }
 
 export function localized(code: MessageKey, params?: MessageParams): LocalizedText {
   return params ? { code, params } : { code };
+}
+
+export function localizedCount(code: PluralKey, count: number, params?: MessageParams): LocalizedText {
+  return params ? { code, count, params } : { code, count };
 }
 
 export function sameLocalizedText(a: LocalizedText | undefined, b: LocalizedText | undefined): boolean {
