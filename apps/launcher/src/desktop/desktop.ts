@@ -733,8 +733,9 @@ async function openLiveDeathLog(): Promise<void> {
 function flushPendingSettingsSection(): void {
   const section = pendingSettingsSection;
   if (!section) return;
+  // Keep the request pending if the send fails: the view's getState call retries it once it connects.
+  try { settingsRpc.send.showSection(section); } catch { return; }
   pendingSettingsSection = undefined;
-  try { settingsRpc.send.showSection(section); } catch { /* Settings may be connecting or closing. */ }
 }
 
 function openSettings(section?: SettingsSectionId): void {
