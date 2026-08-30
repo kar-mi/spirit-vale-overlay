@@ -4,9 +4,8 @@ import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterRpc } from "../character/rpc.ts";
 import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
-import { getActiveLocale, registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
-import { createTranslator } from "@svoverlay/i18n/translate";
-import type { LocaleCode } from "@svoverlay/i18n/locale";
+import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
+import { translate } from "@svoverlay/i18n/backend";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 
@@ -39,7 +38,7 @@ export async function createCharacterWindow(options: CharacterWindowOptions) {
   });
 
   window = new BrowserWindow({
-    title: createTranslator(getActiveLocale() as LocaleCode)("character.window.title"),
+    title: translate("character.window.title"),
     url: "views://characterview/index.html",
     frame: options.placements?.frame(
       "character",

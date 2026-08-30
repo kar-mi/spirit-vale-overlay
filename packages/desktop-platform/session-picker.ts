@@ -1,4 +1,4 @@
-import { localized, localizedCount } from "@svoverlay/i18n/messages";
+import { countedMessage, message } from "@svoverlay/i18n/backend";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -161,7 +161,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         state = {
           title: options.title,
           status: "loading",
-          statusDetail: localizedCount("sessions.scanning", items.length),
+          statusDetail: countedMessage("sessions.scanning", items.length),
           sessions: items.slice(),
           canOpenLogFolder: options.openLogFolder !== undefined,
         };
@@ -172,7 +172,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
       state = {
         title: options.title,
         status: "ready",
-        statusDetail: items.length === 0 ? localized("sessions.none") : localizedCount("sessions.recent", items.length),
+        statusDetail: items.length === 0 ? message("sessions.none") : countedMessage("sessions.recent", items.length),
         sessions: items,
         canOpenLogFolder: options.openLogFolder !== undefined,
       };
@@ -185,7 +185,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
     } catch {
       if (sequence !== refreshSequence) return;
       paths.clear();
-      state = { title: options.title, status: "error", statusDetail: localized("sessions.scanFailed"), sessions: [], canOpenLogFolder: options.openLogFolder !== undefined };
+      state = { title: options.title, status: "error", statusDetail: message("sessions.scanFailed"), sessions: [], canOpenLogFolder: options.openLogFolder !== undefined };
     }
     publish();
   }
@@ -223,5 +223,5 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
 }
 
 function loadingState(title: string): SessionPickerState {
-  return { title, status: "loading", statusDetail: localized("sessions.scanningRecent"), sessions: [], canOpenLogFolder: false };
+  return { title, status: "loading", statusDetail: message("sessions.scanningRecent"), sessions: [], canOpenLogFolder: false };
 }

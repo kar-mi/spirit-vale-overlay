@@ -9,8 +9,8 @@ import { createRewardsWindow } from "@svoverlay/rewards";
 import type { LauncherRpc, LauncherSettingsRpc, LauncherState, SettingsSectionId, ToolWindow } from "../launcher/types.ts";
 import { loadLauncherSettings, saveLauncherSettings } from "../launcher/settings.ts";
 import type { LocaleCode } from "@svoverlay/i18n/locale";
-import { localized, type LocalizedText } from "@svoverlay/i18n/messages";
-import { createTranslator, type Translator } from "@svoverlay/i18n/translate";
+import type { LocalizedText } from "@svoverlay/i18n/messages";
+import { message, translate, translateText } from "@svoverlay/i18n/backend";
 import {
   applyImport,
   exportSingleSetting,
@@ -106,8 +106,6 @@ const bossTimers = await createBossTimerCoordinator({
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
 setActiveLocale(settings.language);
-// Tray, window titles and native dialogs have no renderer to translate them.
-let t: Translator = createTranslator(settings.language);
 let placementStorageWarning: string | undefined;
 const placements = await WindowPlacementStore.load(storagePaths.windowPlacementsPath, {
   onWarning: (warning) => { placementStorageWarning = warning; recordStorageWarning("window placements", warning); updateStorageWarning(); },
@@ -121,9 +119,9 @@ const launcherLifecycle = new DisposableStore();
 let launcherState: LauncherState = {
   appVersion,
   captureStatus: "starting",
-  statusDetail: localized("npcap.detail.checking"),
+  statusDetail: message("npcap.detail.checking"),
   npcapAvailability: "checking",
-  npcapDetail: localized("npcap.detail.checking"),
+  npcapDetail: message("npcap.detail.checking"),
   selectedAdapter: settings.captureAdapter,
   adapterFallback: false,
   adapters: [],
@@ -488,7 +486,7 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
 });
 
 launcherWindow = new BrowserWindow({
-  title: t("app.name"),
+  title: translate("app.name"),
   url: "views://launcherview/index.html",
   frame: placements.frame("launcher", { x: 80, y: 80, width: 960, height: 430 }, { width: 900, height: 430 }),
   titleBarStyle: "hidden",
@@ -505,7 +503,7 @@ launcherLifecycle.add(registerLocaleWindow(launcherWindow));
 launcherLifecycle.add(placements.track("launcher", launcherWindow));
 
 const tray = new Tray({
-  title: t("app.name"),
+  title: translate("app.name"),
   image: "views://assets/app-icon.ico",
   width: 32,
   height: 32,
@@ -513,12 +511,12 @@ const tray = new Tray({
 // Tray labels are set once, so a language change has to lay the menu down again.
 function refreshTrayMenu(): void {
   tray.setMenu([
-    { type: "normal", label: t("tray.showLauncher"), action: "show-launcher" },
-    { type: "normal", label: t("tray.openCombat"), action: "open-combat" },
-    { type: "normal", label: t("tray.openOverlay"), action: "open-overlay" },
-    { type: "normal", label: t("tray.openRewards"), action: "open-rewards" },
+    { type: "normal", label: translate("tray.showLauncher"), action: "show-launcher" },
+    { type: "normal", label: translate("tray.openCombat"), action: "open-combat" },
+    { type: "normal", label: translate("tray.openOverlay"), action: "open-overlay" },
+    { type: "normal", label: translate("tray.openRewards"), action: "open-rewards" },
     { type: "divider" },
-    { type: "normal", label: t("tray.exit"), action: "exit" },
+    { type: "normal", label: translate("tray.exit"), action: "exit" },
   ]);
 }
 refreshTrayMenu();
@@ -576,7 +574,7 @@ async function initializeCapture(): Promise<void> {
   if (launcherState.npcapAvailability !== "ready") {
     errorLog.write({
       title: "Capture could not start",
-      reason: t.text(launcherState.npcapDetail),
+      reason: translateText(launcherState.npcapDetail),
       details: { "Npcap status": launcherState.npcapAvailability },
     });
     launcherState = { ...launcherState, captureStatus: "unavailable", statusDetail: launcherState.npcapDetail };
@@ -593,7 +591,7 @@ async function refreshCaptureDevices(): Promise<void> {
       launcherState = {
         ...launcherState,
         npcapAvailability: status.availability,
-        npcapDetail: localized("common.passthrough", { text: status.detail }),
+        npcapDetail: message("common.passthrough", { text: status.detail }),
         ...(status.version ? { npcapVersion: status.version } : {}),
         adapters: [],
         effectiveAdapter: undefined,
@@ -608,7 +606,7 @@ async function refreshCaptureDevices(): Promise<void> {
     launcherState = {
       ...launcherState,
       npcapAvailability: "ready",
-      npcapDetail: localized("common.passthrough", { text: status.detail }),
+      npcapDetail: message("common.passthrough", { text: status.detail }),
       ...(status.version ? { npcapVersion: status.version } : {}),
       selectedAdapter: settings.captureAdapter,
       effectiveAdapter: resolved.device?.name,
@@ -616,12 +614,12 @@ async function refreshCaptureDevices(): Promise<void> {
       adapters: devices.map((device) => ({ id: device.name, label: device.description })),
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    errorLog.write({ title: "Network adapters could not be inspected", reason: message });
+    const failureMessage = error instanceof Error ? error.message : String(error);
+    errorLog.write({ title: "Network adapters could not be inspected", reason: failureMessage });
     launcherState = {
       ...launcherState,
       npcapAvailability: "error",
-      npcapDetail: localized("common.passthrough", { text: message }),
+      npcapDetail: message("common.passthrough", { text: failureMessage }),
       adapters: [],
       effectiveAdapter: undefined,
       adapterFallback: false,
@@ -649,9 +647,9 @@ async function importSettingsAndClose(): Promise<void> {
   if (plan.status === "same-folder") {
     await Utils.showMessageBox({
       type: "info",
-      title: t("dialog.manageSettings.title"),
-      message: t("dialog.manageSettings.sameFolder"),
-      buttons: [t("common.ok")],
+      title: translate("dialog.manageSettings.title"),
+      message: translate("dialog.manageSettings.sameFolder"),
+      buttons: [translate("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -660,9 +658,9 @@ async function importSettingsAndClose(): Promise<void> {
   if (plan.status === "not-found") {
     await Utils.showMessageBox({
       type: "warning",
-      title: t("dialog.manageSettings.title"),
-      message: t("dialog.manageSettings.notFound"),
-      buttons: [t("common.ok")],
+      title: translate("dialog.manageSettings.title"),
+      message: translate("dialog.manageSettings.notFound"),
+      buttons: [translate("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -673,9 +671,9 @@ async function importSettingsAndClose(): Promise<void> {
     await applyImport(plan.oldPaths, storagePaths, readDisplays());
     await Utils.showMessageBox({
       type: "info",
-      title: t("dialog.manageSettings.title"),
-      message: t("dialog.manageSettings.imported"),
-      buttons: [t("common.ok")],
+      title: translate("dialog.manageSettings.title"),
+      message: translate("dialog.manageSettings.imported"),
+      buttons: [translate("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -698,9 +696,9 @@ async function importSingleSettingAndClose(kind: SettingsKind): Promise<void> {
     await importSingleSetting(kind, selected, storagePaths, readDisplays());
     await Utils.showMessageBox({
       type: "info",
-      title: t("dialog.manageSettings.title"),
-      message: t("dialog.manageSettings.imported"),
-      buttons: [t("common.ok")],
+      title: translate("dialog.manageSettings.title"),
+      message: translate("dialog.manageSettings.imported"),
+      buttons: [translate("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -718,9 +716,9 @@ async function exportSettingAndNotify(kind: SettingsKind): Promise<void> {
   await exportSingleSetting(kind, storagePaths, destination, readDisplays());
   await Utils.showMessageBox({
     type: "info",
-    title: t("dialog.manageSettings.title"),
-    message: t("dialog.manageSettings.exported"),
-    buttons: [t("common.ok")],
+    title: translate("dialog.manageSettings.title"),
+    message: translate("dialog.manageSettings.exported"),
+    buttons: [translate("common.ok")],
     defaultId: 0,
     cancelId: 0,
   });
@@ -736,9 +734,9 @@ async function resetSettingsAndClose(): Promise<void> {
     await resetAllSettings(storagePaths, readDisplays());
     await Utils.showMessageBox({
       type: "info",
-      title: t("dialog.manageSettings.title"),
-      message: t("dialog.manageSettings.reset"),
-      buttons: [t("common.ok")],
+      title: translate("dialog.manageSettings.title"),
+      message: translate("dialog.manageSettings.reset"),
+      buttons: [translate("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -778,7 +776,7 @@ function openSettings(section?: SettingsSectionId): void {
     return;
   }
   const nextWindow = new BrowserWindow({
-    title: t("settings.window.title"),
+    title: translate("settings.window.title"),
     url: "views://settingsview/index.html",
     frame: placements.frame(
       "launcher-settings",
@@ -833,7 +831,6 @@ async function setLauncherUiScale(uiScale: typeof settings.uiScale): Promise<Lau
 
 function setLanguage(language: LocaleCode): LauncherState {
   settings.language = language;
-  t = createTranslator(language);
   setActiveLocale(language);
   launcherState = { ...launcherState, language };
   refreshTrayMenu();
@@ -936,11 +933,11 @@ function updateStorageWarning(): void {
 /** Warnings stay English for the error log; the view gets a code. */
 function storageWarningText(warning: string | undefined): LocalizedText | undefined {
   if (!warning) return undefined;
-  if (warning === STORAGE_WARNING) return localized("storage.saveFailed");
+  if (warning === STORAGE_WARNING) return message("storage.saveFailed");
   if (inspectedCharacterStorageReason !== undefined && warning === inspectedCharacterStorageWarning) {
-    return localized("storage.inspectedCharactersFailed", { reason: inspectedCharacterStorageReason });
+    return message("storage.inspectedCharactersFailed", { reason: inspectedCharacterStorageReason });
   }
-  return localized("common.passthrough", { text: warning });
+  return message("common.passthrough", { text: warning });
 }
 
 function recordStorageWarning(source: string, warning: string | undefined): void {

@@ -2,9 +2,8 @@ import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
 import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
-import { getActiveLocale, registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
-import { createTranslator } from "@svoverlay/i18n/translate";
-import type { LocaleCode } from "@svoverlay/i18n/locale";
+import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
+import { translate } from "@svoverlay/i18n/backend";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 
@@ -49,7 +48,7 @@ export async function createBossTimerWindow(options: BossTimerWindowOptions) {
   });
 
   window = new BrowserWindow({
-    title: createTranslator(getActiveLocale() as LocaleCode)("bossTimers.window.title"),
+    title: translate("bossTimers.window.title"),
     url: "views://bosstimersview/index.html",
     frame: options.placements?.frame(
       "boss-timers",

@@ -42,7 +42,8 @@ import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, TOWER_FLOOR_UNKNOWN_SUFFIX, ZONE_EVENT
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 import { getCurrentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
 
-import { localized, sameLocalizedText, type LocalizedText } from "@svoverlay/i18n/messages";
+import { sameLocalizedText, type LocalizedText } from "@svoverlay/i18n/messages";
+import { message } from "@svoverlay/i18n/backend";
 import type { CaptureHealthWarning, CaptureStatus, CaptureWarningCode, LauncherState } from "../launcher/types.ts";
 import type { BossGravestoneObservation } from "./boss-timer-coordinator.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
@@ -74,9 +75,9 @@ const STATUS_RPC_NAMES = new Set([
 ]);
 const LOCAL_TARGET_MAP_RPC = "TraverseActive";
 const OBJECT_MAP_RPC_NAMES = new Set(["TraverseObservers", "SyncInstanceState"]);
-const GAME_NOT_RUNNING_DETAIL = localized("capture.status.gameNotRunning");
-const WAITING_FOR_DATA_DETAIL = localized("capture.status.waitingOnData");
-const CAPTURE_ACTIVE_DETAIL = localized("capture.status.active");
+const GAME_NOT_RUNNING_DETAIL = message("capture.status.gameNotRunning");
+const WAITING_FOR_DATA_DETAIL = message("capture.status.waitingOnData");
+const CAPTURE_ACTIVE_DETAIL = message("capture.status.active");
 const gameProcessName = getCurrentExecutableNames().gameProcess;
 type CaptureCoordinatorState = Pick<LauncherState, "captureStatus" | "statusDetail" | "captureWarning">;
 
@@ -171,7 +172,7 @@ export class CaptureCoordinator {
   private rewardsLog?: JsonLinesLogger;
   private otherLog?: JsonLinesLogger;
   private status: CaptureStatus = "stopped";
-  private statusDetail: LocalizedText = localized("capture.status.stopped");
+  private statusDetail: LocalizedText = message("capture.status.stopped");
   private stopping = false;
   private reconfiguring = false;
   private lifecycleStopped = false;
@@ -376,7 +377,7 @@ export class CaptureCoordinator {
 
   async start(): Promise<void> {
     if (this.status === "starting" || this.status === "capturing") return;
-    this.setStatus("starting", localized("capture.status.starting"));
+    this.setStatus("starting", message("capture.status.starting"));
     try {
       if (!this.session) {
         const streams: LogStream[] = ["combat", "rewards"];
@@ -395,9 +396,9 @@ export class CaptureCoordinator {
       this.otherLog?.log("capture.lifecycle", { state: "starting" });
       await this.startCapture();
     } catch (error) {
-      const message = errorMessage(error);
-      this.logCaptureError(message, "Capture could not start");
-      this.setStatus("unavailable", localized("capture.status.restartRequired"));
+      const failureMessage = errorMessage(error);
+      this.logCaptureError(failureMessage, "Capture could not start");
+      this.setStatus("unavailable", message("capture.status.restartRequired"));
     }
   }
 
@@ -405,7 +406,7 @@ export class CaptureCoordinator {
     const previous = this.options.deviceName;
     if (deviceName === previous && this.status === "capturing") return;
     this.reconfiguring = true;
-    this.setStatus("starting", localized("capture.status.switchingAdapter"));
+    this.setStatus("starting", message("capture.status.switchingAdapter"));
     try {
       await this.capture.stop();
       this.options.deviceName = deviceName;
@@ -425,7 +426,7 @@ export class CaptureCoordinator {
         this.reportError("The previous capture adapter could not be restored", errorMessage(rollbackError), {
           "Previous adapter": previous ?? "Automatic selection",
         });
-        this.setStatus("unavailable", localized("capture.status.restartRequired"));
+        this.setStatus("unavailable", message("capture.status.restartRequired"));
         throw new Error(`Could not switch capture adapter and restore the previous adapter: ${requestedError}`);
       }
     } finally {
@@ -506,7 +507,7 @@ export class CaptureCoordinator {
     } catch (error) {
       console.error("[spiritvale-logging]", errorMessage(error));
     }
-    this.setStatus("stopped", localized("capture.status.stopped"));
+    this.setStatus("stopped", message("capture.status.stopped"));
   }
 
   async resetSession(): Promise<void> {
@@ -639,7 +640,7 @@ export class CaptureCoordinator {
       if (!this.handoffFailure) {
         this.handoffFailure = new Error("capture session handoff exceeded its bounded packet buffer");
         this.logCaptureError(this.handoffFailure.message, "Capture session reset could not keep up with incoming data");
-        this.setStatus("unavailable", localized("capture.status.resetOverrun"));
+        this.setStatus("unavailable", message("capture.status.resetOverrun"));
         void this.capture.stop().catch((error) => this.logCaptureError(errorMessage(error)));
       }
       return;
@@ -695,13 +696,13 @@ export class CaptureCoordinator {
 
   private captureError(error: Error): void {
     this.logCaptureError(error.message, "Packet capture stopped unexpectedly");
-    if (!this.stopping) this.setStatus("unavailable", localized("capture.status.restartRequired"));
+    if (!this.stopping) this.setStatus("unavailable", message("capture.status.restartRequired"));
   }
 
   private captureStopped(): void {
     if (this.reconfiguring) return;
     this.writeStoppedLifecycle();
-    if (!this.stopping && this.status !== "unavailable") this.setStatus("stopped", localized("capture.status.stopped"));
+    if (!this.stopping && this.status !== "unavailable") this.setStatus("stopped", message("capture.status.stopped"));
   }
 
   private startCapture(): Promise<void> {
@@ -1376,7 +1377,7 @@ export class CaptureCoordinator {
       "Affected log": failure.stream,
     });
     if (this.stopping) return;
-    if (this.status !== "unavailable") this.setStatus("unavailable", localized("capture.status.logWriteFailed"));
+    if (this.status !== "unavailable") this.setStatus("unavailable", message("capture.status.logWriteFailed"));
     this.watchForDroppedRecords();
   }
 
@@ -1389,7 +1390,7 @@ export class CaptureCoordinator {
       }
       if (this.droppedRecords() === 0) return;
       this.clearWriteMonitor();
-      this.setStatus("unavailable", localized("capture.status.logWriteStopped"));
+      this.setStatus("unavailable", message("capture.status.logWriteStopped"));
       void this.capture.stop().catch((error) => console.error("[spiritvale-capture]", errorMessage(error)));
     }, WRITE_MONITOR_INTERVAL_MS);
     this.writeMonitor.unref?.();
@@ -1444,7 +1445,7 @@ export class CaptureCoordinator {
   private captureDetail(): LocalizedText {
     if (this.targetState === "waiting") return GAME_NOT_RUNNING_DETAIL;
     if (!this.receivedDataForCurrentGame) return WAITING_FOR_DATA_DETAIL;
-    if (this.healthWarning) return localized(`capture.warning.${this.healthWarning.code}`);
+    if (this.healthWarning) return message(`capture.warning.${this.healthWarning.code}`);
     return CAPTURE_ACTIVE_DETAIL;
   }
 

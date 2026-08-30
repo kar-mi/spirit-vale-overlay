@@ -8,6 +8,7 @@
     "./messages": "./messages.ts",
     "./locale": "./locale.ts",
     "./translate": "./translate.ts",
+    "./backend": "./backend.ts",
     "./browser": "./browser.ts"
   },
   "dependencies": {

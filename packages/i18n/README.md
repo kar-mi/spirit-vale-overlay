@@ -48,6 +48,11 @@ re-renders instantly with no backend round-trip, and tests assert on stable code
 English sentences. Surfaces the OS owns (tray menu, window titles, native dialogs) have no
 renderer at all and use a backend-side translator built from the persisted setting.
 
+Backend code imports that shared runtime from `@svoverlay/i18n/backend`: use `translate(...)`
+for native surfaces, `translateText(...)` when backend code must render a `LocalizedText`, and
+`message(...)` / `countedMessage(...)` for deferred text sent to a view. `setBackendLocale(...)`
+owns the single current backend translator.
+
 ## Known gaps
 
 - `normalizeSettingsSearch` splits queries on whitespace, which will not serve CJK locales.
