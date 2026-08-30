@@ -20,6 +20,7 @@ export interface SettingsSection {
 export interface SettingsActions {
   setUiScale(value: SharedSettingsState["launcher"]["uiScale"]): void;
   setMinimizeToTray(value: boolean): void;
+  setMarketContributionEnabled(value: boolean): void;
   setCaptureAdapter(value: string): void;
   refreshCaptureDevices(): void;
   openNpcapDownload(): void;

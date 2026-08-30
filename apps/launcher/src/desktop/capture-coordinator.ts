@@ -115,6 +115,7 @@ export interface CaptureCoordinatorOptions {
   captureFactory?: () => PacketCapture;
   onStatus?: (state: CaptureCoordinatorState) => void;
   onError?: (report: CaptureErrorReport) => void;
+  onMarketPacket?: (packet: CapturedFishNetPacket) => void;
   onWarning?: (report: CaptureErrorReport) => void;
   diagnosticLogging?: boolean;
   knownIdentities?: readonly FishNetKnownIdentity[];
@@ -748,6 +749,14 @@ export class CaptureCoordinator {
     const inspectHandled = this.inspected.consume(packet);
     let characterHandled = this.character.consumeBeforeAdmission(packet);
     if (!admission.accepted) return;
+    try {
+      this.options.onMarketPacket?.(packet);
+    } catch (error) {
+      this.options.onWarning?.({
+        title: "Market contribution warning",
+        reason: `Could not process an admitted market packet: ${errorMessage(error)}`,
+      });
+    }
     const authenticationCompletesDirectTransition = packet.packetName === "authenticated"
       && (this.pendingDirectWorldTransition || this.pendingCharacterBoundary);
     if (authenticationCompletesDirectTransition) {

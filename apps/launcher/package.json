@@ -17,6 +17,7 @@
     "@svoverlay/combat": "workspace:*",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/desktop-platform": "workspace:*",
+    "@svoverlay/market": "workspace:*",
     "@svoverlay/overlay": "workspace:*",
     "@svoverlay/rewards": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*",

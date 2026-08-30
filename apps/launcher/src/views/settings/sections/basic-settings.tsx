@@ -51,6 +51,11 @@ export function buildBasicSettingsSections({ state, busy, actions }: SettingsSec
           content: <label class="settings-field"><span>Network adapter</span><CustomSelect ariaLabel="Network adapter" disabled={busy || launcher.npcapAvailability !== "ready"} value={launcher.selectedAdapter} options={adapterOptions} onChange={actions.setCaptureAdapter} /></label>,
         },
         {
+          id: "market-contribution",
+          searchText: "Community market contribution opt in listings prices privacy upload",
+          content: <><label class="settings-check"><input type="checkbox" checked={launcher.marketContributionEnabled} disabled={busy} onChange={(event) => actions.setMarketContributionEnabled(event.currentTarget.checked)} /><span>Contribute observed market listings</span></label><p class="settings-hint">Opt in to share item, price, quantity, status, stats, and listing timestamps with the SpiritVale community market. Account names, character names, shop names, and raw packets are never sent.</p></>,
+        },
+        {
           id: "capture-actions",
           searchText: "Refresh capture devices get download install Npcap",
           content: <div class="settings-actions"><button class="btn" type="button" onClick={actions.refreshCaptureDevices}>Refresh</button>{launcher.npcapAvailability !== "ready" && <button class="btn primary" type="button" onClick={actions.openNpcapDownload}>Get Npcap</button>}</div>,

@@ -6,6 +6,7 @@ import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/
 
 import { createBuildExportWindow } from "@svoverlay/build-export";
 import { createRewardsWindow } from "@svoverlay/rewards";
+import { MarketContributor } from "@svoverlay/market";
 import type { LauncherRpc, LauncherSettingsRpc, LauncherState, ManageSettingsRpc, ToolWindow } from "../launcher/types.ts";
 import { loadLauncherSettings, saveLauncherSettings } from "../launcher/settings.ts";
 import {
@@ -100,6 +101,16 @@ const bossTimers = await createBossTimerCoordinator({
   onWarning: (warning) => { bossTimerStorageWarning = warning; recordStorageWarning("boss timers", warning); updateStorageWarning(); },
 });
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
+const marketContributor = await MarketContributor.load({
+  statePath: storagePaths.marketContributorPath,
+  enabled: settings.marketContributionEnabled,
+  collectorVersion: appVersion,
+  onWarning: (warning) => warningLog.write({
+    title: "Community market contribution warning",
+    reason: warning,
+    details: { "App version": appVersion },
+  }),
+});
 setUiScale(settings.uiScale);
 let placementStorageWarning: string | undefined;
 const placements = await WindowPlacementStore.load(storagePaths.windowPlacementsPath, {
@@ -121,6 +132,7 @@ let launcherState: LauncherState = {
   adapterFallback: false,
   adapters: [],
   uiScale: settings.uiScale,
+  marketContributionEnabled: settings.marketContributionEnabled,
   minimizeToTray: settings.minimizeToTray,
   resetMeterOnMapChange: settings.resetMeterOnMapChange,
   resetGoldOnMapChange: settings.resetGoldOnMapChange,
@@ -251,6 +263,7 @@ const capture = new CaptureCoordinator({
       ...report.details,
     },
   }),
+  onMarketPacket: (packet) => marketContributor.consume(packet),
   resetOnMapChange: () => settings.resetMeterOnMapChange,
   onGoldMapChange: () => { if (settings.resetGoldOnMapChange) xpTracker.resetCoins(); },
   minimapEnabled: () => overlayWindow.current?.getSettingsState().elements.minimap.enabled ?? true,
@@ -376,6 +389,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       },
       setMinimizeToTray: async ({ minimizeToTray }) => {
         setMinimizeToTray(minimizeToTray);
+        return sharedSettingsState();
+      },
+      setMarketContributionEnabled: async ({ enabled }) => {
+        setMarketContributionEnabled(enabled);
         return sharedSettingsState();
       },
       setResetMeterOnMapChange: async ({ resetMeterOnMapChange }) => {
@@ -847,6 +864,15 @@ function setMinimizeToTray(minimizeToTray: boolean): LauncherState {
   publish();
   return launcherState;
 }
+function setMarketContributionEnabled(enabled: boolean): LauncherState {
+  settings.marketContributionEnabled = enabled;
+  marketContributor.setEnabled(enabled);
+  launcherState = { ...launcherState, marketContributionEnabled: enabled };
+  launcherSettingsPersistence.schedule(settings);
+  publish();
+  return launcherState;
+}
+
 
 function setResetMeterOnMapChange(resetMeterOnMapChange: boolean): LauncherState {
   settings.resetMeterOnMapChange = resetMeterOnMapChange;
@@ -963,6 +989,7 @@ async function closeAllWindowsAndFlush(): Promise<void> {
   liveDeathLogWindow.close();
   unsubscribeCharacterPersistence();
   unsubscribeInspectedCharacterPersistence();
+  await marketContributor.shutdown();
   const character = capture.characterState().snapshot;
   if (character?.source === "live") characterCache = updateCharacterCache(characterCache, character);
   await characterPersistence.flush(characterCache);

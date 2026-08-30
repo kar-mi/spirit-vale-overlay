@@ -44,6 +44,7 @@ function App() {
   const actions: SettingsActions = {
     setUiScale: (uiScale) => update(desktopView.rpc?.request.setUiScale({ uiScale })),
     setMinimizeToTray: (minimizeToTray) => update(desktopView.rpc?.request.setMinimizeToTray({ minimizeToTray })),
+    setMarketContributionEnabled: (enabled) => update(desktopView.rpc?.request.setMarketContributionEnabled({ enabled })),
     setCaptureAdapter: (value) => update(desktopView.rpc?.request.setCaptureAdapter({ deviceName: value === "auto" ? null : value })),
     refreshCaptureDevices: () => update(desktopView.rpc?.request.refreshCaptureDevices({})),
     openNpcapDownload: () => { void desktopView.rpc?.request.openNpcapDownload({}); },

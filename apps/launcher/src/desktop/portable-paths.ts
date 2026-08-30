@@ -11,6 +11,7 @@ export interface DesktopStoragePaths {
   readonly characterStatePath: string;
   readonly inspectedCharactersPath: string;
   readonly actorIdentitiesPath: string;
+  readonly marketContributorPath: string;
   readonly bossTimersPath: string;
 }
 
@@ -36,6 +37,7 @@ export function resolveDesktopStoragePaths(options: DesktopStoragePathOptions): 
     characterStatePath: path.join(dataDirectory, "character.json"),
     inspectedCharactersPath: path.join(dataDirectory, "inspected-characters.sqlite"),
     actorIdentitiesPath: path.join(dataDirectory, "actor-identities.json"),
+    marketContributorPath: path.join(dataDirectory, "market-contributor.json"),
     bossTimersPath: path.join(dataDirectory, "boss-timers.json"),
   };
 }

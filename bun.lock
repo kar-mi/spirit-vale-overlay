@@ -1,5 +1,5 @@
 {
-  "lockfileVersion": 2,
+  "lockfileVersion": 1,
   "configVersion": 1,
   "workspaces": {
     "": {
@@ -42,6 +42,7 @@
         "@svoverlay/combat": "workspace:*",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/market": "workspace:*",
         "@svoverlay/overlay": "workspace:*",
         "@svoverlay/rewards": "workspace:*",
         "@svoverlay/ui-kit": "workspace:*",
@@ -88,6 +89,14 @@
         "@kar-mi/spirit-vale-tools-logging": "0.9.0",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/ui-kit": "workspace:*",
+      },
+    },
+    "packages/market": {
+      "name": "@svoverlay/market",
+      "dependencies": {
+        "@kar-mi/spirit-vale-tools-capture": "2.7.0",
+        "@kar-mi/spirit-vale-tools-market": "2.0.0",
+        "@svoverlay/desktop-platform": "workspace:*",
       },
     },
     "packages/overlay": {
@@ -141,6 +150,8 @@
 
     "@kar-mi/spirit-vale-tools-logging": ["@kar-mi/spirit-vale-tools-logging@0.9.0", "", {}, "sha512-LabpFRZTC7yYEbOSFwva8R4mV2IHcZDB/OsC9iQ6f0dgpN2PH3e2yWLGYsP7JbzF0NPvFOuH0IHaWjZCbTQcMQ=="],
 
+    "@kar-mi/spirit-vale-tools-market": ["@kar-mi/spirit-vale-tools-market@2.0.0", "", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.3.0", "@kar-mi/spirit-vale-tools-items": "^0.1.9", "@kar-mi/spirit-vale-tools-logging": "^0.9.0" } }, "sha512-pjDLIgZ/LjtYorz0yunUqfvTu+RLgoXZ1MiJDnpBCiks0zguCBSCZhn/ii/tXP8w/2aERWKolT7HcthZNlmI6A=="],
+
     "@kar-mi/spirit-vale-tools-metrics": ["@kar-mi/spirit-vale-tools-metrics@0.2.0", "", {}, "sha512-qIO7q7KrYM+SRRmyb+Hrhg0pcEuDSD19OC4rjoaLSOqpkGROo/C9Y/tu9CGLJ1WfRZPtdtGm9BXnmsPrlzHswg=="],
 
     "@kar-mi/spirit-vale-tools-rewards": ["@kar-mi/spirit-vale-tools-rewards@1.3.1", "", { "dependencies": { "@kar-mi/spirit-vale-tools-capture": "^2.3.0", "@kar-mi/spirit-vale-tools-combat": "^3.3.5", "@kar-mi/spirit-vale-tools-items": "^0.1.8", "@kar-mi/spirit-vale-tools-logging": "^0.9.0", "@kar-mi/spirit-vale-tools-sqlite": "^0.2.1" } }, "sha512-L7Q0JnA+HwthG5co1yLtD0BAP7XH5RSw720sG79BMBKrzz7hf41LNEAVrREpTarGsn5yCYBjxCZ0tjvzlGOniA=="],
@@ -174,6 +185,8 @@
     "@svoverlay/desktop-platform": ["@svoverlay/desktop-platform@workspace:packages/desktop-platform"],
 
     "@svoverlay/launcher": ["@svoverlay/launcher@workspace:apps/launcher"],
+
+    "@svoverlay/market": ["@svoverlay/market@workspace:packages/market"],
 
     "@svoverlay/overlay": ["@svoverlay/overlay@workspace:packages/overlay"],
 

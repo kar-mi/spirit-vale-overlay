@@ -1021,6 +1021,43 @@ describe("central capture coordinator", () => {
     }
   });
 
+  test("forwards only admitted packets to the market contributor", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-market-admission-"));
+    const capture = new FakeCapture();
+    const forwardedTicks: number[] = [];
+    try {
+      const coordinator = new CaptureCoordinator({
+        logDirectory: directory,
+        captureFactory: () => capture as unknown as PacketCapture,
+        onMarketPacket: (packet) => forwardedTicks.push(packet.tick),
+      });
+      await coordinator.start();
+
+      capture.packet(authenticatedPacket(1, "conn-a"));
+      capture.packet({
+        tick: 2,
+        packetId: 1,
+        packetName: "serverRpc",
+        raw: Buffer.alloc(0),
+        payload: Buffer.alloc(0),
+        connectionId: "conn-b",
+      });
+      capture.packet({
+        tick: 3,
+        packetId: 1,
+        packetName: "serverRpc",
+        raw: Buffer.alloc(0),
+        payload: Buffer.alloc(0),
+        connectionId: "conn-a",
+      });
+
+      expect(forwardedTicks).toEqual([1, 3]);
+      await coordinator.stop();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("filters stale object-bound character packets after a map change", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-character-stale-"));
     const capture = new FakeCapture();

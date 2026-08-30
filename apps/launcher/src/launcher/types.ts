@@ -47,6 +47,7 @@ export interface LauncherState {
   adapterFallback: boolean;
   adapters: CaptureAdapterOption[];
   uiScale: UiScale;
+  marketContributionEnabled: boolean;
   minimizeToTray: boolean;
   resetMeterOnMapChange: boolean;
   resetGoldOnMapChange: boolean;
@@ -114,6 +115,7 @@ export type LauncherSettingsRpc = {
     getState: { params: Record<string, never>; response: SharedSettingsState };
     setCaptureAdapter: { params: { deviceName: string | null }; response: SharedSettingsState };
     setUiScale: { params: { uiScale: UiScale }; response: SharedSettingsState };
+    setMarketContributionEnabled: { params: { enabled: boolean }; response: SharedSettingsState };
     setMinimizeToTray: { params: { minimizeToTray: boolean }; response: SharedSettingsState };
     setResetMeterOnMapChange: { params: { resetMeterOnMapChange: boolean }; response: SharedSettingsState };
     setResetGoldOnMapChange: { params: { resetGoldOnMapChange: boolean }; response: SharedSettingsState };

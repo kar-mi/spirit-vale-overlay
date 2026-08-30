@@ -8,6 +8,7 @@ export interface LauncherSettings {
   captureAdapter: "auto" | string;
   uiScale: UiScale;
   minimizeToTray: boolean;
+  marketContributionEnabled: boolean;
   resetMeterOnMapChange: boolean;
   resetGoldOnMapChange: boolean;
   skippedUpdateVersion?: string;
@@ -16,6 +17,7 @@ export interface LauncherSettings {
 const defaults: LauncherSettings = {
   captureAdapter: "auto",
   uiScale: 1,
+  marketContributionEnabled: false,
   minimizeToTray: false,
   resetMeterOnMapChange: true,
   resetGoldOnMapChange: false,
@@ -32,6 +34,7 @@ export async function loadLauncherSettings(file = defaultSettingsFile()): Promis
         ? candidate.captureAdapter
         : defaults.captureAdapter,
       uiScale: normalizeUiScale(candidate.uiScale),
+      marketContributionEnabled: candidate.marketContributionEnabled === true,
       minimizeToTray: candidate.minimizeToTray === true,
       resetMeterOnMapChange: typeof candidate.resetMeterOnMapChange === "boolean"
         ? candidate.resetMeterOnMapChange

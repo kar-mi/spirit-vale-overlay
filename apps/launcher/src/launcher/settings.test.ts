@@ -22,13 +22,13 @@ test("launcher settings default safely and reject unsupported UI scales", async 
   expect((await loadLauncherSettings(settingsPath)).minimizeToTray).toBe(false);
 
   await writeFile(settingsPath, "{}", "utf8");
-  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: false, resetMeterOnMapChange: true, resetGoldOnMapChange: false, skippedUpdateVersion: undefined });
+  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: false, marketContributionEnabled: false, resetMeterOnMapChange: true, resetGoldOnMapChange: false, skippedUpdateVersion: undefined });
 });
 
 test("launcher settings round-trip with capture settings", async () => {
   const settingsPath = await createSettingsPath();
-  await saveLauncherSettings({ captureAdapter: "auto", uiScale: 2, minimizeToTray: true, resetMeterOnMapChange: true, resetGoldOnMapChange: true, skippedUpdateVersion: "0.6.5" }, settingsPath);
-  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 2, minimizeToTray: true, resetMeterOnMapChange: true, resetGoldOnMapChange: true, skippedUpdateVersion: "0.6.5" });
+  await saveLauncherSettings({ captureAdapter: "auto", uiScale: 2, minimizeToTray: true, marketContributionEnabled: true, resetMeterOnMapChange: true, resetGoldOnMapChange: true, skippedUpdateVersion: "0.6.5" }, settingsPath);
+  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 2, minimizeToTray: true, marketContributionEnabled: true, resetMeterOnMapChange: true, resetGoldOnMapChange: true, skippedUpdateVersion: "0.6.5" });
 });
 
 test("map-change reset defaults on while preserving an explicit opt-out", async () => {
@@ -43,7 +43,7 @@ test("map-change reset defaults on while preserving an explicit opt-out", async 
 test("ignores the retired close-to-tray setting", async () => {
   const settingsPath = await createSettingsPath();
   await writeFile(settingsPath, JSON.stringify({ closeToTray: true }), "utf8");
-  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: false, resetMeterOnMapChange: true, resetGoldOnMapChange: false, skippedUpdateVersion: undefined });
+  expect(await loadLauncherSettings(settingsPath)).toEqual({ captureAdapter: "auto", uiScale: 1, minimizeToTray: false, marketContributionEnabled: false, resetMeterOnMapChange: true, resetGoldOnMapChange: false, skippedUpdateVersion: undefined });
 });
 
 async function createSettingsPath(): Promise<string> {
