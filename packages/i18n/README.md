@@ -12,8 +12,9 @@ every browser bundle alike.
    ```
 2. Register it in `locale.ts` — one entry in `LOCALES`, one in `LOCALE_OPTIONS`.
 
-`locales/de.ts` is a one-key example of step 1 without step 2: it typechecks, but the app does
-not offer it.
+English is currently the only registered locale, so the picker offers one option and the
+language-change path never fires in practice. Registering a second locale is what switches all of
+this on — see the coverage note in `locale-window.test.ts` before you do.
 
 **English is always the fallback.** A locale supplies whatever it has translated; every key it
 omits renders the English string, so a translation can land a few strings at a time and the UI
@@ -69,5 +70,6 @@ the rendered text later.
 - Skill, status, monster and class display names come from the `@kar-mi/spirit-vale-tools-*`
   packages and are not translatable from here. So are session summaries, the character window's
   `statusDetail`, and the build-export notes: each arrives as composed English and is rendered as-is.
-- `overlay.personal.unit` is a static "DPS" even when the meter is showing TPS or HPS. That predates
-  this package — the tile has always read DPS — and was kept rather than changed while translating.
+- `overlay.personal.unit` is a static "DPS", and correctly so: `meter-presentation.ts` reads the
+  personal summary from `record.dps` whatever the meter's stat type, so the tile always shows damage.
+  Not a mislabelled string — change the presentation first if that should follow the meter.
