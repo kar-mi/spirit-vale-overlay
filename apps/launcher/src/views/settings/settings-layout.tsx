@@ -3,7 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { filterSettingsSections, normalizeSettingsSearch } from "./settings-search.ts";
 import type { SectionId, SettingsSection } from "./settings-section.ts";
 
-/** A request to jump to a section; `token` changes on every request so the same section can be re-requested. */
+/** `token` changes per request so re-requesting the section already shown still navigates. */
 export interface SectionRequest {
   id: SectionId;
   token: number;

@@ -108,7 +108,7 @@ const placements = await WindowPlacementStore.load(storagePaths.windowPlacements
 let launcherWindow: BrowserWindow;
 let settingsWindow: BrowserWindow | undefined;
 let settingsLifecycle: DisposableStore | undefined;
-// Set when a caller asks for a specific settings section; consumed by whichever path can deliver it.
+// A requested settings section, delivered by a push to an open window or by the next getState.
 let pendingSettingsSection: SettingsSectionId | undefined;
 const launcherLifecycle = new DisposableStore();
 let launcherState: LauncherState = {
@@ -366,7 +366,6 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
     requests: {
       getState: async () => {
         const state = await sharedSettingsState();
-        // A window opened for a specific section has nobody listening yet, so deliver it once the view asks for state.
         flushPendingSettingsSection();
         return state;
       },
@@ -470,9 +469,8 @@ launcherWindow = new BrowserWindow({
   frame: placements.frame("launcher", { x: 80, y: 80, width: 960, height: 430 }, { width: 900, height: 430 }),
   titleBarStyle: "hidden",
   transparent: false,
-  // Neutralino creates the root window from neutralino.config.json and restores its own saved
-  // state there, which paints close to the right spot immediately. This push makes the saved
-  // placement authoritative once the launcher view connects. A first run keeps the OS default.
+  // Neutralino restores its own state for the root window; pushing ours makes windows.json
+  // authoritative. A first run has no saved frame, so the window stays where the OS put it.
   restoreFrameOnAttach: placements.has("launcher"),
   rpc,
 });
@@ -737,7 +735,7 @@ async function openLiveDeathLog(): Promise<void> {
 function flushPendingSettingsSection(): void {
   const section = pendingSettingsSection;
   if (!section) return;
-  // Keep the request pending if the send fails: the view's getState call retries it once it connects.
+  // Stay pending when the send fails; the view's getState retries once it connects.
   try { settingsRpc.send.showSection(section); } catch { return; }
   pendingSettingsSection = undefined;
 }

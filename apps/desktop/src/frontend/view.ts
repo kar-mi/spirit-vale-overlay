@@ -160,9 +160,8 @@ export class DesktopView<T extends { setTransport(transport: DesktopTransport): 
   static defineRPC<Schema extends DesktopRPCSchema>(config: Parameters<typeof defineRpc<Schema, "webview">>[1]) {
     const rpc = defineRpc<Schema, "webview">("webview", config as never) as RpcInstance<Schema, "webview">;
     let lastFrame: WindowFrame | undefined;
-    // Neutralino emits no native move/resize events, and this proxy moves the window locally
-    // instead of going through the backend, so the backend only learns where its windows ended
-    // up if we tell it. Without this the saved placement is always the frame it launched with.
+    // Neutralino emits no native move/resize events and this proxy moves the window locally, so
+    // the backend only learns where a window ended up — and can save it — if we report it.
     const reportFrame = (frame: WindowFrame): void => {
       if (!lastFrame || frame.x !== lastFrame.x || frame.y !== lastFrame.y) {
         transport.sendWindowEvent("windowMove", { x: frame.x, y: frame.y });

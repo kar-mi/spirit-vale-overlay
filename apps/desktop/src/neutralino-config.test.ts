@@ -83,11 +83,9 @@ describe("Neutralino configuration", () => {
   });
 
   test("keeps Neutralino's saved state for the root window and off everywhere else", async () => {
-    // Neutralino's saved state is a single blob in the install folder's .tmp directory, so every
-    // secondary window has to opt out or they overwrite each other. The root window keeps it: it
-    // paints near its final position immediately, which is smoother than launching at the config
-    // default and jumping once the backend applies data/settings/windows.json — still the
-    // authoritative placement, pushed on attach.
+    // Neutralino's saved state is one shared blob, so secondary windows must opt out or they
+    // overwrite each other. The root window keeps it to paint near its final position before the
+    // backend pushes the authoritative frame from data/settings/windows.json.
     const config = (await Bun.file(
       `${import.meta.dir}/../neutralino.config.json`,
     ).json()) as NeutralinoConfig;

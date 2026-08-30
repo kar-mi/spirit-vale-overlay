@@ -53,7 +53,7 @@ export class WindowPlacementStore {
     );
   }
 
-  /** Whether a placement was saved for this window, so callers can leave first-run windows where the OS puts them. */
+  /** Whether a placement was saved, so first-run windows can be left where the OS puts them. */
   has(key: string): boolean {
     return isWindowFrame(this.placements.frames[key]);
   }

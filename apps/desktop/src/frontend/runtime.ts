@@ -184,8 +184,7 @@ interface WindowOptions<Schema extends CombinedSchema = CombinedSchema> {
   transparent?: boolean;
   resizable?: boolean;
   hidden?: boolean;
-  // The root launcher window is created by Neutralino from neutralino.config.json rather than
-  // through createWindow, so its frame has to be pushed to it once its session connects.
+  // The root window is not created through createWindow, so its frame is pushed on attach instead.
   restoreFrameOnAttach?: boolean;
   rpc: RpcInstance<Schema, "bun">;
 }
