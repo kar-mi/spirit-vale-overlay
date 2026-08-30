@@ -8,10 +8,11 @@ import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import type { KeybindAction } from "@svoverlay/overlay/app-types";
 import type { LauncherSettingsRpc, SharedSettingsState } from "../../launcher/types.ts";
-import { SettingsLayout } from "./settings-layout.tsx";
+import { SettingsLayout, type SectionRequest } from "./settings-layout.tsx";
 import type { SettingsActions, SettingsSectionContext } from "./settings-section.ts";
 import { buildBasicSettingsSections } from "./sections/basic-settings.tsx";
 import { buildKeybindSettingsSection } from "./sections/keybind-settings.tsx";
+import { buildManageSettingsSection } from "./sections/manage-settings.tsx";
 import { buildMinimapSettingsSection } from "./sections/minimap-settings.tsx";
 import { buildOverlaySettingsSection } from "./sections/overlay-settings.tsx";
 import { buildStatusSettingsSection } from "./sections/status-settings.tsx";
@@ -19,8 +20,16 @@ import { shortcutFromKeyboardEvent } from "./shortcut-from-keyboard-event.ts";
 
 const state = signal<SharedSettingsState | undefined>(undefined);
 const recordingAction = signal<KeybindAction | undefined>(undefined);
+const requestedSection = signal<SectionRequest | undefined>(undefined);
+let sectionRequestToken = 0;
 const rpc = DesktopView.defineRPC<LauncherSettingsRpc>({
-  handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
+  handlers: {
+    requests: {},
+    messages: {
+      stateChanged: (next) => { state.value = repairRendererPayload(next); },
+      showSection: (id) => { requestedSection.value = { id, token: ++sectionRequestToken }; },
+    },
+  },
 });
 const desktopView = new DesktopView({ rpc });
 void desktopView.rpc?.request.getState({}).then((next) => { state.value = repairRendererPayload(next); });
@@ -58,6 +67,11 @@ function App() {
     setPersonalDpsMode: (mode) => update(desktopView.rpc?.request.setPersonalDpsMode({ mode })),
     setMinimapRarityFilter: (rarity) => update(desktopView.rpc?.request.setMinimapRarityFilter({ rarity })),
     setMinimapLootChanceFilter: (chance) => update(desktopView.rpc?.request.setMinimapLootChanceFilter({ chance })),
+    importSettings: () => { void desktopView.rpc?.request.importSettings({}); },
+    importSetting: (kind) => { void desktopView.rpc?.request.importSetting({ kind }); },
+    exportSetting: (kind) => { void desktopView.rpc?.request.exportSetting({ kind }); },
+    openDataFolder: () => { void desktopView.rpc?.request.openDataFolder({}); },
+    resetSettings: () => { void desktopView.rpc?.request.resetSettings({}); },
     setRequiredStatuses: (category, statusIds) => update(desktopView.rpc?.request.setOverlayRequiredStatuses({ category, statusIds })),
     resetShortcuts: () => {
       recordingAction.value = undefined;
@@ -75,6 +89,7 @@ function App() {
     buildStatusSettingsSection(context),
     buildMinimapSettingsSection(context),
     buildKeybindSettingsSection(context),
+    buildManageSettingsSection(context),
   ];
 
   return <main class="app-shell">
@@ -89,7 +104,7 @@ function App() {
     />
     <section class="settings-content">
       {(next.launcher.storageWarning || next.overlay.shortcutErrors.openLiveDeathLog) && <div class="banner is-warn" aria-live="polite">{next.launcher.storageWarning ?? next.overlay.shortcutErrors.openLiveDeathLog}</div>}
-      <SettingsLayout sections={sections} />
+      <SettingsLayout sections={sections} requestedSection={requestedSection.value} />
     </section>
   </main>;
 }

@@ -95,6 +95,12 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .keybind-row + .keybind-row { border-top: 1px solid var(--outline-variant); }
 .keybind-row > span { font-size: 13px; }
 .keybind-message { grid-column: 1 / -1; margin: -2px 0 4px; color: var(--on-surface-variant); font-size: 11px; }
+.data-folder-path { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.manage-settings-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.manage-settings-actions .btn { flex: 1; justify-content: center; min-width: 160px; height: 34px; }
+.reset-modal { max-width: 420px; }
+.reset-button { border-color: var(--error); color: var(--error); }
+.reset-button:hover { border-color: var(--error); background: color-mix(in srgb, var(--error) 12%, transparent); }
 
 @media (max-width: 640px) {
   .settings-layout { grid-template-columns: 126px minmax(0, 1fr); }

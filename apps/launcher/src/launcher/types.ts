@@ -57,9 +57,20 @@ export interface LauncherState {
   };
 }
 
+export type SettingsSectionId =
+  | "general"
+  | "network"
+  | "overlay"
+  | "combat"
+  | "status"
+  | "keybinds"
+  | "minimap"
+  | "manage";
+
 export interface SharedSettingsState {
   launcher: LauncherState;
   overlay: OverlaySettingsState;
+  dataFolder: string;
 }
 
 type LauncherSharedRequests = {
@@ -78,35 +89,13 @@ export type LauncherRpc = {
   bun: RPCSchema<{
     requests: LauncherSharedRequests & {
       openTool: { params: { tool: ToolWindow }; response: LauncherState };
-      openSettings: { params: Record<string, never>; response: void };
-      manageSettings: { params: Record<string, never>; response: void };
+      openSettings: { params: { section?: SettingsSectionId }; response: void };
       openUpdateRelease: { params: Record<string, never>; response: void };
       skipUpdateVersion: { params: Record<string, never>; response: void };
       dismissUpdateNotification: { params: Record<string, never>; response: void };
     };
   }>;
   webview: RPCSchema<{ messages: { stateChanged: LauncherState } }>;
-};
-
-export interface ManageSettingsState {
-  dataFolder: string;
-}
-
-export type ManageSettingsRpc = {
-  bun: RPCSchema<{
-    requests: {
-      getState: { params: Record<string, never>; response: ManageSettingsState };
-      importSettings: { params: Record<string, never>; response: void };
-      importSetting: { params: { kind: SettingsKind }; response: void };
-      exportSetting: { params: { kind: SettingsKind }; response: void };
-      openDataFolder: { params: Record<string, never>; response: void };
-      resetSettings: { params: Record<string, never>; response: void };
-      windowAction: { params: { action: "minimize" | "close" }; response: void };
-      getWindowFrame: { params: Record<string, never>; response: WindowFrame };
-      setWindowFrame: { params: WindowFrame; response: void };
-    };
-  }>;
-  webview: RPCSchema<{ messages: Record<string, never> }>;
 };
 
 export type LauncherSettingsRpc = {
@@ -135,9 +124,14 @@ export type LauncherSettingsRpc = {
     setPersonalDpsMode: { params: { mode: PersonalDpsMode }; response: SharedSettingsState };
     setMinimapRarityFilter: { params: { rarity: number }; response: SharedSettingsState };
     setMinimapLootChanceFilter: { params: { chance: number }; response: SharedSettingsState };
+    importSettings: { params: Record<string, never>; response: void };
+    importSetting: { params: { kind: SettingsKind }; response: void };
+    exportSetting: { params: { kind: SettingsKind }; response: void };
+    openDataFolder: { params: Record<string, never>; response: void };
+    resetSettings: { params: Record<string, never>; response: void };
     windowAction: { params: { action: "minimize" | "close" }; response: void };
     getWindowFrame: { params: Record<string, never>; response: WindowFrame };
     setWindowFrame: { params: WindowFrame; response: void };
   } }>;
-  webview: RPCSchema<{ messages: { stateChanged: SharedSettingsState } }>;
+  webview: RPCSchema<{ messages: { stateChanged: SharedSettingsState; showSection: SettingsSectionId } }>;
 };

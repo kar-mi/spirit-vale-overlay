@@ -90,7 +90,7 @@ function App() {
           <button
             class="tool-button"
             type="button"
-            onClick={() => void desktopView.rpc?.request.manageSettings({})}
+            onClick={() => void desktopView.rpc?.request.openSettings({ section: "manage" })}
           >
             <strong>Manage Settings</strong>
             <span>Import, locate, or reset your settings</span>

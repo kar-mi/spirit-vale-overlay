@@ -1,15 +1,29 @@
 import type { ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { filterSettingsSections, normalizeSettingsSearch } from "./settings-search.ts";
 import type { SectionId, SettingsSection } from "./settings-section.ts";
 
-export interface SettingsLayoutProps {
-  sections: SettingsSection[];
+/** A request to jump to a section; `token` changes on every request so the same section can be re-requested. */
+export interface SectionRequest {
+  id: SectionId;
+  token: number;
 }
 
-export function SettingsLayout({ sections }: SettingsLayoutProps) {
+export interface SettingsLayoutProps {
+  sections: SettingsSection[];
+  requestedSection?: SectionRequest;
+}
+
+export function SettingsLayout({ sections, requestedSection }: SettingsLayoutProps) {
   const [sectionId, setSectionId] = useState<SectionId>("general");
   const [searchQuery, setSearchQuery] = useState("");
+  const requestedId = requestedSection?.id;
+  const requestedToken = requestedSection?.token;
+  useEffect(() => {
+    if (!requestedId) return;
+    setSectionId(requestedId);
+    setSearchQuery("");
+  }, [requestedId, requestedToken]);
   const searching = normalizeSettingsSearch(searchQuery).length > 0;
   const searchResults = filterSettingsSections(searchQuery, sections);
   const matchedItemCount = searchResults.reduce((total, result) => total + result.itemIds.length, 0);
