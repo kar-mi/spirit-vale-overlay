@@ -6,7 +6,7 @@ import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/
 
 import { createBuildExportWindow } from "@svoverlay/build-export";
 import { createRewardsWindow } from "@svoverlay/rewards";
-import type { LauncherRpc, LauncherSettingsRpc, LauncherState, ManageSettingsRpc, ToolWindow } from "../launcher/types.ts";
+import type { LauncherRpc, LauncherSettingsRpc, LauncherState, SettingsSectionId, ToolWindow } from "../launcher/types.ts";
 import { loadLauncherSettings, saveLauncherSettings } from "../launcher/settings.ts";
 import {
   applyImport,
@@ -108,8 +108,8 @@ const placements = await WindowPlacementStore.load(storagePaths.windowPlacements
 let launcherWindow: BrowserWindow;
 let settingsWindow: BrowserWindow | undefined;
 let settingsLifecycle: DisposableStore | undefined;
-let manageSettingsWindow: BrowserWindow | undefined;
-let manageSettingsLifecycle: DisposableStore | undefined;
+// A requested settings section, delivered by a push to an open window or by the next getState.
+let pendingSettingsSection: SettingsSectionId | undefined;
 const launcherLifecycle = new DisposableStore();
 let launcherState: LauncherState = {
   appVersion,
@@ -337,8 +337,7 @@ const rpc = BrowserView.defineRPC<LauncherRpc>({
         await openTool(tool);
         return launcherState;
       },
-      openSettings: () => { openSettings(); },
-      manageSettings: () => { openManageSettings(); },
+      openSettings: ({ section }) => { openSettings(section); },
       openUpdateRelease: () => { if (launcherState.update) Utils.openExternal(launcherState.update.url); },
       skipUpdateVersion: async () => {
         if (!launcherState.update) return;
@@ -365,7 +364,11 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
   maxRequestTime: 30_000,
   handlers: {
     requests: {
-      getState: () => sharedSettingsState(),
+      getState: async () => {
+        const state = await sharedSettingsState();
+        flushPendingSettingsSection();
+        return state;
+      },
       setCaptureAdapter: async ({ deviceName }) => {
         await setCaptureAdapter(deviceName);
         return sharedSettingsState();
@@ -444,6 +447,11 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
         await overlayWindow.withWindow((overlay) => overlay.setMinimapLootChanceFilter(chance));
         return sharedSettingsState();
       },
+      importSettings: () => importSettingsAndClose(),
+      importSetting: ({ kind }) => importSingleSettingAndClose(kind),
+      exportSetting: ({ kind }) => exportSettingAndNotify(kind),
+      openDataFolder: () => { openSettingsDataFolder(); },
+      resetSettings: () => resetSettingsAndClose(),
       windowAction: ({ action }) => {
         if (action === "minimize") settingsWindow?.minimize();
         else settingsWindow?.close();
@@ -458,9 +466,12 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
 launcherWindow = new BrowserWindow({
   title: "Spirit Vale Overlay",
   url: "views://launcherview/index.html",
-  frame: placements.frame("launcher", { x: 80, y: 80, width: 1200, height: 538 }, { width: 900, height: 430 }),
+  frame: placements.frame("launcher", { x: 80, y: 80, width: 960, height: 430 }, { width: 900, height: 430 }),
   titleBarStyle: "hidden",
   transparent: false,
+  // Neutralino restores its own state for the root window; pushing ours makes windows.json
+  // authoritative. A first run has no saved frame, so the window stays where the OS put it.
+  restoreFrameOnAttach: placements.has("launcher"),
   rpc,
 });
 applyRoundedCorners(launcherWindow.ptr);
@@ -707,66 +718,6 @@ async function resetSettingsAndClose(): Promise<void> {
   }
 }
 
-const manageSettingsRpc = BrowserView.defineRPC<ManageSettingsRpc>({
-  maxRequestTime: 30_000,
-  handlers: {
-    requests: {
-      getState: () => ({ dataFolder: path.dirname(storagePaths.launcherSettingsPath) }),
-      importSettings: () => importSettingsAndClose(),
-      importSetting: ({ kind }) => importSingleSettingAndClose(kind),
-      exportSetting: ({ kind }) => exportSettingAndNotify(kind),
-      openDataFolder: () => { openSettingsDataFolder(); },
-      resetSettings: () => resetSettingsAndClose(),
-      getWindowFrame: () => manageSettingsWindow?.getFrame() ?? { x: 130, y: 130, width: 480, height: 380 },
-      setWindowFrame: ({ x, y, width, height }) => { manageSettingsWindow?.setFrame(x, y, width, height); },
-      windowAction: async ({ action }) => {
-        if (action === "minimize") manageSettingsWindow?.minimize();
-        else manageSettingsWindow?.close();
-      },
-    },
-    messages: {},
-  },
-});
-
-function openManageSettings(): void {
-  if (manageSettingsWindow) {
-    manageSettingsWindow.show();
-    manageSettingsWindow.activate();
-    return;
-  }
-  const nextWindow = new BrowserWindow({
-    title: "Manage Settings",
-    url: "views://managesettingsview/index.html",
-    frame: placements.frame(
-      "manage-settings",
-      { x: 130, y: 130, width: 480, height: 380 },
-      { width: 420, height: 340 },
-    ),
-    titleBarStyle: "hidden",
-    transparent: false,
-    rpc: manageSettingsRpc,
-  });
-  const lifecycle = new DisposableStore();
-  manageSettingsWindow = nextWindow;
-  manageSettingsLifecycle = lifecycle;
-  applyRoundedCorners(nextWindow.ptr);
-  setWindowIcon(nextWindow.ptr, appIconPath);
-  lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
-  lifecycle.add(placements.track("manage-settings", nextWindow));
-  lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
-    const width = Math.max(scaledSize(420), event.data.width);
-    const height = Math.max(scaledSize(340), event.data.height);
-    if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
-  }));
-  lifecycle.add(onceWindowEvent(nextWindow, "close", () => {
-    lifecycle.dispose();
-    if (manageSettingsWindow === nextWindow) {
-      manageSettingsWindow = undefined;
-      manageSettingsLifecycle = undefined;
-    }
-  }));
-}
-
 async function openTool(tool: ToolWindow): Promise<void> {
   if (tool === "combat") await combatWindow.open();
   else if (tool === "overlay") await overlayWindow.open();
@@ -781,10 +732,20 @@ async function openLiveDeathLog(): Promise<void> {
   await liveDeathLogWindow.open(liveCombatLogPath, true);
 }
 
-function openSettings(): void {
+function flushPendingSettingsSection(): void {
+  const section = pendingSettingsSection;
+  if (!section) return;
+  // Stay pending when the send fails; the view's getState retries once it connects.
+  try { settingsRpc.send.showSection(section); } catch { return; }
+  pendingSettingsSection = undefined;
+}
+
+function openSettings(section?: SettingsSectionId): void {
+  pendingSettingsSection = section;
   if (settingsWindow) {
     settingsWindow.show();
     settingsWindow.activate();
+    flushPendingSettingsSection();
     return;
   }
   const nextWindow = new BrowserWindow({
@@ -896,7 +857,7 @@ function publish(): void {
 
 async function sharedSettingsState() {
   const overlay = await overlayWindow.withWindow((managed) => managed.getSettingsState());
-  return { launcher: launcherState, overlay };
+  return { launcher: launcherState, overlay, dataFolder: path.dirname(storagePaths.launcherSettingsPath) };
 }
 
 function bossTimerWindowState(): BossTimerWindowState {
@@ -920,7 +881,7 @@ async function publishSettings(overlayState?: Awaited<ReturnType<typeof sharedSe
   if (!settingsWindow) return;
   try {
     settingsRpc.send.stateChanged(overlayState
-      ? { launcher: launcherState, overlay: overlayState }
+      ? { launcher: launcherState, overlay: overlayState, dataFolder: path.dirname(storagePaths.launcherSettingsPath) }
       : await sharedSettingsState());
   } catch { /* Settings may be connecting or closing. */ }
 }
@@ -954,11 +915,8 @@ async function closeAllWindowsAndFlush(): Promise<void> {
   launcherLifecycle.dispose();
   settingsLifecycle?.dispose();
   settingsLifecycle = undefined;
-  manageSettingsLifecycle?.dispose();
-  manageSettingsLifecycle = undefined;
   launcherWindow.hide();
   settingsWindow?.close();
-  manageSettingsWindow?.close();
   await Promise.all([combatWindow.close(), overlayWindow.close(), rewardsWindow.close(), characterWindow.close(), buildExportWindow.close(), bossTimerWindow.close()]);
   liveDeathLogWindow.close();
   unsubscribeCharacterPersistence();

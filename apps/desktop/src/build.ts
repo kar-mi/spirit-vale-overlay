@@ -26,7 +26,6 @@ await build({
 await Promise.all([
   buildView("launcherview", path.join(workspace, "apps/launcher/src/views/launcher")),
   buildView("settingsview", path.join(workspace, "apps/launcher/src/views/settings")),
-  buildView("managesettingsview", path.join(workspace, "apps/launcher/src/views/manage-settings")),
   buildView("sessionpickerview", path.join(workspace, "apps/launcher/src/views/session-picker")),
   buildView("characterview", path.join(workspace, "apps/launcher/src/views/character")),
   buildView("bosstimersview", path.join(workspace, "apps/launcher/src/views/boss-timers")),

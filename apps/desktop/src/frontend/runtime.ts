@@ -184,6 +184,8 @@ interface WindowOptions<Schema extends CombinedSchema = CombinedSchema> {
   transparent?: boolean;
   resizable?: boolean;
   hidden?: boolean;
+  // The root window is not created through createWindow, so its frame is pushed on attach instead.
+  restoreFrameOnAttach?: boolean;
   rpc: RpcInstance<Schema, "bun">;
 }
 
@@ -204,6 +206,7 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
   private closed = false;
   private desiredVisible: boolean;
   private clickThrough = false;
+  private restoreFrameOnAttach: boolean;
   private readonly rpc: RpcInstance<Schema, "bun">;
 
   constructor(options: WindowOptions<Schema>) {
@@ -214,6 +217,7 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
     this.transparent = options.transparent === true;
     this.resizable = options.resizable;
     this.desiredVisible = options.hidden !== true;
+    this.restoreFrameOnAttach = options.restoreFrameOnAttach === true;
     this.rpc = options.rpc;
     this.id = options.url.includes("launcherview") ? "launcher" : `${viewName(options.url)}-${++nextWindowId}`;
     this.webview = new RuntimeWebview(this);
@@ -290,6 +294,10 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
   private async applyNativeState(): Promise<void> {
     const pid = this.session?.processId;
     if (!pid) return;
+    if (this.restoreFrameOnAttach) {
+      this.restoreFrameOnAttach = false;
+      await this.command("setBounds", this.frame).catch(() => {});
+    }
     await this.command("setAlwaysOnTop", { enabled: this.alwaysOnTop }).catch(() => {});
     if (this.transparent) {
       const ready = await configureOverlayWindow(pid, this.clickThrough);

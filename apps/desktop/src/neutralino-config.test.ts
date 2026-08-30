@@ -9,6 +9,7 @@ interface NeutralinoConfig {
   copyright?: string;
   applicationIcon?: string;
   logging?: { enabled?: boolean; writeToLogFile?: boolean };
+  modes?: { window?: { useSavedState?: boolean } };
   nativeAllowList?: string[];
   extensions?: Array<{
     id?: string;
@@ -79,6 +80,20 @@ describe("Neutralino configuration", () => {
         copyItems: [bundleLayout.portableMarker, bundleLayout.portableReadme],
       },
     });
+  });
+
+  test("keeps Neutralino's saved state for the root window and off everywhere else", async () => {
+    // Neutralino's saved state is one shared blob, so secondary windows must opt out or they
+    // overwrite each other. The root window keeps it to paint near its final position before the
+    // backend pushes the authoritative frame from data/settings/windows.json.
+    const config = (await Bun.file(
+      `${import.meta.dir}/../neutralino.config.json`,
+    ).json()) as NeutralinoConfig;
+
+    expect(config.modes?.window?.useSavedState).toBeUndefined();
+
+    const runtimeSource = await Bun.file(`${import.meta.dir}/frontend/runtime.ts`).text();
+    expect(runtimeSource).toContain("--window-use-saved-state=false");
   });
 
   test("packages the default browser favicon from the application icon", async () => {

@@ -53,6 +53,11 @@ export class WindowPlacementStore {
     );
   }
 
+  /** Whether a placement was saved, so first-run windows can be left where the OS puts them. */
+  has(key: string): boolean {
+    return isWindowFrame(this.placements.frames[key]);
+  }
+
   frame(key: string, fallback: WindowFrame, minimum: WindowMinimumSize): WindowFrame {
     const stored = this.placements.frames[key];
     const logical = isWindowFrame(stored) ? stored : fallback;

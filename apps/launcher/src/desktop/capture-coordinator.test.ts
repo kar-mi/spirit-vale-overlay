@@ -1149,7 +1149,10 @@ describe("central capture coordinator", () => {
         onError: (report) => errorReports.push(report),
       });
       await coordinator.start();
-      expect(coordinator.state()).toEqual({ captureStatus: "unavailable", statusDetail: "Unable to capture data" });
+      expect(coordinator.state()).toEqual({
+        captureStatus: "unavailable",
+        statusDetail: "Unable to capture data, please close the app and restart it",
+      });
       expect(errorReports).toEqual([{
         title: "Capture could not start",
         reason: "synthetic capture unavailable",

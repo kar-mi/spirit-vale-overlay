@@ -8,6 +8,7 @@ import { defineRpc, type RpcInstance } from "../shared/rpc.ts";
 import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapFiles } from "./bootstrap-preflight.ts";
 
 type Handler = (packet: RpcPacket) => void;
+interface WindowFrame { x: number; y: number; width: number; height: number }
 
 const RECONNECT_ATTEMPT_LIMIT = 5;
 const RECONNECT_BASE_DELAY_MS = 250;
@@ -36,6 +37,11 @@ class DesktopTransport {
       return;
     }
     this.socket.send(JSON.stringify({ kind: "rpc", packet } satisfies ClientPacket));
+  }
+
+  sendWindowEvent(event: string, data: unknown): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({ kind: "window-event", event, data } satisfies ClientPacket));
   }
 
   registerHandler(handler: Handler): void {
@@ -153,7 +159,17 @@ export class DesktopView<T extends { setTransport(transport: DesktopTransport): 
 
   static defineRPC<Schema extends DesktopRPCSchema>(config: Parameters<typeof defineRpc<Schema, "webview">>[1]) {
     const rpc = defineRpc<Schema, "webview">("webview", config as never) as RpcInstance<Schema, "webview">;
-    let lastFrame: { x: number; y: number; width: number; height: number } | undefined;
+    let lastFrame: WindowFrame | undefined;
+    // Neutralino emits no native move/resize events and this proxy moves the window locally, so
+    // the backend only learns where a window ended up — and can save it — if we report it.
+    const reportFrame = (frame: WindowFrame): void => {
+      if (!lastFrame || frame.x !== lastFrame.x || frame.y !== lastFrame.y) {
+        transport.sendWindowEvent("windowMove", { x: frame.x, y: frame.y });
+      }
+      if (!lastFrame || frame.width !== lastFrame.width || frame.height !== lastFrame.height) {
+        transport.sendWindowEvent("windowResize", { width: frame.width, height: frame.height });
+      }
+    };
     const request = new Proxy(rpc.request as object, {
       get(target, property, receiver) {
         if (property === "windowAction") return async ({ action }: { action: "minimize" | "close" }) => {
@@ -166,16 +182,14 @@ export class DesktopView<T extends { setTransport(transport: DesktopTransport): 
           lastFrame = frame;
           return frame;
         };
-        if (property === "setWindowFrame") return async (frame: { x: number; y: number; width: number; height: number }) => {
-          // Only touch move()/setSize() when their inputs actually changed: calling
-          // setSize() on every drag frame (even with unchanged dimensions) triggers a
-          // WebView2 repaint glitch on Windows that leaves an artifact at the top edge.
+        if (property === "setWindowFrame") return async (frame: WindowFrame) => {
           if (!lastFrame || frame.x !== lastFrame.x || frame.y !== lastFrame.y) {
             await neutralinoWindow.move(frame.x, frame.y);
           }
           if (!lastFrame || frame.width !== lastFrame.width || frame.height !== lastFrame.height) {
             await neutralinoWindow.setSize({ width: frame.width, height: frame.height });
           }
+          reportFrame(frame);
           lastFrame = frame;
         };
         return Reflect.get(target, property, receiver);

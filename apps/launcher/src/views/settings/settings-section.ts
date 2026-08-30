@@ -1,8 +1,9 @@
 import type { ComponentChildren } from "preact";
 import type { KeybindAction, OverlayElementId, RequiredStatusCategory } from "@svoverlay/overlay/app-types";
-import type { SharedSettingsState } from "../../launcher/types.ts";
+import type { SettingsSectionId, SharedSettingsState } from "../../launcher/types.ts";
+import type { SettingsKind } from "../../desktop/manage-settings.ts";
 
-export type SectionId = "general" | "network" | "overlay" | "combat" | "status" | "keybinds" | "minimap";
+export type SectionId = SettingsSectionId;
 
 export interface SettingsItem {
   id: string;
@@ -35,6 +36,11 @@ export interface SettingsActions {
   setMinimapRarityFilter(value: number): void;
   setMinimapLootChanceFilter(value: number): void;
   setRequiredStatuses(category: RequiredStatusCategory, statusIds: string[]): void;
+  importSettings(): void;
+  importSetting(kind: SettingsKind): void;
+  exportSetting(kind: SettingsKind): void;
+  openDataFolder(): void;
+  resetSettings(): void;
   resetShortcuts(): void;
   beginShortcutCapture(action: KeybindAction): void;
   captureShortcut(action: KeybindAction, event: KeyboardEvent): void;
