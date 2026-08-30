@@ -8,8 +8,6 @@ on:
       - .github/workflows/pages.yml
   workflow_dispatch:
 
-# Read the repository, publish the Pages artifact, and mint the OIDC token that
-# deploy-pages exchanges for a deployment.
 permissions:
   contents: read
   pages: write
