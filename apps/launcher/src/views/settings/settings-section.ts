@@ -1,4 +1,6 @@
 import type { ComponentChildren } from "preact";
+import type { LocaleCode } from "@svoverlay/i18n/locale";
+import type { Translator } from "@svoverlay/i18n/translate";
 import type { KeybindAction, OverlayElementId, RequiredStatusCategory } from "@svoverlay/overlay/app-types";
 import type { SettingsSectionId, SharedSettingsState } from "../../launcher/types.ts";
 import type { SettingsKind } from "../../desktop/manage-settings.ts";
@@ -20,6 +22,7 @@ export interface SettingsSection {
 
 export interface SettingsActions {
   setUiScale(value: SharedSettingsState["launcher"]["uiScale"]): void;
+  setLanguage(value: LocaleCode): void;
   setMinimizeToTray(value: boolean): void;
   setCaptureAdapter(value: string): void;
   refreshCaptureDevices(): void;
@@ -49,6 +52,7 @@ export interface SettingsActions {
 
 export interface SettingsSectionContext {
   state: SharedSettingsState;
+  t: Translator;
   busy: boolean;
   recordingAction?: KeybindAction;
   actions: SettingsActions;

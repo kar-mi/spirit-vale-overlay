@@ -1,0 +1,12 @@
+{
+  "name": "@svoverlay/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Message catalogs and the translator shared by the Bun backend and every view.",
+  "exports": {
+    "./messages": "./messages.ts",
+    "./locale": "./locale.ts",
+    "./translate": "./translate.ts"
+  }
+}

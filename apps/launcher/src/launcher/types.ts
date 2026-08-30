@@ -1,4 +1,6 @@
 import type { RPCSchema } from "@svoverlay/contracts/rpc";
+import type { LocaleCode } from "@svoverlay/i18n/locale";
+import type { LocalizedText } from "@svoverlay/i18n/messages";
 import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
 import type { UiScale } from "@svoverlay/desktop-platform/ui-scale";
 import type {
@@ -15,6 +17,7 @@ export type CaptureWarningCode = "no-game-udp" | "unrecognized-game-udp" | "fish
 
 export interface CaptureHealthWarning {
   code: CaptureWarningCode;
+  /** English, for the capture logs. Views render `code` through `capture.warning.<code>`. */
   message: string;
   detectedAt: string;
 }
@@ -35,17 +38,18 @@ export interface LogStorageState {
 export interface LauncherState {
   appVersion: string;
   captureStatus: CaptureStatus;
-  statusDetail: string;
+  statusDetail: LocalizedText;
   captureWarning?: CaptureHealthWarning;
-  storageWarning?: string;
+  storageWarning?: LocalizedText;
   logStorage?: LogStorageState;
   npcapAvailability: NpcapAvailability;
-  npcapDetail: string;
+  npcapDetail: LocalizedText;
   npcapVersion?: string;
   selectedAdapter: "auto" | string;
   effectiveAdapter?: string;
   adapterFallback: boolean;
   adapters: CaptureAdapterOption[];
+  language: LocaleCode;
   uiScale: UiScale;
   minimizeToTray: boolean;
   resetMeterOnMapChange: boolean;
@@ -59,6 +63,7 @@ export interface LauncherState {
 
 export type SettingsSectionId =
   | "general"
+  | "language"
   | "network"
   | "overlay"
   | "combat"
@@ -103,6 +108,7 @@ export type LauncherSettingsRpc = {
     getState: { params: Record<string, never>; response: SharedSettingsState };
     setCaptureAdapter: { params: { deviceName: string | null }; response: SharedSettingsState };
     setUiScale: { params: { uiScale: UiScale }; response: SharedSettingsState };
+    setLanguage: { params: { language: LocaleCode }; response: SharedSettingsState };
     setMinimizeToTray: { params: { minimizeToTray: boolean }; response: SharedSettingsState };
     setResetMeterOnMapChange: { params: { resetMeterOnMapChange: boolean }; response: SharedSettingsState };
     setResetGoldOnMapChange: { params: { resetGoldOnMapChange: boolean }; response: SharedSettingsState };

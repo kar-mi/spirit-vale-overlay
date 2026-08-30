@@ -37,17 +37,17 @@ describe("central capture coordinator", () => {
       expect(capture.listenerCount("udpPacket")).toBe(0);
       await Bun.sleep(15);
       expect(coordinator.state().captureWarning?.code).toBe("unrecognized-game-udp");
-      expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map or re-log if recently launched).");
+      expect(coordinator.state().statusDetail.code).toBe("capture.status.waitingOnData");
 
       capture.liteNet(liteNetPacket(new Date(), Buffer.from("litenet-only")));
       expect(capture.listenerCount("liteNetPacket")).toBe(0);
       expect(coordinator.state().captureWarning).toBeUndefined();
       await Bun.sleep(15);
       expect(coordinator.state().captureWarning?.code).toBe("fishnet-decode-stalled");
-      expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map or re-log if recently launched).");
+      expect(coordinator.state().statusDetail.code).toBe("capture.status.waitingOnData");
 
       capture.packet(authenticatedPacket(1, "test-connection"));
-      expect(coordinator.state()).toMatchObject({ captureStatus: "capturing", statusDetail: "Capture Active" });
+      expect(coordinator.state()).toMatchObject({ captureStatus: "capturing", statusDetail: { code: "capture.status.active" } });
       expect(coordinator.state().captureWarning).toBeUndefined();
 
       expect(reports.map((report) => report.details?.["Capture stage"])).toEqual(["udp", "litenet"]);
@@ -134,17 +134,17 @@ describe("central capture coordinator", () => {
 
       expect(coordinator.state()).toEqual({
         captureStatus: "capturing",
-        statusDetail: "Capture Active - Waiting on data (change channel/map or re-log if recently launched).",
+        statusDetail: { code: "capture.status.waitingOnData" },
       });
 
       capture.packet(authenticatedPacket(1, "test-connection"));
-      expect(coordinator.state().statusDetail).toBe("Capture Active");
+      expect(coordinator.state().statusDetail.code).toBe("capture.status.active");
 
       capture.target("waiting");
-      expect(coordinator.state().statusDetail).toBe("Capture Active - Game not running");
+      expect(coordinator.state().statusDetail.code).toBe("capture.status.gameNotRunning");
 
       capture.target("active", [4242]);
-      expect(coordinator.state().statusDetail).toBe("Capture Active - Waiting on data (change channel/map or re-log if recently launched).");
+      expect(coordinator.state().statusDetail.code).toBe("capture.status.waitingOnData");
       capture.target("active", [4242]);
       await Bun.sleep(15);
       expect(errorReports.map((report) => report.title)).toEqual(["Game was not detected for capture"]);
@@ -1151,7 +1151,7 @@ describe("central capture coordinator", () => {
       await coordinator.start();
       expect(coordinator.state()).toEqual({
         captureStatus: "unavailable",
-        statusDetail: "Unable to capture data, please close the app and restart it",
+        statusDetail: { code: "capture.status.restartRequired" },
       });
       expect(errorReports).toEqual([{
         title: "Capture could not start",

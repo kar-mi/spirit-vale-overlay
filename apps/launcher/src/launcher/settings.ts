@@ -1,11 +1,13 @@
 import path from "node:path";
 
+import { DEFAULT_LOCALE, normalizeLocale, type LocaleCode } from "@svoverlay/i18n/locale";
 import { normalizeUiScale, type UiScale } from "@svoverlay/desktop-platform/ui-scale";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
 import { loadJsonSettings, writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
 
 export interface LauncherSettings {
   captureAdapter: "auto" | string;
+  language: LocaleCode;
   uiScale: UiScale;
   minimizeToTray: boolean;
   resetMeterOnMapChange: boolean;
@@ -15,6 +17,7 @@ export interface LauncherSettings {
 
 const defaults: LauncherSettings = {
   captureAdapter: "auto",
+  language: DEFAULT_LOCALE,
   uiScale: 1,
   minimizeToTray: false,
   resetMeterOnMapChange: true,
@@ -31,6 +34,7 @@ export async function loadLauncherSettings(file = defaultSettingsFile()): Promis
       captureAdapter: typeof candidate.captureAdapter === "string" && candidate.captureAdapter.trim()
         ? candidate.captureAdapter
         : defaults.captureAdapter,
+      language: normalizeLocale(candidate.language),
       uiScale: normalizeUiScale(candidate.uiScale),
       minimizeToTray: candidate.minimizeToTray === true,
       resetMeterOnMapChange: typeof candidate.resetMeterOnMapChange === "boolean"

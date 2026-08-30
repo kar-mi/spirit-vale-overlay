@@ -7,6 +7,8 @@ import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { formatBytes, formatMeasuredAt } from "@svoverlay/ui-kit/format";
+import { DEFAULT_LOCALE } from "@svoverlay/i18n/locale";
+import { createTranslator } from "@svoverlay/i18n/translate";
 import type { LauncherRpc, LauncherState, ToolWindow } from "../../launcher/types.ts";
 
 const DEFAULT_WIDTH = 960;
@@ -46,6 +48,8 @@ function App() {
   };
 
   const next = state.value;
+  // This view's own labels are still English; only backend-produced text is translated so far.
+  const t = createTranslator(next?.language ?? DEFAULT_LOCALE);
   const unavailable = next?.captureStatus === "unavailable";
   const warning = next?.captureWarning !== undefined;
 
@@ -68,10 +72,10 @@ function App() {
       <section class="launcher-content">
         <div class={`capture-status${unavailable ? " is-error" : warning ? " is-warning" : ""}`} aria-live="polite">
           <span class={`status-dot ${unavailable ? "is-err" : warning ? "is-warn" : next?.captureStatus === "capturing" ? "is-ok" : "is-idle"}`} />
-          <div><strong>Central capture</strong><p>{next?.statusDetail ?? "Starting centralized capture…"}</p></div>
+          <div><strong>Central capture</strong><p>{t.text(next?.statusDetail) ?? t("capture.status.starting")}</p></div>
         </div>
 
-        {next?.storageWarning && <div class="banner is-warn" aria-live="polite">{next.storageWarning}</div>}
+        {next?.storageWarning && <div class="banner is-warn" aria-live="polite">{t.text(next.storageWarning)}</div>}
 
         {next?.update && <UpdateNotification version={next.update.version} />}
 

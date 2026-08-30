@@ -1,17 +1,19 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import type { KeybindAction } from "@svoverlay/overlay/app-types";
+import { createTranslator } from "@svoverlay/i18n/translate";
 import type { LauncherSettingsRpc, SharedSettingsState } from "../../launcher/types.ts";
 import { SettingsLayout, type SectionRequest } from "./settings-layout.tsx";
 import type { SettingsActions, SettingsSectionContext } from "./settings-section.ts";
 import { buildBasicSettingsSections } from "./sections/basic-settings.tsx";
 import { buildKeybindSettingsSection } from "./sections/keybind-settings.tsx";
+import { buildLanguageSettingsSection } from "./sections/language-settings.tsx";
 import { buildManageSettingsSection } from "./sections/manage-settings.tsx";
 import { buildMinimapSettingsSection } from "./sections/minimap-settings.tsx";
 import { buildOverlaySettingsSection } from "./sections/overlay-settings.tsx";
@@ -42,6 +44,9 @@ void ensureInitialWindowSize(desktopView.rpc?.request, { width: 560, height: 420
 function App() {
   const [busy, setBusy] = useState(false);
   const next = state.value;
+  const language = next?.launcher.language;
+  // Every index.html ships `lang="en"`; keep the document honest about what it is showing.
+  useEffect(() => { if (language) document.documentElement.lang = language; }, [language]);
   if (!next) return <main class="app-shell" />;
 
   const update = (request: Promise<SharedSettingsState> | undefined): void => {
@@ -52,6 +57,7 @@ function App() {
 
   const actions: SettingsActions = {
     setUiScale: (uiScale) => update(desktopView.rpc?.request.setUiScale({ uiScale })),
+    setLanguage: (language) => update(desktopView.rpc?.request.setLanguage({ language })),
     setMinimizeToTray: (minimizeToTray) => update(desktopView.rpc?.request.setMinimizeToTray({ minimizeToTray })),
     setCaptureAdapter: (value) => update(desktopView.rpc?.request.setCaptureAdapter({ deviceName: value === "auto" ? null : value })),
     refreshCaptureDevices: () => update(desktopView.rpc?.request.refreshCaptureDevices({})),
@@ -81,10 +87,13 @@ function App() {
     beginShortcutCapture: (action) => { void beginShortcutCapture(action); },
     captureShortcut: (action, event) => { void captureShortcut(action, event); },
   };
-  const context: SettingsSectionContext = { state: next, busy, recordingAction: recordingAction.value, actions };
+  const t = createTranslator(next.launcher.language);
+  const context: SettingsSectionContext = { state: next, t, busy, recordingAction: recordingAction.value, actions };
   const basicSections = buildBasicSettingsSections(context);
   const sections = [
-    ...basicSections.slice(0, 2),
+    basicSections[0]!,
+    buildLanguageSettingsSection(context),
+    basicSections[1]!,
     buildOverlaySettingsSection(context),
     basicSections[2]!,
     buildStatusSettingsSection(context),
@@ -95,7 +104,7 @@ function App() {
 
   return <main class="app-shell">
     <TitleBar
-      appTag="Settings"
+      appTag={t("settings.window.tag")}
       minWidth={560}
       minHeight={420}
       getFrame={async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 110, y: 110, width: SETTINGS_DEFAULT_WIDTH, height: SETTINGS_DEFAULT_HEIGHT }}
@@ -104,8 +113,8 @@ function App() {
       onClose={() => void desktopView.rpc?.request.windowAction({ action: "close" })}
     />
     <section class="settings-content">
-      {(next.launcher.storageWarning || next.overlay.shortcutErrors.openLiveDeathLog) && <div class="banner is-warn" aria-live="polite">{next.launcher.storageWarning ?? next.overlay.shortcutErrors.openLiveDeathLog}</div>}
-      <SettingsLayout sections={sections} requestedSection={requestedSection.value} />
+      {(next.launcher.storageWarning || next.overlay.shortcutErrors.openLiveDeathLog) && <div class="banner is-warn" aria-live="polite">{t.text(next.launcher.storageWarning) ?? next.overlay.shortcutErrors.openLiveDeathLog}</div>}
+      <SettingsLayout sections={sections} t={t} requestedSection={requestedSection.value} />
     </section>
   </main>;
 }
