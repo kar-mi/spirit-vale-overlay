@@ -3,6 +3,9 @@ import DesktopRuntime, { BrowserView, BrowserWindow, Screen, Tray, Utils, isDesk
 import { applyRoundedCorners, makeProcessDpiAware, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { getNpcapStatus, listNpcapDevices, resolveCaptureDevice } from "@kar-mi/spirit-vale-tools-capture/capture";
+import { inspectCombatReplaySummary } from "@kar-mi/spirit-vale-tools-combat";
+import { streamSessionPath } from "@kar-mi/spirit-vale-tools-logging";
+import { inspectRewardsReplaySummary } from "@kar-mi/spirit-vale-tools-rewards";
 
 import { createBuildExportWindow } from "@svoverlay/build-export";
 import { createRewardsWindow } from "@svoverlay/rewards";
@@ -43,6 +46,7 @@ import { createReadModelService } from "./read-model-service.ts";
 import { measureLogStorage } from "./log-storage.ts";
 import { createCharacterWindow } from "./character-window.ts";
 import { createDeathLogWindow, createDpsWindow } from "@svoverlay/combat";
+import { readCombatLocations } from "@svoverlay/combat/zone-log";
 import { createOverlayWindow } from "@svoverlay/overlay";
 import { KEYBIND_ACTIONS, type KeybindAction } from "@svoverlay/overlay/app-types";
 import { resolveLocalRoot } from "./paths.ts";
@@ -57,6 +61,7 @@ import { findAvailableUpdate } from "../launcher/update-check.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { HumanReadableErrorLog } from "./human-readable-error-log.ts";
 import { verifyWritableDirectories } from "@svoverlay/desktop-platform/startup-preflight";
+import { loadSessionSummaryJournal, normalizeHistorySessionLimit } from "@svoverlay/desktop-platform/session-summary-journal";
 
 makeProcessDpiAware();
 
@@ -67,6 +72,7 @@ const storagePaths = resolveDesktopStoragePaths({
   logDirectoryOverride: process.env.SPIRIT_VALE_LOG_DIRECTORY,
 });
 const logDirectory = storagePaths.logDirectory;
+let summaryJournalPromise: ReturnType<typeof loadSessionSummaryJournal> | undefined;
 const errorLog = new HumanReadableErrorLog(localRoot);
 const warningLog = new HumanReadableErrorLog(localRoot, "warning.log");
 await verifyWritableDirectories([
@@ -124,6 +130,7 @@ let launcherState: LauncherState = {
   minimizeToTray: settings.minimizeToTray,
   resetMeterOnMapChange: settings.resetMeterOnMapChange,
   resetGoldOnMapChange: settings.resetGoldOnMapChange,
+  pastLogLimit: settings.pastLogLimit,
 };
 let shuttingDown = false;
 let characterStorageWarning: string | undefined;
@@ -178,6 +185,7 @@ const combatWindow = new WindowSlot((onClosed) => createDpsWindow({
   getCharacterState: () => capture.characterState(),
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
   settingsPath: storagePaths.dpsSettingsPath,
+  getHistorySessionLimit: () => settings.pastLogLimit,
   placements,
   onClosed,
   onReset: () => capture.resetSession(),
@@ -216,6 +224,7 @@ const rewardsWindow = new WindowSlot((onClosed) => createRewardsWindow({
   getCharacterState: () => capture.characterState(),
   subscribeCharacter: (listener) => capture.subscribeCharacter(listener),
   settingsPath: storagePaths.rewardsSettingsPath,
+  getHistorySessionLimit: () => settings.pastLogLimit,
   placements,
   onClosed,
   onReset: () => capture.resetSession(),
@@ -266,6 +275,7 @@ const capture = new CaptureCoordinator({
   },
   onBossGravestone: (gravestone) => bossTimers.recordGravestone(gravestone),
   onServerInstance: (instanceId) => bossTimers.setCurrentInstance(instanceId),
+  onSessionEnded: finalizeSessionSummaries,
 });
 characterCache = await loadCharacterCache(storagePaths.characterStatePath);
 capture.setCachedCharacter(activeCharacterSnapshot(characterCache));
@@ -390,6 +400,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       },
       setResetGoldOnMapChange: async ({ resetGoldOnMapChange }) => {
         setResetGoldOnMapChange(resetGoldOnMapChange);
+        return sharedSettingsState();
+      },
+      setPastLogLimit: async ({ pastLogLimit }) => {
+        setPastLogLimit(pastLogLimit);
         return sharedSettingsState();
       },
       refreshCaptureDevices: async () => {
@@ -832,6 +846,14 @@ function setResetGoldOnMapChange(resetGoldOnMapChange: boolean): LauncherState {
   return launcherState;
 }
 
+function setPastLogLimit(pastLogLimit: number): LauncherState {
+  settings.pastLogLimit = normalizeHistorySessionLimit(pastLogLimit);
+  launcherState = { ...launcherState, pastLogLimit: settings.pastLogLimit };
+  launcherSettingsPersistence.schedule(settings);
+  publish();
+  return launcherState;
+}
+
 function rememberOverlayShortcuts(shortcuts: Record<KeybindAction, string>): void {
   const current = launcherState.overlayShortcuts;
   if (current && KEYBIND_ACTIONS.every((action) => current[action] === shortcuts[action])) return;
@@ -913,6 +935,38 @@ function recordStorageWarning(source: string, warning: string | undefined): void
     reason: warning,
     details: { "Storage root": localRoot, "Log directory": logDirectory },
   });
+}
+
+async function finalizeSessionSummaries(sessionId: string): Promise<void> {
+  const journal = await sessionSummaryJournal();
+  const results = await Promise.allSettled([
+    (async () => {
+      const sourcePath = streamSessionPath("combat", sessionId, logDirectory);
+      const result = {
+        ...await inspectCombatReplaySummary(sourcePath),
+        locations: await readCombatLocations(sourcePath),
+      };
+      await journal.append(sessionId, "combat", result);
+    })(),
+    (async () => {
+      const sourcePath = streamSessionPath("rewards", sessionId, logDirectory);
+      await journal.append(sessionId, "rewards", await inspectRewardsReplaySummary(sourcePath));
+    })(),
+  ]);
+  for (const [index, result] of results.entries()) {
+    if (result.status === "fulfilled") continue;
+    const stream = index === 0 ? "combat" : "rewards";
+    errorLog.write({
+      title: `${stream} session summary could not be saved`,
+      reason: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      details: { "Session ID": sessionId, "Log directory": logDirectory },
+    });
+  }
+}
+
+function sessionSummaryJournal(): ReturnType<typeof loadSessionSummaryJournal> {
+  summaryJournalPromise ??= loadSessionSummaryJournal(logDirectory);
+  return summaryJournalPromise;
 }
 
 async function closeAllWindowsAndFlush(): Promise<void> {

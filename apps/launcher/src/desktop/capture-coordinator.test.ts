@@ -1201,10 +1201,12 @@ describe("central capture coordinator", () => {
   test("resetSession rotates combat/rewards into one new session, seeding identities and preserving the reward baseline", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reset-"));
     const capture = new FakeCapture();
+    const endedSessions: string[] = [];
     try {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
+        onSessionEnded: async (sessionId) => { endedSessions.push(sessionId); },
       });
       await coordinator.start();
 
@@ -1223,6 +1225,7 @@ describe("central capture coordinator", () => {
       expect(secondCombat?.sessionId).toBeDefined();
       expect(secondCombat?.sessionId).not.toBe(firstCombat?.sessionId);
       expect(new Set([secondCombat?.sessionId, secondRewards?.sessionId]).size).toBe(1);
+      expect(endedSessions).toEqual([firstCombat!.sessionId]);
 
       const oldCombatRecords = records(await readFile(firstCombat!.path, "utf8"));
       expect(oldCombatRecords.at(-1)).toMatchObject({ type: "combat.lifecycle", data: { state: "stopped" } });
@@ -1240,6 +1243,7 @@ describe("central capture coordinator", () => {
 
       capture.packet(experiencePacket(4, 10, 2n));
       await coordinator.stop();
+      expect(endedSessions).toEqual([firstCombat!.sessionId, secondCombat!.sessionId]);
       const rewardsAfter = records(await readFile(secondRewards!.path, "utf8")) as Array<{ type: string; data: { reward?: string } }>;
       const gainRecord = rewardsAfter.find((record) => record.type === "rewards.unmatched");
       expect(gainRecord?.data.reward).toBe("experience");

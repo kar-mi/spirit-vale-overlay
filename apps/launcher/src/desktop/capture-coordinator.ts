@@ -127,6 +127,7 @@ export interface CaptureCoordinatorOptions {
   onBossGravestone?: (gravestone: BossGravestoneObservation) => void;
   onServerInstance?: (instanceId: string | undefined) => void;
   stallWarningMs?: number;
+  onSessionEnded?: (sessionId: string) => Promise<void>;
 }
 
 export class CaptureCoordinator {
@@ -207,6 +208,7 @@ export class CaptureCoordinator {
   private packetBufferBytes = 0;
   private handoffFailure?: Error;
   private writeMonitor?: ReturnType<typeof setInterval>;
+  private summaryFinalization: Promise<void> = Promise.resolve();
   private readonly loggedMobIdentities = new Map<number, string>();
   private lastLoggedLocation: SpiritValeLocation | undefined;
   private lastObservedMapId: number | undefined;
@@ -505,6 +507,8 @@ export class CaptureCoordinator {
     } catch (error) {
       console.error("[spiritvale-logging]", errorMessage(error));
     }
+    this.scheduleSessionFinalization(session);
+    await this.summaryFinalization;
     this.setStatus("stopped", "Capture stopped");
   }
 
@@ -608,6 +612,7 @@ export class CaptureCoordinator {
       } catch (error) {
         console.error("[spiritvale-logging]", errorMessage(error));
       }
+      this.scheduleSessionFinalization(previousSession);
     } finally {
       // `handoff` stays set until resetSession releases its guard, alongside the buffer drain.
       const handoffFailure = this.handoffFailure;
@@ -617,6 +622,17 @@ export class CaptureCoordinator {
         throw handoffFailure;
       }
     }
+  }
+
+  private scheduleSessionFinalization(session: LogSession | undefined): void {
+    if (!session || !this.options.onSessionEnded) return;
+    this.summaryFinalization = this.summaryFinalization.then(async () => {
+      try {
+        await this.options.onSessionEnded?.(session.id);
+      } catch (error) {
+        console.error("[spiritvale-summary]", `session ${session.id}: ${errorMessage(error)}`);
+      }
+    });
   }
 
   private drainBufferedPackets(): void {

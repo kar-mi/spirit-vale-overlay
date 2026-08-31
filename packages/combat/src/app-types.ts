@@ -12,6 +12,7 @@ import type { DeathLogEntry } from "./death-log.ts";
 import type { SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
 import type { EnemyDamageRow, EnemyOption } from "./enemy-breakdown.ts";
 import type { SpiritValeLocation } from "@svoverlay/desktop-platform/location";
+import type { SessionDateRange } from "@svoverlay/desktop-platform/session-summary-journal";
 
 export type { StatType } from "@svoverlay/ui-kit/stat-type-select";
 import type { StatType } from "@svoverlay/ui-kit/stat-type-select";
@@ -55,6 +56,8 @@ export type DpsAppRpc = {
       getState: { params: Record<string, never>; response: DpsAppState };
       setScreen: { params: { screen: CombatLogScreen }; response: DpsAppState };
       refreshPastSessions: { params: Record<string, never>; response: void };
+      setPastDateRange: { params: SessionDateRange; response: DpsAppState };
+      setPastZones: { params: { zones: string[] }; response: DpsAppState };
       openPastSession: { params: { id: string }; response: void };
       choosePastFile: { params: Record<string, never>; response: void };
       openPastLogFolder: { params: Record<string, never>; response: void };

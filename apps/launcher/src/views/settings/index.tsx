@@ -64,6 +64,7 @@ function App() {
     setOverlayElementDisplay: (id, display) => update(desktopView.rpc?.request.setOverlayElementDisplay({ id, display })),
     setResetMeterOnMapChange: (resetMeterOnMapChange) => update(desktopView.rpc?.request.setResetMeterOnMapChange({ resetMeterOnMapChange })),
     setResetGoldOnMapChange: (resetGoldOnMapChange) => update(desktopView.rpc?.request.setResetGoldOnMapChange({ resetGoldOnMapChange })),
+    setPastLogLimit: (pastLogLimit) => update(desktopView.rpc?.request.setPastLogLimit({ pastLogLimit })),
     setPersonalDpsMode: (mode) => update(desktopView.rpc?.request.setPersonalDpsMode({ mode })),
     setMinimapEnabled: (enabled) => update(desktopView.rpc?.request.setMinimapEnabled({ enabled })),
     setMinimapRarityFilter: (rarity) => update(desktopView.rpc?.request.setMinimapRarityFilter({ rarity })),
