@@ -126,6 +126,36 @@ Allow Spirit Vale Overlay on **Private networks** if Windows Firewall prompts. T
 - If monitors were added, removed, rearranged, or had their display scaling changed, reset the overlay layout in Settings or test with fresh settings.
 - Run the game in borderless-windowed mode as a diagnostic if the overlay is not visible over exclusive fullscreen.
 
+### Move an unreachable tile by editing `overlay.json`
+
+If a tile is visible but cannot be clicked or dragged, especially near the bottom or right edge of a high-resolution display, move it closer to the upper-left corner by editing its saved coordinates.
+
+1. Fully exit Spirit Vale Overlay, including its tray icon. `overlay.json` cannot be edited while the app is open.
+2. Find `overlay.json`:
+   - Portable release: `<extracted folder>\data\settings\overlay.json`
+   - AppData mode: `%APPDATA%\Spirit Vale Overlay\data\settings\overlay.json`
+3. Copy `overlay.json` to `overlay.json.backup` before editing it.
+4. Open the original file in a text editor and find the tile under the top-level `elements` object. Tile keys include `partyRanking`, `dpsChart`, `personalDps`, `health`, `mana`, `characterXp`, `jobXp`, `weight`, `buffs`, `debuffs`, `toggles`, `xpTracker`, `goldTracker`, `xpChart`, `lootToast`, `minimap`, and `bossTimers`.
+5. Change only that tile's `x` and `y` values to `100`. These coordinates are measured from the upper-left corner of the display assigned to the tile.
+
+For example, the existing Party DPS Meter entry should contain values like these after editing (this is only an excerpt; do not replace the whole file with it):
+
+```json
+"partyRanking": {
+  "enabled": true,
+  "opacity": 0.4,
+  "x": 100,
+  "y": 100,
+  "width": 251,
+  "height": 425,
+  "display": "2560x1600@0,0"
+}
+```
+
+Keep the existing `display`, `width`, and `height` values. Save the file without adding comments or removing commas, restart the app, unlock the overlay with `Ctrl+Shift+1`, and reposition the recovered tile normally. Repeat the coordinate change for any other unreachable tile.
+
+If the app rejects the edited file or the overlay resets unexpectedly, exit the app and restore `overlay.json.backup` as `overlay.json`.
+
 ## Logs and information to include in a bug report
 
 Reproduce the problem once, close the app, and collect the newest relevant files.
