@@ -1,4 +1,4 @@
-import { appendFile, lstat, mkdir, open, readFile, readdir, stat } from "node:fs/promises";
+import { appendFile, lstat, mkdir, open, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -11,6 +11,18 @@ import {
 import { isSpiritValeLocation, spiritValeLocationKey, type SpiritValeLocation } from "./location.ts";
 
 export type SummaryStream = Extract<LogStream, "combat" | "rewards">;
+
+export const DEFAULT_HISTORY_SESSION_LIMIT = 100;
+export const MAX_HISTORY_SESSION_LIMIT = 100_000;
+
+export function normalizeHistorySessionLimit(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_HISTORY_SESSION_LIMIT;
+  return Math.min(MAX_HISTORY_SESSION_LIMIT, Math.max(DEFAULT_HISTORY_SESSION_LIMIT, Math.round(value)));
+}
+
+export function historyScanLimit(limit: number): number {
+  return normalizeHistorySessionLimit(limit) * 3;
+}
 
 export interface SessionSummaryResult {
   recordCount: number;
@@ -44,18 +56,11 @@ export interface SessionSummaryJournal {
 }
 
 interface IndexedEntry {
-  createdAt?: string;
+  createdAt: string;
   result?: SessionSummaryResult;
 }
 
-interface LegacySummaryLine extends SessionSummaryResult {
-  schemaVersion: 1;
-  sessionId: string;
-  stream: SummaryStream;
-}
-
 interface SummaryLine extends SessionSummaryResult {
-  schemaVersion: 2;
   kind: "summary";
   sessionId: string;
   stream: SummaryStream;
@@ -63,7 +68,6 @@ interface SummaryLine extends SessionSummaryResult {
 }
 
 interface SessionLine {
-  schemaVersion: 2;
   kind: "session";
   sessionId: string;
   stream: SummaryStream;
@@ -71,20 +75,12 @@ interface SessionLine {
 }
 
 interface DeletedLine {
-  schemaVersion: 2;
   kind: "deleted";
   sessionId: string;
   stream: SummaryStream;
 }
 
-interface CheckpointLine {
-  schemaVersion: 2;
-  kind: "checkpoint";
-  stream: SummaryStream;
-  directoryMtimeMs: number;
-}
-
-type JournalLine = LegacySummaryLine | SummaryLine | SessionLine | DeletedLine | CheckpointLine;
+type JournalLine = SummaryLine | SessionLine | DeletedLine;
 
 const HEADER_PROBE_BYTES = 4096;
 const journals = new Map<string, Promise<SessionSummaryJournal>>();
@@ -102,8 +98,8 @@ export function loadSessionSummaryJournal(logDirectory: string): Promise<Session
 async function openSessionSummaryJournal(logDirectory: string): Promise<SessionSummaryJournal> {
   const journalPath = path.join(logDirectory, "summary.jsonl");
   const entries = new Map<string, IndexedEntry>();
-  const checkpoints = new Map<SummaryStream, number>();
-  await readJournal(journalPath, entries, checkpoints);
+  const appliedLines = await readJournal(journalPath, entries);
+  if (appliedLines > entries.size) await rewriteJournal(journalPath, entries);
   const calculations = new Map<string, Promise<SessionSummaryResult>>();
   const reconciliations = new Map<SummaryStream, Promise<void>>();
   let writes = Promise.resolve();
@@ -112,8 +108,8 @@ async function openSessionSummaryJournal(logDirectory: string): Promise<SessionS
     if (lines.length === 0) return;
     const write = writes.then(async () => {
       await mkdir(path.dirname(journalPath), { recursive: true });
-      await appendFile(journalPath, `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`, "utf8");
-      for (const line of lines) applyLine(line, entries, checkpoints);
+      await appendFile(journalPath, lines.map((line) => `${JSON.stringify(line)}\n`).join(""), "utf8");
+      for (const line of lines) applyLine(line, entries);
     });
     writes = write.catch(() => undefined);
     await write;
@@ -125,15 +121,12 @@ async function openSessionSummaryJournal(logDirectory: string): Promise<SessionS
       reconciliation = (async () => {
         await writes;
         const directory = streamCategoryDirectory(stream, logDirectory);
-        let directoryInfo;
+        let directoryEntries;
         try {
-          directoryInfo = await stat(directory);
+          directoryEntries = await readdir(directory, { withFileTypes: true });
         } catch {
           return;
         }
-        if (checkpoints.get(stream) === directoryInfo.mtimeMs) return;
-
-        const directoryEntries = await readdir(directory, { withFileTypes: true });
         const fileNames = new Set(directoryEntries
           .filter((entry) => entry.isFile() && !entry.isSymbolicLink() && entry.name.endsWith(".jsonl"))
           .map((entry) => entry.name));
@@ -142,17 +135,16 @@ async function openSessionSummaryJournal(logDirectory: string): Promise<SessionS
         for (const [key] of entries) {
           const parsed = parseEntryKey(key);
           if (parsed.stream !== stream || fileNames.has(`${parsed.sessionId}.jsonl`)) continue;
-          lines.push({ schemaVersion: 2, kind: "deleted", sessionId: parsed.sessionId, stream });
+          lines.push({ kind: "deleted", sessionId: parsed.sessionId, stream });
         }
 
         for (const fileName of fileNames) {
           const sessionId = fileName.slice(0, -".jsonl".length);
-          if (entries.get(entryKey(sessionId, stream))?.createdAt !== undefined) continue;
+          if (entries.has(entryKey(sessionId, stream))) continue;
           const createdAt = await readSessionCreatedAt(path.join(directory, fileName), sessionId, stream);
           if (createdAt === undefined) continue;
-          lines.push({ schemaVersion: 2, kind: "session", sessionId, stream, createdAt });
+          lines.push({ kind: "session", sessionId, stream, createdAt });
         }
-        lines.push({ schemaVersion: 2, kind: "checkpoint", stream, directoryMtimeMs: directoryInfo.mtimeMs });
         await appendLines(lines);
       })().finally(() => reconciliations.delete(stream));
       reconciliations.set(stream, reconciliation);
@@ -171,7 +163,7 @@ async function openSessionSummaryJournal(logDirectory: string): Promise<SessionS
 
   return {
     get(sessionId, stream) {
-      return copyResult(entries.get(entryKey(sessionId, stream))?.result);
+      return pickResult(entries.get(entryKey(sessionId, stream))?.result);
     },
     knownLocations(stream) {
       const seen = new Map<string, SpiritValeLocation>();
@@ -192,7 +184,7 @@ async function openSessionSummaryJournal(logDirectory: string): Promise<SessionS
       const toMs = validBoundary(options.dateRange?.toMs);
       return [...entries.entries()].flatMap(([key, entry]) => {
         const parsed = parseEntryKey(key);
-        if (parsed.stream !== stream || entry.createdAt === undefined || entry.result?.recordCount === 0) return [];
+        if (parsed.stream !== stream || entry.result?.recordCount === 0) return [];
         const createdAtMs = Date.parse(entry.createdAt);
         if (!Number.isFinite(createdAtMs)
           || (fromMs !== undefined && createdAtMs < fromMs)
@@ -203,7 +195,7 @@ async function openSessionSummaryJournal(logDirectory: string): Promise<SessionS
           createdAt: entry.createdAt,
           path: filePath,
           active: current?.sessionId === parsed.sessionId && path.resolve(current.path) === path.resolve(filePath),
-          ...(entry.result === undefined ? {} : { cachedSummary: copyResult(entry.result) }),
+          ...(entry.result === undefined ? {} : { cachedSummary: pickResult(entry.result) }),
         }];
       }).sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt) || right.id.localeCompare(left.id))
         .slice(0, options.limit);
@@ -211,7 +203,7 @@ async function openSessionSummaryJournal(logDirectory: string): Promise<SessionS
     async ensure(sessionId, stream, options) {
       const key = entryKey(sessionId, stream);
       const cached = entries.get(key)?.result;
-      if (cached !== undefined) return copyResult(cached)!;
+      if (cached !== undefined) return pickResult(cached);
 
       let calculation = calculations.get(key);
       if (!calculation) {
@@ -219,14 +211,14 @@ async function openSessionSummaryJournal(logDirectory: string): Promise<SessionS
         calculations.set(key, calculation);
       }
       const result = await calculation;
-      if (options.persist) {
+      if (options.persist && entries.get(key)?.result === undefined) {
         const createdAt = await resolvedCreatedAt(sessionId, stream, options.createdAt);
         const write = writes.then(async () => {
           if (entries.get(key)?.result !== undefined) return;
-          const line = summaryLine(sessionId, stream, createdAt, result);
           await mkdir(path.dirname(journalPath), { recursive: true });
+          const line = summaryLine(sessionId, stream, createdAt, result);
           await appendFile(journalPath, `${JSON.stringify(line)}\n`, "utf8");
-          applyLine(line, entries, checkpoints);
+          applyLine(line, entries);
         });
         writes = write.catch(() => undefined);
         await write;
@@ -240,52 +232,57 @@ async function openSessionSummaryJournal(logDirectory: string): Promise<SessionS
   };
 }
 
-async function readJournal(
-  journalPath: string,
-  entries: Map<string, IndexedEntry>,
-  checkpoints: Map<SummaryStream, number>,
-): Promise<void> {
+async function readJournal(journalPath: string, entries: Map<string, IndexedEntry>): Promise<number> {
   let contents: string;
   try {
     contents = await readFile(journalPath, "utf8");
   } catch {
-    return;
+    return 0;
   }
+  let applied = 0;
   for (const line of contents.split(/\r?\n/)) {
     if (!line.trim()) continue;
     try {
       const value: unknown = JSON.parse(line);
-      if (isJournalLine(value)) applyLine(value, entries, checkpoints);
+      if (isJournalLine(value)) {
+        applyLine(value, entries);
+        applied += 1;
+      }
     } catch {
       // A malformed or interrupted append must not hide the remaining valid history.
     }
   }
+  return applied;
 }
 
-function applyLine(
-  line: JournalLine,
-  entries: Map<string, IndexedEntry>,
-  checkpoints: Map<SummaryStream, number>,
-): void {
-  if (line.schemaVersion === 2 && line.kind === "checkpoint") {
-    checkpoints.set(line.stream, line.directoryMtimeMs);
-    return;
+async function rewriteJournal(journalPath: string, entries: Map<string, IndexedEntry>): Promise<void> {
+  const lines = [...entries.entries()].map(([key, entry]) => {
+    const { stream, sessionId } = parseEntryKey(key);
+    return entry.result === undefined
+      ? { kind: "session", sessionId, stream, createdAt: entry.createdAt } satisfies SessionLine
+      : summaryLine(sessionId, stream, entry.createdAt, entry.result);
+  });
+  try {
+    await mkdir(path.dirname(journalPath), { recursive: true });
+    const temporary = `${journalPath}.${process.pid}.tmp`;
+    await writeFile(temporary, lines.map((line) => `${JSON.stringify(line)}\n`).join(""), "utf8");
+    await rename(temporary, journalPath);
+  } catch {
+    // Compaction is best-effort; an uncompacted journal still loads correctly.
   }
+}
+
+function applyLine(line: JournalLine, entries: Map<string, IndexedEntry>): void {
   const key = entryKey(line.sessionId, line.stream);
-  if (line.schemaVersion === 2 && line.kind === "deleted") {
+  if (line.kind === "deleted") {
     entries.delete(key);
     return;
   }
-  const previous = entries.get(key) ?? {};
-  if (line.schemaVersion === 2 && line.kind === "session") {
-    entries.set(key, { ...previous, createdAt: line.createdAt });
+  if (line.kind === "session") {
+    entries.set(key, { createdAt: line.createdAt, result: entries.get(key)?.result });
     return;
   }
-  entries.set(key, {
-    ...previous,
-    ...(line.schemaVersion === 2 ? { createdAt: line.createdAt } : {}),
-    result: resultFromLine(line),
-  });
+  entries.set(key, { createdAt: line.createdAt, result: pickResult(line) });
 }
 
 async function readSessionCreatedAt(filePath: string, sessionId: string, stream: SummaryStream): Promise<string | undefined> {
@@ -312,7 +309,6 @@ async function readSessionCreatedAt(filePath: string, sessionId: string, stream:
 
 function summaryLine(sessionId: string, stream: SummaryStream, createdAt: string, result: SessionSummaryResult): SummaryLine {
   return {
-    schemaVersion: 2,
     kind: "summary",
     sessionId,
     stream,
@@ -323,19 +319,14 @@ function summaryLine(sessionId: string, stream: SummaryStream, createdAt: string
   };
 }
 
-function resultFromLine(line: LegacySummaryLine | SummaryLine): SessionSummaryResult {
+function pickResult(source: SessionSummaryResult): SessionSummaryResult;
+function pickResult(source: SessionSummaryResult | undefined): SessionSummaryResult | undefined;
+function pickResult(source: SessionSummaryResult | undefined): SessionSummaryResult | undefined {
+  if (source === undefined) return undefined;
   return {
-    recordCount: line.recordCount,
-    summary: line.summary,
-    ...(line.locations === undefined ? {} : { locations: line.locations }),
-  };
-}
-
-function copyResult(result: SessionSummaryResult | undefined): SessionSummaryResult | undefined {
-  return result === undefined ? undefined : {
-    recordCount: result.recordCount,
-    summary: result.summary,
-    ...(result.locations === undefined ? {} : { locations: result.locations }),
+    recordCount: source.recordCount,
+    summary: source.summary,
+    ...(source.locations === undefined ? {} : { locations: source.locations }),
   };
 }
 
@@ -354,10 +345,6 @@ function validBoundary(value: number | undefined): number | undefined {
 
 function isJournalLine(value: unknown): value is JournalLine {
   if (!isRecord(value) || (value["stream"] !== "combat" && value["stream"] !== "rewards")) return false;
-  if (value["schemaVersion"] === 1) return isSummaryFields(value)
-    && typeof value["sessionId"] === "string" && Boolean(value["sessionId"].trim());
-  if (value["schemaVersion"] !== 2 || typeof value["kind"] !== "string") return false;
-  if (value["kind"] === "checkpoint") return typeof value["directoryMtimeMs"] === "number" && Number.isFinite(value["directoryMtimeMs"]);
   if (typeof value["sessionId"] !== "string" || !value["sessionId"].trim()) return false;
   if (value["kind"] === "deleted") return true;
   if (value["kind"] === "session") return isIsoDate(value["createdAt"]);

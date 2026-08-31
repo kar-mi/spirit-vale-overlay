@@ -131,10 +131,7 @@ body {
 .picker-intro h1 { margin: 0; font-size: 18px; font-weight: 500; }
 .picker-intro p { margin: 5px 0 0; color: var(--on-surface-variant); font-size: 12px; }
 .picker-status.is-error { color: var(--error); }
-.past-date-filter { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--outline-variant); border-radius: var(--shape-md); background: var(--surface-container-low); }
-.date-filter-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--on-surface); font-size: 12px; font-weight: 500; }
-.date-filter-summary { overflow: hidden; color: var(--on-surface-variant); font-size: 11px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-.past-date-filter { position: relative; }
+.past-date-filter { position: relative; display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--outline-variant); border-radius: var(--shape-md); background: var(--surface-container-low); }
 .custom-date-range { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: end; gap: 8px; }
 .date-boundary { position: relative; display: grid; grid-template-columns: minmax(130px, 1fr) minmax(150px, auto); gap: 6px; }
 .date-boundary-label { grid-column: 1 / -1; color: var(--on-surface-variant); font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }

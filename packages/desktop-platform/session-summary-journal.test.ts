@@ -11,14 +11,15 @@ afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-test("loads valid rows, ignores malformed rows, and lets the latest duplicate win", async () => {
+test("loads valid rows, ignores malformed rows, lets the latest duplicate win, and compacts", async () => {
   const root = await temporaryRoot();
-  await writeFile(path.join(root, "summary.jsonl"), [
-    JSON.stringify({ schemaVersion: 1, sessionId: "one", stream: "combat", recordCount: 2, summary: "old" }),
+  const journalPath = path.join(root, "summary.jsonl");
+  await writeFile(journalPath, [
+    line({ kind: "summary", sessionId: "one", stream: "combat", createdAt: "2026-01-01T00:00:00.000Z", recordCount: 2, summary: "old" }),
     "{interrupted",
-    JSON.stringify({ schemaVersion: 1, sessionId: "one", stream: "rewards", recordCount: 3, summary: "rewards" }),
-    JSON.stringify({ schemaVersion: 1, sessionId: "one", stream: "combat", recordCount: 4, summary: "new", locations: [{ kind: "map", mapId: 17 }] }),
-    JSON.stringify({ schemaVersion: 99, sessionId: "ignored", stream: "combat", recordCount: 1, summary: "invalid" }),
+    line({ kind: "summary", sessionId: "one", stream: "rewards", createdAt: "2026-01-01T00:00:00.000Z", recordCount: 3, summary: "rewards" }),
+    line({ kind: "summary", sessionId: "one", stream: "combat", createdAt: "2026-01-01T00:00:00.000Z", recordCount: 4, summary: "new", locations: [{ kind: "map", mapId: 17 }] }),
+    line({ kind: "nonsense", sessionId: "ignored", stream: "combat" }),
     "",
   ].join("\n"), "utf8");
 
@@ -26,6 +27,7 @@ test("loads valid rows, ignores malformed rows, and lets the latest duplicate wi
   expect(journal.get("one", "combat")).toEqual({ recordCount: 4, summary: "new", locations: [{ kind: "map", mapId: 17 }] });
   expect(journal.get("one", "rewards")).toEqual({ recordCount: 3, summary: "rewards" });
   expect(journal.get("ignored", "combat")).toBeUndefined();
+  expect((await readFile(journalPath, "utf8")).trim().split(/\r?\n/)).toHaveLength(2);
 });
 
 test("calculates missing completed summaries once and appends them for reuse", async () => {
@@ -84,18 +86,14 @@ test("indexes session metadata once and applies date ranges before the limit", a
   });
   expect(listed.map(({ id }) => id)).toEqual(["middle"]);
   expect(listed[0]?.cachedSummary).toEqual({ recordCount: 1, summary: "middle" });
-
-  const persisted = await readFile(path.join(root, "summary.jsonl"), "utf8");
-  expect(persisted).toContain('"kind":"checkpoint"');
 });
 
-test("reconciles externally added and removed files when the stream directory changes", async () => {
+test("reconciles externally added and removed files on every listing", async () => {
   const root = await temporaryRoot();
   await writeSession(root, "first", "2026-01-01T00:00:00.000Z");
   const journal = await loadSessionSummaryJournal(root);
   expect((await journal.list("combat", { limit: 10 })).map(({ id }) => id)).toEqual(["first"]);
 
-  await Bun.sleep(10);
   await writeSession(root, "second", "2026-02-01T00:00:00.000Z");
   await rm(path.join(root, "combat", "first.jsonl"));
   expect((await journal.list("combat", { limit: 10 })).map(({ id }) => id)).toEqual(["second"]);
@@ -107,10 +105,10 @@ test("reconciles externally added and removed files when the stream directory ch
 test("collects distinct cached zones per stream", async () => {
   const root = await temporaryRoot();
   await writeFile(path.join(root, "summary.jsonl"), [
-    JSON.stringify({ schemaVersion: 1, sessionId: "one", stream: "combat", recordCount: 2, summary: "a", locations: [{ kind: "map", mapId: 17 }, { kind: "eternalTower", floor: 3 }] }),
-    JSON.stringify({ schemaVersion: 1, sessionId: "two", stream: "combat", recordCount: 2, summary: "b", locations: [{ kind: "map", mapId: 17 }, { kind: "eternalTower" }] }),
-    JSON.stringify({ schemaVersion: 1, sessionId: "three", stream: "rewards", recordCount: 2, summary: "c", locations: [{ kind: "map", mapId: 99 }] }),
-    JSON.stringify({ schemaVersion: 1, sessionId: "four", stream: "combat", recordCount: 2, summary: "d" }),
+    line({ kind: "summary", sessionId: "one", stream: "combat", createdAt: "2026-01-01T00:00:00.000Z", recordCount: 2, summary: "a", locations: [{ kind: "map", mapId: 17 }, { kind: "eternalTower", floor: 3 }] }),
+    line({ kind: "summary", sessionId: "two", stream: "combat", createdAt: "2026-01-01T00:00:00.000Z", recordCount: 2, summary: "b", locations: [{ kind: "map", mapId: 17 }, { kind: "eternalTower" }] }),
+    line({ kind: "summary", sessionId: "three", stream: "rewards", createdAt: "2026-01-01T00:00:00.000Z", recordCount: 2, summary: "c", locations: [{ kind: "map", mapId: 99 }] }),
+    line({ kind: "summary", sessionId: "four", stream: "combat", createdAt: "2026-01-01T00:00:00.000Z", recordCount: 2, summary: "d" }),
   ].join("\n"), "utf8");
 
   const journal = await loadSessionSummaryJournal(root);
@@ -121,6 +119,10 @@ test("collects distinct cached zones per stream", async () => {
   ]);
   expect(journal.knownLocations("rewards")).toEqual([{ kind: "map", mapId: 99 }]);
 });
+
+function line(value: Record<string, unknown>): string {
+  return JSON.stringify(value);
+}
 
 async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), "spiritvale-summary-journal-"));

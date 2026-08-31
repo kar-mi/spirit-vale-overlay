@@ -3,7 +3,7 @@ import path from "node:path";
 import { normalizeUiScale, type UiScale } from "@svoverlay/desktop-platform/ui-scale";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
 import { loadJsonSettings, writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
-import { DEFAULT_HISTORY_SESSION_LIMIT, normalizeHistorySessionLimit } from "@svoverlay/desktop-platform/history-limit";
+import { DEFAULT_HISTORY_SESSION_LIMIT, normalizeHistorySessionLimit } from "@svoverlay/desktop-platform/session-summary-journal";
 
 export interface LauncherSettings {
   captureAdapter: "auto" | string;

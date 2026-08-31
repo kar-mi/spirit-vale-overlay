@@ -61,8 +61,7 @@ import { findAvailableUpdate } from "../launcher/update-check.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { HumanReadableErrorLog } from "./human-readable-error-log.ts";
 import { verifyWritableDirectories } from "@svoverlay/desktop-platform/startup-preflight";
-import { normalizeHistorySessionLimit } from "@svoverlay/desktop-platform/history-limit";
-import { loadSessionSummaryJournal } from "@svoverlay/desktop-platform/session-summary-journal";
+import { loadSessionSummaryJournal, normalizeHistorySessionLimit } from "@svoverlay/desktop-platform/session-summary-journal";
 
 makeProcessDpiAware();
 
