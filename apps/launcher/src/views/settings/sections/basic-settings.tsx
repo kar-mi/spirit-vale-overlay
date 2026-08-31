@@ -1,6 +1,7 @@
 import { UI_SCALE_VALUES } from "@svoverlay/desktop-platform/ui-scale";
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
 import type { NpcapAvailability } from "../../../launcher/types.ts";
+import { useEffect, useState } from "preact/hooks";
 import type { SettingsSection, SettingsSectionContext } from "../settings-section.ts";
 import type { MessageKey } from "@svoverlay/i18n/messages";
 
@@ -13,6 +14,36 @@ const NPCAP_AVAILABILITY_KEYS: Record<NpcapAvailability, MessageKey> = {
   "admin-only": "npcap.availability.adminOnly",
   error: "npcap.availability.error",
 };
+
+function PastLogLimitInput({ value, disabled, onChange }: { value: number; disabled: boolean; onChange: (next: number) => void }) {
+  const [text, setText] = useState(() => String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setText(String(value));
+  }, [value, focused]);
+
+  const commit = () => {
+    setFocused(false);
+    const parsed = Number(text);
+    if (Number.isFinite(parsed)) onChange(parsed);
+    else setText(String(value));
+  };
+
+  return <input
+    class="input settings-number"
+    type="number"
+    min="100"
+    max="100000"
+    step="1"
+    value={text}
+    disabled={disabled}
+    onFocus={() => setFocused(true)}
+    onInput={(event) => setText(event.currentTarget.value)}
+    onBlur={commit}
+    onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+  />;
+}
 
 export function buildBasicSettingsSections({ state, busy, actions, t }: SettingsSectionContext): SettingsSection[] {
   const { launcher, overlay } = state;
@@ -82,6 +113,11 @@ export function buildBasicSettingsSections({ state, busy, actions, t }: Settings
           id: "reset-gold",
           searchText: t("settings.combat.resetGold.search"),
           content: <><label class="settings-check"><input type="checkbox" checked={launcher.resetGoldOnMapChange} disabled={busy} onChange={(event) => actions.setResetGoldOnMapChange(event.currentTarget.checked)} /><span>{t("settings.combat.resetGold.label")}</span></label><p class="settings-hint">{t("settings.combat.resetGold.hint")}</p></>,
+        },
+        {
+          id: "past-log-limit",
+          searchText: t("settings.combat.pastLogLimit.search"),
+          content: <><label class="settings-field"><span>{t("settings.combat.pastLogLimit.label")}</span><PastLogLimitInput value={launcher.pastLogLimit} disabled={busy} onChange={actions.setPastLogLimit} /></label><p class="settings-hint">{t("settings.combat.pastLogLimit.hint")}</p></>,
         },
         {
           id: "personal-dps",

@@ -1,15 +1,13 @@
 import { countedMessage, message, translate } from "@svoverlay/i18n/backend";
 import type { MessageKey } from "@svoverlay/i18n/messages";
-import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
-import { listLogSessions } from "@kar-mi/spirit-vale-tools-logging";
 import type { LogStream } from "@kar-mi/spirit-vale-tools-logging";
 import { applyRoundedCorners, setWindowIcon } from "./win32.ts";
 import { appIconPath } from "./window-publish.ts";
-import { loadSessionSummaryCache } from "./session-summary-cache.ts";
-import type { SessionSummaryCache } from "./session-summary-cache.ts";
+import { historyScanLimit, loadSessionSummaryJournal, normalizeHistorySessionLimit } from "./session-summary-journal.ts";
+import type { SessionSummaryJournal } from "./session-summary-journal.ts";
 import { registerUiScaleWindow, scaledSize } from "./ui-scale-window.ts";
 import { registerLocaleWindow } from "./locale-window.ts";
 import type { WindowPlacementStore } from "./window-placement.ts";
@@ -18,14 +16,12 @@ import type { SessionPickerRpc, SessionPickerState } from "./session-picker-type
 import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "./window-lifecycle.ts";
 
-const MAX_RECENT_SESSIONS = 100;
-const MAX_SCANNED_SESSIONS = MAX_RECENT_SESSIONS * 3;
-
 export interface SessionPickerOptions {
   logDirectory: string;
   stream: Extract<LogStream, "combat" | "rewards">;
   titleKey: MessageKey;
   summarize: (path: string) => Promise<{ recordCount: number; summary: string }>;
+  getSessionLimit?: () => number;
   loadReplay: (path: string) => Promise<void>;
   placements?: WindowPlacementStore;
   placementKey?: string;
@@ -44,13 +40,11 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
   let state: SessionPickerState = loadingState(options.titleKey);
   let paths = new Map<string, string>();
   let refreshSequence = 0;
-  let cachePromise: Promise<SessionSummaryCache> | undefined;
+  let journalPromise: Promise<SessionSummaryJournal> | undefined;
 
-  function summaryCache(): Promise<SessionSummaryCache> {
-    cachePromise ??= loadSessionSummaryCache(
-      path.join(options.logDirectory, "cache", `${options.stream}-summary-cache.json`),
-    );
-    return cachePromise;
+  function summaryJournal(): Promise<SessionSummaryJournal> {
+    journalPromise ??= loadSessionSummaryJournal(options.logDirectory);
+    return journalPromise;
   }
 
   const rpc = BrowserView.defineRPC<SessionPickerRpc>({
@@ -130,17 +124,21 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
     state = loadingState(options.titleKey);
     publish();
     try {
-      const cache = await summaryCache();
-      const sessions = await listLogSessions(options.stream, options.logDirectory, MAX_SCANNED_SESSIONS);
+      const journal = await summaryJournal();
+      const sessionLimit = normalizeHistorySessionLimit(options.getSessionLimit?.());
+      const sessions = await journal.list(options.stream, { limit: historyScanLimit(sessionLimit) });
       const nextPaths = new Map<string, string>();
       const items: SessionPickerState["sessions"] = [];
-      for (let offset = 0; offset < sessions.length && items.length < MAX_RECENT_SESSIONS; offset += 10) {
-        const inspected = await Promise.all(sessions.slice(offset, offset + 10).map(async (session) => {
+      for (let offset = 0; offset < sessions.length && items.length < sessionLimit; offset += 10) {
+        const batch = sessions.slice(offset, offset + 10);
+        const publishProgress = batch.some((session) => session.cachedSummary === undefined);
+        const inspected = await Promise.all(batch.map(async (session) => {
           try {
-            const info = await stat(session.path);
-            const cached = cache.get(session.path, info);
-            const result = cached ?? await options.summarize(session.path);
-            if (!cached) cache.set(session.path, info, result);
+            const result = session.cachedSummary ?? await journal.ensure(session.id, options.stream, {
+              persist: !session.active,
+              createdAt: session.createdAt,
+              calculate: () => options.summarize(session.path),
+            });
             if (result.recordCount === 0) return undefined;
             nextPaths.set(session.id, session.path);
             return { id: session.id, createdAt: session.createdAt, summary: result.summary, active: session.active, disabled: false };
@@ -154,9 +152,10 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
           }
         }));
         for (const item of inspected) {
-          if (item && items.length < MAX_RECENT_SESSIONS) items.push(item);
+          if (item && items.length < sessionLimit) items.push(item);
         }
         if (sequence !== refreshSequence) return;
+        if (!publishProgress) continue;
         paths = nextPaths;
         state = {
           title: message(options.titleKey),
@@ -176,12 +175,6 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         sessions: items,
         canOpenLogFolder: options.openLogFolder !== undefined,
       };
-      try {
-        cache.prune(new Set(sessions.map((session) => path.resolve(session.path))));
-        await cache.save();
-      } catch {
-        // A cache write failure should not prevent showing the freshly scanned list.
-      }
     } catch {
       if (sequence !== refreshSequence) return;
       paths.clear();

@@ -13,6 +13,18 @@ export function sameSpiritValeLocation(
     : left.floor === (right as { kind: "eternalTower"; floor?: number }).floor;
 }
 
+export function spiritValeLocationKey(location: SpiritValeLocation): string {
+  return location.kind === "map" ? `map:${location.mapId}` : `tower:${location.floor ?? "unknown"}`;
+}
+
+export function matchesZoneKeys(
+  locations: readonly SpiritValeLocation[] | undefined,
+  selected: readonly string[],
+): boolean {
+  if (selected.length === 0) return true;
+  return locations?.some((location) => selected.includes(spiritValeLocationKey(location))) ?? false;
+}
+
 export function isSpiritValeLocation(value: unknown): value is SpiritValeLocation {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const candidate = value as Record<string, unknown>;

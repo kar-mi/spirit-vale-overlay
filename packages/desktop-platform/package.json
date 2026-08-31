@@ -21,7 +21,7 @@
     "./location": "./location.ts",
     "./session-picker": "./session-picker.ts",
     "./session-picker-types": "./session-picker-types.ts",
-    "./session-summary-cache": "./session-summary-cache.ts",
+    "./session-summary-journal": "./session-summary-journal.ts",
     "./disposable-store": "./disposable-store.ts",
     "./locale-window": "./locale-window.ts"
   },

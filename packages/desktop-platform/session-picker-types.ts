@@ -1,6 +1,7 @@
 import type { RPCSchema } from "@svoverlay/contracts/rpc";
 import type { LocalizedText } from "@svoverlay/i18n/messages";
 import type { SpiritValeLocation } from "./location.ts";
+import type { SessionDateRange } from "./session-summary-journal.ts";
 
 export interface SessionPickerItem {
   id: string;
@@ -12,12 +13,19 @@ export interface SessionPickerItem {
   disabled: boolean;
 }
 
+export interface SessionZoneFilter {
+  selected: string[];
+  available: SpiritValeLocation[];
+}
+
 export interface SessionPickerState {
   title: LocalizedText;
   canOpenLogFolder: boolean;
   status: "loading" | "ready" | "error";
   statusDetail: LocalizedText;
   sessions: SessionPickerItem[];
+  dateRange?: SessionDateRange;
+  zoneFilter?: SessionZoneFilter;
 }
 
 export type SessionPickerRpc = {

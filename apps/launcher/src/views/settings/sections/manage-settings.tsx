@@ -23,6 +23,9 @@ export function buildManageSettingsSection({ state, actions, t }: SettingsSectio
         id: "settings-folder",
         searchText: t("settings.manage.folder.search"),
         content: <>
+          <div class="banner is-error" role="note" aria-label={t("settings.manage.folder.warningLabel")}>
+            {t("settings.manage.folder.warning")}
+          </div>
           <div class="settings-field">
             <span>{t("settings.manage.folder.label")}</span>
             <p class="data-folder-path" title={state.dataFolder}>{state.dataFolder}</p>

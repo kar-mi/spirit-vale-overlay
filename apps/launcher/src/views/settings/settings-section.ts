@@ -35,6 +35,7 @@ export interface SettingsActions {
   setOverlayElementDisplay(id: OverlayElementId, display: string): void;
   setResetMeterOnMapChange(value: boolean): void;
   setResetGoldOnMapChange(value: boolean): void;
+  setPastLogLimit(value: number): void;
   setPersonalDpsMode(value: SharedSettingsState["overlay"]["personalDpsMode"]): void;
   setMinimapEnabled(value: boolean): void;
   setMinimapRarityFilter(value: number): void;

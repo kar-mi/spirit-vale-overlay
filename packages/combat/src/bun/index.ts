@@ -1,6 +1,5 @@
 import { localized, localizedCount, sameLocalizedText, type LocalizedText } from "@svoverlay/i18n/messages";
 import path from "node:path";
-import { stat } from "node:fs/promises";
 
 import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
 import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
@@ -13,7 +12,6 @@ import {
   LiveCombatService,
 } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
-import { listLogSessions } from "@kar-mi/spirit-vale-tools-logging";
 import type { CombatEncounterRecord, DpsLogBatch } from "@kar-mi/spirit-vale-tools-combat";
 import { loadDpsAppSettings, saveDpsAppSettings } from "../settings.ts";
 import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppStatus } from "../app-types.ts";
@@ -23,21 +21,19 @@ import { registerUiScaleWindow, scaledSize, unscaledSize } from "@svoverlay/desk
 import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
 import { visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DPS_WINDOW_MINIMUM_HEIGHT, DPS_WINDOW_MINIMUM_WIDTH } from "../window-size.ts";
-import { loadSessionSummaryCache, type SessionSummaryCache } from "@svoverlay/desktop-platform/session-summary-cache";
-import type { SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
+import { historyScanLimit, loadSessionSummaryJournal, normalizeHistorySessionLimit, type SessionDateRange, type SessionSummaryJournal } from "@svoverlay/desktop-platform/session-summary-journal";
+import type { SessionPickerState, SessionZoneFilter } from "@svoverlay/desktop-platform/session-picker-types";
 import { activeDeathLogSource } from "../combat-navigation.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { detectedPersonalName } from "../personal-character.ts";
 import type { CombatReadModelSource } from "../combat-history.ts";
 import { locationFromLogData, readCombatLocations } from "../zone-log.ts";
-import type { SpiritValeLocation } from "@svoverlay/desktop-platform/location";
+import { matchesZoneKeys, spiritValeLocationKey, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
 const MINIMUM_WIDTH = DPS_WINDOW_MINIMUM_WIDTH;
 const MINIMUM_HEIGHT = DPS_WINDOW_MINIMUM_HEIGHT;
 const LIVE_LOG_OVERRIDE_POLL_MS = 1_000;
 const LIVE_METER_TICK_MS = 1_000;
-const MAX_RECENT_SESSIONS = 100;
-const MAX_SCANNED_SESSIONS = MAX_RECENT_SESSIONS * 3;
 const TIMELINE_POINTS = 720;
 export interface DpsWindowOptions {
   logDirectory: string;
@@ -45,6 +41,7 @@ export interface DpsWindowOptions {
   getCharacterState: () => CharacterViewState;
   subscribeCharacter: (listener: (state: CharacterViewState) => void) => () => void;
   settingsPath?: string;
+  getHistorySessionLimit?: () => number;
   placements?: WindowPlacementStore;
   onClosed?: () => void;
   onReset?: () => Promise<void>;
@@ -78,10 +75,13 @@ let lastEventWallMs: number | undefined;
 let currentLiveLogPath: string | undefined;
 let currentLiveLocation: SpiritValeLocation | undefined;
 let screen: CombatLogScreen = "live";
+let pastDateRange: SessionDateRange = {};
+let pastZones: string[] = [];
+let pastZoneOptions: SpiritValeLocation[] = [];
 let past: DpsAppState["past"] = { view: "selector", picker: pastPickerLoadingState() };
 let pastPaths = new Map<string, string>();
 let pastRefreshSequence = 0;
-let pastSummaryCachePromise: Promise<SessionSummaryCache> | undefined;
+let pastSummaryJournalPromise: Promise<SessionSummaryJournal> | undefined;
 const lifecycle = new DisposableStore();
 
 const settingsPersistence = new SafeSaveQueue<typeof settings>({
@@ -112,6 +112,16 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
         return appState();
       },
       refreshPastSessions: () => { void refreshPastSessions(); },
+      setPastDateRange: (dateRange) => {
+        pastDateRange = normalizeDateRange(dateRange);
+        if (screen === "past" && past.view === "selector") void refreshPastSessions();
+        return appState();
+      },
+      setPastZones: ({ zones }) => {
+        pastZones = normalizeZones(zones);
+        if (screen === "past" && past.view === "selector") void refreshPastSessions();
+        return appState();
+      },
       openPastSession: ({ id }) => {
         const selectedPath = pastPaths.get(id);
         if (selectedPath) void openPastPath(selectedPath);
@@ -438,12 +448,10 @@ function setScreen(nextScreen: CombatLogScreen): void {
   void refreshPastSessions();
 }
 
-function pastSummaryCache(): Promise<SessionSummaryCache> {
-  const cache = pastSummaryCachePromise ?? loadSessionSummaryCache(
-    path.join(options.logDirectory, "cache", "combat-summary-cache.json"),
-  );
-  pastSummaryCachePromise = cache;
-  return cache;
+function pastSummaryJournal(): Promise<SessionSummaryJournal> {
+  const journal = pastSummaryJournalPromise ?? loadSessionSummaryJournal(options.logDirectory);
+  pastSummaryJournalPromise = journal;
+  return journal;
 }
 
 async function refreshPastSessions(): Promise<void> {
@@ -452,21 +460,26 @@ async function refreshPastSessions(): Promise<void> {
   past = { view: "selector", picker: pastPickerLoadingState() };
   publish();
   try {
-    const cache = await pastSummaryCache();
-    const sessions = await listLogSessions("combat", options.logDirectory, MAX_SCANNED_SESSIONS);
+    const journal = await pastSummaryJournal();
+    pastZoneOptions = journal.knownLocations("combat");
+    const sessionLimit = normalizeHistorySessionLimit(options.getHistorySessionLimit?.());
+    const sessions = await journal.list("combat", { limit: historyScanLimit(sessionLimit), dateRange: pastDateRange });
     const nextPaths = new Map<string, string>();
     const items: SessionPickerState["sessions"] = [];
-    for (let offset = 0; offset < sessions.length && items.length < MAX_RECENT_SESSIONS; offset += 10) {
-      const inspected = await Promise.all(sessions.slice(offset, offset + 10).map(async (session) => {
+    for (let offset = 0; offset < sessions.length && items.length < sessionLimit; offset += 10) {
+      const batch = sessions.slice(offset, offset + 10);
+      const publishProgress = batch.some((session) => session.cachedSummary === undefined);
+      const inspected = await Promise.all(batch.map(async (session) => {
         try {
-          const info = await stat(session.path);
-          const cached = cache.get(session.path, info);
-          const result = cached ?? {
-            ...await inspectCombatReplaySummary(session.path),
-            locations: await readCombatLocations(session.path),
-          };
-          if (!cached) cache.set(session.path, info, result);
-          if (result.recordCount === 0) return undefined;
+          const result = session.cachedSummary ?? await journal.ensure(session.id, "combat", {
+            persist: !session.active,
+            createdAt: session.createdAt,
+            calculate: async () => ({
+              ...await inspectCombatReplaySummary(session.path),
+              locations: await readCombatLocations(session.path),
+            }),
+          });
+          if (result.recordCount === 0 || !matchesZoneKeys(result.locations, pastZones)) return undefined;
           nextPaths.set(session.id, session.path);
           return {
             id: session.id,
@@ -477,6 +490,7 @@ async function refreshPastSessions(): Promise<void> {
             disabled: false,
           };
         } catch {
+          if (pastZones.length > 0) return undefined;
           return {
             id: session.id,
             createdAt: session.createdAt,
@@ -487,9 +501,10 @@ async function refreshPastSessions(): Promise<void> {
         }
       }));
       for (const item of inspected) {
-        if (item && items.length < MAX_RECENT_SESSIONS) items.push(item);
+        if (item && items.length < sessionLimit) items.push(item);
       }
       if (sequence !== pastRefreshSequence || screen !== "past" || past.view !== "selector") return;
+      if (!publishProgress) continue;
       pastPaths = nextPaths;
       past = {
         view: "selector",
@@ -499,29 +514,30 @@ async function refreshPastSessions(): Promise<void> {
           statusDetail: localizedCount("sessions.scanning", items.length),
           sessions: items.slice(),
           canOpenLogFolder: true,
+          dateRange: pastDateRange,
+          zoneFilter: pastZoneFilter(),
         },
       };
       publish();
     }
     if (sequence !== pastRefreshSequence || screen !== "past" || past.view !== "selector") return;
     pastPaths = nextPaths;
+    pastZoneOptions = journal.knownLocations("combat");
     past = {
       view: "selector",
       picker: {
         title: localized("sessions.title.pastCombatLogs"),
         status: "ready",
-        statusDetail: items.length === 0 ? localized("sessions.none") : localizedCount("sessions.recent", items.length),
+        statusDetail: items.length === 0
+          ? localized(hasPastFilters() ? "sessions.noneFiltered" : "sessions.none")
+          : localizedCount(hasPastFilters() ? "sessions.matching" : "sessions.recent", items.length),
         sessions: items,
         canOpenLogFolder: true,
+        dateRange: pastDateRange,
+        zoneFilter: pastZoneFilter(),
       },
     };
     publish();
-    try {
-      cache.prune(new Set(sessions.map((session) => path.resolve(session.path))));
-      await cache.save();
-    } catch {
-      // Fresh results remain usable if the optional summary cache cannot be saved.
-    }
   } catch {
     if (sequence !== pastRefreshSequence || screen !== "past" || past.view !== "selector") return;
     pastPaths.clear();
@@ -533,6 +549,8 @@ async function refreshPastSessions(): Promise<void> {
         statusDetail: localized("sessions.scanFailed"),
         sessions: [],
         canOpenLogFolder: true,
+        dateRange: pastDateRange,
+        zoneFilter: pastZoneFilter(),
       },
     };
     publish();
@@ -570,7 +588,29 @@ function pastPickerLoadingState(): SessionPickerState {
     statusDetail: localized("sessions.scanningRecent"),
     sessions: [],
     canOpenLogFolder: true,
+    dateRange: pastDateRange,
+    zoneFilter: pastZoneFilter(),
   };
+}
+
+function pastZoneFilter(): SessionZoneFilter {
+  return { selected: pastZones, available: pastZoneOptions };
+}
+
+function hasPastFilters(): boolean {
+  return pastDateRange.fromMs !== undefined || pastDateRange.toMs !== undefined || pastZones.length > 0;
+}
+
+function normalizeDateRange(value: SessionDateRange): SessionDateRange {
+  return {
+    ...(typeof value.fromMs === "number" && Number.isFinite(value.fromMs) ? { fromMs: value.fromMs } : {}),
+    ...(typeof value.toMs === "number" && Number.isFinite(value.toMs) ? { toMs: value.toMs } : {}),
+  };
+}
+
+function normalizeZones(value: readonly string[]): string[] {
+  const known = new Set(pastZoneOptions.map(spiritValeLocationKey));
+  return [...new Set(value)].filter((zone) => known.has(zone));
 }
 
 function updateLiveStatus(nextStatus: DpsAppStatus, detail: LocalizedText): boolean {
