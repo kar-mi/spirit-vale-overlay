@@ -1,6 +1,6 @@
 import type { SessionPickerItem, SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
 import type { SessionDateRange } from "@svoverlay/desktop-platform/session-summary-journal";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { formatZone, formatZoneSummary } from "../zone-label.ts";
 
 type DateBoundary = "from" | "to";
@@ -30,7 +30,6 @@ export function PastSessionPanel({
   const [toTime, setToTime] = useState(() => localTimeParts(state.dateRange?.toMs).time);
   const [toMeridiem, setToMeridiem] = useState<Meridiem>(() => localTimeParts(state.dateRange?.toMs).meridiem);
   const [openCalendar, setOpenCalendar] = useState<DateBoundary | undefined>();
-  const dateFilterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setFromDate(localDateValue(state.dateRange?.fromMs));
@@ -44,7 +43,12 @@ export function PastSessionPanel({
   useEffect(() => {
     if (openCalendar === undefined) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (event.target instanceof Node && !dateFilterRef.current?.contains(event.target)) setOpenCalendar(undefined);
+      if (!(event.target instanceof Element)) {
+        setOpenCalendar(undefined);
+        return;
+      }
+      if (event.target.closest(".desktop-calendar, .date-field")) return;
+      setOpenCalendar(undefined);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpenCalendar(undefined);
@@ -87,7 +91,7 @@ export function PastSessionPanel({
         </div>
         <button class="btn" type="button" onClick={onRefresh}>Refresh</button>
       </div>
-      <div ref={dateFilterRef} class="past-date-filter" aria-label="Filter past sessions by date and time">
+      <div class="past-date-filter" aria-label="Filter past sessions by date and time">
         <div class="date-filter-heading">
           <span>Date range</span>
           <span class="date-filter-summary">{dateRangeSummary(state.dateRange)}</span>
