@@ -54,8 +54,8 @@ test("normalizes the past log limit to a safe integer range", async () => {
   await writeFile(settingsPath, JSON.stringify({ pastLogLimit: 10 }), "utf8");
   expect((await loadLauncherSettings(settingsPath)).pastLogLimit).toBe(100);
 
-  await writeFile(settingsPath, JSON.stringify({ pastLogLimit: 50_000 }), "utf8");
-  expect((await loadLauncherSettings(settingsPath)).pastLogLimit).toBe(5_000);
+  await writeFile(settingsPath, JSON.stringify({ pastLogLimit: 200_000 }), "utf8");
+  expect((await loadLauncherSettings(settingsPath)).pastLogLimit).toBe(100_000);
 
   await writeFile(settingsPath, JSON.stringify({ pastLogLimit: "all" }), "utf8");
   expect((await loadLauncherSettings(settingsPath)).pastLogLimit).toBe(100);

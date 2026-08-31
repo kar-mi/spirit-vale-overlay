@@ -28,7 +28,7 @@ function PastLogLimitInput({ value, disabled, onChange }: { value: number; disab
     class="input settings-number"
     type="number"
     min="100"
-    max="5000"
+    max="100000"
     step="1"
     value={text}
     disabled={disabled}
@@ -106,7 +106,7 @@ export function buildBasicSettingsSections({ state, busy, actions }: SettingsSec
         {
           id: "past-log-limit",
           searchText: "Past logs rewards replays history session count limit",
-          content: <><label class="settings-field"><span>Past sessions shown</span><PastLogLimitInput value={launcher.pastLogLimit} disabled={busy} onChange={actions.setPastLogLimit} /></label><p class="settings-hint">Applies to Combat Past logs and Rewards Replays. Choose between 100 and 5000 sessions.</p></>,
+          content: <><label class="settings-field"><span>Past sessions shown</span><PastLogLimitInput value={launcher.pastLogLimit} disabled={busy} onChange={actions.setPastLogLimit} /></label><p class="settings-hint">Applies to Combat Past logs and Rewards Replays. Choose between 100 and 100,000 sessions.</p></>,
         },
         {
           id: "personal-dps",
