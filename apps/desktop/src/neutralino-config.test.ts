@@ -96,6 +96,20 @@ describe("Neutralino configuration", () => {
     expect(runtimeSource).toContain("--window-use-saved-state=false");
   });
 
+  test("keeps transparent overlay geometry owned by Neutralino", async () => {
+    const [runtimeSource, viewSource, win32Source] = await Promise.all([
+      Bun.file(`${import.meta.dir}/frontend/runtime.ts`).text(),
+      Bun.file(`${import.meta.dir}/frontend/view.ts`).text(),
+      Bun.file(`${import.meta.dir}/backend/win32.ts`).text(),
+    ]);
+
+    expect(runtimeSource).toContain("options.restoreFrameOnAttach === true || this.transparent");
+    expect(runtimeSource).toContain("setOverlayWindowVisible(pid, visible)");
+    expect(runtimeSource).not.toContain("setOverlayWindowVisible(pid, visible, this.frame)");
+    expect(viewSource).toContain("result = await neutralinoWindow.setSize({ width, height })");
+    expect(win32Source).not.toContain("GetWindowRect");
+  });
+
   test("packages the default browser favicon from the application icon", async () => {
     const buildSource = await Bun.file(`${import.meta.dir}/build.ts`).text();
     expect(buildSource).toContain('path.join(resources, "favicon.ico")');
