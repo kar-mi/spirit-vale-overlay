@@ -104,6 +104,9 @@ function App() {
       onClose={() => void desktopView.rpc?.request.windowAction({ action: "close" })}
     />
     <section class="settings-content">
+      <div class="banner is-error" role="note" aria-label="Warning">
+        Do not edit JSON settings while the app is open; those changes will not be saved. Use the Settings window, or close the app before editing the settings files.
+      </div>
       {(next.launcher.storageWarning || next.overlay.shortcutErrors.openLiveDeathLog) && <div class="banner is-warn" aria-live="polite">{next.launcher.storageWarning ?? next.overlay.shortcutErrors.openLiveDeathLog}</div>}
       <SettingsLayout sections={sections} requestedSection={requestedSection.value} />
     </section>

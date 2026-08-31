@@ -413,6 +413,7 @@ button { cursor: pointer; }
 .banner.is-info { background: var(--secondary-container); color: var(--on-secondary-container); }
 .banner.is-info .btn { border-color: transparent; background: var(--primary); color: var(--on-primary); }
 .banner.is-warn { background: var(--warning-container); color: var(--on-warning-container); }
+.banner.is-error { background: var(--error-container); color: var(--on-error-container); }
 
 /* ---- inputs (outlined text fields) ---- */
 
