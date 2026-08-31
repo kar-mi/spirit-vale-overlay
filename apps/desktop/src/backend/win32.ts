@@ -56,7 +56,6 @@ export async function configureOverlayWindow(pid: number, clickThrough: boolean)
 export function setOverlayWindowVisible(
   pid: number,
   visible: boolean,
-  bounds?: { x: number; y: number; width: number; height: number },
 ): boolean {
   if (process.platform !== "win32") return false;
   const handle = findWindowHandle(pid);
@@ -65,38 +64,11 @@ export function setOverlayWindowVisible(
     const user32 = dlopen("user32", {
       ShowWindow: { args: [FFIType.ptr, FFIType.i32], returns: FFIType.bool },
       IsWindowVisible: { args: [FFIType.ptr], returns: FFIType.bool },
-      GetWindowRect: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.bool },
-      SetWindowPos: {
-        args: [FFIType.ptr, FFIType.ptr, FFIType.i32, FFIType.i32, FFIType.i32, FFIType.i32, FFIType.u32],
-        returns: FFIType.bool,
-      },
     });
     const SW_HIDE = 0;
     const SW_SHOWNOACTIVATE = 4;
-    if (visible && bounds) {
-      const SWP_NOZORDER = 0x4;
-      const SWP_NOACTIVATE = 0x10;
-      const SWP_SHOWWINDOW = 0x40;
-      user32.symbols.SetWindowPos(
-        handle,
-        null,
-        bounds.x,
-        bounds.y,
-        bounds.width,
-        bounds.height,
-        SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW,
-      );
-    } else {
-      user32.symbols.ShowWindow(handle, visible ? SW_SHOWNOACTIVATE : SW_HIDE);
-    }
-    if (Boolean(user32.symbols.IsWindowVisible(handle)) !== visible) return false;
-    if (visible && bounds) {
-      const rect = new Int32Array(4);
-      if (!user32.symbols.GetWindowRect(handle, ptr(rect))) return false;
-      return rect[0] === bounds.x && rect[1] === bounds.y
-        && rect[2]! - rect[0]! === bounds.width && rect[3]! - rect[1]! === bounds.height;
-    }
-    return true;
+    user32.symbols.ShowWindow(handle, visible ? SW_SHOWNOACTIVATE : SW_HIDE);
+    return Boolean(user32.symbols.IsWindowVisible(handle)) === visible;
   } catch {
     return false;
   }

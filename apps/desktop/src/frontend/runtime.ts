@@ -206,7 +206,7 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
   private closed = false;
   private desiredVisible: boolean;
   private clickThrough = false;
-  private restoreFrameOnAttach: boolean;
+  private synchronizeFrameOnAttach: boolean;
   private readonly rpc: RpcInstance<Schema, "bun">;
 
   constructor(options: WindowOptions<Schema>) {
@@ -217,7 +217,9 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
     this.transparent = options.transparent === true;
     this.resizable = options.resizable;
     this.desiredVisible = options.hidden !== true;
-    this.restoreFrameOnAttach = options.restoreFrameOnAttach === true;
+    // Transparent Neutralino windows need one authoritative resize after their WebView connects.
+    // This keeps WebView2's rendered and interactive bounds aligned with the native window.
+    this.synchronizeFrameOnAttach = options.restoreFrameOnAttach === true || this.transparent;
     this.rpc = options.rpc;
     this.id = options.url.includes("launcherview") ? "launcher" : `${viewName(options.url)}-${++nextWindowId}`;
     this.webview = new RuntimeWebview(this);
@@ -294,8 +296,8 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
   private async applyNativeState(): Promise<void> {
     const pid = this.session?.processId;
     if (!pid) return;
-    if (this.restoreFrameOnAttach) {
-      this.restoreFrameOnAttach = false;
+    if (this.synchronizeFrameOnAttach) {
+      this.synchronizeFrameOnAttach = false;
       await this.command("setBounds", this.frame).catch(() => {});
     }
     await this.command("setAlwaysOnTop", { enabled: this.alwaysOnTop }).catch(() => {});
@@ -309,7 +311,7 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
   private async applyVisibility(visible: boolean): Promise<void> {
     const pid = this.session?.processId;
     if (this.transparent && pid) {
-      setOverlayWindowVisible(pid, visible, this.frame);
+      setOverlayWindowVisible(pid, visible);
       return;
     }
     await this.command(visible ? "show" : "hide").catch(() => {});

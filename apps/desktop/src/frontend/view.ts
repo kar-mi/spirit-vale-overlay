@@ -345,9 +345,11 @@ async function executeWindowCommand(socket: WebSocket, id: number, method: strin
         const y = Number(value?.["y"]);
         const width = Number(value?.["width"]);
         const height = Number(value?.["height"]);
-        const [position, size] = await Promise.all([neutralinoWindow.getPosition(), neutralinoWindow.getSize()]);
+        const position = await neutralinoWindow.getPosition();
         if (x !== position.x || y !== position.y) await neutralinoWindow.move(x, y);
-        if (width !== size.width || height !== size.height) result = await neutralinoWindow.setSize({ width, height });
+        // Always set the size so Neutralino refreshes the WebView2 controller bounds, even when
+        // the outer HWND already reports the requested dimensions.
+        result = await neutralinoWindow.setSize({ width, height });
         break;
       }
       case "getBounds": {
