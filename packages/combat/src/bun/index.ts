@@ -21,13 +21,13 @@ import { visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/
 import { DPS_WINDOW_MINIMUM_HEIGHT, DPS_WINDOW_MINIMUM_WIDTH } from "../window-size.ts";
 import { historyScanLimit, normalizeHistorySessionLimit } from "@svoverlay/desktop-platform/history-limit";
 import { loadSessionSummaryJournal, type SessionDateRange, type SessionSummaryJournal } from "@svoverlay/desktop-platform/session-summary-journal";
-import type { SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
+import type { SessionPickerState, SessionZoneFilter } from "@svoverlay/desktop-platform/session-picker-types";
 import { activeDeathLogSource } from "../combat-navigation.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { detectedPersonalName } from "../personal-character.ts";
 import type { CombatReadModelSource } from "../combat-history.ts";
 import { locationFromLogData, readCombatLocations } from "../zone-log.ts";
-import type { SpiritValeLocation } from "@svoverlay/desktop-platform/location";
+import { matchesZoneKeys, spiritValeLocationKey, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 
 const MINIMUM_WIDTH = DPS_WINDOW_MINIMUM_WIDTH;
 const MINIMUM_HEIGHT = DPS_WINDOW_MINIMUM_HEIGHT;
@@ -73,6 +73,8 @@ let currentLiveLogPath: string | undefined;
 let currentLiveLocation: SpiritValeLocation | undefined;
 let screen: CombatLogScreen = "live";
 let pastDateRange: SessionDateRange = {};
+let pastZones: string[] = [];
+let pastZoneOptions: SpiritValeLocation[] = [];
 let past: DpsAppState["past"] = { view: "selector", picker: pastPickerLoadingState() };
 let pastPaths = new Map<string, string>();
 let pastRefreshSequence = 0;
@@ -109,6 +111,11 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
       refreshPastSessions: () => { void refreshPastSessions(); },
       setPastDateRange: (dateRange) => {
         pastDateRange = normalizeDateRange(dateRange);
+        if (screen === "past" && past.view === "selector") void refreshPastSessions();
+        return appState();
+      },
+      setPastZones: ({ zones }) => {
+        pastZones = normalizeZones(zones);
         if (screen === "past" && past.view === "selector") void refreshPastSessions();
         return appState();
       },
@@ -450,6 +457,7 @@ async function refreshPastSessions(): Promise<void> {
   publish();
   try {
     const journal = await pastSummaryJournal();
+    pastZoneOptions = journal.knownLocations("combat");
     const sessionLimit = normalizeHistorySessionLimit(options.getHistorySessionLimit?.());
     const sessions = await journal.list("combat", { limit: historyScanLimit(sessionLimit), dateRange: pastDateRange });
     const nextPaths = new Map<string, string>();
@@ -467,7 +475,7 @@ async function refreshPastSessions(): Promise<void> {
               locations: await readCombatLocations(session.path),
             }),
           });
-          if (result.recordCount === 0) return undefined;
+          if (result.recordCount === 0 || !matchesZoneKeys(result.locations, pastZones)) return undefined;
           nextPaths.set(session.id, session.path);
           return {
             id: session.id,
@@ -478,6 +486,7 @@ async function refreshPastSessions(): Promise<void> {
             disabled: false,
           };
         } catch {
+          if (pastZones.length > 0) return undefined;
           return {
             id: session.id,
             createdAt: session.createdAt,
@@ -502,23 +511,26 @@ async function refreshPastSessions(): Promise<void> {
           sessions: items.slice(),
           canOpenLogFolder: true,
           dateRange: pastDateRange,
+          zoneFilter: pastZoneFilter(),
         },
       };
       publish();
     }
     if (sequence !== pastRefreshSequence || screen !== "past" || past.view !== "selector") return;
     pastPaths = nextPaths;
+    pastZoneOptions = journal.knownLocations("combat");
     past = {
       view: "selector",
       picker: {
         title: "Past combat logs",
         status: "ready",
         statusDetail: items.length === 0
-          ? (pastDateRange.fromMs !== undefined || pastDateRange.toMs !== undefined ? "No sessions match the selected date range." : "No managed sessions found.")
-          : `${items.length} session${items.length === 1 ? "" : "s"}${pastDateRange.fromMs !== undefined || pastDateRange.toMs !== undefined ? " in the selected range" : ""}`,
+          ? (hasPastFilters() ? "No sessions match the selected filters." : "No managed sessions found.")
+          : `${items.length} session${items.length === 1 ? "" : "s"}${hasPastFilters() ? " matching the selected filters" : ""}`,
         sessions: items,
         canOpenLogFolder: true,
         dateRange: pastDateRange,
+        zoneFilter: pastZoneFilter(),
       },
     };
     publish();
@@ -534,6 +546,7 @@ async function refreshPastSessions(): Promise<void> {
         sessions: [],
         canOpenLogFolder: true,
         dateRange: pastDateRange,
+        zoneFilter: pastZoneFilter(),
       },
     };
     publish();
@@ -572,7 +585,16 @@ function pastPickerLoadingState(): SessionPickerState {
     sessions: [],
     canOpenLogFolder: true,
     dateRange: pastDateRange,
+    zoneFilter: pastZoneFilter(),
   };
+}
+
+function pastZoneFilter(): SessionZoneFilter {
+  return { selected: pastZones, available: pastZoneOptions };
+}
+
+function hasPastFilters(): boolean {
+  return pastDateRange.fromMs !== undefined || pastDateRange.toMs !== undefined || pastZones.length > 0;
 }
 
 function normalizeDateRange(value: SessionDateRange): SessionDateRange {
@@ -580,6 +602,11 @@ function normalizeDateRange(value: SessionDateRange): SessionDateRange {
     ...(typeof value.fromMs === "number" && Number.isFinite(value.fromMs) ? { fromMs: value.fromMs } : {}),
     ...(typeof value.toMs === "number" && Number.isFinite(value.toMs) ? { toMs: value.toMs } : {}),
   };
+}
+
+function normalizeZones(value: readonly string[]): string[] {
+  const known = new Set(pastZoneOptions.map(spiritValeLocationKey));
+  return [...new Set(value)].filter((zone) => known.has(zone));
 }
 
 function updateLiveStatus(nextStatus: DpsAppStatus, detail: string): boolean {

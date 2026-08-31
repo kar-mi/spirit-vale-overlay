@@ -1,5 +1,7 @@
+import { spiritValeLocationKey, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
 import type { SessionPickerItem, SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
 import type { SessionDateRange } from "@svoverlay/desktop-platform/session-summary-journal";
+import { CheckboxMultiSelect, type CheckboxMultiSelectOption } from "@svoverlay/ui-kit/checkbox-multi-select";
 import { useEffect, useState } from "preact/hooks";
 import { formatZone, formatZoneSummary } from "../zone-label.ts";
 
@@ -13,6 +15,7 @@ interface PastSessionPanelProps {
   onChooseFile(): void;
   onOpenLogFolder(): void;
   onDateRangeChange(value: SessionDateRange): void;
+  onZonesChange(zones: string[]): void;
 }
 
 export function PastSessionPanel({
@@ -22,6 +25,7 @@ export function PastSessionPanel({
   onChooseFile,
   onOpenLogFolder,
   onDateRangeChange,
+  onZonesChange,
 }: PastSessionPanelProps) {
   const [fromDate, setFromDate] = useState(() => localDateValue(state.dateRange?.fromMs));
   const [fromTime, setFromTime] = useState(() => localTimeParts(state.dateRange?.fromMs).time);
@@ -30,6 +34,9 @@ export function PastSessionPanel({
   const [toTime, setToTime] = useState(() => localTimeParts(state.dateRange?.toMs).time);
   const [toMeridiem, setToMeridiem] = useState<Meridiem>(() => localTimeParts(state.dateRange?.toMs).meridiem);
   const [openCalendar, setOpenCalendar] = useState<DateBoundary | undefined>();
+
+  const zoneOptions = zoneOptionsOf(state.zoneFilter?.available ?? []);
+  const selectedZones = new Set(state.zoneFilter?.selected ?? []);
 
   useEffect(() => {
     setFromDate(localDateValue(state.dateRange?.fromMs));
@@ -70,13 +77,14 @@ export function PastSessionPanel({
     });
   };
 
-  const clearRange = () => {
+  const clearFilters = () => {
     setFromDate("");
     setFromTime("");
     setToDate("");
     setToTime("");
     setOpenCalendar(undefined);
     onDateRangeChange({});
+    if (selectedZones.size > 0) onZonesChange([]);
   };
 
   const invalidFromTime = Boolean(fromTime) && parseTwelveHourTime(normalizeTimeText(fromTime), fromMeridiem) === undefined;
@@ -91,7 +99,7 @@ export function PastSessionPanel({
         </div>
         <button class="btn" type="button" onClick={onRefresh}>Refresh</button>
       </div>
-      <div class="past-date-filter" aria-label="Filter past sessions by date and time">
+      <div class="past-date-filter" aria-label="Filter past sessions by date, time and zone">
         <div class="date-filter-heading">
           <span>Date range</span>
           <span class="date-filter-summary">{dateRangeSummary(state.dateRange)}</span>
@@ -139,10 +147,25 @@ export function PastSessionPanel({
             )}
           </div>
           <div class="date-filter-actions">
-            <button class="btn btn-ghost" type="button" disabled={!fromDate && !toDate && !hasDateRange(state.dateRange)} onClick={clearRange}>Clear</button>
+            <button class="btn btn-ghost" type="button" disabled={!fromDate && !toDate && !hasDateRange(state.dateRange) && selectedZones.size === 0} onClick={clearFilters}>Clear</button>
             <button class="btn apply-date-range" type="button" disabled={(!fromDate && !toDate) || invalidFromTime || invalidToTime} onClick={applyCustomRange}>Apply</button>
           </div>
         </div>
+        {zoneOptions.length > 0 && (
+          <div class="zone-filter">
+            <span class="date-boundary-label">Zones</span>
+            <CheckboxMultiSelect
+              options={zoneOptions}
+              selected={selectedZones}
+              onChange={(next) => onZonesChange([...next])}
+              ariaLabel="Filter by zone"
+              searchPlaceholder="Search zones"
+              clearLabel="Clear filter"
+              noMatchLabel={(query) => `No zones match "${query}".`}
+              summarize={zoneSelectionSummary}
+            />
+          </div>
+        )}
       </div>
       <div class="session-list" role="list" aria-label="Recent combat sessions">
         {state.sessions.length > 0
@@ -170,6 +193,22 @@ export function PastSessionPanel({
 
 function CalendarIcon() {
   return <svg class="calendar-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 2.5v3m9-3v3M3 7.5h14M4.5 4h11A1.5 1.5 0 0 1 17 5.5v10a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5v-10A1.5 1.5 0 0 1 4.5 4Z" /></svg>;
+}
+
+function zoneOptionsOf(available: readonly SpiritValeLocation[]): CheckboxMultiSelectOption<string>[] {
+  return available
+    .map((location) => ({ value: spiritValeLocationKey(location), label: formatZone(location) }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function zoneSelectionSummary(
+  selected: ReadonlySet<string>,
+  options: readonly CheckboxMultiSelectOption<string>[],
+): string {
+  if (selected.size === 0) return "All zones";
+  return selected.size === 1
+    ? options.find((option) => selected.has(option.value))?.label ?? "1 zone"
+    : `${selected.size} zones`;
 }
 
 function MeridiemPicker({ value, disabled, onChange }: { value: Meridiem; disabled: boolean; onChange(value: Meridiem): void }) {

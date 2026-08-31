@@ -154,6 +154,10 @@ body {
 .date-range-arrow { align-self: end; padding-bottom: 7px; color: var(--on-surface-variant); }
 .date-filter-actions { display: flex; gap: 4px; }
 .date-filter-actions .btn { height: 32px; padding: 5px 9px; white-space: nowrap; }
+.zone-filter { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; justify-items: start; }
+.zone-filter .date-boundary-label { color: var(--on-surface-variant); font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.zone-filter .multi-select-toggle { height: 32px; font-size: 11px; }
+.zone-filter .multi-select-panel { right: auto; left: 0; }
 .desktop-calendar { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; display: grid; gap: 7px; width: 276px; padding: 10px; border: 1px solid var(--outline); border-radius: var(--shape-md); background: var(--surface-container-high); box-shadow: 0 12px 28px rgb(0 0 0 / .35); }
 .calendar-header { display: grid; grid-template-columns: 30px 1fr 30px; align-items: center; }
 .calendar-header strong { font-size: 12px; font-weight: 600; text-align: center; }

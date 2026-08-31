@@ -104,6 +104,24 @@ test("reconciles externally added and removed files when the stream directory ch
   expect(persisted).toContain('"kind":"deleted","sessionId":"first"');
 });
 
+test("collects distinct cached zones per stream", async () => {
+  const root = await temporaryRoot();
+  await writeFile(path.join(root, "summary.jsonl"), [
+    JSON.stringify({ schemaVersion: 1, sessionId: "one", stream: "combat", recordCount: 2, summary: "a", locations: [{ kind: "map", mapId: 17 }, { kind: "eternalTower", floor: 3 }] }),
+    JSON.stringify({ schemaVersion: 1, sessionId: "two", stream: "combat", recordCount: 2, summary: "b", locations: [{ kind: "map", mapId: 17 }, { kind: "eternalTower" }] }),
+    JSON.stringify({ schemaVersion: 1, sessionId: "three", stream: "rewards", recordCount: 2, summary: "c", locations: [{ kind: "map", mapId: 99 }] }),
+    JSON.stringify({ schemaVersion: 1, sessionId: "four", stream: "combat", recordCount: 2, summary: "d" }),
+  ].join("\n"), "utf8");
+
+  const journal = await loadSessionSummaryJournal(root);
+  expect(journal.knownLocations("combat")).toEqual([
+    { kind: "map", mapId: 17 },
+    { kind: "eternalTower", floor: 3 },
+    { kind: "eternalTower" },
+  ]);
+  expect(journal.knownLocations("rewards")).toEqual([{ kind: "map", mapId: 99 }]);
+});
+
 async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), "spiritvale-summary-journal-"));
   temporaryRoots.push(root);

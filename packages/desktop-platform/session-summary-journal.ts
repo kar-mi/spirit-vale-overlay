@@ -8,7 +8,7 @@ import {
   streamSessionPath,
   type LogStream,
 } from "@kar-mi/spirit-vale-tools-logging";
-import { isSpiritValeLocation, type SpiritValeLocation } from "./location.ts";
+import { isSpiritValeLocation, spiritValeLocationKey, type SpiritValeLocation } from "./location.ts";
 
 export type SummaryStream = Extract<LogStream, "combat" | "rewards">;
 
@@ -33,6 +33,7 @@ export interface SessionDateRange {
 
 export interface SessionSummaryJournal {
   get(sessionId: string, stream: SummaryStream): SessionSummaryResult | undefined;
+  knownLocations(stream: SummaryStream): SpiritValeLocation[];
   list(stream: SummaryStream, options: { limit: number; dateRange?: SessionDateRange }): Promise<IndexedLogSession[]>;
   ensure(
     sessionId: string,
@@ -171,6 +172,17 @@ async function openSessionSummaryJournal(logDirectory: string): Promise<SessionS
   return {
     get(sessionId, stream) {
       return copyResult(entries.get(entryKey(sessionId, stream))?.result);
+    },
+    knownLocations(stream) {
+      const seen = new Map<string, SpiritValeLocation>();
+      for (const [key, entry] of entries) {
+        if (parseEntryKey(key).stream !== stream) continue;
+        for (const location of entry.result?.locations ?? []) {
+          const zoneKey = spiritValeLocationKey(location);
+          if (!seen.has(zoneKey)) seen.set(zoneKey, location);
+        }
+      }
+      return [...seen.values()];
     },
     async list(stream, options) {
       if (!Number.isSafeInteger(options.limit) || options.limit < 0) throw new RangeError("session limit must be a non-negative integer");

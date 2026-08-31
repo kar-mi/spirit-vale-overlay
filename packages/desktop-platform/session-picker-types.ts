@@ -11,6 +11,11 @@ export interface SessionPickerItem {
   disabled: boolean;
 }
 
+export interface SessionZoneFilter {
+  selected: string[];
+  available: SpiritValeLocation[];
+}
+
 export interface SessionPickerState {
   title: string;
   canOpenLogFolder: boolean;
@@ -18,6 +23,7 @@ export interface SessionPickerState {
   statusDetail: string;
   sessions: SessionPickerItem[];
   dateRange?: SessionDateRange;
+  zoneFilter?: SessionZoneFilter;
 }
 
 export type SessionPickerRpc = {

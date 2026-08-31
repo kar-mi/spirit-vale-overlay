@@ -57,6 +57,7 @@ export type DpsAppRpc = {
       setScreen: { params: { screen: CombatLogScreen }; response: DpsAppState };
       refreshPastSessions: { params: Record<string, never>; response: void };
       setPastDateRange: { params: SessionDateRange; response: DpsAppState };
+      setPastZones: { params: { zones: string[] }; response: DpsAppState };
       openPastSession: { params: { id: string }; response: void };
       choosePastFile: { params: Record<string, never>; response: void };
       openPastLogFolder: { params: Record<string, never>; response: void };
