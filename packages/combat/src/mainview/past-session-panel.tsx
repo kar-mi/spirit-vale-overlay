@@ -100,10 +100,6 @@ export function PastSessionPanel({
         <button class="btn" type="button" onClick={onRefresh}>Refresh</button>
       </div>
       <div class="past-date-filter" aria-label="Filter past sessions by date, time and zone">
-        <div class="date-filter-heading">
-          <span>Date range</span>
-          <span class="date-filter-summary">{dateRangeSummary(state.dateRange)}</span>
-        </div>
         <div class="custom-date-range">
           <div class="date-boundary">
             <span class="date-boundary-label">From</span>
@@ -288,14 +284,6 @@ function formattedDraftDate(value: string): string {
 
 function hasDateRange(value: SessionDateRange | undefined): boolean {
   return value?.fromMs !== undefined || value?.toMs !== undefined;
-}
-
-function dateRangeSummary(value: SessionDateRange | undefined): string {
-  if (!hasDateRange(value)) return "Showing every session";
-  const formatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
-  if (value?.fromMs !== undefined && value.toMs !== undefined) return `${formatter.format(value.fromMs)} – ${formatter.format(value.toMs)}`;
-  if (value?.fromMs !== undefined) return `After ${formatter.format(value.fromMs)}`;
-  return `Before ${formatter.format(value!.toMs!)}`;
 }
 
 function DesktopCalendar({ value, onSelect }: { value: string; onSelect(value: string): void }) {
