@@ -18,8 +18,11 @@ export function buildManageSettingsSection({ state, actions }: SettingsSectionCo
     items: [
       {
         id: "settings-folder",
-        searchText: "Settings folder data location path open explorer import all settings",
+        searchText: "Settings folder data location path open explorer import all settings edit json while app open not saved overwritten",
         content: <>
+          <div class="banner is-error" role="note" aria-label="Warning">
+            Do not edit JSON settings while the app is open; those changes will not be saved. Use the Settings window, or close the app before editing the settings files.
+          </div>
           <div class="settings-field">
             <span>Settings folder</span>
             <p class="data-folder-path" title={state.dataFolder}>{state.dataFolder}</p>
