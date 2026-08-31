@@ -103,6 +103,15 @@ export function PastSessionPanel({
               <label><span class="sr-only">From time</span><input type="text" inputMode="numeric" maxLength={5} placeholder="h:mm" value={fromTime} disabled={!fromDate} aria-invalid={invalidFromTime} onInput={(event) => setFromTime(formatTimeInput(event.currentTarget.value))} onBlur={() => setFromTime(normalizeTimeText(fromTime))} /></label>
               <MeridiemPicker value={fromMeridiem} disabled={!fromDate} onChange={setFromMeridiem} />
             </div>
+            {openCalendar === "from" && (
+              <DesktopCalendar
+                value={fromDate}
+                onSelect={(value) => {
+                  setFromDate(value);
+                  setOpenCalendar(undefined);
+                }}
+              />
+            )}
           </div>
           <span class="date-range-arrow" aria-hidden="true">→</span>
           <div class="date-boundary">
@@ -115,23 +124,21 @@ export function PastSessionPanel({
               <label><span class="sr-only">To time</span><input type="text" inputMode="numeric" maxLength={5} placeholder="h:mm" value={toTime} disabled={!toDate} aria-invalid={invalidToTime} onInput={(event) => setToTime(formatTimeInput(event.currentTarget.value))} onBlur={() => setToTime(normalizeTimeText(toTime))} /></label>
               <MeridiemPicker value={toMeridiem} disabled={!toDate} onChange={setToMeridiem} />
             </div>
+            {openCalendar === "to" && (
+              <DesktopCalendar
+                value={toDate}
+                onSelect={(value) => {
+                  setToDate(value);
+                  setOpenCalendar(undefined);
+                }}
+              />
+            )}
           </div>
           <div class="date-filter-actions">
             <button class="btn btn-ghost" type="button" disabled={!fromDate && !toDate && !hasDateRange(state.dateRange)} onClick={clearRange}>Clear</button>
             <button class="btn apply-date-range" type="button" disabled={(!fromDate && !toDate) || invalidFromTime || invalidToTime} onClick={applyCustomRange}>Apply</button>
           </div>
         </div>
-        {openCalendar && (
-          <DesktopCalendar
-            key={openCalendar}
-            value={openCalendar === "from" ? fromDate : toDate}
-            onSelect={(value) => {
-              if (openCalendar === "from") setFromDate(value);
-              else setToDate(value);
-              setOpenCalendar(undefined);
-            }}
-          />
-        )}
       </div>
       <div class="session-list" role="list" aria-label="Recent combat sessions">
         {state.sessions.length > 0
