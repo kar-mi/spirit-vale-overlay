@@ -4,11 +4,21 @@
     "Source: https://spiritvalers.com — used under the Interoperability Snapshot grant.",
     "Generated data; not an official SpiritVale data set."
   ],
-  "generatedAt": "2026-08-05T20:54:08.111Z",
-  "gameBuild": "24534566",
-  "gameLabel": "0.30.10 Early Access",
-  "source": "local site checkout",
+  "generatedAt": "2026-08-31T15:50:24.974Z",
+  "gameBuild": "24917202",
+  "gameLabel": "0.31.00 Early Access",
+  "source": "https://spiritvalers.com",
   "equipment": {
+    "Abyss Shard": {
+      "slot": "Dagger",
+      "cardSlots": 2,
+      "substatPool": "Melee"
+    },
+    "Adventurer's Kit": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Amber Bow": {
       "slot": "Accessory",
       "cardSlots": 1,
@@ -18,185 +28,6 @@
       "slot": "Accessory",
       "cardSlots": 1,
       "substatPool": "Accessory"
-    },
-    "Archer's Beads": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Azure Prism": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Azure Tag": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Blood Clip": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Bloom Pendant": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Bloom Ring": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Bronze Crescent": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Bronze Plugs": {
-      "slot": "Accessory",
-      "cardSlots": 2,
-      "substatPool": "Accessory"
-    },
-    "Cloud Loop": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Darkhide Gloves": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Dawn Prayer": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Fang Clip": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Focus Band": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Glove_Agi": {
-      "slot": "Accessory",
-      "cardSlots": 0,
-      "substatPool": "Accessory"
-    },
-    "Glove_Dex": {
-      "slot": "Accessory",
-      "cardSlots": 0,
-      "substatPool": "Accessory"
-    },
-    "Glove_Int": {
-      "slot": "Accessory",
-      "cardSlots": 0,
-      "substatPool": "Accessory"
-    },
-    "Glove_Luk": {
-      "slot": "Accessory",
-      "cardSlots": 0,
-      "substatPool": "Accessory"
-    },
-    "Glove_Str": {
-      "slot": "Accessory",
-      "cardSlots": 0,
-      "substatPool": "Accessory"
-    },
-    "Glove_Vit": {
-      "slot": "Accessory",
-      "cardSlots": 0,
-      "substatPool": "Accessory"
-    },
-    "Golden Hoop": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Heartloop Earring": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Iron Ankh": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Knuckleband": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Lucky Drops": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Moonweave Gloves": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Nightfang Stud": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Obsidian Band": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Obsidian Loop": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Onyx Bolt": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Plum Talisman": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Sanctum Gloves": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Scroll Charm": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Skull Pendant": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Sunbound Mitts": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Sunflower Clip": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "Weaver Gauntlets": {
-      "slot": "Accessory",
-      "cardSlots": 3
     },
     "ArcaneChest": {
       "slot": "Chest",
@@ -217,6 +48,11 @@
       "slot": "Legs",
       "cardSlots": 1,
       "substatPool": "Legs"
+    },
+    "Archer's Beads": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
     },
     "Armor_Agi": {
       "slot": "Chest",
@@ -248,6 +84,81 @@
       "cardSlots": 1,
       "substatPool": "Chest"
     },
+    "Arrowcatch Wall": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Artemis": {
+      "slot": "Bow",
+      "cardSlots": 1,
+      "substatPool": "Ranged"
+    },
+    "Axe": {
+      "slot": "Axe",
+      "cardSlots": 4,
+      "substatPool": "Melee"
+    },
+    "Axe of Oblivion": {
+      "slot": "Axe",
+      "cardSlots": 1,
+      "substatPool": "Melee"
+    },
+    "Azure Antlers": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Azure Crown": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Azure Cutlass": {
+      "slot": "Sword",
+      "cardSlots": 2,
+      "substatPool": "Melee"
+    },
+    "Azure Prism": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Azure Tag": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Backpack": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Batling Familiar": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Battle Bonnet": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Bear Backpack": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Bear Hug Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Beast Helm": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "BerserkChest": {
       "slot": "Chest",
       "cardSlots": 1,
@@ -263,10 +174,95 @@
       "cardSlots": 1,
       "substatPool": "Legs"
     },
+    "Binding Spirits Staff": {
+      "slot": "Wand",
+      "cardSlots": 2,
+      "substatPool": "Magic"
+    },
+    "Bishop's Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Blacksteel Blade": {
+      "slot": "Sword",
+      "cardSlots": 2,
+      "substatPool": "Melee"
+    },
+    "Blade of Eclipse": {
+      "slot": "Sword",
+      "cardSlots": 1,
+      "substatPool": "Melee"
+    },
+    "Blade Standard": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Blindfold": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Blood Clip": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
     "Bloodbound": {
       "slot": "Legs",
       "cardSlots": 1,
       "substatPool": "Legs"
+    },
+    "Bloom of Midnight": {
+      "slot": "Mace",
+      "cardSlots": 1,
+      "substatPool": "Magic"
+    },
+    "Bloom Pendant": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Bloom Ring": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Bloomroot": {
+      "slot": "Wand",
+      "cardSlots": 2,
+      "substatPool": "Magic"
+    },
+    "Blue Shell": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Blunderbuss": {
+      "slot": "Shotgun",
+      "cardSlots": 2,
+      "substatPool": "Ranged"
+    },
+    "Bone Channeler": {
+      "slot": "Wand",
+      "cardSlots": 3,
+      "substatPool": "Magic"
+    },
+    "Bone Helm": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Bone Pick": {
+      "slot": "Dagger",
+      "cardSlots": 2,
+      "substatPool": "Melee"
+    },
+    "Bonefang": {
+      "slot": "Dagger",
+      "cardSlots": 3,
+      "substatPool": "Melee"
     },
     "BreezeguardChest": {
       "slot": "Chest",
@@ -283,6 +279,91 @@
       "cardSlots": 1,
       "substatPool": "Legs"
     },
+    "Brimblade": {
+      "slot": "Sword",
+      "cardSlots": 3,
+      "substatPool": "Melee"
+    },
+    "Broad Sword": {
+      "slot": "Sword",
+      "cardSlots": 3,
+      "substatPool": "Melee"
+    },
+    "Bronze Crescent": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Bronze Plugs": {
+      "slot": "Accessory",
+      "cardSlots": 2,
+      "substatPool": "Accessory"
+    },
+    "Bubblebeast Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Buckler": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Bunny Backpack": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Bunny Cap": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Centurion Helm": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Cerulean Scepter": {
+      "slot": "Mace",
+      "cardSlots": 3,
+      "substatPool": "Magic"
+    },
+    "Chainfrost Staff": {
+      "slot": "Wand",
+      "cardSlots": 3,
+      "substatPool": "Magic"
+    },
+    "Chains of Binding": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Champion Blade": {
+      "slot": "Sword",
+      "cardSlots": 2,
+      "substatPool": "Melee"
+    },
+    "Chaos Reaver": {
+      "slot": "Axe",
+      "cardSlots": 2,
+      "substatPool": "Melee"
+    },
+    "Chicky Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Chirpy Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Chompy Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "ClericChest": {
       "slot": "Chest",
       "cardSlots": 1,
@@ -297,6 +378,136 @@
       "slot": "Legs",
       "cardSlots": 1,
       "substatPool": "Legs"
+    },
+    "Cloud Loop": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Codex": {
+      "slot": "Book",
+      "cardSlots": 4,
+      "substatPool": "Magic"
+    },
+    "Codex Binding Light": {
+      "slot": "Book",
+      "cardSlots": 3,
+      "substatPool": "Magic"
+    },
+    "Codex First Hymn": {
+      "slot": "Book",
+      "cardSlots": 3,
+      "substatPool": "Magic"
+    },
+    "Codex of Revelation": {
+      "slot": "Book",
+      "cardSlots": 1,
+      "substatPool": "Magic"
+    },
+    "Codex Umbra": {
+      "slot": "Book",
+      "cardSlots": 2,
+      "substatPool": "Magic"
+    },
+    "Codex Vitae": {
+      "slot": "Book",
+      "cardSlots": 2,
+      "substatPool": "Magic"
+    },
+    "Combat Knife": {
+      "slot": "Dagger",
+      "cardSlots": 3,
+      "substatPool": "Melee"
+    },
+    "Crimson Crest": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Crown of Spikes": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Crusader Staff": {
+      "slot": "Mace",
+      "cardSlots": 2,
+      "substatPool": "Magic"
+    },
+    "Crusader Sword": {
+      "slot": "Sword",
+      "cardSlots": 2,
+      "substatPool": "Melee"
+    },
+    "Crystal Cache": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Crystal Slammer": {
+      "slot": "Mace",
+      "cardSlots": 3,
+      "substatPool": "Magic"
+    },
+    "Crystal Wings": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Curse Tag": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Daggers": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Darkfeather Wings": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Darkhide Gloves": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Dawn Prayer": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Dawnstar": {
+      "slot": "Mace",
+      "cardSlots": 3,
+      "substatPool": "Magic"
+    },
+    "Death's Grin": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Demon Cat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Destruction Staff": {
+      "slot": "Wand",
+      "cardSlots": 2,
+      "substatPool": "Magic"
+    },
+    "Digger's Flask": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Dino Cub Backpack": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "DiscipleArmlets": {
       "slot": "Accessory",
@@ -323,768 +534,28 @@
       "cardSlots": 3,
       "substatPool": "Legs"
     },
-    "Feet_Agi": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "Feet_Dex": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "Feet_Int": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "Feet_Luk": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "Feet_Str": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "Feet_Vit": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "Ferncloak": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Fleetrunner": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "ForestChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "ForestFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "ForestLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "GravemarrowChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "GravemarrowFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "GravemarrowLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "IslandChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "IslandFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "IslandLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "KnightChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "KnightFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "KnightLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Leg_Agi": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Leg_Dex": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Leg_Int": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Leg_Luk": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Leg_Str": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Leg_Vit": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Lifebloom Shoes": {
-      "slot": "Feet",
-      "cardSlots": 0,
-      "substatPool": "Feet"
-    },
-    "Mage Plate": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "MageChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "MageFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "MageLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Mindweave": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Mirage Cloak": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Night Chest": {
-      "slot": "Chest",
-      "cardSlots": 0,
-      "substatPool": "Chest"
-    },
-    "Night Feet": {
-      "slot": "Feet",
-      "cardSlots": 0,
-      "substatPool": "Feet"
-    },
-    "Night Legs": {
-      "slot": "Legs",
-      "cardSlots": 0,
-      "substatPool": "Legs"
-    },
-    "NoviceChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "NoviceFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "NoviceLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "PirateChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "PirateFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "PirateGloves": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "PirateLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "PlasmaChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "PlasmaFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "PlasmaLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "ReindeerChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "ReindeerFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "ReindeerGloves": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "ReindeerLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Runecall": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "SafetyChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "SafetyFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "SafetyGloves": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "SafetyLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "SanctifiedChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "SanctifiedFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "SanctifiedLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "SantaChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "SantaFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "SantaGloves": {
-      "slot": "Accessory",
-      "cardSlots": 1,
-      "substatPool": "Accessory"
-    },
-    "SantaLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Shadow Dancers": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "Sonic Shoes": {
-      "slot": "Feet",
-      "cardSlots": 0,
-      "substatPool": "Feet"
-    },
-    "SoulbinderChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "SoulbinderFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "SoulbinderLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Stonebound Boots": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "Stoneguard": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "StormplateChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "StormplateFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "StormplateLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Tempest Robes": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "ThiefChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "ThiefFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "ThiefLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Verdant Striders": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "Voidthreads": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "WeaverChest": {
-      "slot": "Chest",
-      "cardSlots": 2,
-      "substatPool": "Chest"
-    },
-    "WeaverFeet": {
-      "slot": "Feet",
-      "cardSlots": 2,
-      "substatPool": "Feet"
-    },
-    "WeaverLegs": {
-      "slot": "Legs",
-      "cardSlots": 2,
-      "substatPool": "Legs"
-    },
-    "WindstriderChest": {
-      "slot": "Chest",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "WindstriderFeet": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "WindstriderLegs": {
-      "slot": "Legs",
-      "cardSlots": 1,
-      "substatPool": "Legs"
-    },
-    "Witchsteps": {
-      "slot": "Feet",
-      "cardSlots": 1,
-      "substatPool": "Feet"
-    },
-    "Adventurer's Kit": {
-      "slot": "Back",
+    "Discipline Band": {
+      "slot": "Eyewear",
       "cardSlots": 1,
       "substatPool": "Headgear"
     },
-    "Backpack": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Batling Familiar": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Bear Backpack": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Blade Standard": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Blue Shell": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Bunny Backpack": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Crown of Spikes": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Crystal Cache": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Crystal Wings": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Daggers": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Darkfeather Wings": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Digger's Flask": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Dino Cub Backpack": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
+    "Doom Crescent": {
+      "slot": "Axe",
+      "cardSlots": 3,
+      "substatPool": "Melee"
     },
     "Doom Keg": {
       "slot": "Back",
       "cardSlots": 1,
       "substatPool": "Headgear"
     },
-    "Dualblade Sheath": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Explorer's Pack": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Festival Rockets": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Fruit Bowl": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Grasping Eye Urn": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Green Shell": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Heart Vessel": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Insect Carapace": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Iron Halo": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Mana Cask": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Mechanical Core": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Oxygen Tank": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Plasma Shell": {
-      "slot": "Back",
+    "Dragonic Spear": {
+      "slot": "Spear",
       "cardSlots": 2,
-      "substatPool": "Headgear"
+      "substatPool": "Melee"
     },
-    "Potions": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Quiver of Thorns": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Quiver": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Ransack": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Red Shell": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Seedling Satchel": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Serpent Ring": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Skull Emblem": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Solar Relic": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Star": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Stormcaller Totem": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Totem Banner": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Treasure Box": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "TurtleShell": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Void Urn": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "War Banner": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Warborn Aegis": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Whale Backpack": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Wilderness Pack": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Wings of Valor": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Wolfcrest Shield": {
-      "slot": "Back",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Azure Antlers": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Azure Crown": {
+    "Drooping Angel": {
       "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Battle Bonnet": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Bear Hug Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Beast Helm": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Bishop's Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Blindfold": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Bone Helm": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Bubblebeast Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Bunny Cap": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Centurion Helm": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Chicky Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Chirpy Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Chompy Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Crimson Crest": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Curse Tag": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Death's Grin": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Demon Cat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Discipline Band": {
-      "slot": "Eyewear",
       "cardSlots": 1,
       "substatPool": "Headgear"
     },
@@ -1103,6 +574,11 @@
       "cardSlots": 1,
       "substatPool": "Headgear"
     },
+    "Drooping Dragon": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Drooping Flora": {
       "slot": "Head",
       "cardSlots": 1,
@@ -1113,620 +589,195 @@
       "cardSlots": 1,
       "substatPool": "Headgear"
     },
+    "Drooping Skeleton": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Drooping Wraith": {
       "slot": "Head",
       "cardSlots": 1,
       "substatPool": "Headgear"
     },
-    "Dustweaver Hat": {
-      "slot": "Head",
+    "Dualblade Sheath": {
+      "slot": "Back",
       "cardSlots": 1,
       "substatPool": "Headgear"
-    },
-    "Emberhide Helm": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Eyepatch": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Falcon Band": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Feathered Scout Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Festive Gift Box": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Flame Spirit": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Forest Friend Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Frostscale Helm": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Ghostly Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Golden Crown": {
-      "slot": "Head",
-      "cardSlots": 2,
-      "substatPool": "Headgear"
-    },
-    "Grave Helm": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Happy Chipper Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Harlequin's Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Hellhorn Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Hexweaver Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Horned Crusader Helm": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Ironhorn Cap": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Ironshade Helm": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Leaf Mask": {
-      "slot": "Eyewear",
-      "cardSlots": 0,
-      "substatPool": "Headgear"
-    },
-    "Mischief Gift Box": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Mitre of Sanctity": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Moonshadow Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Mystic Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Neko Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Night Helm": {
-      "slot": "Head",
-      "cardSlots": 0,
-      "substatPool": "Headgear"
-    },
-    "Ninja Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Oathbound Helm": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Paladin Crest": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Phantom Mask": {
-      "slot": "Eyewear",
-      "cardSlots": 0,
-      "substatPool": "Headgear"
-    },
-    "Pirate Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Plasma Helmet": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Pumpkin Head": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Ram Skull Mask": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Reindeer Headband": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Reindeer Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Resonant Headphones": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Runeborn Visor": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Rusted Binocs": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Safety Helmet": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "SantaHat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Sapphire Crown": {
-      "slot": "Head",
-      "cardSlots": 2,
-      "substatPool": "Headgear"
-    },
-    "Sapphire Guard": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Scholar Glasses": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Shady Specs": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Sharkbite Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Snowbun Earmuffs": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Snowman Head": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Spikesteel Helm": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Spooky Spell Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Springram Horns": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Starbound Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Swampy Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Thief Mask": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Tinker Goggles": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Tinker Mask": {
-      "slot": "Eyewear",
-      "cardSlots": 0,
-      "substatPool": "Headgear"
-    },
-    "Top Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Totem Mask": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Tribal Mask": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Valiant Crown": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Ventilator Mask": {
-      "slot": "Eyewear",
-      "cardSlots": 0,
-      "substatPool": "Headgear"
-    },
-    "Verdant Antlers": {
-      "slot": "Eyewear",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "White Bishop's Hood": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Wildroot Veil": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Winged Helm": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Wizardry Hat": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Arrowcatch Wall": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Buckler": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Chains of Binding": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Earth Shield": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Elixir Gourd": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Fortified Guardwall": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Golden Aegis": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Heaven's Orbit": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Iron Bulwark": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Iron Fortitude": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Mage Guard": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Mana Potion": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Night Shield": {
-      "slot": "Shield",
-      "cardSlots": 0,
-      "substatPool": "Chest"
-    },
-    "Royal Crest": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Sanctum Guard": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Spirit Familiar": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Spirit Ward": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Sun Emblem": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Sun Lion Crest": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Warlord Emblem Shield": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Wooden Guard": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Abyss Shard": {
-      "slot": "Dagger",
-      "cardSlots": 2,
-      "substatPool": "Melee"
-    },
-    "Artemis": {
-      "slot": "Bow",
-      "cardSlots": 1,
-      "substatPool": "Ranged"
-    },
-    "Axe of Oblivion": {
-      "slot": "Axe",
-      "cardSlots": 1,
-      "substatPool": "Melee"
-    },
-    "Axe": {
-      "slot": "Axe",
-      "cardSlots": 4,
-      "substatPool": "Melee"
-    },
-    "Azure Cutlass": {
-      "slot": "Sword",
-      "cardSlots": 2,
-      "substatPool": "Melee"
-    },
-    "Binding Spirits Staff": {
-      "slot": "Wand",
-      "cardSlots": 2,
-      "substatPool": "Magic"
-    },
-    "Blacksteel Blade": {
-      "slot": "Sword",
-      "cardSlots": 1,
-      "substatPool": "Melee"
-    },
-    "Blade of Eclipse": {
-      "slot": "Sword",
-      "cardSlots": 1,
-      "substatPool": "Melee"
-    },
-    "Bloom of Midnight": {
-      "slot": "Mace",
-      "cardSlots": 1,
-      "substatPool": "Magic"
-    },
-    "Blunderbuss": {
-      "slot": "Shotgun",
-      "cardSlots": 2,
-      "substatPool": "Ranged"
-    },
-    "Bone Channeler": {
-      "slot": "Wand",
-      "cardSlots": 3,
-      "substatPool": "Magic"
-    },
-    "Bone Pick": {
-      "slot": "Dagger",
-      "cardSlots": 2,
-      "substatPool": "Melee"
-    },
-    "Bonefang": {
-      "slot": "Dagger",
-      "cardSlots": 3,
-      "substatPool": "Melee"
-    },
-    "Brimblade": {
-      "slot": "Sword",
-      "cardSlots": 3,
-      "substatPool": "Melee"
-    },
-    "Broad Sword": {
-      "slot": "Sword",
-      "cardSlots": 3,
-      "substatPool": "Melee"
-    },
-    "Cerulean Scepter": {
-      "slot": "Mace",
-      "cardSlots": 3,
-      "substatPool": "Magic"
-    },
-    "Chainfrost Staff": {
-      "slot": "Wand",
-      "cardSlots": 3,
-      "substatPool": "Magic"
-    },
-    "Champion Blade": {
-      "slot": "Sword",
-      "cardSlots": 2,
-      "substatPool": "Melee"
-    },
-    "Chaos Reaver": {
-      "slot": "Axe",
-      "cardSlots": 2,
-      "substatPool": "Melee"
-    },
-    "Codex Binding Light": {
-      "slot": "Book",
-      "cardSlots": 3,
-      "substatPool": "Magic"
-    },
-    "Codex First Hymn": {
-      "slot": "Book",
-      "cardSlots": 3,
-      "substatPool": "Magic"
-    },
-    "Codex Umbra": {
-      "slot": "Book",
-      "cardSlots": 2,
-      "substatPool": "Magic"
-    },
-    "Codex Vitae": {
-      "slot": "Book",
-      "cardSlots": 2,
-      "substatPool": "Magic"
-    },
-    "Codex of Revelation": {
-      "slot": "Book",
-      "cardSlots": 1,
-      "substatPool": "Magic"
-    },
-    "Codex": {
-      "slot": "Book",
-      "cardSlots": 4,
-      "substatPool": "Magic"
-    },
-    "Combat Knife": {
-      "slot": "Dagger",
-      "cardSlots": 3,
-      "substatPool": "Melee"
-    },
-    "Crusader Staff": {
-      "slot": "Mace",
-      "cardSlots": 2,
-      "substatPool": "Magic"
-    },
-    "Crusader Sword": {
-      "slot": "Sword",
-      "cardSlots": 2,
-      "substatPool": "Melee"
-    },
-    "Crystal Slammer": {
-      "slot": "Mace",
-      "cardSlots": 3,
-      "substatPool": "Magic"
-    },
-    "Dawnstar": {
-      "slot": "Mace",
-      "cardSlots": 3,
-      "substatPool": "Magic"
-    },
-    "Destruction Staff": {
-      "slot": "Wand",
-      "cardSlots": 2,
-      "substatPool": "Magic"
-    },
-    "Doom Crescent": {
-      "slot": "Axe",
-      "cardSlots": 3,
-      "substatPool": "Melee"
-    },
-    "Dragonic Spear": {
-      "slot": "Spear",
-      "cardSlots": 2,
-      "substatPool": "Melee"
     },
     "Duskfang": {
       "slot": "Sword",
       "cardSlots": 2,
       "substatPool": "Melee"
     },
+    "Dustweaver Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Earth Shaker": {
       "slot": "Axe",
       "cardSlots": 3,
       "substatPool": "Melee"
+    },
+    "Earth Shield": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Earthspire": {
+      "slot": "Wand",
+      "cardSlots": 2,
+      "substatPool": "Magic"
+    },
+    "EchoAxe": {
+      "slot": "Axe",
+      "cardSlots": 2,
+      "substatPool": "Melee"
+    },
+    "EchoBook": {
+      "slot": "Book",
+      "cardSlots": 3,
+      "substatPool": "Magic"
+    },
+    "EchoChest_Atk": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "EchoChest_Matk": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "EchoFace_Force": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Force_": {
+      "slot": "Eyewear",
+      "cardSlots": 2,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Life": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Life_": {
+      "slot": "Eyewear",
+      "cardSlots": 2,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Magic": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Magic_": {
+      "slot": "Eyewear",
+      "cardSlots": 2,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Pierce": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Pierce_": {
+      "slot": "Eyewear",
+      "cardSlots": 2,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Power": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Power_": {
+      "slot": "Eyewear",
+      "cardSlots": 2,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Range": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Range_": {
+      "slot": "Eyewear",
+      "cardSlots": 2,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Recovery": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Recovery_": {
+      "slot": "Eyewear",
+      "cardSlots": 2,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Speed": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "EchoFace_Speed_": {
+      "slot": "Eyewear",
+      "cardSlots": 2,
+      "substatPool": "Headgear"
+    },
+    "EchoFeet_Atk": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "EchoFeet_Matk": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "EchoGatling": {
+      "slot": "GatlingGun",
+      "cardSlots": 2,
+      "substatPool": "Ranged"
+    },
+    "EchoLauncher": {
+      "slot": "Launcher",
+      "cardSlots": 2,
+      "substatPool": "Ranged"
+    },
+    "EchoLegs_Atk": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "EchoLegs_Matk": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "EchoScythe": {
+      "slot": "Scythe",
+      "cardSlots": 2,
+      "substatPool": "Melee"
+    },
+    "EchoShield": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "EchoShuriken": {
+      "slot": "Dagger",
+      "cardSlots": 1,
+      "substatPool": "Ranged"
+    },
+    "EchoStaff": {
+      "slot": "Wand",
+      "cardSlots": 1,
+      "substatPool": "Magic"
     },
     "Eclipse Kunai": {
       "slot": "Dagger",
@@ -1737,6 +788,16 @@
       "slot": "Twinblade",
       "cardSlots": 1,
       "substatPool": "Melee"
+    },
+    "Elixir Gourd": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Emberhide Helm": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Embershard": {
       "slot": "Wand",
@@ -1778,15 +839,95 @@
       "cardSlots": 2,
       "substatPool": "Magic"
     },
+    "Explorer's Pack": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Eye of Vigil": {
       "slot": "Wand",
       "cardSlots": 3,
       "substatPool": "Magic"
     },
+    "Eyepatch": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Falcon Band": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Fang Clip": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
     "Fang of the Moon": {
       "slot": "Dagger",
       "cardSlots": 1,
       "substatPool": "Melee"
+    },
+    "Feathered Scout Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Feet_Agi": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "Feet_Dex": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "Feet_Int": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "Feet_Luk": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "Feet_Str": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "Feet_Vit": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "Ferncloak": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Festival Rockets": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Festive Gift Box": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Fire Shield": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Flame Spirit": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Flame Tongue Kunai": {
       "slot": "Dagger",
@@ -1798,10 +939,45 @@
       "cardSlots": 3,
       "substatPool": "Ranged"
     },
+    "Fleetrunner": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
     "Flintlock Pistol": {
       "slot": "Pistol",
       "cardSlots": 2,
       "substatPool": "Ranged"
+    },
+    "Focus Band": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Forest Friend Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "ForestChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "ForestFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "ForestLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Fortified Guardwall": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
     },
     "Frost Mark": {
       "slot": "Rifle",
@@ -1813,6 +989,11 @@
       "cardSlots": 3,
       "substatPool": "Melee"
     },
+    "Frostscale Helm": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Frostshard": {
       "slot": "Wand",
       "cardSlots": 3,
@@ -1823,30 +1004,115 @@
       "cardSlots": 3,
       "substatPool": "Ranged"
     },
+    "Fruit Bowl": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Gatling Gun": {
       "slot": "GatlingGun",
       "cardSlots": 4,
       "substatPool": "Ranged"
+    },
+    "Ghostly Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Glimmerthorn": {
       "slot": "Wand",
       "cardSlots": 3,
       "substatPool": "Magic"
     },
+    "Glove_Agi": {
+      "slot": "Accessory",
+      "cardSlots": 0,
+      "substatPool": "Accessory"
+    },
+    "Glove_Dex": {
+      "slot": "Accessory",
+      "cardSlots": 0,
+      "substatPool": "Accessory"
+    },
+    "Glove_Int": {
+      "slot": "Accessory",
+      "cardSlots": 0,
+      "substatPool": "Accessory"
+    },
+    "Glove_Luk": {
+      "slot": "Accessory",
+      "cardSlots": 0,
+      "substatPool": "Accessory"
+    },
+    "Glove_Str": {
+      "slot": "Accessory",
+      "cardSlots": 0,
+      "substatPool": "Accessory"
+    },
+    "Glove_Vit": {
+      "slot": "Accessory",
+      "cardSlots": 0,
+      "substatPool": "Accessory"
+    },
+    "Golden Aegis": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
     "Golden Axe": {
       "slot": "Axe",
       "cardSlots": 3,
       "substatPool": "Melee"
+    },
+    "Golden Crown": {
+      "slot": "Head",
+      "cardSlots": 2,
+      "substatPool": "Headgear"
     },
     "Golden Hammer": {
       "slot": "Mace",
       "cardSlots": 3,
       "substatPool": "Magic"
     },
+    "Golden Hoop": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Grasping Eye Urn": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Grave Helm": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "GravemarrowChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "GravemarrowFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "GravemarrowLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
     "Gravestone Breaker": {
       "slot": "Mace",
       "cardSlots": 3,
       "substatPool": "Melee"
+    },
+    "Green Shell": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Grim Reaper Scythe": {
       "slot": "Scythe",
@@ -1858,6 +1124,21 @@
       "cardSlots": 3,
       "substatPool": "Melee"
     },
+    "Happy Chipper Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Harbringer": {
+      "slot": "Pistol",
+      "cardSlots": 1,
+      "substatPool": "Ranged"
+    },
+    "Harlequin's Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Harvester of Souls": {
       "slot": "Scythe",
       "cardSlots": 1,
@@ -1868,10 +1149,40 @@
       "cardSlots": 2,
       "substatPool": "Ranged"
     },
+    "Heart Vessel": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Heartloop Earring": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Heaven's Orbit": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
     "Hellfire Staff": {
       "slot": "Wand",
       "cardSlots": 3,
       "substatPool": "Magic"
+    },
+    "Hellhorn Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Hexweaver Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Holy Shield": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
     },
     "Holy Staff": {
       "slot": "Wand",
@@ -1883,6 +1194,11 @@
       "cardSlots": 3,
       "substatPool": "Magic"
     },
+    "Horned Crusader Helm": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Hunting Knife": {
       "slot": "Dagger",
       "cardSlots": 3,
@@ -1892,6 +1208,31 @@
       "slot": "Spear",
       "cardSlots": 3,
       "substatPool": "Melee"
+    },
+    "Insect Carapace": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Iron Ankh": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Iron Bulwark": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Iron Fortitude": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Iron Halo": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Iron Morningstar": {
       "slot": "Mace",
@@ -1908,6 +1249,31 @@
       "cardSlots": 4,
       "substatPool": "Melee"
     },
+    "Ironhorn Cap": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Ironshade Helm": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "IslandChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "IslandFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "IslandLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
     "Jagtooth": {
       "slot": "Dagger",
       "cardSlots": 2,
@@ -1923,6 +1289,26 @@
       "cardSlots": 2,
       "substatPool": "Melee"
     },
+    "KnightChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "KnightFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "KnightLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Knuckleband": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
     "Kunai": {
       "slot": "Dagger",
       "cardSlots": 4,
@@ -1933,15 +1319,65 @@
       "cardSlots": 4,
       "substatPool": "Ranged"
     },
+    "Leaf Mask": {
+      "slot": "Eyewear",
+      "cardSlots": 0,
+      "substatPool": "Headgear"
+    },
+    "Leg_Agi": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Leg_Dex": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Leg_Int": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Leg_Luk": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Leg_Str": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Leg_Vit": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Leviathan": {
+      "slot": "Sword",
+      "cardSlots": 2,
+      "substatPool": "Melee"
+    },
     "Life Staff": {
       "slot": "Wand",
       "cardSlots": 3,
       "substatPool": "Magic"
     },
+    "Lifebloom Shoes": {
+      "slot": "Feet",
+      "cardSlots": 0,
+      "substatPool": "Feet"
+    },
     "Longbow": {
       "slot": "Bow",
       "cardSlots": 4,
       "substatPool": "Ranged"
+    },
+    "Lucky Drops": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
     },
     "Luxbane": {
       "slot": "Mace",
@@ -1957,6 +1393,41 @@
       "slot": "Mace",
       "cardSlots": 4,
       "substatPool": "Melee"
+    },
+    "Mage Guard": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Mage Plate": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "MageChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "MageFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "MageLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Mana Cask": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Mana Potion": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
     },
     "Master Axe": {
       "slot": "Axe",
@@ -2013,30 +1484,155 @@
       "cardSlots": 2,
       "substatPool": "Magic"
     },
+    "Mechanical Core": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Meteoric Staff": {
       "slot": "Wand",
       "cardSlots": 2,
       "substatPool": "Magic"
+    },
+    "Mindweave": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Mirage Cloak": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Mischief Gift Box": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Mitre of Sanctity": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Moonfrost": {
       "slot": "Sword",
       "cardSlots": 2,
       "substatPool": "Melee"
     },
+    "Moonshadow Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Moonweave Gloves": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Mystic Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Necronomicon": {
       "slot": "Book",
       "cardSlots": 2,
       "substatPool": "Magic"
+    },
+    "Neko Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Night Chest": {
+      "slot": "Chest",
+      "cardSlots": 0,
+      "substatPool": "Chest"
+    },
+    "Night Feet": {
+      "slot": "Feet",
+      "cardSlots": 0,
+      "substatPool": "Feet"
+    },
+    "Night Helm": {
+      "slot": "Head",
+      "cardSlots": 0,
+      "substatPool": "Headgear"
+    },
+    "Night Legs": {
+      "slot": "Legs",
+      "cardSlots": 0,
+      "substatPool": "Legs"
+    },
+    "Night Shield": {
+      "slot": "Shield",
+      "cardSlots": 0,
+      "substatPool": "Chest"
+    },
+    "Nightfang Stud": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Ninja Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "NoviceChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "NoviceFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "NoviceLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
     },
     "Oak Bow": {
       "slot": "Bow",
       "cardSlots": 3,
       "substatPool": "Ranged"
     },
+    "Oathbound Helm": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Obsidian Band": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
     "Obsidian Edge": {
       "slot": "Sword",
       "cardSlots": 2,
       "substatPool": "Melee"
+    },
+    "Obsidian Loop": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Onyx Bolt": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Oxygen Tank": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Paladin Crest": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Parrying Knife": {
       "slot": "Dagger",
@@ -2048,15 +1644,55 @@
       "cardSlots": 3,
       "substatPool": "Ranged"
     },
+    "Phantom Mask": {
+      "slot": "Eyewear",
+      "cardSlots": 0,
+      "substatPool": "Headgear"
+    },
     "Piercer": {
       "slot": "Dagger",
       "cardSlots": 3,
       "substatPool": "Melee"
     },
+    "Pirate Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "PirateChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "PirateFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "PirateGloves": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "PirateLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
     "Pistol": {
       "slot": "Pistol",
       "cardSlots": 4,
       "substatPool": "Ranged"
+    },
+    "Plasma Helmet": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Plasma Shell": {
+      "slot": "Back",
+      "cardSlots": 2,
+      "substatPool": "Headgear"
     },
     "Plasma Sword Blue": {
       "slot": "Sword",
@@ -2073,6 +1709,46 @@
       "cardSlots": 2,
       "substatPool": "Melee"
     },
+    "PlasmaChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "PlasmaFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "PlasmaLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Plum Talisman": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Potions": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Pumpkin Head": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Quiver": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Quiver of Thorns": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Radiant Dagger": {
       "slot": "Dagger",
       "cardSlots": 2,
@@ -2088,9 +1764,19 @@
       "cardSlots": 2,
       "substatPool": "Melee"
     },
+    "Ram Skull Mask": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Ransack": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Razor Edge": {
       "slot": "Katar",
-      "cardSlots": 1,
+      "cardSlots": 2,
       "substatPool": "Melee"
     },
     "Razor Kunai": {
@@ -2113,6 +1799,41 @@
       "cardSlots": 2,
       "substatPool": "Melee"
     },
+    "Red Shell": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Reindeer Headband": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Reindeer Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "ReindeerChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "ReindeerFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "ReindeerGloves": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "ReindeerLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
     "Relic Trident": {
       "slot": "Spear",
       "cardSlots": 4,
@@ -2122,6 +1843,11 @@
       "slot": "Bow",
       "cardSlots": 4,
       "substatPool": "Ranged"
+    },
+    "Resonant Headphones": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Rifle": {
       "slot": "Rifle",
@@ -2138,6 +1864,11 @@
       "cardSlots": 4,
       "substatPool": "Magic"
     },
+    "Royal Crest": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
     "Royal Dagger": {
       "slot": "Dagger",
       "cardSlots": 1,
@@ -2148,25 +1879,165 @@
       "cardSlots": 3,
       "substatPool": "Melee"
     },
+    "Runeborn Visor": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Runecall": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
     "Runesmasher": {
       "slot": "Mace",
       "cardSlots": 3,
       "substatPool": "Magic"
+    },
+    "Rusted Binocs": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Safety Helmet": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "SafetyChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "SafetyFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "SafetyGloves": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "SafetyLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "SanctifiedChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "SanctifiedFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "SanctifiedLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Sanctum Gloves": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Sanctum Guard": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "SantaChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "SantaFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "SantaGloves": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "SantaHat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "SantaLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Sapphire Crown": {
+      "slot": "Head",
+      "cardSlots": 2,
+      "substatPool": "Headgear"
+    },
+    "Sapphire Guard": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Scalpel": {
       "slot": "Dagger",
       "cardSlots": 2,
       "substatPool": "Melee"
     },
+    "Scholar Glasses": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Scrapfang": {
       "slot": "Sword",
       "cardSlots": 3,
       "substatPool": "Melee"
     },
+    "Scroll Charm": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
     "Scythe": {
       "slot": "Scythe",
       "cardSlots": 3,
       "substatPool": "Melee"
+    },
+    "Seedling Satchel": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Serpent Ring": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Shadow Dancers": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "Shadow Shield": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Shady Specs": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Sharkbite Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Shotgun": {
       "slot": "Shotgun",
@@ -2182,6 +2053,16 @@
       "slot": "Rifle",
       "cardSlots": 1,
       "substatPool": "Ranged"
+    },
+    "Skull Emblem": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Skull Pendant": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
     },
     "Skullhacker": {
       "slot": "Axe",
@@ -2203,6 +2084,21 @@
       "cardSlots": 2,
       "substatPool": "Ranged"
     },
+    "Snowbun Earmuffs": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Snowman Head": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Solar Relic": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Solar Spear": {
       "slot": "Spear",
       "cardSlots": 3,
@@ -2213,30 +2109,95 @@
       "cardSlots": 3,
       "substatPool": "Melee"
     },
+    "Sonic Shoes": {
+      "slot": "Feet",
+      "cardSlots": 0,
+      "substatPool": "Feet"
+    },
     "Soul Reaper Scythe": {
       "slot": "Scythe",
       "cardSlots": 2,
       "substatPool": "Melee"
+    },
+    "SoulbinderChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "SoulbinderFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "SoulbinderLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
     },
     "Spiked Club": {
       "slot": "Mace",
       "cardSlots": 3,
       "substatPool": "Melee"
     },
+    "Spikesteel Helm": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Spineshard": {
       "slot": "Sword",
       "cardSlots": 1,
       "substatPool": "Melee"
+    },
+    "Spirit Familiar": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Spirit Ward": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Spooky Spell Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Springram Horns": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Staff of Eternis": {
       "slot": "Wand",
       "cardSlots": 1,
       "substatPool": "Magic"
     },
+    "Star": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Starbound Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Stiletto": {
       "slot": "Dagger",
       "cardSlots": 3,
       "substatPool": "Melee"
+    },
+    "Stonebound Boots": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "Stoneguard": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
     },
     "Stonepoint Spear": {
       "slot": "Spear",
@@ -2253,6 +2214,11 @@
       "cardSlots": 2,
       "substatPool": "Ranged"
     },
+    "Stormcaller Totem": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Stormfeather Kunai": {
       "slot": "Dagger",
       "cardSlots": 3,
@@ -2262,6 +2228,36 @@
       "slot": "Spear",
       "cardSlots": 2,
       "substatPool": "Ranged"
+    },
+    "StormplateChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "StormplateFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "StormplateLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Sun Emblem": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Sun Lion Crest": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Sunbound Mitts": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
     },
     "Suncrest Mace": {
       "slot": "Mace",
@@ -2273,6 +2269,16 @@
       "cardSlots": 2,
       "substatPool": "Melee"
     },
+    "Sunflower Clip": {
+      "slot": "Accessory",
+      "cardSlots": 1,
+      "substatPool": "Accessory"
+    },
+    "Swampy Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Swift Fang": {
       "slot": "Spear",
       "cardSlots": 2,
@@ -2283,20 +2289,85 @@
       "cardSlots": 4,
       "substatPool": "Melee"
     },
+    "Tempest Robes": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
     "Tempest Staff": {
       "slot": "Wand",
       "cardSlots": 2,
       "substatPool": "Magic"
+    },
+    "Temporal Codex": {
+      "slot": "Book",
+      "cardSlots": 2,
+      "substatPool": "Magic"
+    },
+    "Thief Mask": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "ThiefChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "ThiefFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "ThiefLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
     },
     "Thundercoil": {
       "slot": "Shotgun",
       "cardSlots": 3,
       "substatPool": "Ranged"
     },
+    "Tinker Goggles": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Tinker Mask": {
+      "slot": "Eyewear",
+      "cardSlots": 0,
+      "substatPool": "Headgear"
+    },
     "Tomahawk": {
       "slot": "Axe",
       "cardSlots": 2,
       "substatPool": "Melee"
+    },
+    "Top Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Totem Banner": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Totem Mask": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Treasure Box": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Tribal Mask": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Trident of Tides": {
       "slot": "Spear",
@@ -2308,35 +2379,134 @@
       "cardSlots": 3,
       "substatPool": "Ranged"
     },
+    "TurtleShell": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Twinblade": {
       "slot": "Twinblade",
       "cardSlots": 4,
       "substatPool": "Melee"
+    },
+    "Valiant Crown": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Ventilator Mask": {
+      "slot": "Eyewear",
+      "cardSlots": 0,
+      "substatPool": "Headgear"
+    },
+    "Verdant Antlers": {
+      "slot": "Eyewear",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
     },
     "Verdant Core": {
       "slot": "Wand",
       "cardSlots": 3,
       "substatPool": "Magic"
     },
+    "Verdant Striders": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "Void Urn": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Voidthreads": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
     "War Axe": {
       "slot": "Axe",
       "cardSlots": 3,
       "substatPool": "Melee"
+    },
+    "War Banner": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Warborn Aegis": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Warlord Emblem Shield": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
     },
     "Wasteland Cleaver": {
       "slot": "Axe",
       "cardSlots": 3,
       "substatPool": "Melee"
     },
+    "Water Shield": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Weaver Gauntlets": {
+      "slot": "Accessory",
+      "cardSlots": 3
+    },
+    "WeaverChest": {
+      "slot": "Chest",
+      "cardSlots": 2,
+      "substatPool": "Chest"
+    },
+    "WeaverFeet": {
+      "slot": "Feet",
+      "cardSlots": 2,
+      "substatPool": "Feet"
+    },
+    "WeaverLegs": {
+      "slot": "Legs",
+      "cardSlots": 2,
+      "substatPool": "Legs"
+    },
+    "Whale Backpack": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Whisper of Thorns": {
       "slot": "Pistol",
       "cardSlots": 1,
       "substatPool": "Ranged"
     },
+    "White Bishop's Hood": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Wilderness Pack": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Wildroot Veil": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Willow Staff": {
       "slot": "Wand",
       "cardSlots": 3,
       "substatPool": "Magic"
+    },
+    "Wind Shield": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
     },
     "Windcarver": {
       "slot": "Dagger",
@@ -2348,10 +2518,60 @@
       "cardSlots": 3,
       "substatPool": "Magic"
     },
+    "WindstriderChest": {
+      "slot": "Chest",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "WindstriderFeet": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "WindstriderLegs": {
+      "slot": "Legs",
+      "cardSlots": 1,
+      "substatPool": "Legs"
+    },
+    "Winged Helm": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Wings of Valor": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
     "Witch's Whisk": {
       "slot": "Wand",
       "cardSlots": 3,
       "substatPool": "Magic"
+    },
+    "Witchsteps": {
+      "slot": "Feet",
+      "cardSlots": 1,
+      "substatPool": "Feet"
+    },
+    "Wizardry Hat": {
+      "slot": "Head",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Wolfcrest Shield": {
+      "slot": "Back",
+      "cardSlots": 1,
+      "substatPool": "Headgear"
+    },
+    "Wooden Guard": {
+      "slot": "Shield",
+      "cardSlots": 1,
+      "substatPool": "Chest"
+    },
+    "Worldsplitter": {
+      "slot": "Axe",
+      "cardSlots": 1,
+      "substatPool": "Melee"
     },
     "Wraith of Dawn": {
       "slot": "Bow",
@@ -2367,41 +2587,6 @@
       "slot": "Wand",
       "cardSlots": 3,
       "substatPool": "Magic"
-    },
-    "Drooping Angel": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Drooping Skeleton": {
-      "slot": "Head",
-      "cardSlots": 1,
-      "substatPool": "Headgear"
-    },
-    "Water Shield": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Holy Shield": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Fire Shield": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Shadow Shield": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
-    },
-    "Wind Shield": {
-      "slot": "Shield",
-      "cardSlots": 1,
-      "substatPool": "Chest"
     }
   },
   "grimoires": [
@@ -2446,6 +2631,7 @@
     "Warrior_5"
   ],
   "cards": [
+    "Abomination",
     "Alien Big Blink",
     "Alien Biteroot",
     "Alien Cyclops",
@@ -2457,11 +2643,11 @@
     "Alien Twinkle",
     "Alien Wheel",
     "Alien Wreck",
-    "Angel Mage",
     "Angel",
+    "Angel Mage",
     "Archangel",
-    "Bat Lord",
     "Bat",
+    "Bat Lord",
     "Bee",
     "Bird",
     "Bloom",
@@ -2476,21 +2662,21 @@
     "Butterfly Hue",
     "Butterfly Pixie",
     "Cacti",
-    "Cactus Boss",
     "Cactus",
+    "Cactus Boss",
     "Cat Bolt",
     "Cat Lightning",
     "Cat Meow",
     "Chick",
     "Creeper",
+    "Cyclops",
+    "Cyclops Bat",
     "Cyclops Bat Mage",
     "Cyclops Bat Wizard",
-    "Cyclops Bat",
     "Cyclops Giant",
     "Cyclops Minion",
-    "Cyclops",
-    "Death Mage",
     "Death",
+    "Death Mage",
     "Delivery Robot",
     "Direwolf",
     "Dog Bark",
@@ -2523,9 +2709,10 @@
     "Eyeball Mage Blue",
     "Eyeball Mage Green",
     "Eyeball Mage Red",
-    "FIsh Blue",
-    "Fire Mage",
+    "Eyeball Monster",
     "Fire",
+    "Fire Mage",
+    "FIsh Blue",
     "Fish Man Blue",
     "Fish Man Pink",
     "Fish Man Yellow",
@@ -2544,14 +2731,15 @@
     "Glow Wisp Blue",
     "Glow Wisp Purple",
     "Glow Wisp Yellow",
+    "Goblin Giant",
     "Goblin Giant Devil",
     "Goblin Giant Gold",
     "Goblin Giant Mage",
     "Goblin Minion",
+    "Goblin Trooper",
     "Goblin Trooper Assassin",
     "Goblin Trooper Mage",
     "Goblin Trooper Soldier",
-    "Goblin Trooper",
     "Goblin Warblade",
     "Goblin Warchief",
     "Goblin Warcrusher",
@@ -2568,22 +2756,32 @@
     "Housefly Icky",
     "Housefly Junk",
     "Housefly Nom",
+    "Ice",
+    "Ice Bear A",
     "Ice Bear B",
     "Ice Mage",
     "Ice Starflake A",
     "Ice Starflake B",
     "Ice Starflake C",
-    "Ice",
     "Icicle",
     "Imp Demon",
+    "Imp Devil",
     "Imp Mischief",
     "Jellyfish Robot",
     "Lurker",
     "Mega Ice Golem",
+    "Mimic Barrel",
+    "Mimic Book",
+    "Mimic Candle",
+    "Mimic Living Trap",
+    "Mimic Sword",
+    "Mimic Treasure Chest",
     "Mini Ice Bear A",
     "Mini Ice Bear B",
-    "Mole Rat King",
     "Mole Rat",
+    "Mole Rat King",
+    "Monster Bat",
+    "Monster Bat King",
     "Mosquito Bug",
     "Mosquito Pester",
     "Mosquito Stinger",
@@ -2592,6 +2790,30 @@
     "Moth Moon",
     "Mushroom",
     "Nightmare",
+    "NightmareAcolyte",
+    "NightmareBerserker",
+    "NightmareBerserkerBoss",
+    "NightmareGunslinger",
+    "NightmareGunslingerBoss",
+    "NightmareKnight",
+    "NightmareMage",
+    "NightmareNecromancer",
+    "NightmareNecromancerBoss",
+    "NightmarePaladin",
+    "NightmarePaladinBoss",
+    "NightmarePriest",
+    "NightmarePriestBoss",
+    "NightmareRogue",
+    "NightmareScout",
+    "NightmareShadow",
+    "NightmareShinobi",
+    "NightmareShinobiBoss",
+    "NightmareSummoner",
+    "NightmareWarrior",
+    "NightmareWeaver",
+    "NightmareWeaverBoss",
+    "NightmareWizard",
+    "NightmareWizardBoss",
     "Nose Robot",
     "Nozzle Robot",
     "Octopus Baby Blue",
@@ -2606,6 +2828,9 @@
     "Petal",
     "Phantom",
     "Plant Chewer",
+    "Plant Monster",
+    "Plant Shooter",
+    "Plant Worm",
     "Poison Bomb",
     "Pollen",
     "Posy",
@@ -2615,38 +2840,42 @@
     "Rat Grey",
     "Rat White",
     "Razor Robot",
-    "Scorpion King",
     "Scorpion",
+    "Scorpion King",
     "Scorpling",
     "Seed",
     "Shade",
     "Shadow",
+    "Shark",
     "Shark Baby",
     "Shark Humanoid",
-    "Shark",
-    "Shell Robot",
     "Shell",
+    "Shell Robot",
+    "Skeleton",
     "Skeleton Giant",
     "Skeleton Mage",
-    "Skeleton",
-    "Snake Naga",
+    "Slime",
+    "Slime Jelly",
+    "Slime Monster",
     "Snake",
+    "Snake Naga",
     "Snakelet",
     "Snout Robot",
     "Snow Bomb",
-    "Soul Mage",
     "Soul",
+    "Soul Mage",
+    "Spider",
     "Spider King",
     "Spider Queen Robot",
     "Spider Robot",
     "Spider Toxin",
-    "Spider",
     "Spiderling Robot",
-    "Spike Robot",
     "Spike",
+    "Spike Robot",
     "Spook",
     "Spore",
     "Sprout",
+    "Squid Baby",
     "Sting",
     "Stinger Robot",
     "Sun Blossom",
@@ -2663,59 +2892,31 @@
     "Treant Minion Evergreen",
     "Treant Tree Autumn",
     "Treant Tree Evergreen",
+    "Turtle",
     "Turtle King",
     "Turtle Monster Blue",
     "Turtle Monster Green",
     "Turtle Monster Red",
-    "Turtle",
     "Vampire Bat",
     "Werewolf",
     "Whirlwind",
-    "Wind Mage",
     "Wind",
+    "Wind Mage",
     "Wisp Blue",
     "Wisp Purple",
     "Wisp Red",
     "Wisp Yellow",
-    "Wolf Pup",
     "Wolf",
+    "Wolf Pup",
+    "Worm",
     "Worm Creep",
     "Worm Rot",
     "Worm Stink",
-    "Worm",
     "Wraith",
     "Zombie Goblin Giant",
     "Zombie Goblin King",
     "Zombie Goblin Minion",
-    "Zombie Goblin Soldier",
-    "NightmareShinobi",
-    "NightmareWizard",
-    "NightmarePriest",
-    "NightmareBerserker",
-    "NightmareGunslinger",
-    "NightmareNecromancer",
-    "NightmarePaladin",
-    "NightmareShadow",
-    "Abomination",
-    "Ice Bear A",
-    "Eyeball Monster",
-    "Slime",
-    "Goblin Giant",
-    "Imp Devil",
-    "Mimic Barrel",
-    "Mimic Book",
-    "Mimic Candle",
-    "Mimic Living Trap",
-    "Mimic Sword",
-    "Mimic Treasure Chest",
-    "Monster Bat King",
-    "Monster Bat",
-    "Plant Monster",
-    "Plant Shooter",
-    "Plant Worm",
-    "Slime Jelly",
-    "Slime Monster",
-    "Squid Baby"
+    "Zombie Goblin Soldier"
   ],
   "gems": [
     "AerialShot Gem",
@@ -2853,6 +3054,7 @@
     "Atk",
     "Auto",
     "Bastion",
+    "Berserker_1",
     "Cast",
     "Corporeal",
     "Cost",
@@ -2860,6 +3062,7 @@
     "Def",
     "Eternis",
     "Flee",
+    "Gunslinger_1",
     "Healing",
     "Hexbrand",
     "Hit",
@@ -2874,15 +3077,24 @@
     "Melee",
     "Movespeed",
     "Mp",
+    "Necromancer_1",
     "Novice",
     "Oathbound",
+    "Paladin_1",
+    "Priest_1",
     "Primordial",
     "Ranged",
     "Rogue",
     "Scout",
+    "Shinobi_1",
     "Summoner",
     "Vampiric",
-    "Warrior"
+    "Warrior",
+    "Weaver_1",
+    "Wizard_1",
+    "Wizard_2",
+    "Wizard_3",
+    "Wizard_4"
   ],
   "statTypes": {
     "0": "Str",
@@ -3104,7 +3316,19 @@
     "216": "SkillRecoverHp",
     "217": "SkillRecoverMp",
     "218": "DamageVsStatus",
-    "219": "SetAtkSpd"
+    "219": "SetAtkSpd",
+    "220": "MpCostAsHp",
+    "221": "StatusPerMissingHpMult",
+    "222": "MoveSpdCap",
+    "223": "ApplyStatusAttack",
+    "224": "ApplyStatusHit",
+    "225": "RatingHp",
+    "226": "RatingAtk",
+    "227": "RatingMatk",
+    "228": "RatingExp",
+    "229": "DamageDeferred",
+    "230": "SplashDamageReduction",
+    "231": "BondTargets"
   },
   "pools": {
     "Accessory": [
