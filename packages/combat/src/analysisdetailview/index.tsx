@@ -114,6 +114,13 @@ function App() {
     }
   }, [selectionScope]);
 
+  // Switching stat type inside the popup changes which attacker/enemy list applies; a carried-over
+  // selection would hide rows or leave an invisible pick, so drop it.
+  const changeStatType = (nextStat: StatType): void => {
+    setStatType(nextStat);
+    setSelectedEnemyIds(new Set());
+  };
+
   if (!next) return <main class="app-shell" />;
 
   const activePlayer: MeterActorRow | undefined =
@@ -173,7 +180,7 @@ function App() {
             selected={selectedEnemyIds}
             onChange={setSelectedEnemyIds}
           />
-          <StatTypeSelect value={statType} onChange={setStatType} />
+          <StatTypeSelect value={statType} onChange={changeStatType} />
           <div class="seg">
             <button type="button" class={metric === "dps" ? "active" : undefined} onClick={() => setMetric("dps")}>{metricLabel} / 5 sec</button>
             <button type="button" class={metric === "cumulative" ? "active" : undefined} onClick={() => setMetric("cumulative")}>Cumulative</button>
@@ -241,7 +248,10 @@ function App() {
           <section class="skills-section">
             <div class="section-head">
               <h2>Absorbed by shields</h2>
-              <p>Damage a barrier soaked for this player, by the incoming skill — not counted above.</p>
+              <p>
+                Damage a barrier soaked for this player, by the incoming skill — not counted above.
+                {selectedEnemyIds.size > 0 && " Shown across all attackers; the enemy filter does not apply here."}
+              </p>
             </div>
             <div class="table-scroll">
               <table class="data-table combat-table" aria-label="Shield absorption by skill">

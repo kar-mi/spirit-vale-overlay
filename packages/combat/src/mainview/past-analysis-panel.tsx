@@ -51,14 +51,17 @@ export function PastAnalysisPanel({
 }: PastAnalysisPanelProps) {
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
   const [playerSort, setPlayerSort] = useState<TableSort<PlayerSortKey>>({ key: "damage", direction: "descending" });
-  const lastEncounterId = useRef<string | undefined>(undefined);
+  const lastScope = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (state.selectedEncounterId !== lastEncounterId.current) {
-      lastEncounterId.current = state.selectedEncounterId;
+    // Enemy ids are not comparable across encounters or between the DPS and TPS attacker lists,
+    // so a stale selection would hide rows or show an invisible pick — clear it on either change.
+    const scope = `${state.selectedEncounterId ?? ""}:${state.statType}`;
+    if (scope !== lastScope.current) {
+      lastScope.current = scope;
       setSelectedEnemyIds(new Set());
     }
-  }, [state.selectedEncounterId]);
+  }, [state.selectedEncounterId, state.statType]);
 
   const activeSnapshot: MeterEncounterSnapshot | undefined =
     state.statType === "tanked" ? state.tankedSnapshot :
