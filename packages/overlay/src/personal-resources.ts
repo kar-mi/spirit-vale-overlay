@@ -5,6 +5,8 @@ import type { OverlayExperienceProgress, OverlayResource } from "./app-types.ts"
 export interface PersonalResources {
   health?: OverlayResource;
   mana?: OverlayResource;
+  /** Current absorb shield, when the player has one. There is no maximum on the wire. */
+  shield?: number;
 }
 
 export function personalResources(records: CharacterRecordValues | undefined): PersonalResources {
@@ -12,6 +14,9 @@ export function personalResources(records: CharacterRecordValues | undefined): P
   return {
     ...resource("health", records.currentHealth, records.maxHealth ?? records.normalizedMaxHp),
     ...resource("mana", records.currentMana, records.maxMana ?? records.normalizedMaxMp),
+    ...(validCurrent(records.currentShield) && records.currentShield > 0
+      ? { shield: records.currentShield }
+      : {}),
   };
 }
 
@@ -22,7 +27,7 @@ export function resourceFill(resource: OverlayResource | OverlayExperienceProgre
 }
 
 function resource(
-  key: keyof PersonalResources,
+  key: "health" | "mana",
   current: number | undefined,
   maximum: number | undefined,
 ): PersonalResources {

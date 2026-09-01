@@ -152,8 +152,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
         invalidLines,
         encounters: encounterOptions(encounters),
         statType: state.statType,
-        enemies: [],
-        actorEnemyBreakdown: {},
+        ...emptyEnemyState(),
       };
       if (lastId) applySelection(lastId);
       publish();
@@ -167,8 +166,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
         invalidLines: 0,
         encounters: [],
         statType: state.statType,
-        enemies: [],
-        actorEnemyBreakdown: {},
+        ...emptyEnemyState(),
       };
       publish();
       throw new Error("combat analysis log could not be loaded");
@@ -193,6 +191,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     replayEncounters = replay.snapshots.map((snapshot) => ({
       snapshot,
       breakdown: { encounterId: snapshot.id, enemies: [], bySkill: new Map() },
+      tankedBreakdown: { encounterId: snapshot.id, enemies: [], bySkill: new Map() },
     }));
     encounters = replayEncounters.map((entry) => ({
       encounterId: entry.snapshot.id,
@@ -209,7 +208,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
   function applySelection(encounterId: string): void {
     selected = loadEncounter(encounterId);
     if (!selected) {
-      state = { ...state, selectedEncounterId: encounterId, enemies: [], actorEnemyBreakdown: {} };
+      state = { ...state, selectedEncounterId: encounterId, ...emptyEnemyState() };
       return;
     }
     state = {
@@ -219,7 +218,9 @@ export function createCombatAnalysisController(options: CombatAnalysisController
       ...(selected.tankedSnapshot === undefined ? {} : { tankedSnapshot: selected.tankedSnapshot }),
       ...(selected.healSnapshot === undefined ? {} : { healSnapshot: selected.healSnapshot }),
       enemies: selected.breakdown.enemies,
-      actorEnemyBreakdown: buildActorEnemyBreakdown(),
+      actorEnemyBreakdown: buildActorEnemyBreakdown(selected.breakdown),
+      tankedEnemies: selected.tankedBreakdown.enemies,
+      tankedActorEnemyBreakdown: buildActorEnemyBreakdown(selected.tankedBreakdown),
     };
   }
 
@@ -269,18 +270,25 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     if (!identity) return;
     const player = dpsPlayer ?? emptyDpsRow(identity, snapshot.durationMs);
     const skillsByEnemy = buildSkillsByEnemy(rowId, snapshot.durationMs);
-    const enemies = selected.breakdown.enemies.filter((enemy) => enemy.targetId in skillsByEnemy);
+    const tankedSkillsByEnemy = buildSkillsByEnemy(rowId, snapshot.durationMs, selected.tankedBreakdown);
+    const dpsEnemies = selected.breakdown.enemies.filter((enemy) => enemy.targetId in skillsByEnemy);
+    const tankedEnemies = selected.tankedBreakdown.enemies.filter((enemy) => enemy.targetId in tankedSkillsByEnemy);
+    // The popup can switch stat type locally, so ship both enemy lists; only seed the selection
+    // validity against the one for the stat type it opens on.
+    const openEnemyIds = new Set((state.statType === "tanked" ? tankedEnemies : dpsEnemies).map((enemy) => enemy.targetId));
     detailState = {
       fileName: state.fileName,
       encounterLabel: state.encounters.find((encounter) => encounter.id === snapshot.id)?.label ?? "Encounter",
       encounterDurationMs: snapshot.durationMs,
       statType: state.statType,
-      selectedEnemyIds: validSelectedEnemyIds(selectedEnemyIds, new Set(enemies.map((enemy) => enemy.targetId))),
+      selectedEnemyIds: validSelectedEnemyIds(selectedEnemyIds, openEnemyIds),
       player,
       tankedPlayer,
       healPlayer,
-      enemies,
+      enemies: dpsEnemies,
+      tankedEnemies,
       skillsByEnemy,
+      tankedSkillsByEnemy,
     };
     showDetailWindow(identity);
   }
@@ -370,8 +378,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     await deathLogWindow.open(loadedPath, false);
   }
 
-  function buildActorEnemyBreakdown(): Record<string, EnemyDamageRow[]> {
-    const breakdown = selected?.breakdown;
+  function buildActorEnemyBreakdown(breakdown = selected?.breakdown): Record<string, EnemyDamageRow[]> {
     const result: Record<string, EnemyDamageRow[]> = {};
     if (!breakdown) return result;
     for (const [rowId, targets] of breakdown.bySkill) {
@@ -390,8 +397,11 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     return result;
   }
 
-  function buildSkillsByEnemy(rowId: string, durationMs: number): Record<number, FishNetDpsSkillRow[]> {
-    const breakdown = selected?.breakdown;
+  function buildSkillsByEnemy(
+    rowId: string,
+    durationMs: number,
+    breakdown = selected?.breakdown,
+  ): Record<number, FishNetDpsSkillRow[]> {
     const result: Record<number, FishNetDpsSkillRow[]> = {};
     if (!breakdown) return result;
     const durationSeconds = Math.max(1, durationMs) / 1000;
@@ -439,6 +449,14 @@ export function createCombatAnalysisController(options: CombatAnalysisController
 
 }
 
+/** The enemy-filter fields, all empty — no encounter selected, or one with no breakdown. */
+function emptyEnemyState(): Pick<
+  CombatAnalysisState,
+  "enemies" | "actorEnemyBreakdown" | "tankedEnemies" | "tankedActorEnemyBreakdown"
+> {
+  return { enemies: [], actorEnemyBreakdown: {}, tankedEnemies: [], tankedActorEnemyBreakdown: {} };
+}
+
 function loadingState(fileName?: string, statType: StatType = "damage"): CombatAnalysisState {
   return {
     status: "loading",
@@ -447,8 +465,7 @@ function loadingState(fileName?: string, statType: StatType = "damage"): CombatA
     invalidLines: 0,
     encounters: [],
     statType,
-    enemies: [],
-    actorEnemyBreakdown: {},
+    ...emptyEnemyState(),
   };
 }
 

@@ -48,6 +48,8 @@ function state(actors: MeterActorRow[]): CombatAnalysisState {
       unidentified: [{ targetId: 90, damage: 15_200, hits: 28, criticalHits: 0 }],
       "name:bramble": [{ targetId: 91, damage: 118_200, hits: 4, criticalHits: 0 }],
     },
+    tankedEnemies: [],
+    tankedActorEnemyBreakdown: {},
   };
 }
 
@@ -85,5 +87,28 @@ describe("enemy filtering", () => {
     expect(filtered.map((row) => row.contribution)).toEqual([0.25, 0.75]);
     expect(filtered.reduce((sum, row) => sum + row.contribution, 0)).toBe(1);
     expect(filtered[0]).toMatchObject({ dps: 10, hits: 2, criticalHits: 1, critRate: 0.5 });
+  });
+
+  test("filters the tanked meter by attacker, reading the tanked breakdown and duration", () => {
+    const actors = [actor("name:aurora", "Aurora", 400, 1), actor("name:bramble", "Bramble", 100, 2)];
+    const next = state(actors);
+    next.statType = "tanked";
+    next.tankedSnapshot = { ...next.snapshot!, durationMs: 20_000 };
+    next.tankedActorEnemyBreakdown = {
+      "name:aurora": [{ targetId: 500, damage: 400, hits: 4, criticalHits: 0 }],
+      "name:bramble": [{ targetId: 501, damage: 100, hits: 1, criticalHits: 0 }],
+    };
+
+    const filtered = applyEnemyFilter(next, actors, new Set([500]));
+    expect(filtered.map((row) => [row.actor.rowId, row.damage, row.dps])).toEqual([["name:aurora", 400, 20]]);
+    expect(filtered[0]?.contribution).toBe(1);
+  });
+
+  test("passes tanked rows through untouched when nothing is selected", () => {
+    const actors = [actor("name:aurora", "Aurora", 400, 1)];
+    const next = state(actors);
+    next.statType = "tanked";
+    const filtered = applyEnemyFilter(next, actors, new Set());
+    expect(filtered[0]?.damage).toBe(400);
   });
 });

@@ -28,15 +28,20 @@ interface SkillFold {
   critRate?: number;
 }
 
-function foldSkillsByEnemy(next: CombatAnalysisDetailState, selectedEnemyIds: ReadonlySet<number>): SkillFold {
-  if (selectedEnemyIds.size === 0) {
-    const player = next.player;
-    return { skills: player.skills, damage: player.damage, dps: player.dps, hits: player.hits, criticalHits: player.criticalHits, critRate: player.critRate };
+function foldSkillsByEnemy(
+  next: CombatAnalysisDetailState,
+  selectedEnemyIds: ReadonlySet<number>,
+  player: MeterActorRow | undefined,
+  skillsByEnemy: Record<number, FishNetDpsSkillRow[]>,
+): SkillFold {
+  if (selectedEnemyIds.size === 0 || player === undefined) {
+    const row = player ?? next.player;
+    return { skills: row.skills, damage: row.damage, dps: row.dps, hits: row.hits, criticalHits: row.criticalHits, critRate: row.critRate };
   }
   const durationSeconds = Math.max(1, next.encounterDurationMs) / 1000;
   const merged = new Map<string, { sourceLabel: string; damage: number; hits: number; criticalHits: number }>();
   for (const targetId of selectedEnemyIds) {
-    for (const row of next.skillsByEnemy[targetId] ?? []) {
+    for (const row of skillsByEnemy[targetId] ?? []) {
       const existing = merged.get(row.sourceId) ?? { sourceLabel: row.sourceLabel, damage: 0, hits: 0, criticalHits: 0 };
       existing.damage += row.damage;
       existing.hits += row.hits;
@@ -119,10 +124,13 @@ function App() {
   const damageLabel = statType === "tanked" ? "Damage taken" : statType === "heal" ? "Healing" : "Damage";
 
   const fold: SkillFold = statType === "damage"
-    ? foldSkillsByEnemy(next, selectedEnemyIds)
-    : activePlayer
-      ? { skills: activePlayer.skills, damage: activePlayer.damage, dps: activePlayer.dps, hits: activePlayer.hits, criticalHits: activePlayer.criticalHits, critRate: activePlayer.critRate }
-      : { skills: [], damage: 0, dps: 0, hits: 0, criticalHits: 0 };
+    ? foldSkillsByEnemy(next, selectedEnemyIds, next.player, next.skillsByEnemy)
+    : statType === "tanked"
+      ? foldSkillsByEnemy(next, selectedEnemyIds, next.tankedPlayer, next.tankedSkillsByEnemy ?? {})
+      : activePlayer
+        ? { skills: activePlayer.skills, damage: activePlayer.damage, dps: activePlayer.dps, hits: activePlayer.hits, criticalHits: activePlayer.criticalHits, critRate: activePlayer.critRate }
+        : { skills: [], damage: 0, dps: 0, hits: 0, criticalHits: 0 };
+  const absorbedSkills = statType === "tanked" ? (next.tankedPlayer?.absorbedSkills ?? []) : [];
 
   const metrics: [string, string][] = [
     [damageLabel, compactFormat.format(fold.damage)],
@@ -160,7 +168,11 @@ function App() {
             <h1>{activePlayer?.displayName ?? next.player.displayName}</h1>
             <p>{next.fileName} · {next.encounterLabel}</p>
           </div>
-          <EnemyFilterControl enemies={statType === "damage" ? next.enemies : []} selected={selectedEnemyIds} onChange={setSelectedEnemyIds} />
+          <EnemyFilterControl
+            enemies={statType === "tanked" ? next.tankedEnemies : statType === "damage" ? next.enemies : []}
+            selected={selectedEnemyIds}
+            onChange={setSelectedEnemyIds}
+          />
           <StatTypeSelect value={statType} onChange={setStatType} />
           <div class="seg">
             <button type="button" class={metric === "dps" ? "active" : undefined} onClick={() => setMetric("dps")}>{metricLabel} / 5 sec</button>
@@ -225,6 +237,27 @@ function App() {
                 </table>
               </div>}
         </section>
+        {absorbedSkills.length > 0 && (
+          <section class="skills-section">
+            <div class="section-head">
+              <h2>Absorbed by shields</h2>
+              <p>Damage a barrier soaked for this player, by the incoming skill — not counted above.</p>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table combat-table" aria-label="Shield absorption by skill">
+                <thead><tr><th>Attacker skill</th><th>Absorbed</th><th>Share</th><th>Hits</th></tr></thead>
+                <tbody>{absorbedSkills.map((skill) => (
+                  <tr key={skill.sourceId}>
+                    <th scope="row">{skill.sourceLabel}</th>
+                    <td>{compactFormat.format(skill.damage)}</td>
+                    <td>{percentFormat.format(skill.contribution)}</td>
+                    <td>{numberFormat.format(skill.hits)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </section>
     </main>
   );

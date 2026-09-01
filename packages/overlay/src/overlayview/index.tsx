@@ -842,26 +842,38 @@ function XpChartElement() {
 
 type ResourceKind = "health" | "mana" | "character-xp" | "job-xp";
 
-function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: OverlayResource | undefined }) {
+function ResourceElement(
+  { kind, resource, shield }: { kind: ResourceKind; resource: OverlayResource | undefined; shield?: number },
+) {
   const label = kind === "health" ? "HP"
     : kind === "mana" ? "MP"
     : kind === "character-xp" ? "XP"
     : "JOB XP";
+  const hasShield = typeof shield === "number" && Number.isFinite(shield) && shield > 0
+    && resource !== undefined && resource.maximum > 0;
+  const shieldFill = hasShield ? Math.max(0.03, Math.min(1, shield! / resource!.maximum)) : 0;
   const description = resource
-    ? `${label} ${resource.current} of ${resource.maximum}`
+    ? `${label} ${resource.current} of ${resource.maximum}${hasShield ? `, shield ${shield}` : ""}`
     : `Waiting for ${label}`;
   return (
     <div
       class={`resource-value resource-${kind}${resource ? "" : " resource-waiting"}`}
-      style={`--resource-fill:${resource ? resourceFill(resource) : 0}`}
+      style={`--resource-fill:${resource ? resourceFill(resource) : 0};--resource-shield-fill:${shieldFill}`}
       aria-label={description}
     >
+      {hasShield ? <span class="resource-shield-fill" aria-hidden="true" /> : null}
       <strong class="resource-label">{label}</strong>
       {resource ? (
         <span class="resource-numbers">
           <strong>{numberFormat.format(resource.current)}</strong>
           <span>/</span>
           <strong>{numberFormat.format(resource.maximum)}</strong>
+          {hasShield ? (
+            <>
+              <span class="resource-shield-sep">|</span>
+              <strong>{numberFormat.format(shield!)}</strong>
+            </>
+          ) : null}
         </span>
       ) : <span class="resource-empty">Waiting</span>}
     </div>
@@ -874,7 +886,7 @@ function CharacterResourceElement({ kind }: { kind: ResourceKind }) {
     : kind === "mana" ? next?.mana
     : kind === "character-xp" ? next?.characterXp
     : next?.jobXp;
-  return <ResourceElement kind={kind} resource={resource} />;
+  return <ResourceElement kind={kind} resource={resource} shield={kind === "health" ? next?.shield : undefined} />;
 }
 
 function PartyRankingElement() {

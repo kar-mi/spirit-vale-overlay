@@ -10,12 +10,17 @@ export interface FilteredActorRow {
   contribution: number;
 }
 
+/** Whether the enemy filter has per-attacker data for this stat type. */
+export function enemyFilterSupported(statType: CombatAnalysisState["statType"]): boolean {
+  return statType === "damage" || statType === "tanked";
+}
+
 export function applyEnemyFilter(
   next: CombatAnalysisState,
   rows: MeterActorRow[],
   selectedEnemyIds: ReadonlySet<number>,
 ): FilteredActorRow[] {
-  if (next.statType !== "damage" || selectedEnemyIds.size === 0) {
+  if (!enemyFilterSupported(next.statType) || selectedEnemyIds.size === 0) {
     return rows.map((actor) => ({
       actor,
       damage: actor.damage,
@@ -26,9 +31,12 @@ export function applyEnemyFilter(
       contribution: actor.contribution,
     }));
   }
-  const durationSeconds = Math.max(1, next.snapshot?.durationMs ?? 0) / 1000;
+  const tanked = next.statType === "tanked";
+  const breakdown = tanked ? next.tankedActorEnemyBreakdown : next.actorEnemyBreakdown;
+  const snapshot = tanked ? next.tankedSnapshot : next.snapshot;
+  const durationSeconds = Math.max(1, snapshot?.durationMs ?? 0) / 1000;
   const partial = rows.map((actor) => {
-    const filtered = (next.actorEnemyBreakdown[actor.rowId] ?? [])
+    const filtered = (breakdown[actor.rowId] ?? [])
       .filter((row) => selectedEnemyIds.has(row.targetId));
     const damage = filtered.reduce((sum, row) => sum + row.damage, 0);
     const hits = filtered.reduce((sum, row) => sum + row.hits, 0);

@@ -101,6 +101,9 @@ export interface CombatAnalysisState {
   healSnapshot?: MeterEncounterSnapshot;
   enemies: EnemyOption[];
   actorEnemyBreakdown: Record<string, EnemyDamageRow[]>;
+  /** TPS enemy filter: the attacker list and per-victim damage taken keyed by attacker. */
+  tankedEnemies: EnemyOption[];
+  tankedActorEnemyBreakdown: Record<string, EnemyDamageRow[]>;
 }
 
 export interface CombatAnalysisDetailState {
@@ -113,7 +116,11 @@ export interface CombatAnalysisDetailState {
   tankedPlayer?: MeterActorRow;
   healPlayer?: MeterActorRow;
   enemies: EnemyOption[];
+  /** Attackers that hit this player, for the enemy filter when the popup is on the TPS view. */
+  tankedEnemies: EnemyOption[];
   skillsByEnemy: Record<number, FishNetDpsSkillRow[]>;
+  /** Tanked meter: incoming enemy skills per attacker, for the per-enemy breakdown in the popup. */
+  tankedSkillsByEnemy?: Record<number, FishNetDpsSkillRow[]>;
 }
 
 export interface CombatDeathLogState {

@@ -24,6 +24,8 @@ export interface IndexedEncounter {
   tankedSnapshot?: FishNetDpsEncounterSnapshot;
   healSnapshot?: FishNetDpsEncounterSnapshot;
   breakdown: EnemyBreakdownEncounter;
+  /** Per-attacker breakdown of damage taken, for the TPS enemy filter. */
+  tankedBreakdown: EnemyBreakdownEncounter;
 }
 
 export interface IndexedEncounterSummary {
@@ -81,6 +83,7 @@ export function loadIndexedEncounter(
     tankedSnapshot: store.getEncounter(sessionId, encounterId, { meter: "tanked" }),
     healSnapshot: store.getEncounter(sessionId, encounterId, { meter: "healing" }),
     breakdown: toEnemyBreakdown(store.getEnemyBreakdown(sessionId, encounterId)),
+    tankedBreakdown: toEnemyBreakdown(store.getEnemyBreakdown(sessionId, encounterId, "tanked")),
   };
 }
 

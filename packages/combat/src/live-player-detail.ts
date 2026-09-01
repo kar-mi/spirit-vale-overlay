@@ -35,6 +35,7 @@ export function buildLivePlayerDetailState(
     tankedPlayer,
     healPlayer,
     enemies: [],
+    tankedEnemies: [],
     skillsByEnemy: {},
   };
 }
