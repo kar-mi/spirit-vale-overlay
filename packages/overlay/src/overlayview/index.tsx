@@ -27,6 +27,7 @@ import {
 import type { BossTimerPhase } from "@svoverlay/contracts/boss-timers";
 import {
   OVERLAY_ELEMENT_IDS,
+  minimumSizeFor,
   type BossTimer,
   type BossTimerState,
   type KeybindAction,
@@ -59,10 +60,6 @@ const RADAR_WORLD_RADIUS = 60;
 const RADAR_RING_COUNT = 3;
 const LOOT_TOAST_LIFETIME_MS = 3_000;
 
-const MIN_ELEMENT_WIDTH = 160;
-const MIN_ELEMENT_HEIGHT = 100;
-const MIN_BAR_HEIGHT = 24;
-const MIN_COMPACT_ELEMENT_HEIGHT = 40;
 const FLASH_REMAINING_FRACTION = 0.15;
 const FLASH_MINIMUM_DURATION_MS = 59_000;
 const STATUS_TICK_MS = 100;
@@ -636,22 +633,18 @@ function resizeRect(start: ElementRect, edge: ResizeEdge, dx: number, dy: number
   let top = start.y;
   let right = start.x + start.width;
   let bottom = start.y + start.height;
-  const minimumHeight = id === "health" || id === "mana" || id === "characterXp" || id === "jobXp"
-    ? MIN_BAR_HEIGHT
-    : id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" || id === "bossTimers"
-      ? MIN_COMPACT_ELEMENT_HEIGHT
-      : MIN_ELEMENT_HEIGHT;
-  if (edge.includes("w")) left = clamp(start.x + dx, 0, right - MIN_ELEMENT_WIDTH);
-  if (edge.includes("e")) right = clamp(start.x + start.width + dx, left + MIN_ELEMENT_WIDTH, window.innerWidth);
-  if (edge.includes("n")) top = clamp(start.y + dy, 0, bottom - minimumHeight);
-  if (edge.includes("s")) bottom = clamp(start.y + start.height + dy, top + minimumHeight, window.innerHeight);
+  const minimum = minimumSizeFor(id);
+  if (edge.includes("w")) left = clamp(start.x + dx, 0, right - minimum.width);
+  if (edge.includes("e")) right = clamp(start.x + start.width + dx, left + minimum.width, window.innerWidth);
+  if (edge.includes("n")) top = clamp(start.y + dy, 0, bottom - minimum.height);
+  if (edge.includes("s")) bottom = clamp(start.y + start.height + dy, top + minimum.height, window.innerHeight);
   if (gridEnabled.value) {
     left = snapToGrid(left);
     top = snapToGrid(top);
     right = snapToGrid(right);
     bottom = snapToGrid(bottom);
-    if (right - left < MIN_ELEMENT_WIDTH) right = left + MIN_ELEMENT_WIDTH;
-    if (bottom - top < minimumHeight) bottom = top + minimumHeight;
+    if (right - left < minimum.width) right = left + minimum.width;
+    if (bottom - top < minimum.height) bottom = top + minimum.height;
   }
   return { x: left, y: top, width: right - left, height: bottom - top };
 }

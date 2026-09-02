@@ -5,6 +5,7 @@ import { loadJsonSettings, writeJsonFileAtomic } from "@svoverlay/desktop-platfo
 import {
   KEYBIND_ACTIONS,
   OVERLAY_ELEMENT_IDS,
+  minimumSizeFor,
   type KeybindAction,
   type OverlayDisplayOption,
   type OverlayElementId,
@@ -147,11 +148,9 @@ export function normalizeOverlaySettings(
     const assigned = typeof value.display === "string" ? value.display : "";
     const display = resolveElementDisplayKey(displays, assigned, homeDisplay);
     const bounds = resolveElementDisplay(displays, assigned, homeDisplay)?.bounds ?? fallbackBounds;
-    const width = clampNumber(value.width, defaults.width, 160, Math.max(160, bounds.width));
-    const minimumHeight = id === "health" || id === "mana" || id === "characterXp" || id === "jobXp"
-      ? 24
-      : id === "weight" || id === "buffs" || id === "debuffs" || id === "toggles" || id === "bossTimers" ? 40 : 100;
-    const height = clampNumber(value.height, defaults.height, minimumHeight, Math.max(minimumHeight, bounds.height));
+    const minimum = minimumSizeFor(id);
+    const width = clampNumber(value.width, defaults.width, minimum.width, Math.max(minimum.width, bounds.width));
+    const height = clampNumber(value.height, defaults.height, minimum.height, Math.max(minimum.height, bounds.height));
     const defaultPosition = resolveDefaultPosition(defaults, bounds);
     const constrained = constrainRectToBounds({
       x: clampNumber(value.x, defaultPosition.x, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
