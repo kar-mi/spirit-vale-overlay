@@ -138,17 +138,26 @@ interface CoordinatorHarnessOptions {
   capture?: FakeCapture;
   clock?: TestClock;
   options?: Omit<CaptureCoordinatorOptions, "logDirectory" | "captureFactory" | "clock">;
+  beforeStart?: (coordinator: CaptureCoordinator, capture: FakeCapture) => void | Promise<void>;
 }
 
+interface CoordinatorHarnessContext {
+  coordinator: CaptureCoordinator;
+  capture: FakeCapture;
+  clock: TestClock;
+  directory: string;
+}
+
+type CoordinatorScenario = (context: CoordinatorHarnessContext) => Promise<void>;
+
+export function withCoordinator(run: CoordinatorScenario): Promise<void>;
+export function withCoordinator(harness: CoordinatorHarnessOptions, run: CoordinatorScenario): Promise<void>;
 export async function withCoordinator(
-  harness: CoordinatorHarnessOptions,
-  run: (context: {
-    coordinator: CaptureCoordinator;
-    capture: FakeCapture;
-    clock: TestClock;
-    directory: string;
-  }) => Promise<void>,
+  harnessOrRun: CoordinatorHarnessOptions | CoordinatorScenario,
+  scenario?: CoordinatorScenario,
 ): Promise<void> {
+  const harness = typeof harnessOrRun === "function" ? {} : harnessOrRun;
+  const run = typeof harnessOrRun === "function" ? harnessOrRun : scenario!;
   const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-"));
   const capture = harness.capture ?? new FakeCapture();
   const clock = harness.clock ?? new TestClock();
@@ -159,6 +168,7 @@ export async function withCoordinator(
     clock,
   });
   try {
+    await harness.beforeStart?.(coordinator, capture);
     await coordinator.start();
     await run({ coordinator, capture, clock, directory });
   } finally {

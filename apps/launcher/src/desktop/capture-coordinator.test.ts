@@ -1,18 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import type { CharacterSnapshot } from "@kar-mi/spirit-vale-tools-character";
 import { DpsSessionLogFollower } from "@kar-mi/spirit-vale-tools-combat";
 import type { CapturedFishNetPacket, CapturedLiteNetLibPacket } from "@kar-mi/spirit-vale-tools-capture";
-import type { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import { isLogStreamHeader, readCurrentLogStream } from "@kar-mi/spirit-vale-tools-logging";
 import { RewardSessionLogFollower } from "@kar-mi/spirit-vale-tools-rewards";
 import { getCurrentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
 
 import { CaptureCoordinator } from "./capture-coordinator.ts";
-import { FakeCapture, TestClock, withCoordinator, type TestPacket } from "./capture-coordinator.test-harness.ts";
+import { FakeCapture, withCoordinator, type TestPacket } from "./capture-coordinator.test-harness.ts";
 
 const gameProcessName = getCurrentExecutableNames().gameProcess;
 
@@ -135,15 +133,7 @@ describe("central capture coordinator", () => {
   });
 
   test("adds the diagnostic stream only when development diagnostics are enabled", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        diagnosticLogging: true,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { diagnosticLogging: true } }, async ({ coordinator, capture, directory }) => {
 
       capture.packet({ tick: 1, packetId: 0, packetName: "authenticated", raw: Buffer.alloc(0), payload: Buffer.alloc(0) });
       capture.packet(experiencePacket(2, 0, 0n));
@@ -167,21 +157,11 @@ describe("central capture coordinator", () => {
       expect(rewards.map((record) => record.type)).toContain("rewards.unmatched");
       expect(other.filter((record) => record.type === "fishnet.packet")).toHaveLength(2);
       expect(other.at(-1)?.type).toBe("capture.lifecycle");
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("diagnostic mode traces map-transition wire traffic, connection admission, and status decoding", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-transition-diagnostics-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        diagnosticLogging: true,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { diagnosticLogging: true } }, async ({ coordinator, capture, directory }) => {
 
       const now = Date.now();
       capture.liteNet(liteNetPacket(new Date(now - 6_000), Buffer.from("too-old")));
@@ -220,21 +200,11 @@ describe("central capture coordinator", () => {
         statusId: "Haste",
         action: "applied",
       })]);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("captures both domains before their log followers are opened", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-late-open-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        diagnosticLogging: false,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { diagnosticLogging: false } }, async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(experiencePacket(2, 0, 0n));
@@ -265,21 +235,13 @@ describe("central capture coordinator", () => {
       const combatPointer = await readCurrentLogStream("combat", directory);
       const combatRecords = records(await readFile(combatPointer!.path, "utf8"));
       expect(combatRecords.some((record) => record.type === "combat.spawnIdentityMiss")).toBe(false);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("writes the cached local character archetype onto serverRpc actor identities", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-local-class-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      coordinator.setCachedCharacter(syntheticCachedCharacter());
-      await coordinator.start();
+    await withCoordinator({
+      beforeStart: (coordinator) => coordinator.setCachedCharacter(syntheticCachedCharacter()),
+    }, async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet({
@@ -323,19 +285,11 @@ describe("central capture coordinator", () => {
           archetype: 12,
         }),
       }));
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("specializes drain healing only for the local character build", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-drain-healing-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
+    await withCoordinator({ beforeStart: (coordinator) => {
       const snapshot = syntheticCachedCharacter();
       snapshot.equipment = [{
         slot: "Rune",
@@ -345,7 +299,7 @@ describe("central capture coordinator", () => {
         substats: [{ type: 98, name: "Health Leech", roll: 0, value: 4, percent: true }],
       }];
       coordinator.setCachedCharacter(snapshot);
-      await coordinator.start();
+    } }, async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet({
@@ -389,20 +343,11 @@ describe("central capture coordinator", () => {
           value: 300,
         }),
       }));
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("writes an owner-resolved identity before damage from an observed player actor", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-combat-identity-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      await coordinator.start();
+    await withCoordinator(async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(ownedSpawnPacket(2, 40, 7, "PlayerController"));
@@ -424,21 +369,13 @@ describe("central capture coordinator", () => {
 
       expect(resolvedIndex).toBeGreaterThan(-1);
       expect(damageIndex).toBeGreaterThan(resolvedIndex);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("logs only local reward kills and attributes a coalesced reward to the local group", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-local-rewards-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      coordinator.setCachedCharacter(syntheticCachedCharacter());
-      await coordinator.start();
+    await withCoordinator({
+      beforeStart: (coordinator) => coordinator.setCachedCharacter(syntheticCachedCharacter()),
+    }, async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet({
@@ -481,20 +418,11 @@ describe("central capture coordinator", () => {
       expect(kills.reduce((total, record) => total + (record.data?.experience ?? 0), 0)).toBe(200);
       expect(kills.find((record) => record.data?.mob?.objectId === 902)?.data?.experience).toBe(200);
       expect(rewardRecords.some((record) => record.type === "rewards.unmatched")).toBe(false);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("writes a resolved victim identity before a player-death event", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-death-identity-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      await coordinator.start();
+    await withCoordinator(async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(ownedSpawnPacket(2, 40, 7, "PlayerController"));
@@ -523,20 +451,11 @@ describe("central capture coordinator", () => {
       expect(mobIdentityIndex).toBeGreaterThan(-1);
       expect(mobIdentityIndex).toBeLessThan(deathIndex);
       expect(deathIndex).toBeGreaterThan(identityIndex);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("records distinct map IDs as inert combat activations", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-zones-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      await coordinator.start();
+    await withCoordinator(async ({ coordinator, capture, directory }) => {
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(mapPacket(2, 17, "test-connection"));
       capture.packet(mapPacket(3, 17, "test-connection"));
@@ -549,20 +468,11 @@ describe("central capture coordinator", () => {
         .map((record) => (record as { data?: { sourceId?: string } }).data?.sourceId)
         .filter((sourceId): sourceId is string => sourceId?.startsWith("__spiritvaleZone:") ?? false);
       expect(zones).toEqual(["__spiritvaleZone:17", "__spiritvaleZone:29"]);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("ignores map broadcasts for remote players", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-local-zone-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      await coordinator.start();
+    await withCoordinator(async ({ coordinator, capture, directory }) => {
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(mapPacket(2, 43, "test-connection"));
       capture.packet(characterPinPacket(3, 100, "test-connection"));
@@ -575,25 +485,15 @@ describe("central capture coordinator", () => {
         "__spiritvaleZone:43",
         "__spiritvaleZone:45",
       ]);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("records tower floors as zones and returns to the latest physical map on exit", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-zones-"));
-    const capture = new FakeCapture();
-    const clock = new TestClock();
     let goldResets = 0;
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        clock,
+    await withCoordinator({ options: {
         resetOnMapChange: () => false,
         onGoldMapChange: () => { goldResets += 1; },
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture, clock, directory }) => {
 
       capture.packet(authenticatedPacket(1, "tower-connection"));
       capture.packet(mapPacket(2, 17, "tower-connection"));
@@ -622,25 +522,15 @@ describe("central capture coordinator", () => {
       ]);
       expect(goldResets).toBe(3);
       expect(await readdir(path.join(directory, "combat"))).toHaveLength(1);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("coalesces an exit-entry-floor burst into one session seeded with the final floor", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-reset-"));
-    const capture = new FakeCapture();
-    const clock = new TestClock();
     let goldResets = 0;
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        clock,
+    await withCoordinator({ options: {
         resetOnMapChange: () => true,
         onGoldMapChange: () => { goldResets += 1; },
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture, clock, directory }) => {
       capture.packet(authenticatedPacket(1, "tower-connection"));
       capture.packet(mapPacket(2, 17, "tower-connection"));
       const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
@@ -668,24 +558,14 @@ describe("central capture coordinator", () => {
       expect(combat.some((record) => record.type === "combat.event" && record.data?.actorId === 41)).toBe(true);
       expect(goldResets).toBe(1);
       expect(await readdir(path.join(directory, "combat"))).toHaveLength(2);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("preserves actor identities and creates only the floor session across same-connection reauthentication", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-reauth-"));
-    const capture = new FakeCapture();
-    const clock = new TestClock();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        clock,
+    await withCoordinator({ options: {
         diagnosticLogging: true,
         resetOnMapChange: () => true,
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture, clock, directory }) => {
 
       capture.packet(authenticatedPacket(1, "tower-connection"));
       capture.packet(mapPacket(2, 17, "tower-connection"));
@@ -734,23 +614,11 @@ describe("central capture coordinator", () => {
         packetConnectionId: "tower-connection",
         tick: 5,
       }));
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("clears the tower floor when the next map authenticates on a new connection", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-switch-"));
-    const capture = new FakeCapture();
-    const clock = new TestClock();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        clock,
-        resetOnMapChange: () => false,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { resetOnMapChange: () => false } }, async ({ coordinator, capture, clock, directory }) => {
 
       capture.packet(authenticatedPacket(1, "tower-a"));
       capture.packet(mapPacket(2, 17, "tower-a"));
@@ -766,23 +634,11 @@ describe("central capture coordinator", () => {
         "__spiritvaleTowerFloor:1",
         "__spiritvaleZone:29",
       ]);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("rotates on a manual reset while the replacement location is still unknown", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-manual-reset-"));
-    const capture = new FakeCapture();
-    const clock = new TestClock();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        clock,
-        resetOnMapChange: () => false,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { resetOnMapChange: () => false } }, async ({ coordinator, capture, clock, directory }) => {
 
       capture.packet(authenticatedPacket(1, "tower-a"));
       capture.packet(mapPacket(2, 17, "tower-a"));
@@ -797,23 +653,15 @@ describe("central capture coordinator", () => {
 
       await coordinator.stop();
       expect(await readdir(path.join(directory, "combat"))).toHaveLength(2);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("logs a pending floor on shutdown without resetting the gold tracker", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-shutdown-"));
-    const capture = new FakeCapture();
     let goldResets = 0;
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         resetOnMapChange: () => false,
         onGoldMapChange: () => { goldResets += 1; },
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1, "tower-a"));
       capture.packet(mapPacket(2, 17, "tower-a"));
@@ -826,21 +674,11 @@ describe("central capture coordinator", () => {
         "__spiritvaleTowerFloor:1",
       ]);
       expect(goldResets).toBe(0);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("keeps new-connection actor identities when a stale connection trails a map change", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reconnect-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        diagnosticLogging: true,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { diagnosticLogging: true } }, async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       capture.packet(identityPacket(1_010, 10, "Alpha", "conn-a"));
@@ -878,21 +716,11 @@ describe("central capture coordinator", () => {
       const otherPointer = await readCurrentLogStream("other", directory);
       const other = records(await readFile(otherPointer!.path, "utf8"));
       expect(other.some((record) => record.type === "fishnet.packet")).toBe(true);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("follows a reconnect the transport reports even when no authentication arrives", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reconnect-transport-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        diagnosticLogging: true,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { diagnosticLogging: true } }, async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       capture.packet(identityPacket(1_010, 10, "Alpha", "conn-a"));
@@ -905,21 +733,11 @@ describe("central capture coordinator", () => {
       const combat = records(await readFile(combatPointer!.path, "utf8"))
         .filter((record) => record.type === "combat.actorIdentity") as Array<{ type: string; data: { displayName?: string } }>;
       expect(combat.map((record) => record.data.displayName)).toEqual([undefined, "Alpha", "Bravo"]);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("leaves the live connection alone when an older one closes", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-stale-close-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        diagnosticLogging: true,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { diagnosticLogging: true } }, async ({ coordinator, capture, directory }) => {
 
       capture.connection("conn-b", "opened");
       capture.packet(identityPacket(60, 20, "Bravo", "conn-b"));
@@ -931,21 +749,11 @@ describe("central capture coordinator", () => {
       const combat = records(await readFile(combatPointer!.path, "utf8"))
         .filter((record) => record.type === "combat.actorIdentity") as Array<{ type: string; data: { displayName?: string } }>;
       expect(combat.map((record) => record.data.displayName)).toEqual(["Bravo"]);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("refuses stragglers from a closed connection so the next one can claim the slot", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-straggler-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        diagnosticLogging: true,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { diagnosticLogging: true } }, async ({ coordinator, capture, directory }) => {
 
       capture.connection("conn-a", "opened");
       capture.packet(identityPacket(1_010, 10, "Alpha", "conn-a"));
@@ -958,20 +766,12 @@ describe("central capture coordinator", () => {
       const combat = records(await readFile(combatPointer!.path, "utf8"))
         .filter((record) => record.type === "combat.actorIdentity") as Array<{ type: string; data: { displayName?: string } }>;
       expect(combat.map((record) => record.data.displayName)).toEqual(["Alpha", "Bravo"]);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("routes local character callbacks before filtering overlapping connections", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-character-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      const receivedConnections: string[] = [];
+    const receivedConnections: string[] = [];
+    await withCoordinator({ beforeStart: (coordinator) => {
       const internal = coordinator as unknown as {
         character: { consumeBeforeAdmission: (packet: CapturedFishNetPacket) => boolean };
       };
@@ -980,7 +780,7 @@ describe("central capture coordinator", () => {
         receivedConnections.push(packet.connectionId);
         return true;
       };
-      await coordinator.start();
+    } }, async ({ coordinator, capture }) => {
 
       capture.packet(authenticatedPacket(1, "conn-a"));
       capture.packet({
@@ -996,23 +796,14 @@ describe("central capture coordinator", () => {
 
       expect(receivedConnections).toEqual(["conn-b"]);
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("filters stale object-bound character packets after a map change", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-character-stale-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
+    await withCoordinator(async ({ coordinator, capture }) => {
       const internal = coordinator as unknown as {
         character: { physicalObjectId: () => number | undefined };
       };
-      await coordinator.start();
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       capture.packet(authenticatedPacket(50, "conn-b"));
@@ -1047,20 +838,11 @@ describe("central capture coordinator", () => {
 
       expect(internal.character.physicalObjectId()).toBe(202);
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("keeps character resources across same-object reauthentication", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-character-reauth-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      await coordinator.start();
+    await withCoordinator(async ({ coordinator, capture }) => {
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       capture.packet(characterPinPacket(1_001, 202, "conn-a"));
@@ -1112,23 +894,16 @@ describe("central capture coordinator", () => {
         maxMana: 240,
       });
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("reports capture startup failure without throwing or closing the session", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-failure-"));
     const capture = new FakeCapture(new Error("synthetic capture unavailable"));
     const errorReports: Array<{ title: string; reason: string }> = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ capture, options: {
         diagnosticLogging: false,
         onError: (report) => errorReports.push(report),
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, directory }) => {
       expect(coordinator.state()).toEqual({
         captureStatus: "unavailable",
         statusDetail: { code: "capture.status.restartRequired" },
@@ -1141,25 +916,19 @@ describe("central capture coordinator", () => {
       expect(await readCurrentLogStream("rewards", directory)).toBeDefined();
       expect(await readCurrentLogStream("other", directory)).toBeUndefined();
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("restarts capture for a new adapter and rolls back a failed selection", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-adapter-"));
     const capture = new FakeCapture();
-    const clock = new TestClock();
     capture.initialTargetState = "active";
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
+    await withCoordinator({
+      capture,
+      options: {
         deviceName: "fictional-adapter-a",
-        captureFactory: () => capture as unknown as PacketCapture,
-        clock,
         stallWarningMs: 5,
-      });
-      await coordinator.start();
+      },
+    }, async ({ coordinator, clock }) => {
       await coordinator.reconfigure("fictional-adapter-b");
       expect(capture.configs.map((config) => config.deviceName)).toEqual(["fictional-adapter-a", "fictional-adapter-b"]);
       await clock.advanceBy(5);
@@ -1175,22 +944,14 @@ describe("central capture coordinator", () => {
       ]);
       expect(coordinator.state().captureStatus).toBe("capturing");
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("resetSession rotates combat/rewards into one new session, seeding identities and preserving the reward baseline", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reset-"));
-    const capture = new FakeCapture();
     const endedSessions: string[] = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         onSessionEnded: async (sessionId) => { endedSessions.push(sessionId); },
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(identityPacket(2, 10, "Alpha", "test-connection"));
@@ -1229,20 +990,11 @@ describe("central capture coordinator", () => {
       const rewardsAfter = records(await readFile(secondRewards!.path, "utf8")) as Array<{ type: string; data: { reward?: string } }>;
       const gainRecord = rewardsAfter.find((record) => record.type === "rewards.unmatched");
       expect(gainRecord?.data.reward).toBe("experience");
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("coalesces concurrent resetSession calls into a single rotation", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reset-concurrent-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      await coordinator.start();
+    await withCoordinator(async ({ coordinator, directory }) => {
       const firstSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
       await Promise.all([coordinator.resetSession(), coordinator.resetSession(), coordinator.resetSession()]);
@@ -1253,21 +1005,11 @@ describe("central capture coordinator", () => {
       expect(secondSessionId).not.toBe(firstSessionId);
 
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("rotates the session on a map change once the first authentication is behind it", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        resetOnMapChange: () => true,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { resetOnMapChange: () => true } }, async ({ coordinator, capture, directory }) => {
       const loginSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
@@ -1287,23 +1029,15 @@ describe("central capture coordinator", () => {
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(mapChangeSessionId);
 
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("treats the first authentication as a map change when capture attached to an active session", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-attached-map-change-"));
-    const capture = new FakeCapture();
     let goldResets = 0;
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         resetOnMapChange: () => true,
         onGoldMapChange: () => { goldResets += 1; },
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture, directory }) => {
 
       capture.packet(mapPacket(1_000, 29, "conn-a"));
       const attachedSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
@@ -1321,21 +1055,11 @@ describe("central capture coordinator", () => {
       expect(zones).toEqual(["__spiritvaleZone:48"]);
       expect(goldResets).toBe(1);
       expect(await readdir(path.join(directory, "combat"))).toHaveLength(2);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("replays a new-connection identity into an automatic map-change session", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-identities-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        resetOnMapChange: () => true,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { resetOnMapChange: () => true } }, async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       capture.packet(identityPacket(1_010, 40, "Aster Vale", "conn-a"));
@@ -1362,21 +1086,11 @@ describe("central capture coordinator", () => {
       expect(replayedIdentity).toBeGreaterThan(-1);
       expect(damage).toBeGreaterThan(replayedIdentity);
       expect(combat.some((record) => record.type === "combat.actorIdentity" && record.data?.actorId === 40)).toBe(false);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("records the incoming zone, not the previous zone, in an automatic map-change session", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-zone-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        resetOnMapChange: () => true,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { resetOnMapChange: () => true } }, async ({ coordinator, capture, directory }) => {
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       capture.packet(mapPacket(1_010, 29, "conn-a"));
@@ -1393,23 +1107,15 @@ describe("central capture coordinator", () => {
         .map((record) => (record as { data?: { sourceId?: string } }).data?.sourceId)
         .filter((sourceId): sourceId is string => sourceId?.startsWith("__spiritvaleZone:") ?? false);
       expect(zones).toEqual(["__spiritvaleZone:48"]);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("rotates once for a same-connection waypoint map change and deduplicates its reconnect", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-waypoint-map-change-"));
-    const capture = new FakeCapture();
     let goldResets = 0;
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         resetOnMapChange: () => true,
         onGoldMapChange: () => { goldResets += 1; },
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture, directory }) => {
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       capture.packet(mapPacket(1_010, 17, "conn-a"));
       const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
@@ -1427,21 +1133,11 @@ describe("central capture coordinator", () => {
       expect(goldResets).toBe(1);
       const pointer = await readCurrentLogStream("combat", directory);
       expect(loggedLocations(await readFile(pointer!.path, "utf8"))).toEqual(["__spiritvaleZone:45"]);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("clears actor lifetimes on same-connection character logout and rebuilds from fresh identities", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-character-boundary-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        resetOnMapChange: () => true,
-      });
-      await coordinator.start();
+    await withCoordinator({ options: { resetOnMapChange: () => true } }, async ({ coordinator, capture, directory }) => {
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       capture.packet(identityPacket(1_010, 40, "Former Ranger", "conn-a"));
       const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
@@ -1463,22 +1159,14 @@ describe("central capture coordinator", () => {
       }));
       expect(identities.some((record) => record.type === "combat.actorIdentity"
         && record.data?.actorId === 40)).toBe(false);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("keeps one session across map changes while the setting is off, and honours it being turned on", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-map-change-off-"));
-    const capture = new FakeCapture();
     let resetOnMapChange = false;
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         resetOnMapChange: () => resetOnMapChange,
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture, directory }) => {
       const firstSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
@@ -1492,23 +1180,15 @@ describe("central capture coordinator", () => {
       expect(await sessionAfter(coordinator, directory, firstSessionId)).toBeDefined();
 
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("fires onGoldMapChange on every map change after login, independent of resetOnMapChange", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gold-map-change-"));
-    const capture = new FakeCapture();
     let goldResets = 0;
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         resetOnMapChange: () => false,
         onGoldMapChange: () => { goldResets += 1; },
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture }) => {
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       await coordinator.whenSettled();
@@ -1527,20 +1207,11 @@ describe("central capture coordinator", () => {
       expect(goldResets).toBe(1);
 
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("leaves the existing session active when replacement session creation fails", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reset-failure-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      await coordinator.start();
+    await withCoordinator(async ({ coordinator, capture, directory }) => {
       const firstSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
       const internal = coordinator as unknown as { options: { logDirectory: string } };
@@ -1554,20 +1225,11 @@ describe("central capture coordinator", () => {
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(firstSessionId);
 
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("rolls back already-switched pointers when activation fails partway through", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reset-partial-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      await coordinator.start();
+    await withCoordinator(async ({ coordinator, capture, directory }) => {
       const firstSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
       expect(firstSessionId).toBeDefined();
 
@@ -1585,20 +1247,11 @@ describe("central capture coordinator", () => {
       await coordinator.stop();
       const combatRecords = records(await readFile(combatAfter!.path, "utf8"));
       expect(combatRecords.some((record) => record.type === "combat.actorIdentity")).toBe(true);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("stop() waits for an in-flight resetSession before tearing the coordinator down", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reset-stop-race-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      await coordinator.start();
+    await withCoordinator(async ({ coordinator, directory }) => {
 
       const resetPromise = coordinator.resetSession();
       await coordinator.stop();
@@ -1606,42 +1259,23 @@ describe("central capture coordinator", () => {
 
       expect(coordinator.state()).toMatchObject({ captureStatus: "stopped" });
       expect(await readCurrentLogStream("combat", directory)).toBeDefined();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("resetSession rejects while the coordinator is stopping instead of reviving a session", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-reset-during-stop-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      await coordinator.start();
+    await withCoordinator(async ({ coordinator }) => {
 
       const stopPromise = coordinator.stop();
       await expect(coordinator.resetSession()).rejects.toThrow();
       await stopPromise;
 
       expect(coordinator.state()).toMatchObject({ captureStatus: "stopped" });
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   describe("session handoff buffer", () => {
     test("buffers packets arriving mid-rotation and replays them once it completes", async () => {
-      const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-handoff-buffer-"));
-      const capture = new FakeCapture();
-      try {
-        const coordinator = new CaptureCoordinator({
-          logDirectory: directory,
-          captureFactory: () => capture as unknown as PacketCapture,
-          diagnosticLogging: true,
-        });
-        await coordinator.start();
+      await withCoordinator({ options: { diagnosticLogging: true } }, async ({ coordinator, capture, directory }) => {
         capture.packet(authenticatedPacket(1_000, "conn-a"));
 
         const outgoing = await readCurrentLogStream("other", directory);
@@ -1659,23 +1293,14 @@ describe("central capture coordinator", () => {
 
         const acceptedTicks = new Set(admissions.filter((record) => record.decision === "accepted").map((record) => record.tick));
         for (const record of buffered) expect(acceptedTicks.has(record.tick)).toBe(true);
-      } finally {
-        await rm(directory, { recursive: true, force: true });
-      }
+      });
     });
 
     test("fails the rotation and stops capture when buffered packets exceed the byte limit", async () => {
-      const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-handoff-overflow-"));
-      const capture = new FakeCapture();
       const errorReports: Array<{ title: string; reason: string }> = [];
-      let coordinator: CaptureCoordinator | undefined;
-      try {
-        coordinator = new CaptureCoordinator({
-          logDirectory: directory,
-          captureFactory: () => capture as unknown as PacketCapture,
+      await withCoordinator({ options: {
           onError: (report) => errorReports.push(report),
-        });
-        await coordinator.start();
+        } }, async ({ coordinator, capture }) => {
         capture.packet(authenticatedPacket(1_000, "conn-a"));
 
         const oversized = Buffer.alloc(16 * 1024 * 1024 + 1);
@@ -1689,22 +1314,12 @@ describe("central capture coordinator", () => {
         expect(errorReports.map((report) => report.title)).toContain("Capture session reset could not keep up with incoming data");
         expect(errorReports.some((report) => report.reason.includes("exceeded its bounded packet buffer"))).toBe(true);
         expect(coordinator.state()).toMatchObject({ captureStatus: "unavailable" });
-      } finally {
-        await coordinator?.stop();
-        await rm(directory, { recursive: true, force: true });
-      }
+      });
     });
   });
 
   test("creates a fresh session and restores error handling after a full restart", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-restart-"));
-    const capture = new FakeCapture();
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-      });
-      await coordinator.start();
+    await withCoordinator(async ({ coordinator, capture, directory }) => {
       const firstSession = (await readCurrentLogStream("combat", directory))?.sessionId;
       await coordinator.stop();
 
@@ -1717,14 +1332,10 @@ describe("central capture coordinator", () => {
       expect(coordinator.state()).toMatchObject({ captureStatus: "unavailable" });
       await coordinator.stop();
       expect(coordinator.state()).toMatchObject({ captureStatus: "stopped" });
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("forgets the channel and instance across a re-authentication", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-channel-reset-"));
-    const capture = new FakeCapture();
     const sightings: Array<{
       mobId: string;
       bossName: string;
@@ -1733,13 +1344,9 @@ describe("central capture coordinator", () => {
       instanceId?: string;
       diedAtMs: number;
     }> = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         onBossGravestone: (gravestone) => sightings.push(gravestone),
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(channelListPacket(2, 0, "na3-12"));
@@ -1753,14 +1360,10 @@ describe("central capture coordinator", () => {
         { mobId: "Snake Naga", bossName: "Naga", killedBy: "Testerson", diedAtMs },
       ]);
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("dates a boss kill nobody witnessed from its gravestone", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gravestone-"));
-    const capture = new FakeCapture();
     const kills: Array<{
       mobId: string;
       bossName: string;
@@ -1769,13 +1372,9 @@ describe("central capture coordinator", () => {
       instanceId?: string;
       diedAtMs: number;
     }> = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         onBossGravestone: (gravestone) => kills.push(gravestone),
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(channelListPacket(2, 1, "na3-12"));
@@ -1792,14 +1391,10 @@ describe("central capture coordinator", () => {
         diedAtMs,
       }]);
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("times a kill from the sync that follows the marker's bare spawn", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gravestone-sync-"));
-    const capture = new FakeCapture();
     const kills: Array<{
       mobId: string;
       bossName: string;
@@ -1808,13 +1403,9 @@ describe("central capture coordinator", () => {
       instanceId?: string;
       diedAtMs: number;
     }> = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         onBossGravestone: (gravestone) => kills.push(gravestone),
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(channelListPacket(2, 1, "na3-15"));
@@ -1839,14 +1430,10 @@ describe("central capture coordinator", () => {
         diedAtMs,
       }]);
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("does not stamp a gravestone with the channel the player just left", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gravestone-stale-channel-"));
-    const capture = new FakeCapture();
     const kills: Array<{
       mobId: string;
       bossName: string;
@@ -1855,13 +1442,9 @@ describe("central capture coordinator", () => {
       instanceId?: string;
       diedAtMs: number;
     }> = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         onBossGravestone: (gravestone) => kills.push(gravestone),
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(channelListPacket(2, 1, "na3-12"));
@@ -1876,14 +1459,10 @@ describe("central capture coordinator", () => {
         diedAtMs,
       }]);
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("re-reports a gravestone first seen before the channel list arrived", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-gravestone-late-"));
-    const capture = new FakeCapture();
     const kills: Array<{
       mobId: string;
       bossName: string;
@@ -1892,13 +1471,9 @@ describe("central capture coordinator", () => {
       instanceId?: string;
       diedAtMs: number;
     }> = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         onBossGravestone: (gravestone) => kills.push(gravestone),
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       const diedAtMs = Math.floor((Date.now() - 40 * 60_000) / 1_000) * 1_000;
@@ -1915,22 +1490,14 @@ describe("central capture coordinator", () => {
       capture.packet(gravestonePacket(5, 700, diedAtMs, "Testerson", "Lady Fey", "Sunflora Pixie"));
       expect(kills).toHaveLength(2);
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("announces the server instance as the player moves between regions", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-instance-feed-"));
-    const capture = new FakeCapture();
     const instances: Array<string | undefined> = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         onServerInstance: (instanceId) => instances.push(instanceId),
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture }) => {
 
       capture.packet(authenticatedPacket(1, "test-connection"));
       capture.packet(channelListPacket(2, 0, "na3-12"));
@@ -1940,22 +1507,14 @@ describe("central capture coordinator", () => {
 
       expect(instances).toEqual(["na3-12", undefined, "eu2-6"]);
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("follows the channel list across a region change", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-region-change-"));
-    const capture = new FakeCapture();
     const kills: Array<{ mobId: string; bossName: string; killedBy?: string; channel?: number; instanceId?: string; diedAtMs: number }> = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({ options: {
         onBossGravestone: (gravestone) => kills.push(gravestone),
-      });
-      await coordinator.start();
+      } }, async ({ coordinator, capture }) => {
 
       const naDiedAtMs = Math.floor((Date.now() - 30 * 60_000) / 1_000) * 1_000;
       const euDiedAtMs = Math.floor((Date.now() - 20 * 60_000) / 1_000) * 1_000;
@@ -1971,9 +1530,7 @@ describe("central capture coordinator", () => {
         { mobId: "Wraith", bossName: "Wraith King", killedBy: "Someone", channel: 1, instanceId: "eu2-6", diedAtMs: euDiedAtMs },
       ]);
       await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 });
 
