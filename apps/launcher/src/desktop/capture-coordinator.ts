@@ -18,7 +18,6 @@ import { decodeBossGravestone, FishNetEternalTowerTracker } from "@kar-mi/spirit
 import type {
   CaptureConnectionEvent,
   CapturedFishNetPacket,
-  CapturedLiteNetLibPacket,
   CaptureTargetStatus,
 } from "@kar-mi/spirit-vale-tools-capture";
 import {
@@ -44,8 +43,10 @@ import { getCurrentExecutableNames } from "@svoverlay/desktop-platform/executabl
 
 import { sameLocalizedText, type LocalizedText } from "@svoverlay/i18n/messages";
 import { message } from "@svoverlay/i18n/backend";
-import type { CaptureHealthWarning, CaptureStatus, CaptureWarningCode, LauncherState } from "../launcher/types.ts";
+import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
 import type { BossGravestoneObservation } from "./boss-timer-coordinator.ts";
+import { CaptureDiagnostics } from "./capture-diagnostics.ts";
+import { CaptureHealthMonitor } from "./capture-health-monitor.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
 import { combatMonsterIdentityCatalog } from "./monster-identity-catalog.ts";
 import { RewardEventAttributor } from "./reward-event-attributor.ts";
@@ -59,10 +60,6 @@ const WRITE_MONITOR_INTERVAL_MS = 5_000;
 const CAPTURE_STALL_WARNING_MS = 15_000;
 const UNRESOLVED_REPORT_INTERVAL_MS = 60_000;
 const UNRESOLVED_REPORT_ENTRIES = 5;
-const DIAGNOSTIC_PRE_AUTH_MS = 5_000;
-const DIAGNOSTIC_POST_AUTH_MS = 10_000;
-const DIAGNOSTIC_PRE_AUTH_BYTE_LIMIT = 8 * 1024 * 1024;
-const DIAGNOSTIC_TRANSITION_BYTE_LIMIT = 32 * 1024 * 1024;
 const TOWER_LOCATION_SETTLE_MS = 500;
 const MINIMAP_PUBLISH_MS = 60;
 const TOWER_LOCATION_MAX_SETTLE_MS = 2_000;
@@ -134,7 +131,8 @@ export interface CaptureCoordinatorOptions {
 
 export class CaptureCoordinator {
   private readonly capture: PacketCapture;
-  private readonly diagnosticLogging: boolean;
+  private readonly diagnostics: CaptureDiagnostics;
+  private readonly health: CaptureHealthMonitor;
   private readonly actors: StickyActorDirectory;
   private readonly combat = new FishNetCombatTracker({
     actorIdentityResolver: (actorId) => this.actors.getAttribution(actorId),
@@ -180,30 +178,11 @@ export class CaptureCoordinator {
   private targetState: CaptureTargetStatus["state"] = "waiting";
   private missingGameReported = false;
   private receivedDataForCurrentGame = false;
-  private healthWarning?: CaptureHealthWarning;
-  private captureHealthDirty = false;
-  private captureStage: "waiting" | "udp" | "litenet" | "fishnet" = "waiting";
-  private captureStageSinceMs = Date.now();
-  private captureStageTimer?: ReturnType<typeof setTimeout>;
-  private udpPacketCount = 0;
-  private liteNetPacketCount = 0;
-  private fishNetPacketCount = 0;
-  private lastFishNetPacketAtMs?: number;
-  private captureWarningCount = 0;
-  private lastCaptureWarning?: string;
-  private readonly reportedStallStages = new Set<string>();
   private activeConnectionId?: string;
   private lastClosedConnectionId?: string;
   private lastAuthenticated?: { connectionId: string; tick: number };
   private sawAuthenticated = false;
   private sawAdmittedTrafficBeforeAuthentication = false;
-  private diagnosticLiteNetBuffer: Array<{ capturedAtMs: number; bytes: number; data: JsonObject }> = [];
-  private diagnosticLiteNetBufferBytes = 0;
-  private diagnosticLiteNetDropped = 0;
-  private diagnosticTransitionId = 0;
-  private diagnosticTransitionUntilMs = 0;
-  private diagnosticTransitionBytes = 0;
-  private diagnosticTransitionTruncated = false;
   private resettingSession?: Promise<void>;
   private handoff = false;
   private packetBuffer: CapturedFishNetPacket[] = [];
@@ -223,33 +202,29 @@ export class CaptureCoordinator {
   private currentInstanceId: string | undefined;
   private readonly reportedGravestones = new Map<number, string>();
   private lifecycleChain: Promise<void> = Promise.resolve();
-  private readonly captureUdpPacket = (): void => {
-    // Health only needs the first UDP packet in each epoch. Remove this raw-
-    // packet callback once the stage has been observed.
-    this.capture.off("udpPacket", this.captureUdpPacket);
-    this.observeCaptureStage("udp");
-  };
-  private readonly captureLiteNetPacket = (packet: CapturedLiteNetLibPacket): void => {
-    // Normal health monitoring needs only the first LiteNetLib packet. Packet-
-    // level work remains enabled when diagnostic logging explicitly requests it.
-    if (!this.diagnosticLogging) this.capture.off("liteNetPacket", this.captureLiteNetPacket);
-    this.observeCaptureStage("litenet");
-    if (this.diagnosticLogging) this.captureLiteNetDiagnostic(packet);
-  };
-
   constructor(private readonly options: CaptureCoordinatorOptions) {
     this.actors = new StickyActorDirectory({
       ...(options.knownIdentities === undefined ? {} : { knownIdentities: options.knownIdentities }),
       ...(options.onIdentityLearned === undefined ? {} : { onIdentityLearned: options.onIdentityLearned }),
     });
     this.positions = new FishNetPositionTracker({ directory: this.actors });
-    this.diagnosticLogging = options.diagnosticLogging ?? envFlag(Bun.env["SPIRIT_VALE_DIAGNOSTIC_LOGS"]);
     this.capture = options.captureFactory?.() ?? new PacketCapture();
+    this.diagnostics = new CaptureDiagnostics(
+      options.diagnosticLogging ?? envFlag(Bun.env["SPIRIT_VALE_DIAGNOSTIC_LOGS"]),
+    );
+    this.health = new CaptureHealthMonitor({
+      capture: this.capture,
+      diagnosticLogging: this.diagnostics.enabled,
+      stallWarningMs: options.stallWarningMs ?? CAPTURE_STALL_WARNING_MS,
+      ...(options.deviceName === undefined ? {} : { deviceName: options.deviceName }),
+      onLiteNetPacket: (packet) => this.diagnostics.consumeLiteNet(packet),
+      onChange: () => this.publishCaptureHealthChange(),
+      onWarning: ({ title, reason, details }) => this.reportWarning(title, reason, details),
+    });
     this.capture.on("started", () => this.captureStarted());
     this.capture.on("targetStatus", (target) => this.targetStatus(target));
     this.capture.on("warning", (message) => this.captureWarning(message));
     this.capture.on("error", (error) => this.captureError(error));
-    this.armCaptureStageListeners();
     this.capture.on("connection", (event) => this.connectionChanged(event));
     this.capture.on("fishNetPacket", (packet) => this.routePacket(packet));
     this.capture.on("stopped", () => this.captureStopped());
@@ -324,10 +299,11 @@ export class CaptureCoordinator {
   }
 
   state(): CaptureCoordinatorState {
+    const warning = this.health.warning();
     return {
       captureStatus: this.status,
       statusDetail: this.statusDetail,
-      ...(this.healthWarning === undefined ? {} : { captureWarning: this.healthWarning }),
+      ...(warning === undefined ? {} : { captureWarning: warning }),
     };
   }
 
@@ -400,7 +376,7 @@ export class CaptureCoordinator {
     try {
       if (!this.session) {
         const streams: LogStream[] = ["combat", "rewards"];
-        if (this.diagnosticLogging) streams.push("other");
+        if (this.diagnostics.enabled) streams.push("other");
         this.session = await createLogSession({
           producer: "desktop-capture",
           streams,
@@ -410,7 +386,8 @@ export class CaptureCoordinator {
         });
         this.combatLog = this.session.logger("combat");
         this.rewardsLog = this.session.logger("rewards");
-        this.otherLog = this.diagnosticLogging ? this.session.logger("other") : undefined;
+        this.otherLog = this.diagnostics.enabled ? this.session.logger("other") : undefined;
+        this.diagnostics.setLogger(this.otherLog);
       }
       this.otherLog?.log("capture.lifecycle", { state: "starting" });
       await this.startCapture();
@@ -494,18 +471,20 @@ export class CaptureCoordinator {
     this.clearPacketBuffer();
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
-    this.resetCaptureHealth();
+    this.health.reset();
+    this.health.setTargetActive(false);
     this.activeConnectionId = undefined;
     this.lastClosedConnectionId = undefined;
     this.lastAuthenticated = undefined;
     this.sawAuthenticated = false;
     this.sawAdmittedTrafficBeforeAuthentication = false;
-    this.clearDiagnosticTransition();
+    this.diagnostics.clear();
     const session = this.session;
     this.session = undefined;
     this.combatLog = undefined;
     this.rewardsLog = undefined;
     this.otherLog = undefined;
+    this.diagnostics.setLogger(undefined);
     try {
       await session?.close();
     } catch (error) {
@@ -542,7 +521,7 @@ export class CaptureCoordinator {
 
   private async performResetSession(seed?: SessionSeed): Promise<void> {
     const streams: LogStream[] = ["combat", "rewards"];
-    if (this.diagnosticLogging) streams.push("other");
+    if (this.diagnostics.enabled) streams.push("other");
     const seedIdentities = seed?.identities ?? this.actors.snapshot();
     const seedLocation = seed === undefined ? this.lastLoggedLocation : seed.location;
 
@@ -597,7 +576,8 @@ export class CaptureCoordinator {
       this.session = nextSession;
       this.combatLog = nextSession.logger("combat");
       this.rewardsLog = nextSession.logger("rewards");
-      this.otherLog = this.diagnosticLogging ? nextSession.logger("other") : undefined;
+      this.otherLog = this.diagnostics.enabled ? nextSession.logger("other") : undefined;
+      this.diagnostics.setLogger(this.otherLog);
 
       for (const identity of seedIdentities) {
         this.combatLog.log("combat.actorIdentity", jsonObject({ kind: "actorIdentity", operation: "upsert", tick: 0, ...identity }));
@@ -685,7 +665,8 @@ export class CaptureCoordinator {
     this.targetState = target.state;
     if (target.state === "waiting") {
       this.receivedDataForCurrentGame = false;
-      this.resetCaptureHealth();
+      this.health.reset();
+      this.health.setTargetActive(false);
       if (!this.missingGameReported) {
         this.missingGameReported = true;
         this.reportError(
@@ -697,16 +678,15 @@ export class CaptureCoordinator {
     } else {
       this.missingGameReported = false;
       if (previousState !== "active") {
-        this.resetCaptureHealth();
-        this.scheduleCaptureStageWarning();
+        this.health.reset();
+        this.health.setTargetActive(true);
       }
     }
     this.refreshCaptureDetail();
   }
 
   private captureWarning(message: string): void {
-    this.captureWarningCount += 1;
-    this.lastCaptureWarning = message;
+    this.health.observeCaptureWarning(message);
     this.combatLog?.log("combat.warning", { message });
     this.rewardsLog?.log("rewards.warning", { message });
     this.otherLog?.log("capture.warning", { message });
@@ -726,7 +706,8 @@ export class CaptureCoordinator {
   private startCapture(): Promise<void> {
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
-    this.resetCaptureHealth();
+    this.health.reset();
+    this.health.setTargetActive(false);
     return this.capture.start({
       protocols: ["udp"],
       targetProcessName: gameProcessName,
@@ -736,41 +717,82 @@ export class CaptureCoordinator {
   }
 
   private routePacket(packet: CapturedFishNetPacket): void {
-    this.observeCaptureStage("fishnet");
+    this.health.observeFishNet();
+    if (this.deferPacketDuringTransition(packet)) return;
+    this.beginPacketDiagnostics(packet);
+    const admission = this.consumePacketAdmission(packet);
+    if (!admission) return;
+
+    const towerChanged = this.consumeTowerLocation(packet);
+    if (towerChanged === "deferred") return;
+    this.countUnresolvedPacket(packet);
+    this.logSplitDrop(packet);
+
+    const loggedZone = this.logZone(packet);
+    const directWorldLocation = directWorldTransition(packet);
+    const characterBoundary = packet.rpcName === "QuitCharacter_Rpc";
+    const transitionSeed = packet.packetName === "authenticated" && !admission.completedDirectTransition
+      ? {}
+      : undefined;
+    let handled = admission.characterHandled
+      || loggedZone
+      || towerChanged
+      || directWorldLocation !== undefined
+      || characterBoundary;
+    const combat = this.consumeCombatPacket(packet);
+    handled ||= combat.handled;
+    const rewardsHandled = this.consumeRewardsPacket(packet, combat.events);
+    handled ||= rewardsHandled;
+
+    if (!handled) this.diagnostics.logUnclassified(packet);
+    if (directWorldLocation !== undefined) this.beginDirectWorldTransition(directWorldLocation, packet.tick);
+    if (characterBoundary) this.beginCharacterBoundary(packet.tick);
+    if (transitionSeed) this.resetOnMapChange(transitionSeed);
+  }
+
+  private deferPacketDuringTransition(packet: CapturedFishNetPacket): boolean {
     if (this.towerLocationTimer !== undefined) {
       if (packet.connectionId === this.activeConnectionId && isTowerStatePacket(packet)) {
         if (this.tower.consume(packet)) {
           this.pendingTowerLocationTick = packet.tick;
           this.scheduleTowerLocationCommit();
         }
-        return;
+        return true;
       }
       if (packet.connectionId === this.activeConnectionId) this.observePhysicalMap(packet);
-      this.logPacketAdmission(packet, "buffered", "tower-location-settle", this.activeConnectionId);
+      this.diagnostics.logPacketAdmission(packet, "buffered", "tower-location-settle", this.activeConnectionId);
       this.bufferHandoffPacket(packet);
-      return;
+      return true;
     }
     if (this.handoff) {
-      this.logPacketAdmission(packet, "buffered", "capture-session-handoff", this.activeConnectionId);
+      this.diagnostics.logPacketAdmission(packet, "buffered", "capture-session-handoff", this.activeConnectionId);
       this.bufferHandoffPacket(packet);
-      return;
+      return true;
     }
-    if (packet.packetName === "authenticated") this.beginTransitionDiagnostic(packet);
-    if (isStatusPacket(packet)) {
-      this.otherLog?.log("capture.statusPacket", jsonObject({ phase: "input", ...fishNetPacketDiagnostic(packet) }));
-    }
+    return false;
+  }
+
+  private beginPacketDiagnostics(packet: CapturedFishNetPacket): void {
+    if (packet.packetName === "authenticated") this.diagnostics.beginTransition(packet);
+    if (isStatusPacket(packet)) this.diagnostics.logStatusPacket(packet, "input");
     if (!this.receivedDataForCurrentGame) {
       this.receivedDataForCurrentGame = true;
       this.refreshCaptureDetail();
     }
+  }
+
+  private consumePacketAdmission(packet: CapturedFishNetPacket): {
+    characterHandled: boolean;
+    completedDirectTransition: boolean;
+  } | undefined {
     const admission = this.admitPacket(packet);
-    if (admission.suppressBeforeAdmission) return;
+    if (admission.suppressBeforeAdmission) return undefined;
     const inspectHandled = this.inspected.consume(packet);
     let characterHandled = this.character.consumeBeforeAdmission(packet);
-    if (!admission.accepted) return;
-    const authenticationCompletesDirectTransition = packet.packetName === "authenticated"
+    if (!admission.accepted) return undefined;
+    const completedDirectTransition = packet.packetName === "authenticated"
       && (this.pendingDirectWorldTransition || this.pendingCharacterBoundary);
-    if (authenticationCompletesDirectTransition) {
+    if (completedDirectTransition) {
       this.pendingDirectWorldTransition = false;
       this.pendingCharacterBoundary = false;
     }
@@ -786,6 +808,10 @@ export class CaptureCoordinator {
     this.trackChannel(packet);
     const admittedCharacterHandled = this.character.consumeAdmitted(packet);
     characterHandled ||= admittedCharacterHandled || inspectHandled;
+    return { characterHandled, completedDirectTransition };
+  }
+
+  private consumeTowerLocation(packet: CapturedFishNetPacket): boolean | "deferred" {
     const towerReset = packet.packetName === "authenticated" ? this.tower.reset() : false;
     if (packet.packetName === "authenticated") {
       this.lastObservedMapId = undefined;
@@ -799,24 +825,27 @@ export class CaptureCoordinator {
       if (!sameSpiritValeLocation(location, this.lastLoggedLocation)) {
         this.pendingTowerLocationTick = packet.tick;
         this.scheduleTowerLocationCommit();
-        return;
+        return "deferred";
       }
     }
-    this.countUnresolvedPacket(packet);
+    return towerChanged;
+  }
+
+  private logSplitDrop(packet: CapturedFishNetPacket): void {
     if (packet.splitDropReason !== undefined) {
       this.combatLog?.log("combat.warning", {
         message: `split reassembly dropped (${packet.splitDropReason}) at tick ${packet.tick}`,
       });
     }
-    const loggedZone = this.logZone(packet);
-    const directWorldLocation = directWorldTransition(packet);
-    const characterBoundary = packet.rpcName === "QuitCharacter_Rpc";
-    const transitionSeed = packet.packetName === "authenticated" && !authenticationCompletesDirectTransition ? {} : undefined;
-    let handled = characterHandled || loggedZone || towerChanged || directWorldLocation !== undefined || characterBoundary;
-    let combatEvents: FishNetCombatEvent[] = [];
+  }
+
+  private consumeCombatPacket(packet: CapturedFishNetPacket): {
+    handled: boolean;
+    events: FishNetCombatEvent[];
+  } {
     try {
       this.mobs.consume(packet);
-      handled = this.consumeGravestone(packet) || handled;
+      let handled = this.consumeGravestone(packet);
       if (packet.packetName === "authenticated" || packet.packetName === "disconnect") {
         this.loggedMobIdentities.clear();
         this.reportedGravestones.clear();
@@ -824,15 +853,12 @@ export class CaptureCoordinator {
       const identities = this.actors.consume(packet);
       if (this.minimapEnabled() && this.positions.consume(packet).length > 0) this.scheduleMinimapPublish();
       const events = this.combat.consume(packet);
-      combatEvents = events;
       if (isStatusPacket(packet)) {
-        this.otherLog?.log("capture.statusPacket", jsonObject({
-          phase: "output",
-          tick: packet.tick,
-          connectionId: packet.connectionId,
-          rpcName: packet.rpcName,
-          statusEvents: events.filter((event) => event.kind === "status"),
-        }));
+        this.diagnostics.logStatusPacket(
+          packet,
+          "output",
+          events.filter((event) => event.kind === "status"),
+        );
       }
       for (const event of events) {
         if ((event.kind === "damage" || event.kind === "death") && event.team === 0) {
@@ -851,13 +877,14 @@ export class CaptureCoordinator {
       for (const event of events) if (event.actorId !== undefined) this.logMobIdentity(event.actorId, event.tick);
       for (const event of events) if (this.shouldLogCombatEvent(event)) this.combatLog?.log("combat.event", jsonObject(event));
       this.publishActiveStatuses();
-      // Spawn diagnostics contain raw protocol payloads and are intentionally not written to combat logs.
+      return { handled, events };
     } catch (error) {
-      // Leave `handled` untouched: a packet that threw is exactly one the `fishnet.packet`
-      // diagnostic dump below should still capture.
       this.logDomainWarning("combat", error);
+      return { handled: false, events: [] };
     }
+  }
 
+  private consumeRewardsPacket(packet: CapturedFishNetPacket, combatEvents: FishNetCombatEvent[]): boolean {
     try {
       const lootEvents = this.loot.consume(packet);
       if (this.minimapEnabled() && lootEvents.length > 0) this.scheduleMinimapPublish();
@@ -870,18 +897,14 @@ export class CaptureCoordinator {
         events.push(...this.rewardAttributor.flush());
         this.locallyDamagedRewardTargets.clear();
       }
-      handled ||= events.length > 0;
       for (const event of events) {
         this.rewardsLog?.log(event.kind === "kill" ? "rewards.kill" : "rewards.unmatched", jsonObject(event));
       }
+      return events.length > 0;
     } catch (error) {
       this.logDomainWarning("rewards", error);
+      return false;
     }
-
-    if (!handled && this.diagnosticLogging) this.otherLog?.log("fishnet.packet", unclassifiedPacket(packet));
-    if (directWorldLocation !== undefined) this.beginDirectWorldTransition(directWorldLocation, packet.tick);
-    if (characterBoundary) this.beginCharacterBoundary(packet.tick);
-    if (transitionSeed) this.resetOnMapChange(transitionSeed);
   }
 
   private beginDirectWorldTransition(location: SpiritValeLocation & { kind: "map" }, tick: number): void {
@@ -1210,25 +1233,25 @@ export class CaptureCoordinator {
     const connectionId = packet.connectionId;
     const activeBefore = this.activeConnectionId;
     if (activeBefore === undefined && connectionId === this.lastClosedConnectionId) {
-      this.logPacketAdmission(packet, "rejected", "closed-connection", activeBefore);
+        this.diagnostics.logPacketAdmission(packet, "rejected", "closed-connection", activeBefore);
       return { accepted: false, suppressBeforeAdmission: false };
     }
     if (activeBefore === undefined) this.setActiveConnection(connectionId);
     if (connectionId !== this.activeConnectionId) {
       if (packet.packetName !== "authenticated") {
-        this.logPacketAdmission(packet, "rejected", "inactive-connection", activeBefore);
+      this.diagnostics.logPacketAdmission(packet, "rejected", "inactive-connection", activeBefore);
         return { accepted: false, suppressBeforeAdmission: false };
       }
       this.setActiveConnection(connectionId);
     }
     if (packet.packetName === "authenticated") {
       if (this.lastAuthenticated?.connectionId === connectionId && this.lastAuthenticated.tick === packet.tick) {
-        this.logPacketAdmission(packet, "rejected", "duplicate-authenticated", activeBefore);
+        this.diagnostics.logPacketAdmission(packet, "rejected", "duplicate-authenticated", activeBefore);
         return { accepted: false, suppressBeforeAdmission: true };
       }
       if (activeBefore === connectionId && this.lastAuthenticated?.connectionId === connectionId) {
         this.lastAuthenticated = { connectionId, tick: packet.tick };
-        this.logPacketAdmission(packet, "rejected", "same-connection-reauthenticated", activeBefore);
+        this.diagnostics.logPacketAdmission(packet, "rejected", "same-connection-reauthenticated", activeBefore);
         return { accepted: false, suppressBeforeAdmission: true };
       }
       this.lastAuthenticated = { connectionId, tick: packet.tick };
@@ -1238,103 +1261,9 @@ export class CaptureCoordinator {
       this.setActiveConnection(undefined);
     }
     if (packet.packetName === "authenticated" || packet.packetName === "disconnect" || isStatusPacket(packet)) {
-      this.logPacketAdmission(packet, "accepted", undefined, activeBefore);
+      this.diagnostics.logPacketAdmission(packet, "accepted", undefined, activeBefore);
     }
     return { accepted: true, suppressBeforeAdmission: false };
-  }
-
-  private logPacketAdmission(
-    packet: CapturedFishNetPacket,
-    decision: "accepted" | "rejected" | "buffered",
-    reason: string | undefined,
-    activeConnectionId: string | undefined,
-  ): void {
-    if (!this.diagnosticLogging) return;
-    this.otherLog?.log("capture.packetAdmission", jsonObject({
-      decision,
-      reason,
-      activeConnectionId,
-      packetConnectionId: packet.connectionId,
-      tick: packet.tick,
-      packetName: packet.packetName,
-      rpcName: packet.rpcName,
-      objectId: packet.objectId,
-      rpcResolution: packet.rpcResolution,
-    }));
-  }
-
-  private captureLiteNetDiagnostic(packet: CapturedLiteNetLibPacket): void {
-    const capturedAtMs = packet.udpPacket.capturedAt.getTime();
-    const bytes = packet.packet.raw.length;
-    const data = liteNetPacketDiagnostic(packet);
-    if (capturedAtMs <= this.diagnosticTransitionUntilMs) {
-      if (this.diagnosticTransitionBytes + bytes <= DIAGNOSTIC_TRANSITION_BYTE_LIMIT) {
-        this.diagnosticTransitionBytes += bytes;
-        this.otherLog?.log("capture.liteNetPacket", jsonObject({
-          transitionId: this.diagnosticTransitionId,
-          phase: "after-authenticated",
-          ...data,
-        }));
-      } else if (!this.diagnosticTransitionTruncated) {
-        this.diagnosticTransitionTruncated = true;
-        this.otherLog?.log("capture.diagnosticLimit", {
-          transitionId: this.diagnosticTransitionId,
-          phase: "after-authenticated",
-          byteLimit: DIAGNOSTIC_TRANSITION_BYTE_LIMIT,
-        });
-      }
-      return;
-    }
-
-    this.diagnosticLiteNetBuffer.push({ capturedAtMs, bytes, data });
-    this.diagnosticLiteNetBufferBytes += bytes;
-    const oldestAllowed = capturedAtMs - DIAGNOSTIC_PRE_AUTH_MS;
-    while (this.diagnosticLiteNetBuffer[0]
-      && (this.diagnosticLiteNetBuffer[0].capturedAtMs < oldestAllowed
-        || this.diagnosticLiteNetBufferBytes > DIAGNOSTIC_PRE_AUTH_BYTE_LIMIT)) {
-      const dropped = this.diagnosticLiteNetBuffer.shift()!;
-      this.diagnosticLiteNetBufferBytes -= dropped.bytes;
-      this.diagnosticLiteNetDropped += 1;
-    }
-  }
-
-  private beginTransitionDiagnostic(packet: CapturedFishNetPacket): void {
-    if (!this.diagnosticLogging) return;
-    const capturedAtMs = packet.liteNetPacket?.udpPacket.capturedAt.getTime() ?? Date.now();
-    this.diagnosticTransitionId += 1;
-    this.diagnosticTransitionUntilMs = capturedAtMs + DIAGNOSTIC_POST_AUTH_MS;
-    this.diagnosticTransitionBytes = 0;
-    this.diagnosticTransitionTruncated = false;
-    this.otherLog?.log("capture.mapTransition", {
-      transitionId: this.diagnosticTransitionId,
-      tick: packet.tick,
-      connectionId: packet.connectionId,
-      bufferedLiteNetPackets: this.diagnosticLiteNetBuffer.length,
-      bufferedLiteNetBytes: this.diagnosticLiteNetBufferBytes,
-      droppedBufferedPackets: this.diagnosticLiteNetDropped,
-      preAuthenticatedMs: DIAGNOSTIC_PRE_AUTH_MS,
-      postAuthenticatedMs: DIAGNOSTIC_POST_AUTH_MS,
-    });
-    for (const entry of this.diagnosticLiteNetBuffer) {
-      this.diagnosticTransitionBytes += entry.bytes;
-      this.otherLog?.log("capture.liteNetPacket", jsonObject({
-        transitionId: this.diagnosticTransitionId,
-        phase: "before-authenticated",
-        ...entry.data,
-      }));
-    }
-    this.diagnosticLiteNetBuffer = [];
-    this.diagnosticLiteNetBufferBytes = 0;
-    this.diagnosticLiteNetDropped = 0;
-  }
-
-  private clearDiagnosticTransition(): void {
-    this.diagnosticLiteNetBuffer = [];
-    this.diagnosticLiteNetBufferBytes = 0;
-    this.diagnosticLiteNetDropped = 0;
-    this.diagnosticTransitionUntilMs = 0;
-    this.diagnosticTransitionBytes = 0;
-    this.diagnosticTransitionTruncated = false;
   }
 
   private syncLocalActorIdentity(): void {
@@ -1438,119 +1367,26 @@ export class CaptureCoordinator {
     this.publishCaptureDetail();
   }
 
+  private publishCaptureHealthChange(): void {
+    const previousStatus = this.status;
+    const previousDetail = this.statusDetail;
+    this.refreshCaptureDetail();
+    if (this.status === previousStatus && sameLocalizedText(this.statusDetail, previousDetail)) {
+      this.options.onStatus?.(this.state());
+    }
+  }
+
   private publishCaptureDetail(): void {
     const detail = this.captureDetail();
-    const unchanged = this.status === "capturing" && sameLocalizedText(this.statusDetail, detail);
-    const publishHealthChange = this.captureHealthDirty;
-    this.captureHealthDirty = false;
     this.setStatus("capturing", detail);
-    if (publishHealthChange && unchanged) this.options.onStatus?.(this.state());
   }
 
   private captureDetail(): LocalizedText {
     if (this.targetState === "waiting") return GAME_NOT_RUNNING_DETAIL;
     if (!this.receivedDataForCurrentGame) return WAITING_FOR_DATA_DETAIL;
-    if (this.healthWarning) return message(`capture.warning.${this.healthWarning.code}`);
+    const warning = this.health.warning();
+    if (warning) return message(`capture.warning.${warning.code}`);
     return CAPTURE_ACTIVE_DETAIL;
-  }
-
-  private observeCaptureStage(stage: "udp" | "litenet" | "fishnet"): void {
-    const observedAtMs = Date.now();
-    if (stage === "udp") this.udpPacketCount += 1;
-    else if (stage === "litenet") this.liteNetPacketCount += 1;
-    else {
-      this.capture.off("udpPacket", this.captureUdpPacket);
-      if (!this.diagnosticLogging) this.capture.off("liteNetPacket", this.captureLiteNetPacket);
-      this.fishNetPacketCount += 1;
-      this.lastFishNetPacketAtMs = observedAtMs;
-      if (this.healthWarning) {
-        this.healthWarning = undefined;
-        this.captureHealthDirty = true;
-        this.refreshCaptureDetail();
-      }
-      if (this.captureStage === "fishnet") {
-        if (this.captureStageTimer === undefined && this.targetState === "active") this.scheduleCaptureStageWarning();
-        return;
-      }
-    }
-    if (captureStageRank(stage) <= captureStageRank(this.captureStage)) return;
-    this.captureStage = stage;
-    this.captureStageSinceMs = observedAtMs;
-    if (this.healthWarning !== undefined) this.captureHealthDirty = true;
-    this.healthWarning = undefined;
-    this.clearCaptureStageTimer();
-    if (this.targetState === "active") this.scheduleCaptureStageWarning();
-    this.refreshCaptureDetail();
-  }
-
-  private scheduleCaptureStageWarning(): void {
-    this.clearCaptureStageTimer();
-    const warningMs = this.options.stallWarningMs ?? CAPTURE_STALL_WARNING_MS;
-    const elapsed = this.captureStage === "fishnet" && this.lastFishNetPacketAtMs !== undefined
-      ? Date.now() - this.lastFishNetPacketAtMs
-      : 0;
-    const delay = Math.max(0, warningMs - elapsed);
-    this.captureStageTimer = setTimeout(() => {
-      this.captureStageTimer = undefined;
-      this.publishCaptureStageWarning();
-    }, delay);
-    this.captureStageTimer.unref?.();
-  }
-
-  private publishCaptureStageWarning(): void {
-    if (this.targetState !== "active") return;
-    const warningMs = this.options.stallWarningMs ?? CAPTURE_STALL_WARNING_MS;
-    if (this.captureStage === "fishnet" && this.lastFishNetPacketAtMs !== undefined
-      && Date.now() - this.lastFishNetPacketAtMs < warningMs) {
-      this.scheduleCaptureStageWarning();
-      return;
-    }
-    const warning = warningForCaptureStage(this.captureStage);
-    const reportKey = warning.code;
-    this.healthWarning = { ...warning, detectedAt: new Date().toISOString() };
-    this.captureHealthDirty = true;
-    this.refreshCaptureDetail();
-    if (this.reportedStallStages.has(reportKey)) return;
-    this.reportedStallStages.add(reportKey);
-    this.reportWarning("Capture is still waiting for usable game data", warning.message, {
-      "Capture stage": this.captureStage,
-      "Stage waiting since": new Date(this.captureStageSinceMs).toISOString(),
-      "Target-owned UDP packets": this.udpPacketCount,
-      "LiteNetLib packets": this.liteNetPacketCount,
-      "FishNet packets": this.fishNetPacketCount,
-      "Capture warnings": this.captureWarningCount,
-      "Latest capture warning": this.lastCaptureWarning,
-      "Network adapter": this.options.deviceName ?? "Automatic selection",
-    });
-  }
-
-  private resetCaptureHealth(): void {
-    this.clearCaptureStageTimer();
-    this.armCaptureStageListeners();
-    if (this.healthWarning !== undefined) this.captureHealthDirty = true;
-    this.healthWarning = undefined;
-    this.captureStage = "waiting";
-    this.captureStageSinceMs = Date.now();
-    this.udpPacketCount = 0;
-    this.liteNetPacketCount = 0;
-    this.fishNetPacketCount = 0;
-    this.lastFishNetPacketAtMs = undefined;
-    this.captureWarningCount = 0;
-    this.lastCaptureWarning = undefined;
-    this.reportedStallStages.clear();
-  }
-
-  private armCaptureStageListeners(): void {
-    // Re-arming is idempotent across game detection and adapter changes.
-    this.capture.off("udpPacket", this.captureUdpPacket);
-    this.capture.on("udpPacket", this.captureUdpPacket);
-    this.capture.off("liteNetPacket", this.captureLiteNetPacket);
-    this.capture.on("liteNetPacket", this.captureLiteNetPacket);
-  }
-
-  private clearCaptureStageTimer(): void {
-    if (this.captureStageTimer !== undefined) clearTimeout(this.captureStageTimer);
-    this.captureStageTimer = undefined;
   }
 
   private reportWarning(
@@ -1564,29 +1400,6 @@ export class CaptureCoordinator {
       console.error("[spiritvale-warning-log]", errorMessage(error));
     }
   }
-}
-
-function captureStageRank(stage: "waiting" | "udp" | "litenet" | "fishnet"): number {
-  return ["waiting", "udp", "litenet", "fishnet"].indexOf(stage);
-}
-
-function warningForCaptureStage(stage: "waiting" | "udp" | "litenet" | "fishnet"): { code: CaptureWarningCode; message: string } {
-  if (stage === "waiting") return {
-    code: "no-game-udp",
-    message: "Still waiting for game network traffic. Capture remains active; check the adapter or VPN route if this continues.",
-  };
-  if (stage === "udp") return {
-    code: "unrecognized-game-udp",
-    message: "Game traffic is arriving, but it has not produced LiteNetLib data yet. Capture remains active.",
-  };
-  if (stage === "litenet") return {
-    code: "fishnet-decode-stalled",
-    message: "Game traffic is arriving, but no FishNet data has decoded yet. Capture remains active.",
-  };
-  return {
-    code: "fishnet-data-delayed",
-    message: "Decoded game data has paused. Capture remains active and will recover automatically when packets resume.",
-  };
 }
 
 function isStatusPacket(packet: CapturedFishNetPacket): boolean {
@@ -1610,60 +1423,6 @@ function channelFromIndex(packet: CapturedFishNetPacket, fieldName: string): num
   const index = packet.decodedFields?.find((field) => field.name === fieldName)?.value;
   if (typeof index !== "number" || !Number.isSafeInteger(index) || index < 0) return undefined;
   return index + 1;
-}
-
-function fishNetPacketDiagnostic(packet: CapturedFishNetPacket): JsonObject {
-  return jsonObject({
-    tick: packet.tick,
-    connectionId: packet.connectionId,
-    packetId: packet.packetId,
-    packetName: packet.packetName,
-    objectId: packet.objectId,
-    ownerConnectionId: packet.ownerConnectionId,
-    rpcName: packet.rpcName,
-    rpcResolution: packet.rpcResolution,
-    networkBehaviourType: packet.networkBehaviourType,
-    networkBehaviourIndex: packet.networkBehaviourIndex,
-    decodedFields: packet.decodedFields,
-    syncName: packet.syncName,
-    broadcastName: packet.broadcastName,
-    linkId: packet.linkId,
-    linkResolved: packet.linkResolved,
-    registeredObjectId: packet.registeredObjectId,
-    registeredComponentIndex: packet.registeredComponentIndex,
-    registeredRpcHash: packet.registeredRpcHash,
-    rpcHash: packet.rpcHash,
-    rpcPayloadLength: packet.rpcPayloadLength,
-    payloadHex: packet.payload,
-    undecodedPayloadHex: packet.undecodedPayload,
-    rawHex: packet.raw,
-  });
-}
-
-function unclassifiedPacket(packet: CapturedFishNetPacket): JsonObject {
-  return fishNetPacketDiagnostic(packet);
-}
-
-function liteNetPacketDiagnostic(packet: CapturedLiteNetLibPacket): JsonObject {
-  const udp = packet.udpPacket;
-  const liteNet = packet.packet;
-  return jsonObject({
-    capturedAt: udp.capturedAt,
-    direction: udp.direction,
-    sourceIP: udp.sourceIP,
-    sourcePort: udp.sourcePort,
-    destinationIP: udp.destinationIP,
-    destinationPort: udp.destinationPort,
-    interfaceIndex: udp.interfaceIndex,
-    truncated: udp.truncated,
-    property: liteNet.property,
-    connectionNumber: liteNet.connectionNumber,
-    sequence: "sequence" in liteNet ? liteNet.sequence : undefined,
-    channel: "channel" in liteNet ? liteNet.channel : undefined,
-    fragment: "fragment" in liteNet ? liteNet.fragment : undefined,
-    mergePath: packet.mergePath,
-    rawHex: liteNet.raw,
-  });
 }
 
 function jsonObject(value: object): JsonObject {
