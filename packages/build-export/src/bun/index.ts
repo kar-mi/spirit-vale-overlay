@@ -1,11 +1,7 @@
-import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
-import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
-import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
-import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
-import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
+import { BrowserView, Utils } from "@svoverlay/desktop-runtime";
 import { localized, localizedCount } from "@svoverlay/i18n/messages";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
-import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
+import { createManagedWindow } from "@svoverlay/desktop-platform/managed-window";
 import { normalizeName } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterSnapshot } from "@kar-mi/spirit-vale-tools-character";
 
@@ -39,10 +35,7 @@ export interface BuildExportWindowOptions {
 export function createBuildExportWindow(options: BuildExportWindowOptions) {
   const catalog = buildExportCatalog();
   const origin = options.origin ?? SITE_ORIGIN;
-  let window: BrowserWindow;
-  let closing = false;
   let lastExportedAt: string | undefined;
-  const lifecycle = new DisposableStore();
 
   let selectedId = "self";
   let searchQuery = "";
@@ -206,37 +199,18 @@ export function createBuildExportWindow(options: BuildExportWindowOptions) {
     },
   });
 
-  window = new BrowserWindow({
+  const { window, lifecycle } = createManagedWindow({
     title: "Spirit Vale Build Export",
     url: "views://buildexportview/index.html",
-    frame: options.placements?.frame(
-      "build-export",
-      { x: 160, y: 120, width: 980, height: 720 },
-      { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT },
-    ) ?? { x: 160, y: 120, width: 980, height: 720 },
-    titleBarStyle: "hidden",
-    transparent: false,
     rpc,
+    minimum: { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT },
+    placements: options.placements,
+    placementKey: "build-export",
+    defaultFrame: { x: 160, y: 120, width: 980, height: 720 },
+    onClose: () => { options.onClosed?.(); },
   });
-  applyRoundedCorners(window.ptr);
-  setWindowIcon(window.ptr, appIconPath);
-  lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: !options.placements }));
-  lifecycle.add(registerLocaleWindow(window));
-  const disposePlacement = options.placements?.track("build-export", window);
-  if (disposePlacement) lifecycle.add(disposePlacement);
   lifecycle.add(options.subscribeCharacter(() => publish()));
   if (options.subscribeInspected) lifecycle.add(options.subscribeInspected(() => publish()));
-  lifecycle.add(onWindowEvent(window, "resize", (event: { data: { width: number; height: number } }) => {
-    const width = Math.max(scaledSize(MINIMUM_WIDTH), event.data.width);
-    const height = Math.max(scaledSize(MINIMUM_HEIGHT), event.data.height);
-    if (width !== event.data.width || height !== event.data.height) window.setSize(width, height);
-  }));
-  lifecycle.add(onceWindowEvent(window, "close", () => {
-    if (closing) return;
-    closing = true;
-    lifecycle.dispose();
-    options.onClosed?.();
-  }));
 
   return {
     show: () => window.show(),

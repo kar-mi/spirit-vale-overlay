@@ -1,9 +1,8 @@
 import { localized, localizedCount, sameLocalizedText, type LocalizedText } from "@svoverlay/i18n/messages";
 import path from "node:path";
 
-import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
-import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
-import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
+import { BrowserView, Utils } from "@svoverlay/desktop-runtime";
+import type { BrowserWindow } from "@svoverlay/desktop-runtime";
 
 import {
   DpsLogFollower,
@@ -17,14 +16,12 @@ import { loadDpsAppSettings, saveDpsAppSettings } from "../settings.ts";
 import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppStatus } from "../app-types.ts";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { createCombatAnalysisController } from "./combat-analysis-window.ts";
-import { registerUiScaleWindow, scaledSize, unscaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
-import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
-import { visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
+import { createManagedWindow } from "@svoverlay/desktop-platform/managed-window";
+import { frameClamp, visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DPS_WINDOW_MINIMUM_HEIGHT, DPS_WINDOW_MINIMUM_WIDTH } from "../window-size.ts";
 import { historyScanLimit, loadSessionSummaryJournal, normalizeHistorySessionLimit, type SessionDateRange, type SessionSummaryJournal } from "@svoverlay/desktop-platform/session-summary-journal";
 import type { SessionPickerState, SessionZoneFilter } from "@svoverlay/desktop-platform/session-picker-types";
 import { activeDeathLogSource } from "../combat-navigation.ts";
-import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { detectedPersonalName } from "../personal-character.ts";
 import type { CombatReadModelSource } from "../combat-history.ts";
 import { locationFromLogData, readCombatLocations } from "../zone-log.ts";
@@ -82,7 +79,7 @@ let past: DpsAppState["past"] = { view: "selector", picker: pastPickerLoadingSta
 let pastPaths = new Map<string, string>();
 let pastRefreshSequence = 0;
 let pastSummaryJournalPromise: Promise<SessionSummaryJournal> | undefined;
-const lifecycle = new DisposableStore();
+const mainFrame = frameClamp(MINIMUM_WIDTH, MINIMUM_HEIGHT);
 
 const settingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "DPS settings",
@@ -218,34 +215,16 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
   },
 });
 
-window = new BrowserWindow({
+const managed = createManagedWindow({
   title: "Spirit Vale DPS",
   url: "views://mainview/index.html",
-  frame: visibleScaledWindowFrame(settings.frame, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }),
-  titleBarStyle: "hidden",
-  transparent: false,
   rpc,
+  minimum: { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT },
+  frame: visibleScaledWindowFrame(settings.frame, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }),
+  onFrameChange: (logical) => { settings.frame = logical; scheduleSettingsSave(); },
+  onClose: () => { void shutdown(); },
 });
-applyRoundedCorners(window.ptr);
-setWindowIcon(window.ptr, appIconPath);
-lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: false }));
-lifecycle.add(registerLocaleWindow(window));
-
-lifecycle.add(onWindowEvent(window, "move", (event: { data: typeof settings.frame }) => {
-  if (window.isMaximized()) return;
-  settings.frame = unscaleFrame(clampPhysicalFrame(event.data));
-  scheduleSettingsSave();
-}));
-lifecycle.add(onWindowEvent(window, "resize", (event: { data: typeof settings.frame }) => {
-  if (window.isMaximized()) return;
-  const frame = clampPhysicalFrame(event.data);
-  settings.frame = unscaleFrame(frame);
-  if (event.data.width < scaledSize(MINIMUM_WIDTH) || event.data.height < scaledSize(MINIMUM_HEIGHT)) {
-    window.setSize(frame.width, frame.height);
-  }
-  scheduleSettingsSave();
-}));
-lifecycle.add(onceWindowEvent(window, "close", () => { void shutdown(); }));
+window = managed.window;
 
 const unsubscribeCharacter = options.subscribeCharacter(syncDetectedCharacter);
 void followLiveLog();
@@ -621,25 +600,6 @@ function updateLiveStatus(nextStatus: DpsAppStatus, detail: LocalizedText): bool
   return true;
 }
 
-function clampFrame(frame: DpsAppSettingsFrame): DpsAppSettingsFrame {
-  return {
-    x: frame.x,
-    y: frame.y,
-    width: Math.max(MINIMUM_WIDTH, frame.width),
-    height: Math.max(MINIMUM_HEIGHT, frame.height),
-  };
-}
-
-function unscaleFrame(frame: DpsAppSettingsFrame): DpsAppSettingsFrame {
-  return clampFrame({ x: frame.x, y: frame.y, width: unscaledSize(frame.width), height: unscaledSize(frame.height) });
-}
-
-function clampPhysicalFrame(frame: DpsAppSettingsFrame): DpsAppSettingsFrame {
-  return { x: frame.x, y: frame.y, width: Math.max(scaledSize(MINIMUM_WIDTH), frame.width), height: Math.max(scaledSize(MINIMUM_HEIGHT), frame.height) };
-}
-
-type DpsAppSettingsFrame = typeof settings.frame;
-
 function scheduleSettingsSave(): void {
   settingsPersistence.schedule(settings);
 }
@@ -647,10 +607,10 @@ function scheduleSettingsSave(): void {
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
-  lifecycle.dispose();
+  managed.lifecycle.dispose();
   analysis.close();
   unsubscribeCharacter();
-  if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
+  if (!window.isMaximized()) settings.frame = mainFrame.unscale(window.getFrame());
   liveLog.close();
   if (liveMeterTimer !== undefined) clearTimeout(liveMeterTimer);
   liveMeterTimer = undefined;

@@ -102,6 +102,34 @@ export class WindowPlacementStore {
   }
 }
 
+export interface FrameClamp {
+  /** Raise a logical frame's width/height to the minimum. */
+  clamp(frame: WindowFrame): WindowFrame;
+  /** Unscale a physical frame, then clamp — the form to persist. */
+  unscale(frame: WindowFrame): WindowFrame;
+  /** Raise a physical frame's width/height to the scaled minimum. */
+  clampPhysical(frame: WindowFrame): WindowFrame;
+}
+
+export function frameClamp(minWidth: number, minHeight: number): FrameClamp {
+  const clamp = (frame: WindowFrame): WindowFrame => ({
+    x: frame.x,
+    y: frame.y,
+    width: Math.max(minWidth, frame.width),
+    height: Math.max(minHeight, frame.height),
+  });
+  return {
+    clamp,
+    unscale: (frame) => clamp({ x: frame.x, y: frame.y, width: unscaledSize(frame.width), height: unscaledSize(frame.height) }),
+    clampPhysical: (frame) => ({
+      x: frame.x,
+      y: frame.y,
+      width: Math.max(scaledSize(minWidth), frame.width),
+      height: Math.max(scaledSize(minHeight), frame.height),
+    }),
+  };
+}
+
 export function visibleScaledWindowFrame(
   logicalFrame: WindowFrame,
   minimum: WindowMinimumSize,

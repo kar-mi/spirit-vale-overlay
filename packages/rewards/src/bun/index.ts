@@ -1,7 +1,9 @@
 import path from "node:path";
 
-import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
-import { mountRoundedWindow, publishSafely } from "@svoverlay/desktop-platform/window-publish";
+import { BrowserView } from "@svoverlay/desktop-runtime";
+import type { BrowserWindow } from "@svoverlay/desktop-runtime";
+import { publishSafely } from "@svoverlay/desktop-platform/window-publish";
+import type { DisposableStore } from "@svoverlay/desktop-platform/disposable-store";
 import {
   inspectRewardsReplaySummary,
   LiveRewardService,
@@ -30,11 +32,9 @@ import { loadRewardsSettings, saveRewardsSettings } from "../settings.ts";
 import { xpToLevelUp } from "../xp-to-level.ts";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { createSessionPicker } from "@svoverlay/desktop-platform/session-picker";
-import { registerUiScaleWindow, scaledSize, unscaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
-import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
 import { localized, localizedCount, type LocalizedText } from "@svoverlay/i18n/messages";
-import { visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
-import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
+import { createManagedWindow } from "@svoverlay/desktop-platform/managed-window";
+import { frameClamp, visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { managedSessionId } from "@svoverlay/desktop-platform/managed-session";
 import { chartBuckets, chartSample, CHART_POINTS, RECENT_KILL_LIMIT } from "../reward-chart.ts";
 import { attributedKills, attributedMobSummaries } from "../reward-display.ts";
@@ -96,8 +96,9 @@ let shuttingDown = false;
 let closedCallbackSent = false;
 let storageWarning: LocalizedText | undefined;
 let resetting = false;
-const lifecycle = new DisposableStore();
 let catalogLifecycle: DisposableStore | undefined;
+const mainFrameClamp = frameClamp(620, 520);
+const catalogFrameClamp = frameClamp(520, 420);
 
 const settingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "rewards settings",
@@ -193,7 +194,7 @@ const catalogRpc = BrowserView.defineRPC<RewardsCatalogRpc>({
         if (action === "minimize") catalogWindow?.minimize();
         else if (catalogWindow) {
           if (!catalogWindow.isMaximized()) {
-            settings.catalogFrame = unscaleCatalogFrame(clampPhysicalCatalogFrame(catalogWindow.getFrame()));
+            settings.catalogFrame = catalogFrameClamp.unscale(catalogFrameClamp.clampPhysical(catalogWindow.getFrame()));
           }
           scheduleSave();
           catalogWindow.close();
@@ -212,32 +213,17 @@ const catalogRpc = BrowserView.defineRPC<RewardsCatalogRpc>({
   },
 });
 
-window = new BrowserWindow({
+const managed = createManagedWindow({
   title: "Spirit Vale Mob Rewards",
   url: "views://rewardsview/index.html",
-  frame: visibleScaledWindowFrame(settings.frame, { width: 620, height: 520 }),
-  titleBarStyle: "hidden",
-  transparent: false,
   rpc,
+  minimum: { width: 620, height: 520 },
+  alwaysOnTop: settings.pinned,
+  frame: visibleScaledWindowFrame(settings.frame, { width: 620, height: 520 }),
+  onFrameChange: (logical) => { settings.frame = logical; scheduleSave(); },
+  onClose: () => { void shutdown(); },
 });
-window.setAlwaysOnTop(settings.pinned);
-mountRoundedWindow(window);
-lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: false }));
-lifecycle.add(registerLocaleWindow(window));
-
-lifecycle.add(onWindowEvent(window, "move", (event: { data: typeof settings.frame }) => {
-  if (window.isMaximized()) return;
-  settings.frame = unscaleFrame(clampPhysicalFrame(event.data));
-  scheduleSave();
-}));
-lifecycle.add(onWindowEvent(window, "resize", (event: { data: typeof settings.frame }) => {
-  if (window.isMaximized()) return;
-  const frame = clampPhysicalFrame(event.data);
-  settings.frame = unscaleFrame(frame);
-  if (frame.width !== event.data.width || frame.height !== event.data.height) window.setSize(frame.width, frame.height);
-  scheduleSave();
-}));
-lifecycle.add(onceWindowEvent(window, "close", () => { void shutdown(); }));
+window = managed.window;
 
 void followRewards();
 const unsubscribeXp = options.xp.subscribe(() => publish());
@@ -312,40 +298,23 @@ function openCatalog(): void {
     return;
   }
 
-  const nextWindow = new BrowserWindow({
+  const managed = createManagedWindow({
     title: "Spirit Vale Mob Catalog",
     url: "views://rewardscatalogview/index.html",
-    frame: visibleScaledWindowFrame(settings.catalogFrame, { width: 520, height: 420 }),
-    titleBarStyle: "hidden",
-    transparent: false,
     rpc: catalogRpc,
+    minimum: { width: 520, height: 420 },
+    alwaysOnTop: settings.pinned,
+    frame: visibleScaledWindowFrame(settings.catalogFrame, { width: 520, height: 420 }),
+    onFrameChange: (logical) => { settings.catalogFrame = logical; scheduleSave(); },
+    onClose: () => {
+      if (catalogWindow !== managed.window) return;
+      catalogWindow = undefined;
+      catalogLifecycle = undefined;
+      scheduleSave();
+    },
   });
-  const nextLifecycle = new DisposableStore();
-  catalogWindow = nextWindow;
-  catalogLifecycle = nextLifecycle;
-  nextWindow.setAlwaysOnTop(settings.pinned);
-  mountRoundedWindow(nextWindow);
-  nextLifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
-  nextLifecycle.add(registerLocaleWindow(nextWindow));
-
-  nextLifecycle.add(onWindowEvent(nextWindow, "move", (event: { data: typeof settings.catalogFrame }) => {
-    if (nextWindow.isMaximized()) return;
-    settings.catalogFrame = unscaleCatalogFrame(clampPhysicalCatalogFrame(event.data));
-    scheduleSave();
-  }));
-  nextLifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: typeof settings.catalogFrame }) => {
-    if (nextWindow.isMaximized()) return;
-    const frame = clampPhysicalCatalogFrame(event.data);
-    settings.catalogFrame = unscaleCatalogFrame(frame);
-    if (frame.width !== event.data.width || frame.height !== event.data.height) nextWindow.setSize(frame.width, frame.height);
-    scheduleSave();
-  }));
-  nextLifecycle.add(onceWindowEvent(nextWindow, "close", () => {
-    nextLifecycle.dispose();
-    catalogWindow = undefined;
-    catalogLifecycle = undefined;
-    scheduleSave();
-  }));
+  catalogWindow = managed.window;
+  catalogLifecycle = managed.lifecycle;
 }
 
 async function followRewards(): Promise<void> {
@@ -460,30 +429,6 @@ function publishCatalog(): void {
   publishSafely(() => catalogRpc.send.stateChanged(catalogState()));
 }
 
-function clampFrame(frame: typeof settings.frame): typeof settings.frame {
-  return { x: frame.x, y: frame.y, width: Math.max(620, frame.width), height: Math.max(520, frame.height) };
-}
-
-function clampCatalogFrame(frame: typeof settings.catalogFrame): typeof settings.catalogFrame {
-  return { x: frame.x, y: frame.y, width: Math.max(520, frame.width), height: Math.max(420, frame.height) };
-}
-
-function unscaleFrame(frame: typeof settings.frame): typeof settings.frame {
-  return clampFrame({ x: frame.x, y: frame.y, width: unscaledSize(frame.width), height: unscaledSize(frame.height) });
-}
-
-function clampPhysicalFrame(frame: typeof settings.frame): typeof settings.frame {
-  return { x: frame.x, y: frame.y, width: Math.max(scaledSize(620), frame.width), height: Math.max(scaledSize(520), frame.height) };
-}
-
-function unscaleCatalogFrame(frame: typeof settings.catalogFrame): typeof settings.catalogFrame {
-  return clampCatalogFrame({ x: frame.x, y: frame.y, width: unscaledSize(frame.width), height: unscaledSize(frame.height) });
-}
-
-function clampPhysicalCatalogFrame(frame: typeof settings.catalogFrame): typeof settings.catalogFrame {
-  return { x: frame.x, y: frame.y, width: Math.max(scaledSize(520), frame.width), height: Math.max(scaledSize(420), frame.height) };
-}
-
 function scheduleSave(): void {
   if (shuttingDown) return;
   settingsPersistence.schedule(settings);
@@ -492,7 +437,7 @@ function scheduleSave(): void {
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
-  lifecycle.dispose();
+  managed.lifecycle.dispose();
   catalogLifecycle?.dispose();
   catalogLifecycle = undefined;
   replayPicker.close();
@@ -503,7 +448,7 @@ async function shutdown(): Promise<void> {
   catalogWindow = undefined;
   liveSnapshot = emptyAggregate();
   replaySnapshot = emptyAggregate();
-  if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
+  if (!window.isMaximized()) settings.frame = mainFrameClamp.unscale(window.getFrame());
   try {
     await settingsPersistence.flush(settings);
   } finally {

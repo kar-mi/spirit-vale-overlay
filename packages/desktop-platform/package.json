@@ -11,6 +11,7 @@
     "./window-publish": "./window-publish.ts",
     "./window-lifecycle": "./window-lifecycle.ts",
     "./window-placement": "./window-placement.ts",
+    "./managed-window": "./managed-window.ts",
     "./ui-scale": "./ui-scale.ts",
     "./ui-scale-window": "./ui-scale-window.ts",
     "./local-storage": "./local-storage.ts",

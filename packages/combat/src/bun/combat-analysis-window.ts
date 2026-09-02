@@ -1,16 +1,15 @@
 import { localized, localizedCount, type LocalizedText } from "@svoverlay/i18n/messages";
 import path from "node:path";
 
-import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
+import { BrowserView } from "@svoverlay/desktop-runtime";
+import type { BrowserWindow } from "@svoverlay/desktop-runtime";
 import { loadDpsReplay } from "@kar-mi/spirit-vale-tools-combat";
 import type { CombatHistoryStore } from "@kar-mi/spirit-vale-tools-combat";
 import { formatDuration } from "@svoverlay/ui-kit/format";
-import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
-import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
-import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
-import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
+import { scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
-import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
+import { createManagedWindow } from "@svoverlay/desktop-platform/managed-window";
+import type { DisposableStore } from "@svoverlay/desktop-platform/disposable-store";
 
 import type {
   CombatAnalysisDetailRpc,
@@ -332,41 +331,24 @@ export function createCombatAnalysisController(options: CombatAnalysisController
       detailWindow.activate();
       return;
     }
-    const nextWindow = new BrowserWindow({
+    const managed = createManagedWindow({
       title: `${identity.displayName} · Combat Analysis`,
       url: "views://analysisdetailview/index.html",
-      frame: options.placements?.frame(
-        "combat-analysis-detail",
-        DETAIL_FRAME,
-        { width: MINIMUM_DETAIL_WIDTH, height: MINIMUM_DETAIL_HEIGHT },
-      ) ?? DETAIL_FRAME,
-      titleBarStyle: "hidden",
-      transparent: false,
       rpc: detailRpc,
-    });
-    const lifecycle = new DisposableStore();
-    detailWindow = nextWindow;
-    detailLifecycle = lifecycle;
-    applyRoundedCorners(nextWindow.ptr);
-    setWindowIcon(nextWindow.ptr, appIconPath);
-    lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
-    lifecycle.add(registerLocaleWindow(nextWindow));
-    const disposePlacement = options.placements?.track("combat-analysis-detail", nextWindow);
-    if (disposePlacement) lifecycle.add(disposePlacement);
-    lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
-      const width = Math.max(scaledSize(MINIMUM_DETAIL_WIDTH), event.data.width);
-      const height = Math.max(scaledSize(MINIMUM_DETAIL_HEIGHT), event.data.height);
-      if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
-    }));
-    lifecycle.add(onceWindowEvent(nextWindow, "close", () => {
-      lifecycle.dispose();
-      if (detailWindow === nextWindow) {
+      minimum: { width: MINIMUM_DETAIL_WIDTH, height: MINIMUM_DETAIL_HEIGHT },
+      placements: options.placements,
+      placementKey: "combat-analysis-detail",
+      defaultFrame: DETAIL_FRAME,
+      onClose: () => {
+        if (detailWindow !== managed.window) return;
         detailWindow = undefined;
         detailLifecycle = undefined;
         detailState = undefined;
         liveDetailActorId = undefined;
-      }
-    }));
+      },
+    });
+    detailWindow = managed.window;
+    detailLifecycle = managed.lifecycle;
   }
 
   function closeDetails(): void {

@@ -1,12 +1,10 @@
 import path from "node:path";
 
-import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
-import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
-import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
-import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
-import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
+import { BrowserView } from "@svoverlay/desktop-runtime";
+import type { BrowserWindow } from "@svoverlay/desktop-runtime";
+import { scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
-import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
+import { createManagedWindow } from "@svoverlay/desktop-platform/managed-window";
 
 import type { CombatDeathLogRpc, CombatDeathLogState } from "../app-types.ts";
 import { loadDeathLogReplay, selectionAfterDeathLogRefresh } from "../death-log.ts";
@@ -137,38 +135,25 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
 
   function ensureWindow(): void {
     if (window) return;
-    const nextWindow = new BrowserWindow({
+    const managed = createManagedWindow({
       title: "Combat Death Log",
       url: "views://deathlogview/index.html",
-      frame: options.placements?.frame(placementKey, defaultFrame, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }) ?? defaultFrame,
-      titleBarStyle: "hidden",
-      transparent: false,
       rpc,
-    });
-    const lifecycle = new DisposableStore();
-    window = nextWindow;
-    const releaseReadModel = options.readModel?.acquire?.();
-    if (releaseReadModel) lifecycle.add(releaseReadModel);
-    applyRoundedCorners(nextWindow.ptr);
-    setWindowIcon(nextWindow.ptr, appIconPath);
-    lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
-    lifecycle.add(registerLocaleWindow(nextWindow));
-    const disposePlacement = options.placements?.track(placementKey, nextWindow);
-    if (disposePlacement) lifecycle.add(disposePlacement);
-    lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
-      const width = Math.max(scaledSize(MINIMUM_WIDTH), event.data.width);
-      const height = Math.max(scaledSize(MINIMUM_HEIGHT), event.data.height);
-      if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
-    }));
-    lifecycle.add(onceWindowEvent(nextWindow, "close", () => {
-      lifecycle.dispose();
-      if (window === nextWindow) {
+      minimum: { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT },
+      placements: options.placements,
+      placementKey,
+      defaultFrame,
+      onClose: () => {
+        if (window !== managed.window) return;
         window = undefined;
         state = undefined;
         loadedPath = undefined;
         live = false;
-      }
-    }));
+      },
+    });
+    window = managed.window;
+    const releaseReadModel = options.readModel?.acquire?.();
+    if (releaseReadModel) managed.lifecycle.add(releaseReadModel);
   }
 
   function publish(): void {
