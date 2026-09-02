@@ -283,26 +283,43 @@ export class CaptureCoordinator {
   }
 
   /**
-   * Moves the active connection, forgetting what the last one taught us.
+   * Moves the active connection
    *
    * Everything below is scoped to one connection: the channel and instance stamped onto a boss
    * timer, the map, and the trackers whose object ids only mean anything on the connection that
-   * spawned them. The reset used to ride on `authenticated`, which was safe only while that packet
-   * was also what moved the connection. It is not any more — the transport moves it several hundred
-   * milliseconds earlier, and the server's spawn burst arrives inside that gap — so a gravestone
-   * would be timed against the channel the player just left.
+   * spawned them.
    */
   private setActiveConnection(connectionId: string | undefined): void {
     if (this.activeConnectionId === connectionId) return;
     this.activeConnectionId = connectionId;
+    this.resetTrackers("connection");
+  }
+
+  /**
+   * Clears the trackers whose contents stop meaning anything past a boundary.
+   */
+  private resetTrackers(scope: "connection" | "character" | "full"): void {
+    const character = scope === "character" || scope === "full";
+
+    this.lastObservedMapId = undefined;
     this.currentChannel = undefined;
     this.setServerInstance(undefined);
-    this.lastObservedMapId = undefined;
     this.loggedMobIdentities.clear();
     this.reportedGravestones.clear();
+    this.loggedShortDisplayStatuses.clear();
+    this.toastedLootIds.clear();
     this.positions.reset();
     this.loot.reset();
     this.tower.reset();
+    this.mobs.reset();
+
+    if (character) {
+      this.actors.reset();
+      this.combat.reset();
+      this.statusTracker.reset();
+      this.publishActiveStatuses(true);
+    }
+
     if (this.minimapEnabled()) this.publishMinimap(true);
   }
 
@@ -463,32 +480,17 @@ export class CaptureCoordinator {
       this.logCaptureError(errorMessage(error), "Capture could not stop cleanly");
     }
     this.writeStoppedLifecycle();
-    this.actors.reset();
-    this.combat.reset();
-    this.statusTracker.reset();
-    this.loggedShortDisplayStatuses.clear();
-    this.publishActiveStatuses(true);
+    if (this.minimapTimer !== undefined) clearTimeout(this.minimapTimer);
+    this.minimapTimer = undefined;
+    this.resetTrackers("full");
     this.rewards.reset();
     this.rewardAttributor.reset();
     this.locallyDamagedRewardTargets.clear();
-    this.mobs.reset();
-    this.loggedMobIdentities.clear();
-    this.positions.reset();
-    this.loot.reset();
-    this.toastedLootIds.clear();
-    if (this.minimapTimer !== undefined) clearTimeout(this.minimapTimer);
-    this.minimapTimer = undefined;
-    this.publishMinimap(true);
-    this.tower.reset();
     this.lastLoggedLocation = undefined;
-    this.lastObservedMapId = undefined;
     this.pendingDirectWorldTransition = false;
     this.pendingCharacterBoundary = false;
     this.clearTowerLocationTimer();
     this.towerLocationDeadlineMs = undefined;
-    this.currentChannel = undefined;
-    this.setServerInstance(undefined);
-    this.reportedGravestones.clear();
     this.clearPacketBuffer();
     this.targetState = "waiting";
     this.receivedDataForCurrentGame = false;
@@ -851,7 +853,8 @@ export class CaptureCoordinator {
       this.publishActiveStatuses();
       // Spawn diagnostics contain raw protocol payloads and are intentionally not written to combat logs.
     } catch (error) {
-      handled = true;
+      // Leave `handled` untouched: a packet that threw is exactly one the `fishnet.packet`
+      // diagnostic dump below should still capture.
       this.logDomainWarning("combat", error);
     }
 
@@ -872,7 +875,6 @@ export class CaptureCoordinator {
         this.rewardsLog?.log(event.kind === "kill" ? "rewards.kill" : "rewards.unmatched", jsonObject(event));
       }
     } catch (error) {
-      handled = true;
       this.logDomainWarning("rewards", error);
     }
 
@@ -898,20 +900,7 @@ export class CaptureCoordinator {
     this.pendingCharacterBoundary = true;
     this.pendingDirectWorldTransition = false;
     this.combatLog?.log("combat.actorIdentity", { kind: "actorIdentity", operation: "reset", tick });
-    this.actors.reset();
-    this.combat.reset();
-    this.statusTracker.reset();
-    this.loggedShortDisplayStatuses.clear();
-    this.publishActiveStatuses(true);
-    this.mobs.reset();
-    this.loggedMobIdentities.clear();
-    this.positions.reset();
-    this.loot.reset();
-    this.toastedLootIds.clear();
-    this.tower.reset();
-    this.lastObservedMapId = undefined;
-    this.currentChannel = undefined;
-    this.setServerInstance(undefined);
+    this.resetTrackers("character");
     this.options.onGoldMapChange?.();
     if (this.options.resetOnMapChange?.()) {
       void this.rotateSession({ identities: [], resetRewards: true }).catch(() => {});
