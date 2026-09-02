@@ -14,7 +14,7 @@ import {
   type WindowMinimumSize,
 } from "./window-placement-frame.ts";
 
-export { visibleWindowFrame } from "./window-placement-frame.ts";
+export { visibleWindowFrame, isWindowFrame } from "./window-placement-frame.ts";
 export type { DisplayWorkArea, WindowMinimumSize } from "./window-placement-frame.ts";
 
 interface StoredPlacements {

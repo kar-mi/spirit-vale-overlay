@@ -2,6 +2,7 @@ import path from "node:path";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
 import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
 import { loadJsonSettings, writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
+import { isWindowFrame } from "@svoverlay/desktop-platform/window-placement";
 import type { RewardsAppView } from "./app-types.ts";
 
 export interface RewardsAppSettings {
@@ -29,8 +30,8 @@ export async function loadRewardsSettings(settingsPath = defaultSettingsPath): P
   return loadJsonSettings(settingsPath, (candidate) => {
     const value = candidate as Partial<RewardsAppSettings>;
     return {
-      frame: validFrame(value.frame) ? value.frame : defaults.frame,
-      catalogFrame: validFrame(value.catalogFrame) ? value.catalogFrame : defaults.catalogFrame,
+      frame: isWindowFrame(value.frame) ? value.frame : defaults.frame,
+      catalogFrame: isWindowFrame(value.catalogFrame) ? value.catalogFrame : defaults.catalogFrame,
       pinned: typeof value.pinned === "boolean" ? value.pinned : defaults.pinned,
       view: value.view !== undefined && (REWARDS_APP_VIEWS as readonly string[]).includes(value.view) ? value.view : defaults.view,
     };
@@ -39,10 +40,4 @@ export async function loadRewardsSettings(settingsPath = defaultSettingsPath): P
 
 export async function saveRewardsSettings(settings: RewardsAppSettings, settingsPath = defaultSettingsPath): Promise<void> {
   await writeJsonFileAtomic(settingsPath, settings);
-}
-
-function validFrame(value: unknown): value is RewardsAppSettings["frame"] {
-  if (typeof value !== "object" || value === null) return false;
-  const frame = value as Record<string, unknown>;
-  return ["x", "y", "width", "height"].every((key) => typeof frame[key] === "number" && Number.isFinite(frame[key]));
 }
