@@ -1,3 +1,4 @@
+import { localized, localizedCount, sameLocalizedText, type LocalizedText } from "@svoverlay/i18n/messages";
 import path from "node:path";
 
 import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
@@ -17,6 +18,7 @@ import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppStatus } from "../a
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { createCombatAnalysisController } from "./combat-analysis-window.ts";
 import { registerUiScaleWindow, scaledSize, unscaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
+import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
 import { visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DPS_WINDOW_MINIMUM_HEIGHT, DPS_WINDOW_MINIMUM_WIDTH } from "../window-size.ts";
 import { historyScanLimit, loadSessionSummaryJournal, normalizeHistorySessionLimit, type SessionDateRange, type SessionSummaryJournal } from "@svoverlay/desktop-platform/session-summary-journal";
@@ -55,7 +57,9 @@ let personalName = detectedPersonalName(initialCharacterState);
 
 let window: BrowserWindow;
 let status: DpsAppStatus = "waiting";
-let statusDetail = liveLogOverride ? `Looking for ${path.basename(liveLogOverride)}…` : "Looking for a combat session…";
+let statusDetail: LocalizedText = liveLogOverride
+  ? localized("combat.status.lookingForFile", { file: path.basename(liveLogOverride) })
+  : localized("combat.status.lookingForSession");
 let manualPersonalActorId: number | undefined;
 let liveMeter = createLiveMeter();
 const liveLog = createLiveLogSource();
@@ -225,6 +229,7 @@ window = new BrowserWindow({
 applyRoundedCorners(window.ptr);
 setWindowIcon(window.ptr, appIconPath);
 lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: false }));
+lifecycle.add(registerLocaleWindow(window));
 
 lifecycle.add(onWindowEvent(window, "move", (event: { data: typeof settings.frame }) => {
   if (window.isMaximized()) return;
@@ -258,7 +263,7 @@ function appState(): DpsAppState {
     statType: settings.statType,
     status,
     statusDetail,
-    ...(storageWarning ? { storageWarning } : {}),
+    ...(storageWarning ? { storageWarning: localized("storage.saveFailed") } : {}),
     personalName,
     ...(liveMeter.getPersonalActorId() === undefined ? {} : { personalActorId: liveMeter.getPersonalActorId() }),
     ...(snapshot ? { snapshot } : {}),
@@ -316,7 +321,7 @@ async function followLiveLog(): Promise<void> {
     try {
       batch = await liveLog.next();
     } catch {
-      updateLiveStatus("error", `Could not read ${path.basename(liveLogOverride ?? "combat.jsonl")}`);
+      updateLiveStatus("error", localized("combat.status.readFailed", { file: path.basename(liveLogOverride ?? "combat.jsonl") }));
       // Back off rather than spinning: whatever failed will not be fixed by retrying at once.
       await new Promise((resolve) => setTimeout(resolve, LIVE_LOG_OVERRIDE_POLL_MS));
       continue;
@@ -353,12 +358,12 @@ function applyLiveLogBatch(batch: DpsLogBatch): void {
   if (nowMs !== undefined) liveMeter.advance(nowMs);
   const fileName = path.basename(batch.path ?? liveLogOverride ?? "combat.jsonl");
   const statusChanged = batch.missing
-    ? updateLiveStatus("waiting", `Waiting for ${fileName}`)
+    ? updateLiveStatus("waiting", localized("combat.status.waitingForFile", { file: fileName }))
     : batch.invalidLines > 0
-      ? updateLiveStatus("ready", `Reading ${fileName} with skipped lines`)
+      ? updateLiveStatus("ready", localized("combat.status.readingSkipped", { file: fileName }))
       : batch.events.length > 0
-        ? updateLiveStatus("capturing", `Reading ${fileName}`)
-        : updateLiveStatus(latestRecord() ? "ready" : "waiting", `Watching ${fileName}`);
+        ? updateLiveStatus("capturing", localized("combat.status.reading", { file: fileName }))
+        : updateLiveStatus(latestRecord() ? "ready" : "waiting", localized("combat.status.watching", { file: fileName }));
   if (!statusChanged && (batch.events.length > 0 || batch.reset)) publishLiveProgress();
   // Events carried the meter forward; whether it still needs a beat of its own is decided here.
   scheduleLiveMeterTick();
@@ -504,9 +509,9 @@ async function refreshPastSessions(): Promise<void> {
       past = {
         view: "selector",
         picker: {
-          title: "Past combat logs",
+          title: localized("sessions.title.pastCombatLogs"),
           status: "loading",
-          statusDetail: `Scanning… ${items.length} session${items.length === 1 ? "" : "s"} found so far`,
+          statusDetail: localizedCount("sessions.scanning", items.length),
           sessions: items.slice(),
           canOpenLogFolder: true,
           dateRange: pastDateRange,
@@ -521,11 +526,11 @@ async function refreshPastSessions(): Promise<void> {
     past = {
       view: "selector",
       picker: {
-        title: "Past combat logs",
+        title: localized("sessions.title.pastCombatLogs"),
         status: "ready",
         statusDetail: items.length === 0
-          ? (hasPastFilters() ? "No sessions match the selected filters." : "No managed sessions found.")
-          : `${items.length} session${items.length === 1 ? "" : "s"}${hasPastFilters() ? " matching the selected filters" : ""}`,
+          ? localized(hasPastFilters() ? "sessions.noneFiltered" : "sessions.none")
+          : localizedCount(hasPastFilters() ? "sessions.matching" : "sessions.recent", items.length),
         sessions: items,
         canOpenLogFolder: true,
         dateRange: pastDateRange,
@@ -539,9 +544,9 @@ async function refreshPastSessions(): Promise<void> {
     past = {
       view: "selector",
       picker: {
-        title: "Past combat logs",
+        title: localized("sessions.title.pastCombatLogs"),
         status: "error",
-        statusDetail: "Recent sessions could not be scanned.",
+        statusDetail: localized("sessions.scanFailed"),
         sessions: [],
         canOpenLogFolder: true,
         dateRange: pastDateRange,
@@ -578,9 +583,9 @@ async function openPastPath(selectedPath: string): Promise<void> {
 
 function pastPickerLoadingState(): SessionPickerState {
   return {
-    title: "Past combat logs",
+    title: localized("sessions.title.pastCombatLogs"),
     status: "loading",
-    statusDetail: "Scanning recent sessions…",
+    statusDetail: localized("sessions.scanningRecent"),
     sessions: [],
     canOpenLogFolder: true,
     dateRange: pastDateRange,
@@ -608,8 +613,8 @@ function normalizeZones(value: readonly string[]): string[] {
   return [...new Set(value)].filter((zone) => known.has(zone));
 }
 
-function updateLiveStatus(nextStatus: DpsAppStatus, detail: string): boolean {
-  if (status === nextStatus && statusDetail === detail) return false;
+function updateLiveStatus(nextStatus: DpsAppStatus, detail: LocalizedText): boolean {
+  if (status === nextStatus && sameLocalizedText(statusDetail, detail)) return false;
   status = nextStatus;
   statusDetail = detail;
   publish();

@@ -1,48 +1,52 @@
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
-import { OVERLAY_ELEMENT_IDS, OVERLAY_ELEMENT_LABELS } from "@svoverlay/overlay/app-types";
+import { OVERLAY_ELEMENT_IDS, type OverlayElementId } from "@svoverlay/overlay/app-types";
+import type { Translator } from "@svoverlay/i18n/translate";
 import type { SettingsSection, SettingsSectionContext } from "../settings-section.ts";
 
-export function buildOverlaySettingsSection({ state, busy, actions }: SettingsSectionContext): SettingsSection {
+const elementLabel = (t: Translator, id: OverlayElementId): string => t(`overlay.element.${id}`);
+
+export function buildOverlaySettingsSection({ state, busy, actions, t }: SettingsSectionContext): SettingsSection {
   const { overlay } = state;
   const displayOptions = overlay.displays.map((display) => ({ value: display.key, label: display.label }));
 
   return {
     id: "overlay",
-    label: "Overlay",
-    description: "Control overlay visibility and layout.",
+    label: t("settings.overlay.label"),
+    description: t("settings.overlay.description"),
     items: [
       {
         id: "overlay-lock",
-        searchText: "Overlay locked unlocked edit mode lock unlock move layout tiles",
-        content: <div class="settings-card settings-row"><span><strong>{overlay.locked ? "Overlay locked" : "Edit mode"}</strong></span><button class="btn" type="button" onClick={() => actions.setOverlayLocked(!overlay.locked)}>{overlay.locked ? "Unlock overlay" : "Lock overlay"}</button></div>,
+        searchText: t("settings.overlay.lock.search"),
+        content: <div class="settings-card settings-row"><span><strong>{overlay.locked ? t("settings.overlay.lock.locked") : t("settings.overlay.lock.editMode")}</strong></span><button class="btn" type="button" onClick={() => actions.setOverlayLocked(!overlay.locked)}>{overlay.locked ? t("settings.overlay.lock.unlock") : t("settings.overlay.lock.lock")}</button></div>,
       },
       {
         id: "overlay-visibility",
-        searchText: "Overlay shown hidden visible visibility show hide",
-        content: <div class="settings-card settings-row"><span><strong>{overlay.overlayVisible ? "Overlay shown" : "Overlay hidden"}</strong></span><button class="btn" type="button" onClick={() => actions.setOverlayVisible(!overlay.overlayVisible)}>{overlay.overlayVisible ? "Hide overlay" : "Show overlay"}</button></div>,
+        searchText: t("settings.overlay.visibility.search"),
+        content: <div class="settings-card settings-row"><span><strong>{overlay.overlayVisible ? t("settings.overlay.visibility.shown") : t("settings.overlay.visibility.hidden")}</strong></span><button class="btn" type="button" onClick={() => actions.setOverlayVisible(!overlay.overlayVisible)}>{overlay.overlayVisible ? t("settings.overlay.visibility.hide") : t("settings.overlay.visibility.show")}</button></div>,
       },
       {
         id: "overlay-auto-hide",
-        searchText: "Auto-hide overlay game application focus unfocused switching app manual hide",
-        content: <><label class="settings-check"><input type="checkbox" checked={overlay.autoHideWhenUnfocused} disabled={busy} onChange={(event) => actions.setAutoHideWhenUnfocused(event.currentTarget.checked)} /><span>Auto-hide overlay when the game or Spirit Vale Overlay is not focused</span></label><p class="settings-hint">Spirit Vale and this app's own windows keep the overlay visible. Switching to another app hides it; a manual hide remains hidden until you show it again.</p></>,
+        searchText: t("settings.overlay.autoHide.search"),
+        content: <><label class="settings-check"><input type="checkbox" checked={overlay.autoHideWhenUnfocused} disabled={busy} onChange={(event) => actions.setAutoHideWhenUnfocused(event.currentTarget.checked)} /><span>{t("settings.overlay.autoHide.label")}</span></label><p class="settings-hint">{t("settings.overlay.autoHide.hint")}</p></>,
       },
       ...(overlay.displays.length > 1 ? [{
         id: "home-display",
-        searchText: "Home display monitor screen new tiles disconnected fallback",
-        content: <><label class="settings-field"><span>Home display</span><CustomSelect ariaLabel="Home display" disabled={busy} value={overlay.homeDisplay} options={displayOptions} onChange={actions.setOverlayHomeDisplay} /></label><p class="settings-hint">Where new tiles land, and where a tile falls back to if its monitor is disconnected.</p></>,
+        searchText: t("settings.overlay.homeDisplay.search"),
+        content: <><label class="settings-field"><span>{t("settings.overlay.homeDisplay.label")}</span><CustomSelect ariaLabel={t("settings.overlay.homeDisplay.label")} disabled={busy} value={overlay.homeDisplay} options={displayOptions} onChange={actions.setOverlayHomeDisplay} /></label><p class="settings-hint">{t("settings.overlay.homeDisplay.hint")}</p></>,
       }] : []),
       {
         id: "visible-elements",
-        searchText: `Visible elements tiles display monitor enable disable ${OVERLAY_ELEMENT_IDS.map((id) => OVERLAY_ELEMENT_LABELS[id]).join(" ")}`,
-        content: <><div class="settings-card"><h2>Visible elements</h2>{OVERLAY_ELEMENT_IDS.map((id) => {
+        searchText: `${t("settings.overlay.elements.search")} ${OVERLAY_ELEMENT_IDS.map((id) => elementLabel(t, id)).join(" ")}`,
+        content: <><div class="settings-card"><h2>{t("settings.overlay.elements.label")}</h2>{OVERLAY_ELEMENT_IDS.map((id) => {
           // The minimap has its own master switch in the Minimap / Loot section.
           const rowDisabled = id === "minimap" && !overlay.minimapEnabled;
+          const label = elementLabel(t, id);
           return <div class="settings-element-row" key={id}>
-            <label class="settings-check settings-element"><input type="checkbox" checked={overlay.elements[id].enabled} disabled={busy || rowDisabled} onChange={(event) => actions.setOverlayElementEnabled(id, event.currentTarget.checked)} /><span>{OVERLAY_ELEMENT_LABELS[id]}</span></label>
+            <label class="settings-check settings-element"><input type="checkbox" checked={overlay.elements[id].enabled} disabled={busy || rowDisabled} onChange={(event) => actions.setOverlayElementEnabled(id, event.currentTarget.checked)} /><span>{label}</span></label>
             {/* Tiles cannot be dragged between monitors — separate documents — so the move happens here. */}
-            {overlay.displays.length > 1 && <CustomSelect ariaLabel={`Display for ${OVERLAY_ELEMENT_LABELS[id]}`} disabled={busy || rowDisabled} value={overlay.elements[id].display} options={displayOptions} onChange={(value) => actions.setOverlayElementDisplay(id, value)} />}
+            {overlay.displays.length > 1 && <CustomSelect ariaLabel={t("settings.overlay.elements.displayFor", { element: label })} disabled={busy || rowDisabled} value={overlay.elements[id].display} options={displayOptions} onChange={(value) => actions.setOverlayElementDisplay(id, value)} />}
           </div>;
-        })}</div>{!overlay.minimapEnabled && <p class="settings-hint">Enable the minimap in the Minimap / Loot section to use its row.</p>}<p class="settings-hint">{overlay.personalName ? `Detected character: ${overlay.personalName}` : "Waiting to detect your active character."}</p></>,
+        })}</div>{!overlay.minimapEnabled && <p class="settings-hint">{t("settings.overlay.elements.minimapOff")}</p>}<p class="settings-hint">{overlay.personalName ? t("settings.overlay.elements.characterDetected", { name: overlay.personalName }) : t("settings.overlay.elements.characterWaiting")}</p></>,
       },
     ],
   };

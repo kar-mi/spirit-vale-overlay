@@ -1,3 +1,4 @@
+import { useTranslator } from "@svoverlay/i18n/browser";
 import type { ComponentChildren } from "preact";
 import { useRef, useState } from "preact/hooks";
 import { initWindowChrome } from "./window-chrome.ts";
@@ -32,6 +33,8 @@ export function TitleBar(props: TitleBarProps) {
     });
   };
 
+  const t = useTranslator();
+  const maximizeLabel = maximized ? t("titleBar.restore") : t("titleBar.maximize");
   return (
     <header ref={titlebarRef} class="titlebar">
       <div class="brand">
@@ -41,19 +44,19 @@ export function TitleBar(props: TitleBarProps) {
       </div>
       <div class="window-controls">
         {props.extraControls}
-        <button class="icon-button" type="button" aria-label="Minimize" title="Minimize" onClick={props.onMinimize}>−</button>
+        <button class="icon-button" type="button" aria-label={t("titleBar.minimize")} title={t("titleBar.minimize")} onClick={props.onMinimize}>−</button>
         {props.toggleMaximize && (
           <button
             class="icon-button"
             type="button"
-            aria-label={maximized ? "Restore" : "Maximize"}
-            title={maximized ? "Restore" : "Maximize"}
+            aria-label={maximizeLabel}
+            title={maximizeLabel}
             onClick={() => void chromeRef.current?.toggleMaximize()}
           >
             {maximized ? "❐" : "▢"}
           </button>
         )}
-        <button class="icon-button close-button" type="button" aria-label="Close" title="Close" onClick={props.onClose}>×</button>
+        <button class="icon-button close-button" type="button" aria-label={t("titleBar.close")} title={t("titleBar.close")} onClick={props.onClose}>×</button>
       </div>
     </header>
   );

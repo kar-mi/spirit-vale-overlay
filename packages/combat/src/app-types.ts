@@ -1,3 +1,4 @@
+import type { LocalizedText } from "@svoverlay/i18n/messages";
 import type { RPCSchema } from "@svoverlay/contracts/rpc";
 
 
@@ -35,8 +36,8 @@ export interface DpsAppState {
   tab: DpsAppTab;
   statType: StatType;
   status: DpsAppStatus;
-  statusDetail: string;
-  storageWarning?: string;
+  statusDetail: LocalizedText;
+  storageWarning?: LocalizedText;
   personalName: string;
   personalActorId?: number;
   snapshot?: FishNetDpsEncounterSnapshot;
@@ -90,7 +91,9 @@ export type DpsAppRpc = {
 
 export interface CombatAnalysisState {
   status: "loading" | "ready" | "error";
-  statusDetail: string;
+  statusDetail: LocalizedText;
+  /** Joined onto `statusDetail` with a separator; each half pluralizes on its own count. */
+  statusDetailExtra?: LocalizedText;
   fileName?: string;
   invalidLines: number;
   encounters: DpsEncounterOption[];

@@ -2,6 +2,8 @@ import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
 import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
+import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
+import { translate } from "@svoverlay/i18n/backend";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 
@@ -46,7 +48,7 @@ export async function createBossTimerWindow(options: BossTimerWindowOptions) {
   });
 
   window = new BrowserWindow({
-    title: "Spirit Vale Boss Timers",
+    title: translate("bossTimers.window.title"),
     url: "views://bosstimersview/index.html",
     frame: options.placements?.frame(
       "boss-timers",
@@ -60,6 +62,7 @@ export async function createBossTimerWindow(options: BossTimerWindowOptions) {
   applyRoundedCorners(window.ptr);
   setWindowIcon(window.ptr, appIconPath);
   lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: !options.placements }));
+  lifecycle.add(registerLocaleWindow(window));
   const disposePlacement = options.placements?.track("boss-timers", window);
   if (disposePlacement) lifecycle.add(disposePlacement);
   const unsubscribe = options.subscribe(() => {

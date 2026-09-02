@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { createTranslator } from "@svoverlay/i18n/translate";
 import { filterSettingsSections, normalizeSettingsSearch } from "./settings-search.ts";
+
+const t = createTranslator("en");
 
 const sections = [
   {
@@ -49,5 +52,20 @@ describe("settings search", () => {
   test("returns no groups for an empty or unmatched query", () => {
     expect(filterSettingsSections("   ", sections)).toEqual([]);
     expect(filterSettingsSections("audio", sections)).toEqual([]);
+  });
+
+  // Guards the catalog keywords the shipped Language section searches on.
+  test("the language setting is reachable by the words people would type", () => {
+    const languageSection = [{
+      id: "language",
+      label: t("settings.language.label"),
+      description: t("settings.language.description"),
+      items: [{ id: "display-language", searchText: t("settings.language.select.search") }],
+    }];
+    for (const query of ["language", "locale", "translation", "english"]) {
+      expect(filterSettingsSections(query, languageSection)).toEqual([
+        { sectionId: "language", itemIds: ["display-language"] },
+      ]);
+    }
   });
 });

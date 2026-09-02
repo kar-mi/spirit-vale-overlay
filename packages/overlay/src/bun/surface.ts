@@ -1,4 +1,6 @@
 import { DisposableStore, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
+import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
+import { translate } from "@svoverlay/i18n/backend";
 import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
 
 import type { OverlayRpc } from "../app-types.ts";
@@ -93,7 +95,7 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
   });
 
   const window = new BrowserWindow({
-    title: "Spirit Vale Overlay",
+    title: translate("app.name"),
     url: "views://overlayview/index.html",
     frame: display.bounds,
     titleBarStyle: "hidden",
@@ -105,6 +107,7 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
   window.setAlwaysOnTop(true);
   window.hideFromTaskbar();
   window.setClickThrough(controller.locked);
+  lifecycle.add(registerLocaleWindow(window));
   if (controller.overlayVisible) window.showInactive();
   lifecycle.add(onceWindowEvent(window, "close", () => {
     closed = true;

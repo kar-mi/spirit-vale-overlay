@@ -1,3 +1,4 @@
+import { useTranslator } from "@svoverlay/i18n/browser";
 import { render } from "preact";
 import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
@@ -35,9 +36,10 @@ function App() {
   const visibleDeaths = needle ? next.deaths.filter((death) => normalizeSearchText(death.victimName).includes(needle)) : next.deaths;
   const attackerLabels = numberedMonsterLabels(next);
   const summary = summarize(selected === undefined ? [] : [selected], attackerLabels);
+  const t = useTranslator();
   return <main class="app-shell">
     <TitleBar
-      appTag="Death log"
+      appTag={t("deathLog.window.tag")}
       minWidth={680}
       minHeight={500}
       getFrame={async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: DEATH_LOG_DEFAULT_WIDTH, height: DEATH_LOG_DEFAULT_HEIGHT }}
@@ -48,51 +50,51 @@ function App() {
     />
     <section class="death-log-content">
       <section class="toolbar">
-        <div><h1>Player deaths</h1><p>{next.fileName}</p></div>
-        <span class="pill">{next.deaths.length} death{next.deaths.length === 1 ? "" : "s"}</span>
+        <div><h1>{t("deathLog.heading")}</h1><p>{next.fileName}</p></div>
+        <span class="pill">{t.plural("deathLog.count", next.deaths.length)}</span>
       </section>
-      {next.invalidLines > 0 && <p class="banner is-warn">{next.invalidLines} malformed record{next.invalidLines === 1 ? " was" : "s were"} skipped.</p>}
-      {next.deaths.length === 0 ? <p class="empty-state">No player deaths were found in this log.</p> : <>
+      {next.invalidLines > 0 && <p class="banner is-warn">{t.plural("common.malformedRecords", next.invalidLines)}</p>}
+      {next.deaths.length === 0 ? <p class="empty-state">{t("deathLog.empty")}</p> : <>
         <section class="death-list-section">
           <div class="section-head">
-            <div><h2>Deaths</h2><p>Most recent first.</p></div>
+            <div><h2>{t("deathLog.deaths")}</h2><p>{t("deathLog.mostRecent")}</p></div>
             <label class="field" for="death-victim-query">
               <span aria-hidden="true">⌕</span>
               <input
                 id="death-victim-query"
                 type="search"
                 autocomplete="off"
-                placeholder="Search player"
+                placeholder={t("deathLog.searchPlayer")}
                 value={victimQuery}
                 onInput={(event) => setVictimQuery((event.target as HTMLInputElement).value)}
               />
             </label>
           </div>
           <div class="table-scroll death-list-scroll">
-            <table class="data-table death-table" aria-label="Player deaths"><thead><tr><th>Player</th><th>Damage</th><th>Hits</th></tr></thead>
+            <table class="data-table death-table" aria-label={t("deathLog.heading")}><thead><tr><th>{t("combat.column.player")}</th><th>{t("deathLog.column.damage")}</th><th>{t("deathLog.column.hits")}</th></tr></thead>
               <tbody>{visibleDeaths.map((death) => <tr key={death.id} class={death.id === selected?.id ? "selected" : undefined} onClick={() => void desktopView.rpc?.request.selectDeath({ id: death.id })}>
                 <th scope="row">{death.victimName}</th><td>{compactFormat.format(death.totalDamage)}</td><td>{numberFormat.format(death.hits.length)}</td>
               </tr>)}</tbody>
             </table>
-            {visibleDeaths.length === 0 && <p class="empty-state">No deaths match "{victimQuery}".</p>}
+            {visibleDeaths.length === 0 && <p class="empty-state">{t("deathLog.noMatch", { query: victimQuery })}</p>}
           </div>
         </section>
         {selected && <section class="death-detail-section">
-          <div class="section-head"><div><h2>{selected.victimName}</h2><p>Damage received during the 10 seconds before death.</p></div><span class="pill">{compactFormat.format(selected.totalDamage)} damage</span></div>
-          <nav class="seg tabs" role="tablist" aria-label="Selected death views">
-            <button type="button" role="tab" aria-controls="summary-panel" class={tab === "summary" ? "active" : undefined} aria-selected={tab === "summary"} onClick={() => setTab("summary")}>Summary</button>
-            <button type="button" role="tab" aria-controls="list-panel" class={tab === "list" ? "active" : undefined} aria-selected={tab === "list"} onClick={() => setTab("list")}>Death list</button>
+          <div class="section-head"><div><h2>{selected.victimName}</h2><p>{t("deathLog.detail.hint")}</p></div><span class="pill">{t("deathLog.detail.damage", { amount: compactFormat.format(selected.totalDamage) })}</span></div>
+          <nav class="seg tabs" role="tablist" aria-label={t("deathLog.tabs.label")}>
+            <button type="button" role="tab" aria-controls="summary-panel" class={tab === "summary" ? "active" : undefined} aria-selected={tab === "summary"} onClick={() => setTab("summary")}>{t("deathLog.tabs.summary")}</button>
+            <button type="button" role="tab" aria-controls="list-panel" class={tab === "list" ? "active" : undefined} aria-selected={tab === "list"} onClick={() => setTab("list")}>{t("deathLog.tabs.list")}</button>
           </nav>
           <section id="summary-panel" role="tabpanel" hidden={tab !== "summary"}>
-            <div class="table-scroll"><table class="data-table death-table" aria-label="Death damage summary"><thead><tr><th>Attacker</th><th>Source</th><th>Damage</th><th>Hits</th><th>Crits</th></tr></thead>
+            <div class="table-scroll"><table class="data-table death-table" aria-label={t("deathLog.summary.label")}><thead><tr><th>{t("deathLog.column.attacker")}</th><th>{t("deathLog.column.source")}</th><th>{t("deathLog.column.damage")}</th><th>{t("deathLog.column.hits")}</th><th>{t("deathLog.column.crits")}</th></tr></thead>
               <tbody>{summary.map((row) => <tr key={row.key}><th scope="row">{row.attackerLabel}</th><td>{row.sourceLabel}</td><td>{compactFormat.format(row.damage)}</td><td>{numberFormat.format(row.hits)}</td><td>{numberFormat.format(row.criticalHits)}</td></tr>)}</tbody>
             </table></div>
           </section>
           <section id="list-panel" role="tabpanel" hidden={tab !== "list"}>
-            <div class="table-scroll"><table class="data-table death-table" aria-label="Damage before death"><thead><tr><th>Before death</th><th>Source</th><th>Attacker</th><th>Damage</th><th>Hit</th></tr></thead>
-              <tbody>{selected.hits.map((hit) => <tr key={hit.id}><td>{hit.beforeDeathMs === 0 ? "Death" : `${formatDuration(hit.beforeDeathMs)} before`}</td><th scope="row">{hit.sourceLabel}</th><td>{attackerLabels.get(hit.attackerActorId) ?? hit.attackerLabel}</td><td>{numberFormat.format(hit.damage)}</td><td>{hit.critical ? "Critical" : "Normal"}</td></tr>)}</tbody>
+            <div class="table-scroll"><table class="data-table death-table" aria-label={t("deathLog.list.label")}><thead><tr><th>{t("deathLog.column.beforeDeath")}</th><th>{t("deathLog.column.source")}</th><th>{t("deathLog.column.attacker")}</th><th>{t("deathLog.column.damage")}</th><th>{t("deathLog.column.hit")}</th></tr></thead>
+              <tbody>{selected.hits.map((hit) => <tr key={hit.id}><td>{hit.beforeDeathMs === 0 ? t("deathLog.atDeath") : t("deathLog.before", { time: formatDuration(hit.beforeDeathMs) })}</td><th scope="row">{hit.sourceLabel}</th><td>{attackerLabels.get(hit.attackerActorId) ?? hit.attackerLabel}</td><td>{numberFormat.format(hit.damage)}</td><td>{hit.critical ? t("deathLog.critical") : t("deathLog.normal")}</td></tr>)}</tbody>
             </table></div>
-            {selected.hits.length === 0 && <p class="empty-state">No positive damage was captured in the preceding 10 seconds.</p>}
+            {selected.hits.length === 0 && <p class="empty-state">{t("deathLog.list.empty")}</p>}
           </section>
         </section>}
       </>}

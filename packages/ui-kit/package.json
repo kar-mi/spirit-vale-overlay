@@ -24,6 +24,7 @@
     "./use-dismissable": "./use-dismissable.ts"
   },
   "dependencies": {
+    "@svoverlay/i18n": "workspace:*",
     "preact": "^10.29.7"
   }
 }

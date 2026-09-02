@@ -1,3 +1,4 @@
+import { localized, localizedCount, type LocalizedText } from "@svoverlay/i18n/messages";
 import path from "node:path";
 
 import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
@@ -7,6 +8,7 @@ import { formatDuration } from "@svoverlay/ui-kit/format";
 import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
 import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
+import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 
@@ -147,7 +149,8 @@ export function createCombatAnalysisController(options: CombatAnalysisController
       const lastId = encounters.at(-1)?.encounterId;
       state = {
         status: "ready",
-        statusDetail: encounterStatus(count, omittedEncounters),
+        statusDetail: encounterStatus(count),
+        ...(omittedEncounters > 0 ? { statusDetailExtra: localizedCount("combat.status.encountersOmitted", omittedEncounters) } : {}),
         fileName: path.basename(selectedPath),
         invalidLines,
         encounters: encounterOptions(encounters),
@@ -162,7 +165,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
       clearLoaded();
       state = {
         status: "error",
-        statusDetail: "The selected combat log could not be read.",
+        statusDetail: localized("combat.status.logUnreadable"),
         fileName: path.basename(selectedPath),
         invalidLines: 0,
         encounters: [],
@@ -338,6 +341,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     applyRoundedCorners(nextWindow.ptr);
     setWindowIcon(nextWindow.ptr, appIconPath);
     lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
+    lifecycle.add(registerLocaleWindow(nextWindow));
     const disposePlacement = options.placements?.track("combat-analysis-detail", nextWindow);
     if (disposePlacement) lifecycle.add(disposePlacement);
     lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
@@ -442,7 +446,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
 function loadingState(fileName?: string, statType: StatType = "damage"): CombatAnalysisState {
   return {
     status: "loading",
-    statusDetail: "Loading combat log…",
+    statusDetail: localized("combat.status.loadingLog"),
     ...(fileName === undefined ? {} : { fileName }),
     invalidLines: 0,
     encounters: [],
@@ -452,10 +456,10 @@ function loadingState(fileName?: string, statType: StatType = "damage"): CombatA
   };
 }
 
-function encounterStatus(count: number, omitted: number): string {
-  if (count === 0) return "This log contains no player damage.";
-  const loaded = `${count} encounter${count === 1 ? "" : "s"} loaded`;
-  return omitted === 0 ? loaded : `${loaded} · ${omitted} older encounter${omitted === 1 ? "" : "s"} not shown`;
+function encounterStatus(count: number): LocalizedText {
+  return count === 0
+    ? localized("combat.status.noPlayerDamage")
+    : localizedCount("combat.status.encountersLoaded", count);
 }
 
 function encounterOptions(summaries: readonly IndexedEncounterSummary[]): DpsEncounterOption[] {

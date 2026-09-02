@@ -11,6 +11,9 @@ import { createBuildExportWindow } from "@svoverlay/build-export";
 import { createRewardsWindow } from "@svoverlay/rewards";
 import type { LauncherRpc, LauncherSettingsRpc, LauncherState, SettingsSectionId, ToolWindow } from "../launcher/types.ts";
 import { loadLauncherSettings, saveLauncherSettings } from "../launcher/settings.ts";
+import type { LocaleCode } from "@svoverlay/i18n/locale";
+import type { LocalizedText } from "@svoverlay/i18n/messages";
+import { englishText, message, translate } from "@svoverlay/i18n/backend";
 import {
   applyImport,
   exportSingleSetting,
@@ -55,6 +58,7 @@ import { WindowSlot } from "./window-slot.ts";
 import { resolveDesktopStoragePaths } from "./portable-paths.ts";
 import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
 import { registerUiScaleWindow, scaledSize, setUiScale } from "@svoverlay/desktop-platform/ui-scale-window";
+import { registerLocaleWindow, setActiveLocale } from "@svoverlay/desktop-platform/locale-window";
 import { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { launcherMinimizeAction, trayAction } from "./launcher-tray-actions.ts";
 import { findAvailableUpdate } from "../launcher/update-check.ts";
@@ -98,18 +102,31 @@ await verifyWritableDirectories([
   },
 });
 const reportedStorageWarnings = new Map<string, string>();
+
+/** A storage failure in both forms it is needed in: English for the error log, a code for the view. */
+interface StorageWarning {
+  english: string;
+  text: LocalizedText;
+}
+
+/** Every `SafeSaveQueue`/`onWarning` producer reports the same single failure mode. */
+function saveFailure(warning: string | undefined): StorageWarning | undefined {
+  return warning === undefined ? undefined : { english: warning, text: message("storage.saveFailed") };
+}
+
 const readModel = await createReadModelService({ logDirectory });
 const xpTracker = createXpTrackerCoordinator({ logDirectory });
-let bossTimerStorageWarning: string | undefined;
+let bossTimerStorageWarning: StorageWarning | undefined;
 const bossTimers = await createBossTimerCoordinator({
   storagePath: storagePaths.bossTimersPath,
-  onWarning: (warning) => { bossTimerStorageWarning = warning; recordStorageWarning("boss timers", warning); updateStorageWarning(); },
+  onWarning: (warning) => { bossTimerStorageWarning = saveFailure(warning); recordStorageWarning("boss timers", warning); updateStorageWarning(); },
 });
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
-let placementStorageWarning: string | undefined;
+setActiveLocale(settings.language);
+let placementStorageWarning: StorageWarning | undefined;
 const placements = await WindowPlacementStore.load(storagePaths.windowPlacementsPath, {
-  onWarning: (warning) => { placementStorageWarning = warning; recordStorageWarning("window placements", warning); updateStorageWarning(); },
+  onWarning: (warning) => { placementStorageWarning = saveFailure(warning); recordStorageWarning("window placements", warning); updateStorageWarning(); },
 });
 let launcherWindow: BrowserWindow;
 let settingsWindow: BrowserWindow | undefined;
@@ -120,12 +137,13 @@ const launcherLifecycle = new DisposableStore();
 let launcherState: LauncherState = {
   appVersion,
   captureStatus: "starting",
-  statusDetail: "Checking Npcap…",
+  statusDetail: message("npcap.detail.checking"),
   npcapAvailability: "checking",
-  npcapDetail: "Checking Npcap…",
+  npcapDetail: message("npcap.detail.checking"),
   selectedAdapter: settings.captureAdapter,
   adapterFallback: false,
   adapters: [],
+  language: settings.language,
   uiScale: settings.uiScale,
   minimizeToTray: settings.minimizeToTray,
   resetMeterOnMapChange: settings.resetMeterOnMapChange,
@@ -133,10 +151,10 @@ let launcherState: LauncherState = {
   pastLogLimit: settings.pastLogLimit,
 };
 let shuttingDown = false;
-let characterStorageWarning: string | undefined;
-let inspectedCharacterStorageWarning: string | undefined;
-let launcherSettingsStorageWarning: string | undefined;
-let actorIdentityStorageWarning: string | undefined;
+let characterStorageWarning: StorageWarning | undefined;
+let inspectedCharacterStorageWarning: StorageWarning | undefined;
+let launcherSettingsStorageWarning: StorageWarning | undefined;
+let actorIdentityStorageWarning: StorageWarning | undefined;
 let liveCombatLogPath: string | undefined;
 
 const liveDeathLogWindow = createDeathLogWindow({
@@ -151,7 +169,7 @@ const liveDeathLogWindow = createDeathLogWindow({
 const launcherSettingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "launcher settings",
   save: (value) => saveLauncherSettings(value, storagePaths.launcherSettingsPath),
-  onWarning: (warning) => { launcherSettingsStorageWarning = warning; recordStorageWarning("launcher settings", warning); updateStorageWarning(); },
+  onWarning: (warning) => { launcherSettingsStorageWarning = saveFailure(warning); recordStorageWarning("launcher settings", warning); updateStorageWarning(); },
 });
 let characterCache: CharacterSnapshotCache = { characters: [] };
 const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
@@ -159,15 +177,19 @@ const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
   // `updateCharacterCache` returns a fresh cache that nothing mutates afterwards, so the queue does not need its own copy.
   clone: false,
   save: (value) => saveCharacterCache(value, storagePaths.characterStatePath),
-  onWarning: (warning) => { characterStorageWarning = warning; recordStorageWarning("character snapshot", warning); updateStorageWarning(); },
+  onWarning: (warning) => { characterStorageWarning = saveFailure(warning); recordStorageWarning("character snapshot", warning); updateStorageWarning(); },
 });
 const inspectedCharacterStore = new InspectedCharacterStore(storagePaths.inspectedCharactersPath);
 const inspectedCharacterRoster = new DurableInspectedCharacterRoster(inspectedCharacterStore, {
   onPersistenceError: (error) => {
-    inspectedCharacterStorageWarning = error === undefined
+    const reason = error === undefined
       ? undefined
-      : `Could not save inspected characters: ${error instanceof Error ? error.message : String(error)}`;
-    recordStorageWarning("inspected characters", inspectedCharacterStorageWarning);
+      : error instanceof Error ? error.message : String(error);
+    inspectedCharacterStorageWarning = reason === undefined ? undefined : {
+      english: `Could not save inspected characters: ${reason}`,
+      text: message("storage.inspectedCharactersFailed", { reason }),
+    };
+    recordStorageWarning("inspected characters", inspectedCharacterStorageWarning?.english);
     updateStorageWarning();
   },
 });
@@ -176,7 +198,7 @@ const actorIdentityPersistence = new SafeSaveQueue<ActorIdentityCache>({
   label: "actor identities",
   clone: false,
   save: (value) => saveActorIdentityCache(value, storagePaths.actorIdentitiesPath),
-  onWarning: (warning) => { actorIdentityStorageWarning = warning; recordStorageWarning("actor identities", warning); updateStorageWarning(); },
+  onWarning: (warning) => { actorIdentityStorageWarning = saveFailure(warning); recordStorageWarning("actor identities", warning); updateStorageWarning(); },
 });
 
 const combatWindow = new WindowSlot((onClosed) => createDpsWindow({
@@ -327,6 +349,7 @@ function sharedLauncherHandlers(getWindow: () => BrowserWindow | undefined, fall
     getState: () => launcherState,
     setCaptureAdapter: ({ deviceName }: { deviceName: string | null }) => setCaptureAdapter(deviceName),
     setUiScale: ({ uiScale }: { uiScale: typeof settings.uiScale }) => setLauncherUiScale(uiScale),
+    setLanguage: ({ language }: { language: LocaleCode }) => setLanguage(language),
     setMinimizeToTray: ({ minimizeToTray }: { minimizeToTray: boolean }) => setMinimizeToTray(minimizeToTray),
     refreshCaptureDevices: async () => {
       await refreshCaptureDevices();
@@ -388,6 +411,10 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       },
       setUiScale: async ({ uiScale }) => {
         await setLauncherUiScale(uiScale);
+        return sharedSettingsState();
+      },
+      setLanguage: async ({ language }) => {
+        setLanguage(language);
         return sharedSettingsState();
       },
       setMinimizeToTray: async ({ minimizeToTray }) => {
@@ -485,7 +512,7 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
 });
 
 launcherWindow = new BrowserWindow({
-  title: "Spirit Vale Overlay",
+  title: translate("app.name"),
   url: "views://launcherview/index.html",
   frame: placements.frame("launcher", { x: 80, y: 80, width: 960, height: 430 }, { width: 900, height: 430 }),
   titleBarStyle: "hidden",
@@ -498,22 +525,27 @@ launcherWindow = new BrowserWindow({
 applyRoundedCorners(launcherWindow.ptr);
 setWindowIcon(launcherWindow.ptr, appIconPath);
 launcherLifecycle.add(registerUiScaleWindow(launcherWindow, { scaleInitialFrame: false }));
+launcherLifecycle.add(registerLocaleWindow(launcherWindow));
 launcherLifecycle.add(placements.track("launcher", launcherWindow));
 
 const tray = new Tray({
-  title: "Spirit Vale Overlay",
+  title: translate("app.name"),
   image: "views://assets/app-icon.ico",
   width: 32,
   height: 32,
 });
-tray.setMenu([
-  { type: "normal", label: "Main launcher", action: "show-launcher" },
-  { type: "normal", label: "Combat", action: "open-combat" },
-  { type: "normal", label: "Overlay", action: "open-overlay" },
-  { type: "normal", label: "Rewards", action: "open-rewards" },
-  { type: "divider" },
-  { type: "normal", label: "Exit", action: "exit" },
-]);
+// Tray labels are set once, so a language change has to lay the menu down again.
+function refreshTrayMenu(): void {
+  tray.setMenu([
+    { type: "normal", label: translate("tray.showLauncher"), action: "show-launcher" },
+    { type: "normal", label: translate("tray.openCombat"), action: "open-combat" },
+    { type: "normal", label: translate("tray.openOverlay"), action: "open-overlay" },
+    { type: "normal", label: translate("tray.openRewards"), action: "open-rewards" },
+    { type: "divider" },
+    { type: "normal", label: translate("tray.exit"), action: "exit" },
+  ]);
+}
+refreshTrayMenu();
 tray.on("tray-clicked", (event) => {
   const action = trayAction((event as { data: { action: string } }).data.action);
   if (action === "show-launcher") showLauncher();
@@ -568,7 +600,7 @@ async function initializeCapture(): Promise<void> {
   if (launcherState.npcapAvailability !== "ready") {
     errorLog.write({
       title: "Capture could not start",
-      reason: launcherState.npcapDetail,
+      reason: englishText(launcherState.npcapDetail),
       details: { "Npcap status": launcherState.npcapAvailability },
     });
     launcherState = { ...launcherState, captureStatus: "unavailable", statusDetail: launcherState.npcapDetail };
@@ -585,7 +617,7 @@ async function refreshCaptureDevices(): Promise<void> {
       launcherState = {
         ...launcherState,
         npcapAvailability: status.availability,
-        npcapDetail: status.detail,
+        npcapDetail: message("common.passthrough", { text: status.detail }),
         ...(status.version ? { npcapVersion: status.version } : {}),
         adapters: [],
         effectiveAdapter: undefined,
@@ -600,7 +632,7 @@ async function refreshCaptureDevices(): Promise<void> {
     launcherState = {
       ...launcherState,
       npcapAvailability: "ready",
-      npcapDetail: status.detail,
+      npcapDetail: message("common.passthrough", { text: status.detail }),
       ...(status.version ? { npcapVersion: status.version } : {}),
       selectedAdapter: settings.captureAdapter,
       effectiveAdapter: resolved.device?.name,
@@ -608,12 +640,12 @@ async function refreshCaptureDevices(): Promise<void> {
       adapters: devices.map((device) => ({ id: device.name, label: device.description })),
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    errorLog.write({ title: "Network adapters could not be inspected", reason: message });
+    const failureMessage = error instanceof Error ? error.message : String(error);
+    errorLog.write({ title: "Network adapters could not be inspected", reason: failureMessage });
     launcherState = {
       ...launcherState,
       npcapAvailability: "error",
-      npcapDetail: message,
+      npcapDetail: message("common.passthrough", { text: failureMessage }),
       adapters: [],
       effectiveAdapter: undefined,
       adapterFallback: false,
@@ -641,9 +673,9 @@ async function importSettingsAndClose(): Promise<void> {
   if (plan.status === "same-folder") {
     await Utils.showMessageBox({
       type: "info",
-      title: "Manage Settings",
-      message: "That's already your current settings folder — nothing to import.",
-      buttons: ["OK"],
+      title: translate("dialog.manageSettings.title"),
+      message: translate("dialog.manageSettings.sameFolder"),
+      buttons: [translate("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -652,9 +684,9 @@ async function importSettingsAndClose(): Promise<void> {
   if (plan.status === "not-found") {
     await Utils.showMessageBox({
       type: "warning",
-      title: "Manage Settings",
-      message: "No Spirit Vale Overlay settings were found in that folder.",
-      buttons: ["OK"],
+      title: translate("dialog.manageSettings.title"),
+      message: translate("dialog.manageSettings.notFound"),
+      buttons: [translate("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -665,9 +697,9 @@ async function importSettingsAndClose(): Promise<void> {
     await applyImport(plan.oldPaths, storagePaths, readDisplays());
     await Utils.showMessageBox({
       type: "info",
-      title: "Manage Settings",
-      message: "Settings imported. Spirit Vale Overlay will now close — please reopen it to use the imported settings.",
-      buttons: ["OK"],
+      title: translate("dialog.manageSettings.title"),
+      message: translate("dialog.manageSettings.imported"),
+      buttons: [translate("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -690,9 +722,9 @@ async function importSingleSettingAndClose(kind: SettingsKind): Promise<void> {
     await importSingleSetting(kind, selected, storagePaths, readDisplays());
     await Utils.showMessageBox({
       type: "info",
-      title: "Manage Settings",
-      message: "Settings imported. Spirit Vale Overlay will now close — please reopen it to use the imported settings.",
-      buttons: ["OK"],
+      title: translate("dialog.manageSettings.title"),
+      message: translate("dialog.manageSettings.imported"),
+      buttons: [translate("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -710,9 +742,9 @@ async function exportSettingAndNotify(kind: SettingsKind): Promise<void> {
   await exportSingleSetting(kind, storagePaths, destination, readDisplays());
   await Utils.showMessageBox({
     type: "info",
-    title: "Manage Settings",
-    message: "Settings exported.",
-    buttons: ["OK"],
+    title: translate("dialog.manageSettings.title"),
+    message: translate("dialog.manageSettings.exported"),
+    buttons: [translate("common.ok")],
     defaultId: 0,
     cancelId: 0,
   });
@@ -728,9 +760,9 @@ async function resetSettingsAndClose(): Promise<void> {
     await resetAllSettings(storagePaths, readDisplays());
     await Utils.showMessageBox({
       type: "info",
-      title: "Manage Settings",
-      message: "Settings reset. Spirit Vale Overlay will now close — please reopen it.",
-      buttons: ["OK"],
+      title: translate("dialog.manageSettings.title"),
+      message: translate("dialog.manageSettings.reset"),
+      buttons: [translate("common.ok")],
       defaultId: 0,
       cancelId: 0,
     });
@@ -770,7 +802,7 @@ function openSettings(section?: SettingsSectionId): void {
     return;
   }
   const nextWindow = new BrowserWindow({
-    title: "Spirit Vale Overlay Settings",
+    title: translate("settings.window.title"),
     url: "views://settingsview/index.html",
     frame: placements.frame(
       "launcher-settings",
@@ -787,6 +819,7 @@ function openSettings(section?: SettingsSectionId): void {
   applyRoundedCorners(nextWindow.ptr);
   setWindowIcon(nextWindow.ptr, appIconPath);
   lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
+  lifecycle.add(registerLocaleWindow(nextWindow));
   lifecycle.add(placements.track("launcher-settings", nextWindow));
   lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
     const width = Math.max(scaledSize(560), event.data.width);
@@ -817,6 +850,16 @@ async function setCaptureAdapter(deviceName: string | null): Promise<LauncherSta
 async function setLauncherUiScale(uiScale: typeof settings.uiScale): Promise<LauncherState> {
   settings.uiScale = setUiScale(uiScale);
   launcherState = { ...launcherState, uiScale: settings.uiScale };
+  launcherSettingsPersistence.schedule(settings);
+  publish();
+  return launcherState;
+}
+
+function setLanguage(language: LocaleCode): LauncherState {
+  settings.language = language;
+  setActiveLocale(language);
+  launcherState = { ...launcherState, language };
+  refreshTrayMenu();
   launcherSettingsPersistence.schedule(settings);
   publish();
   return launcherState;
@@ -916,10 +959,8 @@ async function publishSettings(overlayState?: Awaited<ReturnType<typeof sharedSe
 }
 
 function updateStorageWarning(): void {
-  launcherState = {
-    ...launcherState,
-    storageWarning: characterStorageWarning ?? inspectedCharacterStorageWarning ?? launcherSettingsStorageWarning ?? placementStorageWarning ?? actorIdentityStorageWarning ?? bossTimerStorageWarning,
-  };
+  const warning = characterStorageWarning ?? inspectedCharacterStorageWarning ?? launcherSettingsStorageWarning ?? placementStorageWarning ?? actorIdentityStorageWarning ?? bossTimerStorageWarning;
+  launcherState = { ...launcherState, storageWarning: warning?.text };
   publish();
 }
 

@@ -1,4 +1,5 @@
 import type { ComponentChildren } from "preact";
+import type { Translator } from "@svoverlay/i18n/translate";
 import { useEffect, useState } from "preact/hooks";
 import { filterSettingsSections, normalizeSettingsSearch } from "./settings-search.ts";
 import type { SectionId, SettingsSection } from "./settings-section.ts";
@@ -11,10 +12,11 @@ export interface SectionRequest {
 
 export interface SettingsLayoutProps {
   sections: SettingsSection[];
+  t: Translator;
   requestedSection?: SectionRequest;
 }
 
-export function SettingsLayout({ sections, requestedSection }: SettingsLayoutProps) {
+export function SettingsLayout({ sections, t, requestedSection }: SettingsLayoutProps) {
   const [sectionId, setSectionId] = useState<SectionId>("general");
   const [searchQuery, setSearchQuery] = useState("");
   const requestedId = requestedSection?.id;
@@ -44,7 +46,7 @@ export function SettingsLayout({ sections, requestedSection }: SettingsLayoutPro
   if (!selectedSection) return null;
 
   return <div class="settings-layout">
-    <nav class="settings-sidebar" aria-label="Settings sections">
+    <nav class="settings-sidebar" aria-label={t("settings.nav.label")}>
       {sections.map((section) => <button
         class={!searching && section.id === sectionId ? "settings-nav-item is-active" : "settings-nav-item"}
         type="button"
@@ -57,13 +59,13 @@ export function SettingsLayout({ sections, requestedSection }: SettingsLayoutPro
       <div class="settings-toolbar">
         <label class="settings-search">
           <span aria-hidden="true">⌕</span>
-          <input class="input" type="search" value={searchQuery} onInput={(event) => setSearchQuery(event.currentTarget.value)} placeholder="Search settings" aria-label="Search all settings" />
+          <input class="input" type="search" value={searchQuery} onInput={(event) => setSearchQuery(event.currentTarget.value)} placeholder={t("settings.search.placeholder")} aria-label={t("settings.search.label")} />
         </label>
       </div>
-      {searching ? <section class="settings-results" aria-label="Settings search results">
+      {searching ? <section class="settings-results" aria-label={t("settings.search.results.label")}>
         <header class="settings-heading search-heading">
-          <h1>Search results</h1>
-          <p class="search-summary" aria-live="polite">{matchedItemCount === 0 ? `No settings match “${searchQuery.trim()}”.` : `${matchedItemCount} ${matchedItemCount === 1 ? "setting" : "settings"} found.`}</p>
+          <h1>{t("settings.search.results.heading")}</h1>
+          <p class="search-summary" aria-live="polite">{matchedItemCount === 0 ? t("settings.search.empty", { query: searchQuery.trim() }) : t.plural("settings.search.summary", matchedItemCount)}</p>
         </header>
         {searchResults.map((result) => {
           const section = sections.find((candidate) => candidate.id === result.sectionId)!;

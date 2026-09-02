@@ -22,11 +22,13 @@
     "./session-picker": "./session-picker.ts",
     "./session-picker-types": "./session-picker-types.ts",
     "./session-summary-journal": "./session-summary-journal.ts",
-    "./disposable-store": "./disposable-store.ts"
+    "./disposable-store": "./disposable-store.ts",
+    "./locale-window": "./locale-window.ts"
   },
   "dependencies": {
     "@kar-mi/spirit-vale-tools-logging": "0.9.0",
     "@svoverlay/contracts": "workspace:*",
-    "@svoverlay/ui-kit": "workspace:*"
+    "@svoverlay/ui-kit": "workspace:*",
+    "@svoverlay/i18n": "workspace:*"
   }
 }
