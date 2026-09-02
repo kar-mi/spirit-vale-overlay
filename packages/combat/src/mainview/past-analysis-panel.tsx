@@ -1,7 +1,7 @@
 import { useTranslator } from "@svoverlay/i18n/browser";
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { formatDuration } from "@svoverlay/ui-kit/format";
+import { formatCompact, formatDuration, formatInteger, formatPercent } from "@svoverlay/ui-kit/format";
 import { EnemyFilterControl } from "@svoverlay/ui-kit/enemy-filter";
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
 import { StatTypeSelect } from "@svoverlay/ui-kit/stat-type-select";
@@ -10,10 +10,6 @@ import type { CombatAnalysisState, MeterEncounterSnapshot, StatType } from "../a
 import { CombatClassCell } from "../combat-class.tsx";
 import { nextTableSort, SortableHeader, sortTableRows, type TableSort } from "@svoverlay/ui-kit/sortable-table";
 import { applyEnemyFilter, enemyFilterSupported } from "../enemy-filtering.ts";
-
-const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
-const percentFormat = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 1 });
 
 type PlayerSortKey = "damage" | "dps" | "contribution" | "hits" | "criticalHits" | "critRate" | "kills";
 
@@ -125,10 +121,10 @@ export function PastAnalysisPanel({
         <table class="data-table summary-table" aria-label={t("combat.past.totals.label")}>
           <thead><tr><th>{t("combat.past.totals.party", { metric: metricLabel })}</th><th>{t("combat.past.totals.total", { amount })}</th><th>{t("combat.past.totals.duration")}</th><th>{t("combat.past.totals.players")}</th></tr></thead>
           <tbody><tr>
-            <td>{numberFormat.format(partyDps)}</td>
-            <td>{compactFormat.format(partyDamage)}</td>
+            <td>{formatInteger(partyDps)}</td>
+            <td>{formatCompact(partyDamage)}</td>
             <td>{activeSnapshot ? formatDuration(activeSnapshot.durationMs) : "—"}</td>
-            <td>{numberFormat.format(hasFilter ? filteredRows.length : rows.length)}</td>
+            <td>{formatInteger(hasFilter ? filteredRows.length : rows.length)}</td>
           </tr></tbody>
         </table>
       </div>
@@ -159,13 +155,13 @@ export function PastAnalysisPanel({
               >
                 <CombatClassCell archetype={actor.archetype} />
                 <th scope="row">{actor.displayName}</th>
-                <td>{compactFormat.format(damage)}</td>
-                <td>{numberFormat.format(dps)}</td>
-                <td>{percentFormat.format(contribution)}</td>
-                <td>{numberFormat.format(hits)}</td>
-                <td>{numberFormat.format(criticalHits)}</td>
-                <td>{critRate === undefined ? "—" : percentFormat.format(critRate)}</td>
-                <td>{numberFormat.format(actor.kills)}</td>
+                <td>{formatCompact(damage)}</td>
+                <td>{formatInteger(dps)}</td>
+                <td>{formatPercent(contribution)}</td>
+                <td>{formatInteger(hits)}</td>
+                <td>{formatInteger(criticalHits)}</td>
+                <td>{critRate === undefined ? "—" : formatPercent(critRate)}</td>
+                <td>{formatInteger(actor.kills)}</td>
               </tr>;
             })}</tbody>
           </table>

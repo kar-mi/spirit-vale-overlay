@@ -6,13 +6,11 @@ import { DesktopView } from "@svoverlay/desktop-runtime/view";
 import { TitleBar } from "@svoverlay/ui-kit/title-bar";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
-import { formatDuration, normalizeSearchText } from "@svoverlay/ui-kit/format";
+import { formatCompact, formatDuration, formatInteger, normalizeSearchText } from "@svoverlay/ui-kit/format";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 
 import type { CombatDeathLogRpc, CombatDeathLogState } from "../app-types.ts";
 
-const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
 const state = signal<CombatDeathLogState | undefined>(undefined);
 type DeathLogTab = "summary" | "list";
 
@@ -73,26 +71,26 @@ function App() {
           <div class="table-scroll death-list-scroll">
             <table class="data-table death-table" aria-label={t("deathLog.heading")}><thead><tr><th>{t("combat.column.player")}</th><th>{t("deathLog.column.damage")}</th><th>{t("deathLog.column.hits")}</th></tr></thead>
               <tbody>{visibleDeaths.map((death) => <tr key={death.id} class={death.id === selected?.id ? "selected" : undefined} onClick={() => void desktopView.rpc?.request.selectDeath({ id: death.id })}>
-                <th scope="row">{death.victimName}</th><td>{compactFormat.format(death.totalDamage)}</td><td>{numberFormat.format(death.hits.length)}</td>
+                <th scope="row">{death.victimName}</th><td>{formatCompact(death.totalDamage)}</td><td>{formatInteger(death.hits.length)}</td>
               </tr>)}</tbody>
             </table>
             {visibleDeaths.length === 0 && <p class="empty-state">{t("deathLog.noMatch", { query: victimQuery })}</p>}
           </div>
         </section>
         {selected && <section class="death-detail-section">
-          <div class="section-head"><div><h2>{selected.victimName}</h2><p>{t("deathLog.detail.hint")}</p></div><span class="pill">{t("deathLog.detail.damage", { amount: compactFormat.format(selected.totalDamage) })}</span></div>
+          <div class="section-head"><div><h2>{selected.victimName}</h2><p>{t("deathLog.detail.hint")}</p></div><span class="pill">{t("deathLog.detail.damage", { amount: formatCompact(selected.totalDamage) })}</span></div>
           <nav class="seg tabs" role="tablist" aria-label={t("deathLog.tabs.label")}>
             <button type="button" role="tab" aria-controls="summary-panel" class={tab === "summary" ? "active" : undefined} aria-selected={tab === "summary"} onClick={() => setTab("summary")}>{t("deathLog.tabs.summary")}</button>
             <button type="button" role="tab" aria-controls="list-panel" class={tab === "list" ? "active" : undefined} aria-selected={tab === "list"} onClick={() => setTab("list")}>{t("deathLog.tabs.list")}</button>
           </nav>
           <section id="summary-panel" role="tabpanel" hidden={tab !== "summary"}>
             <div class="table-scroll"><table class="data-table death-table" aria-label={t("deathLog.summary.label")}><thead><tr><th>{t("deathLog.column.attacker")}</th><th>{t("deathLog.column.source")}</th><th>{t("deathLog.column.damage")}</th><th>{t("deathLog.column.hits")}</th><th>{t("deathLog.column.crits")}</th></tr></thead>
-              <tbody>{summary.map((row) => <tr key={row.key}><th scope="row">{row.attackerLabel}</th><td>{row.sourceLabel}</td><td>{compactFormat.format(row.damage)}</td><td>{numberFormat.format(row.hits)}</td><td>{numberFormat.format(row.criticalHits)}</td></tr>)}</tbody>
+              <tbody>{summary.map((row) => <tr key={row.key}><th scope="row">{row.attackerLabel}</th><td>{row.sourceLabel}</td><td>{formatCompact(row.damage)}</td><td>{formatInteger(row.hits)}</td><td>{formatInteger(row.criticalHits)}</td></tr>)}</tbody>
             </table></div>
           </section>
           <section id="list-panel" role="tabpanel" hidden={tab !== "list"}>
             <div class="table-scroll"><table class="data-table death-table" aria-label={t("deathLog.list.label")}><thead><tr><th>{t("deathLog.column.beforeDeath")}</th><th>{t("deathLog.column.source")}</th><th>{t("deathLog.column.attacker")}</th><th>{t("deathLog.column.damage")}</th><th>{t("deathLog.column.hit")}</th></tr></thead>
-              <tbody>{selected.hits.map((hit) => <tr key={hit.id}><td>{hit.beforeDeathMs === 0 ? t("deathLog.atDeath") : t("deathLog.before", { time: formatDuration(hit.beforeDeathMs) })}</td><th scope="row">{hit.sourceLabel}</th><td>{attackerLabels.get(hit.attackerActorId) ?? hit.attackerLabel}</td><td>{numberFormat.format(hit.damage)}</td><td>{hit.critical ? t("deathLog.critical") : t("deathLog.normal")}</td></tr>)}</tbody>
+              <tbody>{selected.hits.map((hit) => <tr key={hit.id}><td>{hit.beforeDeathMs === 0 ? t("deathLog.atDeath") : t("deathLog.before", { time: formatDuration(hit.beforeDeathMs) })}</td><th scope="row">{hit.sourceLabel}</th><td>{attackerLabels.get(hit.attackerActorId) ?? hit.attackerLabel}</td><td>{formatInteger(hit.damage)}</td><td>{hit.critical ? t("deathLog.critical") : t("deathLog.normal")}</td></tr>)}</tbody>
             </table></div>
             {selected.hits.length === 0 && <p class="empty-state">{t("deathLog.list.empty")}</p>}
           </section>

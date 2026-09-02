@@ -13,8 +13,7 @@ import { useTranslator } from "@svoverlay/i18n/browser";
 import type { RewardsCatalogRpc, RewardsCatalogState } from "../app-types.ts";
 import { sortRewardCatalog } from "../table-sort.ts";
 import type { CatalogSortKey } from "../table-sort.ts";
-
-const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+import { formatChance, formatInteger, safeDomId } from "@svoverlay/ui-kit/format";
 
 const state = signal<RewardsCatalogState | undefined>(undefined);
 
@@ -28,10 +27,6 @@ void desktopView.rpc?.request.getState({}).then((next) => { state.value = repair
 const CATALOG_DEFAULT_WIDTH = 520;
 const CATALOG_DEFAULT_HEIGHT = 420;
 void ensureInitialWindowSize(desktopView.rpc?.request, { width: CATALOG_DEFAULT_WIDTH, height: CATALOG_DEFAULT_HEIGHT });
-
-function formatChance(value: number): string {
-  return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(value)}%`;
-}
 
 function App() {
   const t = useTranslator();
@@ -119,10 +114,10 @@ function App() {
                     <tr>
                       <th scope="row" title={mob.displayName}>{mob.displayName}</th>
                       <td title={mob.id}>{mob.id}</td>
-                      <td>{format.format(mob.level)}</td>
+                      <td>{formatInteger(mob.level)}</td>
                       <td>{t(mob.boss ? "catalog.boss.yes" : "catalog.boss.no")}</td>
-                      <td>{format.format(mob.baseExperience)}</td>
-                      <td>{format.format(mob.baseCoins)}</td>
+                      <td>{formatInteger(mob.baseExperience)}</td>
+                      <td>{formatInteger(mob.baseCoins)}</td>
                       <td>{mob.drops.length === 0 ? "—" : <button class="table-detail-button" type="button" aria-expanded={isExpanded} aria-controls={detailId} onClick={() => toggleExpanded(rowKey)}>{isExpanded ? "▾" : "▸"} {mob.drops.length}</button>}</td>
                     </tr>
                     {isExpanded && mob.drops.length > 0 && <tr id={detailId} class="table-detail-row"><td colSpan={7}><div class="table-detail-chips">{mob.drops.map((drop, index) => <span class="chip" key={`${drop.itemId}-${index}`}>{`${drop.itemName} ×${drop.count}${drop.chance === undefined ? "" : ` · ${formatChance(drop.chance)}`}`}</span>)}</div></td></tr>}
@@ -137,6 +132,5 @@ function App() {
   );
 }
 
-function safeDomId(value: string): string { return value.replace(/[^a-zA-Z0-9_-]/g, "-"); }
 
 render(<App />, document.getElementById("root")!);

@@ -15,6 +15,7 @@ import type { MessageKey } from "@svoverlay/i18n/messages";
 
 import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState, MeterActorRow, MeterSkillRow, MeterTimelinePoint, StatType } from "../app-types.ts";
 import { nextTableSort, SortableHeader, sortTableRows, type TableSort } from "@svoverlay/ui-kit/sortable-table";
+import { formatCompact, formatInteger, formatPercent } from "@svoverlay/ui-kit/format";
 import { buildDamageChartRender, damageChartExtent, formatElapsedChartTime } from "../damage-chart.ts";
 import type { DamageChartMetric } from "../damage-chart.ts";
 
@@ -82,9 +83,6 @@ function foldSkillsByEnemy(
   };
 }
 
-const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
-const percentFormat = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 1 });
 
 const state = signal<CombatAnalysisDetailState | undefined>(undefined);
 
@@ -150,12 +148,12 @@ function App() {
   const absorbedSkills = statType === "tanked" ? (next.tankedPlayer?.absorbedSkills ?? []) : [];
 
   const metrics: [string, string][] = [
-    [damageLabel, compactFormat.format(fold.damage)],
-    [metricLabel, numberFormat.format(fold.dps)],
-    [t("detail.metric.hits"), numberFormat.format(fold.hits)],
-    [t("detail.metric.kills"), numberFormat.format(activePlayer?.kills ?? 0)],
-    [t("detail.metric.critHits"), numberFormat.format(fold.criticalHits)],
-    [t("detail.metric.critRate"), fold.critRate === undefined ? "—" : percentFormat.format(fold.critRate)],
+    [damageLabel, formatCompact(fold.damage)],
+    [metricLabel, formatInteger(fold.dps)],
+    [t("detail.metric.hits"), formatInteger(fold.hits)],
+    [t("detail.metric.kills"), formatInteger(activePlayer?.kills ?? 0)],
+    [t("detail.metric.critHits"), formatInteger(fold.criticalHits)],
+    [t("detail.metric.critRate"), fold.critRate === undefined ? "—" : formatPercent(fold.critRate)],
   ];
   const sortedSkills = sortTableRows(
     fold.skills,
@@ -244,12 +242,12 @@ function App() {
                   <tbody>{sortedSkills.map((skill) => (
                     <tr key={skill.sourceId}>
                       <th scope="row">{skill.sourceLabel}</th>
-                      <td>{compactFormat.format(skill.damage)}</td>
-                      <td>{numberFormat.format(skill.dps)}</td>
-                      <td>{percentFormat.format(skill.contribution)}</td>
-                      <td>{numberFormat.format(skill.hits)}</td>
-                      <td>{numberFormat.format(skill.criticalHits)}</td>
-                      <td>{skill.critRate === undefined ? "—" : percentFormat.format(skill.critRate)}</td>
+                      <td>{formatCompact(skill.damage)}</td>
+                      <td>{formatInteger(skill.dps)}</td>
+                      <td>{formatPercent(skill.contribution)}</td>
+                      <td>{formatInteger(skill.hits)}</td>
+                      <td>{formatInteger(skill.criticalHits)}</td>
+                      <td>{skill.critRate === undefined ? "—" : formatPercent(skill.critRate)}</td>
                     </tr>
                   ))}</tbody>
                 </table>
@@ -270,9 +268,9 @@ function App() {
                 <tbody>{absorbedSkills.map((skill) => (
                   <tr key={skill.sourceId}>
                     <th scope="row">{skill.sourceLabel}</th>
-                    <td>{compactFormat.format(skill.damage)}</td>
-                    <td>{percentFormat.format(skill.contribution)}</td>
-                    <td>{numberFormat.format(skill.hits)}</td>
+                    <td>{formatCompact(skill.damage)}</td>
+                    <td>{formatPercent(skill.contribution)}</td>
+                    <td>{formatInteger(skill.hits)}</td>
                   </tr>
                 ))}</tbody>
               </table>

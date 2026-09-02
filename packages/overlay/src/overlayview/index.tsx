@@ -2,7 +2,7 @@ import { batch, computed, signal, type Signal } from "@preact/signals";
 import { render, type ComponentChildren } from "preact";
 import { useCallback, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { DesktopView } from "@svoverlay/desktop-runtime/view";
-import { formatDps, formatDuration } from "@svoverlay/ui-kit/format";
+import { formatCompact, formatDps, formatDuration, formatInteger } from "@svoverlay/ui-kit/format";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { InteractiveChart } from "@svoverlay/ui-kit/interactive-chart";
 import type { ChartRange, ChartRenderResult } from "@svoverlay/ui-kit/interactive-chart";
@@ -59,8 +59,6 @@ const RADAR_WORLD_RADIUS = 60;
 const RADAR_RING_COUNT = 3;
 const LOOT_TOAST_LIFETIME_MS = 3_000;
 
-const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
 const MIN_ELEMENT_WIDTH = 160;
 const MIN_ELEMENT_HEIGHT = 100;
 const MIN_BAR_HEIGHT = 24;
@@ -706,7 +704,7 @@ function DamageChart(
     <svg class="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t("overlay.chart.aria", { metric: metricLabel })}>
       <line class="chart-grid" x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} />
       <polyline class="chart-line" points={linePoints} />
-      <text class="chart-label" x="0" y={top + 4}>{compactFormat.format(maxValue)}</text>
+      <text class="chart-label" x="0" y={top + 4}>{formatCompact(maxValue)}</text>
       <text class="chart-label" x={left} y={height - 5}>0:00</text>
       <text class="chart-label" text-anchor="end" x={width - right} y={height - 5}>{formatDuration(durationMs)}</text>
     </svg>
@@ -730,7 +728,7 @@ function PersonalDpsElement() {
         <>
           <span class="personal-value">{formatDps(personal.currentDps)}</span><span class="personal-unit">{t("overlay.personal.unit")}</span>
           <div class="personal-details">
-            <span>{t("overlay.personal.damage")}<strong>{compactFormat.format(personal.damage)}</strong></span>
+            <span>{t("overlay.personal.damage")}<strong>{formatCompact(personal.damage)}</strong></span>
             <span>{t("overlay.personal.critRate")}<strong>{personal.critRate === undefined ? "—" : `${Math.round(personal.critRate * 100)}%`}</strong></span>
           </div>
         </>
@@ -755,9 +753,9 @@ function WeightElement() {
       <strong class="weight-label">{t("overlay.weight.label")}</strong>
       {weight ? (
         <span class="weight-numbers" aria-label={t("overlay.weight.aria", { current: weight.current, maximum: weight.maximum })}>
-          <strong>{numberFormat.format(weight.current)}</strong>
+          <strong>{formatInteger(weight.current)}</strong>
           <span>/</span>
-          <strong>{numberFormat.format(weight.maximum)}</strong>
+          <strong>{formatInteger(weight.maximum)}</strong>
         </span>
       ) : <span class="weight-empty">{t("overlay.waiting")}</span>}
     </div>
@@ -771,10 +769,10 @@ function XpTrackerElement({ locked }: { locked: boolean }) {
   return (
     <div class="element-content xp-tracker">
       <h2 class="element-title">{t("overlay.xp.heading")}</h2>
-      <div class="xp-total"><small>{t("overlay.total")}</small>{compactFormat.format(xp.total)}</div>
+      <div class="xp-total"><small>{t("overlay.total")}</small>{formatCompact(xp.total)}</div>
       <div class="xp-rates">
-        <span>{compactFormat.format(xp.perSecond)}<small>/s</small></span>
-        <span>{compactFormat.format(xp.perHour)}<small>/hr</small></span>
+        <span>{formatCompact(xp.perSecond)}<small>/s</small></span>
+        <span>{formatCompact(xp.perHour)}<small>/hr</small></span>
       </div>
       {!locked && (
         <button
@@ -799,10 +797,10 @@ function GoldTrackerElement({ locked }: { locked: boolean }) {
   return (
     <div class="element-content gold-tracker">
       <h2 class="element-title">{t("overlay.gold.heading")}</h2>
-      <div class="gold-total"><small>{t("overlay.total")}</small>{compactFormat.format(gold.total)}</div>
+      <div class="gold-total"><small>{t("overlay.total")}</small>{formatCompact(gold.total)}</div>
       <div class="gold-rates">
-        <span>{compactFormat.format(gold.perSecond)}<small>/s</small></span>
-        <span>{compactFormat.format(gold.perHour)}<small>/hr</small></span>
+        <span>{formatCompact(gold.perSecond)}<small>/s</small></span>
+        <span>{formatCompact(gold.perHour)}<small>/hr</small></span>
       </div>
       {!locked && (
         <button
@@ -832,10 +830,10 @@ function XpChartElement() {
       points: rates.map((point) => ({
         time: point.time,
         ratio: maximum > 0 ? point.value / maximum : 0,
-        primary: `${compactFormat.format(point.value)}/sec`,
+        primary: `${formatCompact(point.value)}/sec`,
         secondary: t("overlay.xpChart.ewma"),
       })),
-      yLabels: Array.from({ length: 5 }, (_, tick) => compactFormat.format((maximum * tick) / 4)),
+      yLabels: Array.from({ length: 5 }, (_, tick) => formatCompact((maximum * tick) / 4)),
     };
   }, [buckets, t]);
 
@@ -891,13 +889,13 @@ function ResourceElement(
       <strong class="resource-label">{label}</strong>
       {resource ? (
         <span class="resource-numbers">
-          <strong>{numberFormat.format(resource.current)}</strong>
+          <strong>{formatInteger(resource.current)}</strong>
           <span>/</span>
-          <strong>{numberFormat.format(resource.maximum)}</strong>
+          <strong>{formatInteger(resource.maximum)}</strong>
           {hasShield ? (
             <>
               <span class="resource-shield-sep">|</span>
-              <strong>{numberFormat.format(shield!)}</strong>
+              <strong>{formatInteger(shield!)}</strong>
             </>
           ) : null}
         </span>
