@@ -95,6 +95,7 @@ function App() {
     next.snapshot;
   const metricLabel = next.statType === "tanked" ? "TPS" : next.statType === "heal" ? "HPS" : "DPS";
   const isHeal = next.statType === "heal";
+  const isTanked = next.statType === "tanked";
   const amountLabel = isHeal ? "HEAL" : "DMG";
   const totalsAmountLabel = next.statType === "tanked" ? t("combat.totals.damageTaken") : isHeal ? t("combat.totals.healing") : t("combat.totals.damage");
 
@@ -278,6 +279,21 @@ function App() {
                 ))}</tbody>
               </table>
             </div>}
+        {isTanked && (activeSnapshot?.personal?.absorbedSkills?.length ?? 0) > 0 && (
+          <div class="table-scroll meter-table-scroll">
+            <h2 class="element-title">{t("combat.shields.heading")}</h2>
+            <table class="data-table meter-table" aria-label={t("combat.shields.personalSkillAria")}>
+              <thead><tr><th>{t("combat.column.attackerSkill")}</th><th>{t("combat.column.absorbed")}</th><th>{t("combat.column.hits")}</th></tr></thead>
+              <tbody>{(activeSnapshot?.personal?.absorbedSkills ?? []).map((skill) => (
+                <tr key={skill.sourceId} class="meter-table-row" style={`--row-fill:${Math.max(0, Math.min(100, skill.contribution * 100))}%`}>
+                  <th scope="row">{skill.sourceLabel}</th>
+                  <td>{compactFormat.format(skill.damage)}</td>
+                  <td>{numberFormat.format(skill.hits)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
       </section>
       </section> : next.past.view === "selector"
         ? <PastSessionPanel

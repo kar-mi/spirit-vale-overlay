@@ -37,15 +37,20 @@ interface SkillFold {
   critRate?: number;
 }
 
-function foldSkillsByEnemy(next: CombatAnalysisDetailState, selectedEnemyIds: ReadonlySet<number>): SkillFold {
+function foldSkillsByEnemy(
+  encounterDurationMs: number,
+  selectedEnemyIds: ReadonlySet<number>,
+  player: MeterActorRow | undefined,
+  skillsByEnemy: Record<number, FishNetDpsSkillRow[]>,
+): SkillFold {
+  if (player === undefined) return { skills: [], damage: 0, dps: 0, hits: 0, criticalHits: 0 };
   if (selectedEnemyIds.size === 0) {
-    const player = next.player;
     return { skills: player.skills, damage: player.damage, dps: player.dps, hits: player.hits, criticalHits: player.criticalHits, critRate: player.critRate };
   }
-  const durationSeconds = Math.max(1, next.encounterDurationMs) / 1000;
+  const durationSeconds = Math.max(1, encounterDurationMs) / 1000;
   const merged = new Map<string, { sourceLabel: string; damage: number; hits: number; criticalHits: number }>();
   for (const targetId of selectedEnemyIds) {
-    for (const row of next.skillsByEnemy[targetId] ?? []) {
+    for (const row of skillsByEnemy[targetId] ?? []) {
       const existing = merged.get(row.sourceId) ?? { sourceLabel: row.sourceLabel, damage: 0, hits: 0, criticalHits: 0 };
       existing.damage += row.damage;
       existing.hits += row.hits;
@@ -119,6 +124,13 @@ function App() {
     }
   }, [selectionScope]);
 
+  // Switching stat type inside the popup changes which attacker/enemy list applies; a carried-over
+  // selection would hide rows or leave an invisible pick, so drop it.
+  const changeStatType = (nextStat: StatType): void => {
+    setStatType(nextStat);
+    setSelectedEnemyIds(new Set());
+  };
+
   if (!next) return <main class="app-shell" />;
 
   const activePlayer: MeterActorRow | undefined =
@@ -130,10 +142,13 @@ function App() {
   const damageLabel = t(amountKeys.label);
 
   const fold: SkillFold = statType === "damage"
-    ? foldSkillsByEnemy(next, selectedEnemyIds)
-    : activePlayer
-      ? { skills: activePlayer.skills, damage: activePlayer.damage, dps: activePlayer.dps, hits: activePlayer.hits, criticalHits: activePlayer.criticalHits, critRate: activePlayer.critRate }
-      : { skills: [], damage: 0, dps: 0, hits: 0, criticalHits: 0 };
+    ? foldSkillsByEnemy(next.encounterDurationMs, selectedEnemyIds, next.player, next.skillsByEnemy)
+    : statType === "tanked"
+      ? foldSkillsByEnemy(next.encounterDurationMs, selectedEnemyIds, next.tankedPlayer, next.tankedSkillsByEnemy ?? {})
+      : activePlayer
+        ? { skills: activePlayer.skills, damage: activePlayer.damage, dps: activePlayer.dps, hits: activePlayer.hits, criticalHits: activePlayer.criticalHits, critRate: activePlayer.critRate }
+        : { skills: [], damage: 0, dps: 0, hits: 0, criticalHits: 0 };
+  const absorbedSkills = statType === "tanked" ? (next.tankedPlayer?.absorbedSkills ?? []) : [];
 
   const metrics: [string, string][] = [
     [damageLabel, compactFormat.format(fold.damage)],
@@ -171,8 +186,12 @@ function App() {
             <h1>{activePlayer?.displayName ?? next.player.displayName}</h1>
             <p>{next.fileName} · {next.encounterLabel}</p>
           </div>
-          <EnemyFilterControl enemies={statType === "damage" ? next.enemies : []} selected={selectedEnemyIds} onChange={setSelectedEnemyIds} />
-          <StatTypeSelect value={statType} onChange={setStatType} />
+          <EnemyFilterControl
+            enemies={statType === "tanked" ? next.tankedEnemies : statType === "damage" ? next.enemies : []}
+            selected={selectedEnemyIds}
+            onChange={setSelectedEnemyIds}
+          />
+          <StatTypeSelect value={statType} onChange={changeStatType} />
           <div class="seg">
             <button type="button" class={metric === "dps" ? "active" : undefined} onClick={() => setMetric("dps")}>{t("detail.metric.perFive", { metric: metricLabel })}</button>
             <button type="button" class={metric === "cumulative" ? "active" : undefined} onClick={() => setMetric("cumulative")}>{t("detail.metric.cumulative")}</button>
@@ -237,6 +256,30 @@ function App() {
                 </table>
               </div>}
         </section>
+        {absorbedSkills.length > 0 && (
+          <section class="skills-section">
+            <div class="section-head">
+              <h2>{t("combat.shields.heading")}</h2>
+              <p>
+                {t("combat.shields.detail")}
+                {selectedEnemyIds.size > 0 && ` ${t("combat.shields.filteredHint")}`}
+              </p>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table combat-table" aria-label={t("combat.shields.skillAria")}>
+                <thead><tr><th>{t("combat.column.attackerSkill")}</th><th>{t("combat.column.absorbed")}</th><th>{t("combat.column.share")}</th><th>{t("combat.column.hits")}</th></tr></thead>
+                <tbody>{absorbedSkills.map((skill) => (
+                  <tr key={skill.sourceId}>
+                    <th scope="row">{skill.sourceLabel}</th>
+                    <td>{compactFormat.format(skill.damage)}</td>
+                    <td>{percentFormat.format(skill.contribution)}</td>
+                    <td>{numberFormat.format(skill.hits)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </section>
     </main>
   );

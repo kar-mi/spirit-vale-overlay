@@ -865,24 +865,41 @@ const RESOURCE_LABEL_KEYS: Record<ResourceKind, MessageKey> = {
   "job-xp": "overlay.resource.jobXp",
 };
 
-function ResourceElement({ kind, resource }: { kind: ResourceKind; resource: OverlayResource | undefined }) {
+function ResourceElement(
+  { kind, resource, shield }: { kind: ResourceKind; resource: OverlayResource | undefined; shield?: number },
+) {
   const t = useTranslator();
   const label = t(RESOURCE_LABEL_KEYS[kind]);
+
+
+  const hasShield = typeof shield === "number" && Number.isFinite(shield) && shield > 0
+    && resource !== undefined && resource.maximum > 0;
+  const shieldFill = hasShield ? Math.max(0.03, Math.min(1, shield! / resource!.maximum)) : 0;
   const description = resource
-    ? t("overlay.resource.aria", { label, current: resource.current, maximum: resource.maximum })
+    ? hasShield
+      ? t("overlay.resource.ariaShield", { label, current: resource.current, maximum: resource.maximum, shield: shield! })
+      : t("overlay.resource.aria", { label, current: resource.current, maximum: resource.maximum })
     : t("overlay.resource.waitingFor", { label });
+
   return (
     <div
       class={`resource-value resource-${kind}${resource ? "" : " resource-waiting"}`}
-      style={`--resource-fill:${resource ? resourceFill(resource) : 0}`}
+      style={`--resource-fill:${resource ? resourceFill(resource) : 0};--resource-shield-fill:${shieldFill}`}
       aria-label={description}
     >
+      {hasShield ? <span class="resource-shield-fill" aria-hidden="true" /> : null}
       <strong class="resource-label">{label}</strong>
       {resource ? (
         <span class="resource-numbers">
           <strong>{numberFormat.format(resource.current)}</strong>
           <span>/</span>
           <strong>{numberFormat.format(resource.maximum)}</strong>
+          {hasShield ? (
+            <>
+              <span class="resource-shield-sep">|</span>
+              <strong>{numberFormat.format(shield!)}</strong>
+            </>
+          ) : null}
         </span>
       ) : <span class="resource-empty">{t("overlay.waiting")}</span>}
     </div>
@@ -895,7 +912,7 @@ function CharacterResourceElement({ kind }: { kind: ResourceKind }) {
     : kind === "mana" ? next?.mana
     : kind === "character-xp" ? next?.characterXp
     : next?.jobXp;
-  return <ResourceElement kind={kind} resource={resource} />;
+  return <ResourceElement kind={kind} resource={resource} shield={kind === "health" ? next?.shield : undefined} />;
 }
 
 function PartyRankingElement() {

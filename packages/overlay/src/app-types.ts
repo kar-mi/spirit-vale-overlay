@@ -84,6 +84,7 @@ export interface OverlayControlState {
 export interface OverlayCharacterState {
   health?: OverlayResource;
   mana?: OverlayResource;
+  shield?: number;
   characterXp?: OverlayExperienceProgress;
   jobXp?: OverlayExperienceProgress;
   weight?: CharacterWeight;

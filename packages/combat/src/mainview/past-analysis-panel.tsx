@@ -9,7 +9,7 @@ import { StatTypeSelect } from "@svoverlay/ui-kit/stat-type-select";
 import type { CombatAnalysisState, MeterEncounterSnapshot, StatType } from "../app-types.ts";
 import { CombatClassCell } from "../combat-class.tsx";
 import { nextTableSort, SortableHeader, sortTableRows, type TableSort } from "@svoverlay/ui-kit/sortable-table";
-import { applyEnemyFilter } from "../enemy-filtering.ts";
+import { applyEnemyFilter, enemyFilterSupported } from "../enemy-filtering.ts";
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
@@ -52,14 +52,17 @@ export function PastAnalysisPanel({
 }: PastAnalysisPanelProps) {
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
   const [playerSort, setPlayerSort] = useState<TableSort<PlayerSortKey>>({ key: "damage", direction: "descending" });
-  const lastEncounterId = useRef<string | undefined>(undefined);
+  const lastScope = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (state.selectedEncounterId !== lastEncounterId.current) {
-      lastEncounterId.current = state.selectedEncounterId;
+    // Enemy ids are not comparable across encounters or between the DPS and TPS attacker lists,
+    // so a stale selection would hide rows or show an invisible pick — clear it on either change.
+    const scope = `${state.selectedEncounterId ?? ""}:${state.statType}`;
+    if (scope !== lastScope.current) {
+      lastScope.current = scope;
       setSelectedEnemyIds(new Set());
     }
-  }, [state.selectedEncounterId]);
+  }, [state.selectedEncounterId, state.statType]);
 
   const activeSnapshot: MeterEncounterSnapshot | undefined =
     state.statType === "tanked" ? state.tankedSnapshot :
@@ -80,7 +83,7 @@ export function PastAnalysisPanel({
   const sortPlayersBy = (key: PlayerSortKey): void => {
     setPlayerSort((current) => nextTableSort(current, key));
   };
-  const hasFilter = state.statType === "damage" && selectedEnemyIds.size > 0;
+  const hasFilter = enemyFilterSupported(state.statType) && selectedEnemyIds.size > 0;
   const partyDamage = hasFilter ? filteredRows.reduce((sum, row) => sum + row.damage, 0) : (activeSnapshot?.totalDamage ?? 0);
   const partyDps = hasFilter
     ? (activeSnapshot ? partyDamage / (Math.max(1, activeSnapshot.durationMs) / 1000) : 0)
@@ -105,7 +108,11 @@ export function PastAnalysisPanel({
           />
         </label>
         <StatTypeSelect value={state.statType} onChange={onSetStatType} disabled={state.status !== "ready"} />
-        <EnemyFilterControl enemies={state.statType === "damage" ? state.enemies : []} selected={selectedEnemyIds} onChange={setSelectedEnemyIds} />
+        <EnemyFilterControl
+          enemies={state.statType === "tanked" ? state.tankedEnemies : state.statType === "damage" ? state.enemies : []}
+          selected={selectedEnemyIds}
+          onChange={setSelectedEnemyIds}
+        />
         <div class="toolbar-meta">
           <button class="btn" type="button" disabled={state.status !== "ready"} onClick={onOpenDeathLog}>{t("combat.past.deathLog")}</button>
         </div>
