@@ -281,9 +281,9 @@ function App() {
             </div>}
         {isTanked && (activeSnapshot?.personal?.absorbedSkills?.length ?? 0) > 0 && (
           <div class="table-scroll meter-table-scroll">
-            <h2 class="element-title">Absorbed by shields</h2>
-            <table class="data-table meter-table" aria-label="Personal shield absorption by skill">
-              <thead><tr><th>Attacker skill</th><th>Absorbed</th><th>Hits</th></tr></thead>
+            <h2 class="element-title">{t("combat.shields.heading")}</h2>
+            <table class="data-table meter-table" aria-label={t("combat.shields.personalSkillAria")}>
+              <thead><tr><th>{t("combat.column.attackerSkill")}</th><th>{t("combat.column.absorbed")}</th><th>{t("combat.column.hits")}</th></tr></thead>
               <tbody>{(activeSnapshot?.personal?.absorbedSkills ?? []).map((skill) => (
                 <tr key={skill.sourceId} class="meter-table-row" style={`--row-fill:${Math.max(0, Math.min(100, skill.contribution * 100))}%`}>
                   <th scope="row">{skill.sourceLabel}</th>

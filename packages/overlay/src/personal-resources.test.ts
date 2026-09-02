@@ -49,6 +49,11 @@ describe("overlay personal resources", () => {
     });
   });
 
+  test("includes a positive finite shield and drops an empty shield", () => {
+    expect(personalResources({ currentShield: 350 })).toEqual({ shield: 350 });
+    expect(personalResources({ currentShield: 0 })).toEqual({});
+  });
+
   test("clamps the visual fill without changing resource values", () => {
     expect(resourceFill({ current: 150, maximum: 100 })).toBe(1);
     expect(resourceFill({ current: 0, maximum: 100 })).toBe(0);

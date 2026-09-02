@@ -38,16 +38,16 @@ interface SkillFold {
 }
 
 function foldSkillsByEnemy(
-  next: CombatAnalysisDetailState,
+  encounterDurationMs: number,
   selectedEnemyIds: ReadonlySet<number>,
   player: MeterActorRow | undefined,
   skillsByEnemy: Record<number, FishNetDpsSkillRow[]>,
 ): SkillFold {
-  if (selectedEnemyIds.size === 0 || player === undefined) {
-    const row = player ?? next.player;
-    return { skills: row.skills, damage: row.damage, dps: row.dps, hits: row.hits, criticalHits: row.criticalHits, critRate: row.critRate };
+  if (player === undefined) return { skills: [], damage: 0, dps: 0, hits: 0, criticalHits: 0 };
+  if (selectedEnemyIds.size === 0) {
+    return { skills: player.skills, damage: player.damage, dps: player.dps, hits: player.hits, criticalHits: player.criticalHits, critRate: player.critRate };
   }
-  const durationSeconds = Math.max(1, next.encounterDurationMs) / 1000;
+  const durationSeconds = Math.max(1, encounterDurationMs) / 1000;
   const merged = new Map<string, { sourceLabel: string; damage: number; hits: number; criticalHits: number }>();
   for (const targetId of selectedEnemyIds) {
     for (const row of skillsByEnemy[targetId] ?? []) {
@@ -142,9 +142,9 @@ function App() {
   const damageLabel = t(amountKeys.label);
 
   const fold: SkillFold = statType === "damage"
-    ? foldSkillsByEnemy(next, selectedEnemyIds, next.player, next.skillsByEnemy)
+    ? foldSkillsByEnemy(next.encounterDurationMs, selectedEnemyIds, next.player, next.skillsByEnemy)
     : statType === "tanked"
-      ? foldSkillsByEnemy(next, selectedEnemyIds, next.tankedPlayer, next.tankedSkillsByEnemy ?? {})
+      ? foldSkillsByEnemy(next.encounterDurationMs, selectedEnemyIds, next.tankedPlayer, next.tankedSkillsByEnemy ?? {})
       : activePlayer
         ? { skills: activePlayer.skills, damage: activePlayer.damage, dps: activePlayer.dps, hits: activePlayer.hits, criticalHits: activePlayer.criticalHits, critRate: activePlayer.critRate }
         : { skills: [], damage: 0, dps: 0, hits: 0, criticalHits: 0 };
@@ -259,15 +259,15 @@ function App() {
         {absorbedSkills.length > 0 && (
           <section class="skills-section">
             <div class="section-head">
-              <h2>Absorbed by shields</h2>
+              <h2>{t("combat.shields.heading")}</h2>
               <p>
-                Damage a barrier soaked for this player, by the incoming skill — not counted above.
-                {selectedEnemyIds.size > 0 && " Shown across all attackers; the enemy filter does not apply here."}
+                {t("combat.shields.detail")}
+                {selectedEnemyIds.size > 0 && ` ${t("combat.shields.filteredHint")}`}
               </p>
             </div>
             <div class="table-scroll">
-              <table class="data-table combat-table" aria-label="Shield absorption by skill">
-                <thead><tr><th>Attacker skill</th><th>Absorbed</th><th>Share</th><th>Hits</th></tr></thead>
+              <table class="data-table combat-table" aria-label={t("combat.shields.skillAria")}>
+                <thead><tr><th>{t("combat.column.attackerSkill")}</th><th>{t("combat.column.absorbed")}</th><th>{t("combat.column.share")}</th><th>{t("combat.column.hits")}</th></tr></thead>
                 <tbody>{absorbedSkills.map((skill) => (
                   <tr key={skill.sourceId}>
                     <th scope="row">{skill.sourceLabel}</th>

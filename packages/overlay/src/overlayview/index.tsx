@@ -876,7 +876,9 @@ function ResourceElement(
     && resource !== undefined && resource.maximum > 0;
   const shieldFill = hasShield ? Math.max(0.03, Math.min(1, shield! / resource!.maximum)) : 0;
   const description = resource
-    ? t("overlay.resource.aria", { label, current: resource.current, maximum: resource.maximum })
+    ? hasShield
+      ? t("overlay.resource.ariaShield", { label, current: resource.current, maximum: resource.maximum, shield: shield! })
+      : t("overlay.resource.aria", { label, current: resource.current, maximum: resource.maximum })
     : t("overlay.resource.waitingFor", { label });
 
   return (

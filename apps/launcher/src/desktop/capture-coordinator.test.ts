@@ -2355,8 +2355,13 @@ function recoverPacket(tick: number, targetId: number, amount: number): TestPack
     objectId: targetId,
     rpcName: "Recover_C",
     networkBehaviourType: "HealthComponent",
-    decodedFields: [{ name: "amount", codec: "packedInt32", value: amount }],
-    undecodedPayload: Buffer.from("0001ab020000403f", "hex"),
+    decodedFields: [
+      { name: "amount", codec: "packedInt32", value: amount },
+      { name: "settings.DisableFloater", codec: "boolean", value: false },
+      { name: "settings.DisableSfx", codec: "boolean", value: true },
+      { name: "settings.Offset", codec: "packedInt32", value: -150 },
+      { name: "settings.Scale", codec: "float32", value: 0.75 },
+    ],
     raw: Buffer.alloc(0),
     payload: Buffer.alloc(0),
   };

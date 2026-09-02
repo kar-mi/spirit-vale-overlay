@@ -63,6 +63,7 @@ export const en = {
   "combat.column.critRateLong": "Crit rate",
   "combat.column.skill": "Skill",
   "combat.column.attackerSkill": "Attacker skill",
+  "combat.column.absorbed": "Absorbed",
   "combat.column.amountPercent": "{amount} %",
   "combat.personal.detected": "Detected character",
   "combat.personal.waiting": "Waiting for character detection…",
@@ -77,6 +78,11 @@ export const en = {
   "combat.personal.skills.label": "Personal skill damage",
   "combat.personal.skills.empty": "No personal skill damage yet.",
   "combat.personal.skills.unmatched": "Personal skills appear after your character is matched.",
+  "combat.shields.heading": "Absorbed by shields",
+  "combat.shields.detail": "Damage a barrier soaked for this player, by the incoming skill — not counted above.",
+  "combat.shields.filteredHint": "Shown across all attackers; the enemy filter does not apply here.",
+  "combat.shields.skillAria": "Shield absorption by skill",
+  "combat.shields.personalSkillAria": "Personal shield absorption by skill",
 
   "deathLog.window.tag": "Death log",
   "deathLog.heading": "Player deaths",
@@ -383,6 +389,7 @@ export const en = {
   "overlay.resource.characterXp": "XP",
   "overlay.resource.jobXp": "JOB XP",
   "overlay.resource.aria": "{label} {current} of {maximum}",
+  "overlay.resource.ariaShield": "{label} {current} of {maximum}, shield {shield}",
   "overlay.resource.waitingFor": "Waiting for {label}",
 
   "overlay.party.heading": "Map encounter {metric}",
