@@ -272,7 +272,7 @@ export const en = {
   "settings.language.description": "Choose the language used across Spirit Vale Overlay.",
   "settings.language.select.label": "Display language",
   "settings.language.select.search": "Language locale translation english localisation localization display",
-  "settings.language.hint": "English is the only language available today. New languages arrive as translations are contributed.",
+  "settings.language.hint": "English is the default language. Additional languages are available when translations are contributed.",
 
   "settings.network.label": "Network",
   "settings.network.description": "Npcap capture configuration.",

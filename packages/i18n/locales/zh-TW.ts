@@ -272,7 +272,7 @@ export const zhTW = {
   "settings.language.description": "選擇 Spirit Vale Overlay 全域使用的語言。",
   "settings.language.select.label": "顯示語言",
   "settings.language.select.search": "語言 地區設定 翻譯 英文 在地化 顯示",
-  "settings.language.hint": "目前只提供英文。新的語言會隨著翻譯貢獻陸續加入。",
+  "settings.language.hint": "英文是預設語言。其他語言會隨著翻譯貢獻陸續加入。",
 
   "settings.network.label": "網路",
   "settings.network.description": "Npcap 擷取設定。",
