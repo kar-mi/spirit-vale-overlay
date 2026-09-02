@@ -36,7 +36,7 @@ import type {
 import { KEYBIND_ACTIONS, METER_STAT_TYPE_CYCLE } from "../app-types.ts";
 import { bossRegionsPresent, nextBossRegion, resolveBossRegion } from "@svoverlay/contracts/boss-timers";
 import { missingRequiredStatuses } from "../required-statuses.ts";
-import { detectedPersonalName } from "../personal-character.ts";
+import { detectedPersonalName } from "@svoverlay/combat/personal-character";
 import { personalExperience } from "../personal-experience.ts";
 import { personalResources } from "../personal-resources.ts";
 import { OverlayLogClock } from "../live-log-clock.ts";

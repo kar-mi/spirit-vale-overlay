@@ -52,7 +52,7 @@ import { createDeathLogWindow, createDpsWindow } from "@svoverlay/combat";
 import { readCombatLocations } from "@svoverlay/combat/zone-log";
 import { createOverlayWindow } from "@svoverlay/overlay";
 import { KEYBIND_ACTIONS, type KeybindAction } from "@svoverlay/overlay/app-types";
-import { resolveLocalRoot } from "./paths.ts";
+import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { WindowSlot } from "./window-slot.ts";
 import { resolveDesktopStoragePaths } from "./portable-paths.ts";
@@ -69,7 +69,7 @@ import { loadSessionSummaryJournal, normalizeHistorySessionLimit } from "@svover
 
 makeProcessDpiAware();
 
-const localRoot = resolveLocalRoot();
+const localRoot = resolveLocalStorageRoot();
 const appVersion = (await DesktopRuntime.Updater.getLocalInfo()).version;
 const storagePaths = resolveDesktopStoragePaths({
   root: localRoot,

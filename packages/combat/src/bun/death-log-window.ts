@@ -35,7 +35,6 @@ export interface DeathLogWindow {
   open(filePath: string, live?: boolean): Promise<void>;
   refresh(filePath: string): Promise<void>;
   close(): void;
-  isOpen(): boolean;
 }
 
 export function createDeathLogWindow(options: DeathLogWindowOptions = {}): DeathLogWindow {
@@ -99,7 +98,6 @@ export function createDeathLogWindow(options: DeathLogWindowOptions = {}): Death
       await load(filePath, false);
     },
     close() { window?.close(); },
-    isOpen: () => window !== undefined,
   };
 
   async function load(filePath: string, opening: boolean): Promise<void> {

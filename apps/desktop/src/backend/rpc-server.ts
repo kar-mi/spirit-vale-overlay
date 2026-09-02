@@ -4,16 +4,15 @@ import type { ServerWebSocket } from "bun";
 
 export interface Session {
   readonly id: string;
-  readonly role: "launcher" | "overlay" | "window";
+  readonly role: "launcher" | "window";
   readonly windowId: string;
-  readonly display?: string;
   readonly processId?: number;
   send(packet: ServerPacket): void;
   command<T = unknown>(command: string, data?: unknown): Promise<T>;
   transport(): Transport;
 }
 
-interface Ticket { role: Session["role"]; windowId: string; display?: string; expiresAt: number }
+interface Ticket { role: Session["role"]; windowId: string; expiresAt: number }
 interface SocketData { session?: SessionImpl }
 
 class SessionImpl implements Session {
@@ -25,7 +24,6 @@ class SessionImpl implements Session {
     readonly id: string,
     readonly role: Session["role"],
     readonly windowId: string,
-    readonly display: string | undefined,
     readonly processId: number | undefined,
     private readonly socket: ServerWebSocket<SocketData>,
   ) {}
@@ -90,7 +88,7 @@ export class DesktopRpcServer {
             const processId = Number.isInteger(packet.processId) && Number(packet.processId) > 0
               ? Number(packet.processId)
               : undefined;
-            const session = new SessionImpl(crypto.randomUUID(), ticket.role, ticket.windowId, ticket.display, processId, socket);
+            const session = new SessionImpl(crypto.randomUUID(), ticket.role, ticket.windowId, processId, socket);
             socket.data.session = session;
             this.sessions.set(session.id, session);
             session.send({ kind: "ready", windowId: session.id, role: session.role });
@@ -112,12 +110,6 @@ export class DesktopRpcServer {
   }
 
   get port(): number { return this.server.port ?? 0; }
-  issue(role: Ticket["role"], display?: string): string {
-    const ticket = crypto.randomUUID();
-    const windowId = role === "overlay" && display ? `overlay:${display}` : role;
-    this.tickets.set(ticket, { role, windowId, display, expiresAt: Date.now() + 60_000 });
-    return ticket;
-  }
   issueWindow(windowId: string): string {
     const ticket = crypto.randomUUID();
     this.tickets.set(ticket, { role: windowId === "launcher" ? "launcher" : "window", windowId, expiresAt: Date.now() + 60_000 });

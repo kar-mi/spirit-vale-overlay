@@ -1,9 +1,7 @@
 import { FishNetActorDirectory } from "@kar-mi/spirit-vale-tools-combat";
 import type {
-  FishNetActorDirectoryOptions,
   FishNetActorIdentity,
   FishNetActorIdentityEvent,
-  FishNetLocalIdentity,
 } from "@kar-mi/spirit-vale-tools-combat";
 import type { DecodedFishNetPacket } from "@kar-mi/spirit-vale-tools-capture";
 
@@ -29,10 +27,6 @@ export class StickyActorDirectory extends FishNetActorDirectory {
    * without this mask. Cleared again the moment any fresh identity is upserted for the same id.
    */
   private readonly clearedOnDespawn = new Set<number>();
-
-  constructor(options: FishNetActorDirectoryOptions = {}) {
-    super(options);
-  }
 
   consume(packet: DecodedFishNetPacket): FishNetActorIdentityEvent[] {
     const monsterActorId = directMonsterActorId(packet);
@@ -85,10 +79,6 @@ export class StickyActorDirectory extends FishNetActorDirectory {
     this.retained.clear();
     this.nonPlayerActorIds.clear();
     this.clearedOnDespawn.clear();
-  }
-
-  setLocalIdentity(identity: FishNetLocalIdentity): void {
-    super.setLocalIdentity(identity);
   }
 
   private retain(events: readonly FishNetActorIdentityEvent[], authoritativeRemoval?: number): FishNetActorIdentityEvent[] {

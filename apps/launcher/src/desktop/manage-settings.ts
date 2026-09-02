@@ -13,14 +13,9 @@ import { defaultRewardsSettings, loadRewardsSettings, saveRewardsSettings } from
 import { importWindowPlacements, resetWindowPlacements } from "@svoverlay/desktop-platform/window-placement";
 import type { DesktopStoragePaths } from "./portable-paths.ts";
 
-export type ImportSettingsStatus = "same-folder" | "not-found" | "imported";
-
 export type SettingsKind = "launcher" | "overlay" | "dps" | "rewards" | "windowLayout";
 
-export const SETTINGS_KINDS: readonly SettingsKind[] = ["launcher", "overlay", "dps", "rewards", "windowLayout"];
-
 interface SettingsKindConfig {
-  label: string;
   fileName: string;
   path(paths: DesktopStoragePaths): string;
   copy(sourcePath: string, destinationPath: string, displays: readonly OverlayDisplay[]): Promise<void>;
@@ -28,40 +23,31 @@ interface SettingsKindConfig {
 
 const SETTINGS_KIND_CONFIG: Record<SettingsKind, SettingsKindConfig> = {
   launcher: {
-    label: "Launcher",
     fileName: "launcher.json",
     path: (paths) => paths.launcherSettingsPath,
     copy: async (source, dest) => { await saveLauncherSettings(await loadLauncherSettings(source), dest); },
   },
   overlay: {
-    label: "Overlay",
     fileName: "overlay.json",
     path: (paths) => paths.overlaySettingsPath,
     copy: async (source, dest, displays) => { await saveOverlaySettings(await loadOverlaySettings(source, displays), dest); },
   },
   dps: {
-    label: "Combat (DPS)",
     fileName: "dps.json",
     path: (paths) => paths.dpsSettingsPath,
     copy: async (source, dest) => { await saveDpsAppSettings(await loadDpsAppSettings(source), dest); },
   },
   rewards: {
-    label: "Rewards",
     fileName: "rewards.json",
     path: (paths) => paths.rewardsSettingsPath,
     copy: async (source, dest) => { await saveRewardsSettings(await loadRewardsSettings(source), dest); },
   },
   windowLayout: {
-    label: "Window Layout",
     fileName: "windows.json",
     path: (paths) => paths.windowPlacementsPath,
     copy: async (source, dest) => { await importWindowPlacements(source, dest); },
   },
 };
-
-export function settingsKindLabel(kind: SettingsKind): string {
-  return SETTINGS_KIND_CONFIG[kind].label;
-}
 
 export function settingsKindFileName(kind: SettingsKind): string {
   return SETTINGS_KIND_CONFIG[kind].fileName;
@@ -173,17 +159,6 @@ export async function applyImport(
   if (existsSync(oldPaths.windowPlacementsPath)) {
     await importWindowPlacements(oldPaths.windowPlacementsPath, currentPaths.windowPlacementsPath);
   }
-}
-
-export async function importSettingsFrom(
-  selectedDirectory: string,
-  currentPaths: DesktopStoragePaths,
-  displays: readonly OverlayDisplay[],
-): Promise<ImportSettingsStatus> {
-  const plan = planImport(selectedDirectory, currentPaths);
-  if (plan.status !== "ready") return plan.status;
-  await applyImport(plan.oldPaths, currentPaths, displays);
-  return "imported";
 }
 
 export async function resetAllSettings(paths: DesktopStoragePaths, displays: readonly OverlayDisplay[]): Promise<void> {
