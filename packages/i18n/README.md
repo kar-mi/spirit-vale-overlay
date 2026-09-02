@@ -12,9 +12,8 @@ every browser bundle alike.
    ```
 2. Register it in `locale.ts` — one entry in `LOCALES`, one in `LOCALE_OPTIONS`.
 
-English is currently the only registered locale, so the picker offers one option and the
-language-change path never fires in practice. Registering a second locale is what switches all of
-this on — see the coverage note in `locale-window.test.ts` before you do.
+English and Traditional Chinese are currently registered. The language picker uses English by
+default and applies language changes to open windows immediately.
 
 **English is always the fallback.** A locale supplies whatever it has translated; every key it
 omits renders the English string, so a translation can land a few strings at a time and the UI
