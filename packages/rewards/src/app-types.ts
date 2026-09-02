@@ -1,4 +1,5 @@
 import type { RPCSchema } from "@svoverlay/contracts/rpc";
+import type { LocalizedText } from "@svoverlay/i18n/messages";
 import type { RewardLogStatus } from "@kar-mi/spirit-vale-tools-rewards";
 import type { RateSnapshot } from "@kar-mi/spirit-vale-tools-metrics";
 import type { MaximizableWindowChromeRequests } from "@svoverlay/contracts/window-rpc";
@@ -53,8 +54,10 @@ export interface RewardsAppState {
   mode: RewardsAppMode;
   view: RewardsAppView;
   status: RewardsAppStatus;
-  statusDetail: string;
-  storageWarning?: string;
+  statusDetail: LocalizedText;
+  /** Joined onto `statusDetail` with a separator; each part pluralizes on its own count. */
+  statusDetailExtras?: LocalizedText[];
+  storageWarning?: LocalizedText;
   pinned: boolean;
   resetting: boolean;
   replayFileName?: string;

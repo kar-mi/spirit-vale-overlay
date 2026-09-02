@@ -10,6 +10,8 @@ import { StatTypeSelect } from "@svoverlay/ui-kit/stat-type-select";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { InteractiveChart } from "@svoverlay/ui-kit/interactive-chart";
 import type { ChartRange, ChartRenderResult } from "@svoverlay/ui-kit/interactive-chart";
+import { useTranslator } from "@svoverlay/i18n/browser";
+import type { MessageKey } from "@svoverlay/i18n/messages";
 
 import type { FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
 import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState, MeterActorRow, MeterTimelinePoint, StatType } from "../app-types.ts";
@@ -18,6 +20,13 @@ import { buildDamageChartRender, damageChartExtent, formatElapsedChartTime } fro
 import type { DamageChartMetric } from "../damage-chart.ts";
 
 type SkillSortKey = "sourceLabel" | "damage" | "dps" | "contribution" | "hits" | "criticalHits" | "critRate";
+
+/** Every stat type names its measured quantity, and the sentences that embed it, in full. */
+const AMOUNT_KEYS: Record<StatType, { label: MessageKey; cumulative: MessageKey; empty: MessageKey }> = {
+  damage: { label: "amount.damage", cumulative: "detail.chart.cumulative.damage", empty: "detail.chart.empty.damage" },
+  tanked: { label: "amount.damageTaken", cumulative: "detail.chart.cumulative.damageTaken", empty: "detail.chart.empty.damageTaken" },
+  heal: { label: "amount.healing", cumulative: "detail.chart.cumulative.healing", empty: "detail.chart.empty.healing" },
+};
 
 interface SkillFold {
   skills: FishNetDpsSkillRow[];
@@ -92,6 +101,7 @@ const ANALYSIS_DETAIL_DEFAULT_HEIGHT = 720;
 void ensureInitialWindowSize(desktopView.rpc?.request, { width: 620, height: 500 });
 
 function App() {
+  const t = useTranslator();
   const [metric, setMetric] = useState<DamageChartMetric>("dps");
   const [skillSort, setSkillSort] = useState<TableSort<SkillSortKey>>({ key: "damage", direction: "descending" });
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
@@ -128,7 +138,8 @@ function App() {
     statType === "heal" ? next.healPlayer :
     next.player;
   const metricLabel = statType === "tanked" ? "TPS" : statType === "heal" ? "HPS" : "DPS";
-  const damageLabel = statType === "tanked" ? "Damage taken" : statType === "heal" ? "Healing" : "Damage";
+  const amountKeys = AMOUNT_KEYS[statType];
+  const damageLabel = t(amountKeys.label);
 
   const fold: SkillFold = statType === "damage"
     ? foldSkillsByEnemy(next, selectedEnemyIds, next.player, next.skillsByEnemy)
@@ -142,10 +153,10 @@ function App() {
   const metrics: [string, string][] = [
     [damageLabel, compactFormat.format(fold.damage)],
     [metricLabel, numberFormat.format(fold.dps)],
-    ["Hits", numberFormat.format(fold.hits)],
-    ["Kills", numberFormat.format(activePlayer?.kills ?? 0)],
-    ["Crit hits", numberFormat.format(fold.criticalHits)],
-    ["Crit rate", fold.critRate === undefined ? "—" : percentFormat.format(fold.critRate)],
+    [t("detail.metric.hits"), numberFormat.format(fold.hits)],
+    [t("detail.metric.kills"), numberFormat.format(activePlayer?.kills ?? 0)],
+    [t("detail.metric.critHits"), numberFormat.format(fold.criticalHits)],
+    [t("detail.metric.critRate"), fold.critRate === undefined ? "—" : percentFormat.format(fold.critRate)],
   ];
   const sortedSkills = sortTableRows(
     fold.skills,
@@ -160,7 +171,7 @@ function App() {
   return (
     <main class="app-shell">
       <TitleBar
-        appTag="Player detail"
+        appTag={t("detail.window.tag")}
         minWidth={620}
         minHeight={500}
         getFrame={async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? { x: 0, y: 0, width: ANALYSIS_DETAIL_DEFAULT_WIDTH, height: ANALYSIS_DETAIL_DEFAULT_HEIGHT }}
@@ -182,20 +193,20 @@ function App() {
           />
           <StatTypeSelect value={statType} onChange={changeStatType} />
           <div class="seg">
-            <button type="button" class={metric === "dps" ? "active" : undefined} onClick={() => setMetric("dps")}>{metricLabel} / 5 sec</button>
-            <button type="button" class={metric === "cumulative" ? "active" : undefined} onClick={() => setMetric("cumulative")}>Cumulative</button>
+            <button type="button" class={metric === "dps" ? "active" : undefined} onClick={() => setMetric("dps")}>{t("detail.metric.perFive", { metric: metricLabel })}</button>
+            <button type="button" class={metric === "cumulative" ? "active" : undefined} onClick={() => setMetric("cumulative")}>{t("detail.metric.cumulative")}</button>
           </div>
         </section>
         <div class="table-scroll totals">
-          <table class="data-table summary-table" aria-label="Player totals">
+          <table class="data-table summary-table" aria-label={t("detail.totals.label")}>
             <thead><tr>{metrics.map(([label]) => <th key={label}>{label}</th>)}</tr></thead>
             <tbody><tr>{metrics.map(([label, value]) => <td key={label}>{value}</td>)}</tr></tbody>
           </table>
         </div>
         <section class="chart-section">
           <div class="section-head">
-            <h2>{damageLabel} over time</h2>
-            <p>{metric === "cumulative" ? `Cumulative ${damageLabel.toLowerCase()} across the encounter.` : `${damageLabel} per second in five-second buckets.`}</p>
+            <h2>{t("detail.chart.heading", { amount: damageLabel })}</h2>
+            <p>{metric === "cumulative" ? t(amountKeys.cumulative) : t("detail.chart.perSecond", { amount: damageLabel })}</p>
           </div>
           <div class="chart-card">
             <DamageChart
@@ -204,31 +215,32 @@ function App() {
               metric={metric}
               damageLabel={damageLabel}
               metricLabel={metricLabel}
+              emptyLabel={t(amountKeys.empty)}
               resetKey={`${selectionScope}:${statType}:${metric}`}
             />
           </div>
         </section>
         <section class="skills-section">
           <div class="section-head">
-            <h2>Skill breakdown</h2>
-            <p>{damageLabel}, {metricLabel}, hits, and critical-hit performance.</p>
+            <h2>{t("detail.skills.heading")}</h2>
+            <p>{t("detail.skills.hint", { amount: damageLabel, metric: metricLabel })}</p>
           </div>
           {fold.skills.length === 0
             ? <p class="empty-state">
-                {statType === "tanked" ? "No damage was taken by this player."
-                  : statType === "heal" ? "No healing was received by this player."
-                  : "No skill damage was found for this player."}
+                {statType === "tanked" ? t("detail.skills.emptyTanked")
+                  : statType === "heal" ? t("detail.skills.emptyHeal")
+                  : t("detail.skills.empty")}
               </p>
             : <div class="table-scroll">
-                <table class="data-table combat-table" aria-label="Skill breakdown">
+                <table class="data-table combat-table" aria-label={t("detail.skills.heading")}>
                   <thead><tr>
-                    <SortableHeader sortKey="sourceLabel" sort={skillSort} onSort={sortSkillsBy} align="start">{statType === "tanked" ? "Attacker skill" : "Skill"}</SortableHeader>
+                    <SortableHeader sortKey="sourceLabel" sort={skillSort} onSort={sortSkillsBy} align="start">{t(statType === "tanked" ? "detail.column.attackerSkill" : "detail.column.skill")}</SortableHeader>
                     <SortableHeader sortKey="damage" sort={skillSort} onSort={sortSkillsBy}>{damageLabel}</SortableHeader>
                     <SortableHeader sortKey="dps" sort={skillSort} onSort={sortSkillsBy}>{metricLabel}</SortableHeader>
-                    <SortableHeader sortKey="contribution" sort={skillSort} onSort={sortSkillsBy}>Share</SortableHeader>
-                    <SortableHeader sortKey="hits" sort={skillSort} onSort={sortSkillsBy}>Hits</SortableHeader>
-                    <SortableHeader sortKey="criticalHits" sort={skillSort} onSort={sortSkillsBy}>Crits</SortableHeader>
-                    <SortableHeader sortKey="critRate" sort={skillSort} onSort={sortSkillsBy}>Crit rate</SortableHeader>
+                    <SortableHeader sortKey="contribution" sort={skillSort} onSort={sortSkillsBy}>{t("detail.column.share")}</SortableHeader>
+                    <SortableHeader sortKey="hits" sort={skillSort} onSort={sortSkillsBy}>{t("detail.column.hits")}</SortableHeader>
+                    <SortableHeader sortKey="criticalHits" sort={skillSort} onSort={sortSkillsBy}>{t("detail.column.crits")}</SortableHeader>
+                    <SortableHeader sortKey="critRate" sort={skillSort} onSort={sortSkillsBy}>{t("detail.column.critRate")}</SortableHeader>
                   </tr></thead>
                   <tbody>{sortedSkills.map((skill) => (
                     <tr key={skill.sourceId}>
@@ -279,10 +291,12 @@ interface DamageChartProps {
   metric: DamageChartMetric;
   damageLabel: string;
   metricLabel: string;
+  emptyLabel: string;
   resetKey: string;
 }
 
-function DamageChart({ points, durationMs, metric, damageLabel, metricLabel, resetKey }: DamageChartProps) {
+function DamageChart({ points, durationMs, metric, damageLabel, metricLabel, emptyLabel, resetKey }: DamageChartProps) {
+  const t = useTranslator();
   const computeRender = useCallback(
     (range: ChartRange, _plotWidth: number): ChartRenderResult =>
       buildDamageChartRender(points, range, metric, damageLabel, metricLabel),
@@ -293,8 +307,8 @@ function DamageChart({ points, durationMs, metric, damageLabel, metricLabel, res
       extent={damageChartExtent(points, durationMs)}
       computeRender={computeRender}
       stepped={metric === "cumulative"}
-      emptyLabel={`No ${damageLabel.toLowerCase()} timeline is available.`}
-      ariaLabel={`${damageLabel} over time chart`}
+      emptyLabel={emptyLabel}
+      ariaLabel={t("detail.chart.aria", { amount: damageLabel })}
       resetKey={resetKey}
       formatAxisTime={formatElapsedChartTime}
       formatTooltipTime={formatElapsedChartTime}

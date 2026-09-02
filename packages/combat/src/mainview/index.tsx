@@ -1,3 +1,4 @@
+import { useTranslator } from "@svoverlay/i18n/browser";
 import { render } from "preact";
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
@@ -81,6 +82,7 @@ function formatCritRate(critRate: number | undefined): string {
 }
 
 function App() {
+  const t = useTranslator();
   const next = state.value;
   const [actorSort, setActorSort] = useState<TableSort<ActorSortKey>>({ key: "dps", direction: "descending" });
   const [skillSort, setSkillSort] = useState<TableSort<SkillSortKey>>({ key: "damage", direction: "descending" });
@@ -95,6 +97,7 @@ function App() {
   const isHeal = next.statType === "heal";
   const isTanked = next.statType === "tanked";
   const amountLabel = isHeal ? "HEAL" : "DMG";
+  const totalsAmountLabel = next.statType === "tanked" ? t("combat.totals.damageTaken") : isHeal ? t("combat.totals.healing") : t("combat.totals.damage");
 
   const actors = activeSnapshot?.actors ?? [];
   const sortedActors = sortTableRows(
@@ -122,7 +125,7 @@ function App() {
   return (
     <main class="app-shell">
       <TitleBar
-        appTag="DPS"
+        appTag={t("combat.window.tag")}
         minWidth={DPS_WINDOW_MINIMUM_WIDTH}
         minHeight={DPS_WINDOW_MINIMUM_HEIGHT}
         getFrame={async () => (await desktopView.rpc?.request.getWindowFrame({})) ?? {
@@ -137,26 +140,26 @@ function App() {
         extraControls={<SettingsButton onClick={() => void desktopView.rpc?.request.openSettings({})} />}
       />
 
-      <nav class="seg log-tabs" role="tablist" aria-label="Combat log source">
-        <button type="button" role="tab" aria-selected={next.screen === "live"} class={next.screen === "live" ? "active" : undefined} onClick={() => setScreen("live")}>Live</button>
-        <button type="button" role="tab" aria-selected={next.screen === "past"} class={next.screen === "past" ? "active" : undefined} onClick={() => setScreen("past")}>Past Log</button>
+      <nav class="seg log-tabs" role="tablist" aria-label={t("combat.logSource.label")}>
+        <button type="button" role="tab" aria-selected={next.screen === "live"} class={next.screen === "live" ? "active" : undefined} onClick={() => setScreen("live")}>{t("combat.logSource.live")}</button>
+        <button type="button" role="tab" aria-selected={next.screen === "past"} class={next.screen === "past" ? "active" : undefined} onClick={() => setScreen("past")}>{t("combat.logSource.past")}</button>
       </nav>
 
       {next.screen === "live" ? <section class="live-screen">
       <section class="command-bar">
         <StatTypeSelect value={next.statType} onChange={setStatType} />
         <div class="command-bar-actions">
-          {next.location !== undefined && <span class="zone-pill" title={`Current zone: ${formatZone(next.location)}`}>{formatZone(next.location)}</span>}
-          <button class="btn" type="button" disabled={!next.liveDeathLogAvailable} onClick={() => void desktopView.rpc?.request.openActiveDeathLog({})}>Death log</button>
-          <button class="btn" type="button" disabled={next.resetting} onClick={() => void desktopView.rpc?.request.resetSession({})}>Reset</button>
+          {next.location !== undefined && <span class="zone-pill" title={t("combat.zone.current", { zone: formatZone(next.location) })}>{formatZone(next.location)}</span>}
+          <button class="btn" type="button" disabled={!next.liveDeathLogAvailable} onClick={() => void desktopView.rpc?.request.openActiveDeathLog({})}>{t("combat.action.deathLog")}</button>
+          <button class="btn" type="button" disabled={next.resetting} onClick={() => void desktopView.rpc?.request.resetSession({})}>{t("combat.action.reset")}</button>
         </div>
       </section>
 
       <section class="status-strip" aria-live="polite">
-        <StatusDot tone={STATUS_TONE[next.status]} detail={next.statusDetail} />
+        <StatusDot tone={STATUS_TONE[next.status]} detail={t.text(next.statusDetail)} />
         <div class="table-scroll summary-table-scroll">
-          <table class="data-table summary-table" aria-label="Encounter totals">
-            <thead><tr><th>Timer</th><th>Encounter {metricLabel}</th><th>{next.statType === "tanked" ? "Total damage taken" : next.statType === "heal" ? "Total healing" : "Total damage"}</th><th>Total kills</th></tr></thead>
+          <table class="data-table summary-table" aria-label={t("combat.totals.label")}>
+            <thead><tr><th>{t("combat.totals.timer")}</th><th>{t("combat.totals.encounter", { metric: metricLabel })}</th><th>{totalsAmountLabel}</th><th>{t("combat.totals.kills")}</th></tr></thead>
             <tbody><tr>
               <td>{activeSnapshot ? formatDuration(activeSnapshot.durationMs) : "—"}</td>
               <td>{formatDps(activeSnapshot?.partyDps ?? 0)}</td>
@@ -167,27 +170,27 @@ function App() {
         </div>
       </section>
 
-      <div id="storage-warning" class="banner is-warn" aria-live="polite" hidden={next.storageWarning === undefined}>{next.storageWarning ?? ""}</div>
+      <div id="storage-warning" class="banner is-warn" aria-live="polite" hidden={next.storageWarning === undefined}>{t.text(next.storageWarning) ?? ""}</div>
 
-      <nav class="seg tabs" role="tablist" aria-label="Damage views">
-        <button type="button" role="tab" aria-controls="all-panel" class={allActive ? "active" : undefined} aria-selected={allActive} onClick={() => setTab("all")}>All {metricLabel}</button>
-        <button type="button" role="tab" aria-controls="personal-panel" class={allActive ? undefined : "active"} aria-selected={!allActive} onClick={() => setTab("personal")}>Personal</button>
+      <nav class="seg tabs" role="tablist" aria-label={t("combat.tabs.label")}>
+        <button type="button" role="tab" aria-controls="all-panel" class={allActive ? "active" : undefined} aria-selected={allActive} onClick={() => setTab("all")}>{t("combat.tabs.all", { metric: metricLabel })}</button>
+        <button type="button" role="tab" aria-controls="personal-panel" class={allActive ? undefined : "active"} aria-selected={!allActive} onClick={() => setTab("personal")}>{t("combat.tabs.personal")}</button>
       </nav>
 
       <section class="panel" role="tabpanel" hidden={!allActive}>
         {actors.length === 0
-          ? <div class="empty-state">{isHeal ? "Healing will appear once someone casts a heal." : "Player damage will appear when combat begins and identities are visible."}</div>
+          ? <div class="empty-state">{isHeal ? t("combat.party.emptyHeal") : t("combat.party.empty")}</div>
           : <div class="table-scroll meter-table-scroll">
-              <table class="data-table meter-table party-meter-table" aria-label="Party damage">
+              <table class="data-table meter-table party-meter-table" aria-label={t("combat.party.label")}>
                 <thead><tr>
-                  <th>Class</th>
-                  <th>IGN</th>
+                  <th>{t("combat.column.class")}</th>
+                  <th>{t("combat.column.ign")}</th>
                   <SortableHeader sortKey="dps" sort={actorSort} onSort={sortActorsBy}>{metricLabel}</SortableHeader>
                   <SortableHeader sortKey="damage" sort={actorSort} onSort={sortActorsBy}>{amountLabel}</SortableHeader>
-                  <SortableHeader sortKey="contribution" sort={actorSort} onSort={sortActorsBy}>{amountLabel} %</SortableHeader>
-                  <SortableHeader sortKey="critRate" sort={actorSort} onSort={sortActorsBy}>CRT %</SortableHeader>
-                  <SortableHeader sortKey="kills" sort={actorSort} onSort={sortActorsBy}>Kills</SortableHeader>
-                  <SortableHeader sortKey="mobsHit" sort={actorSort} onSort={sortActorsBy}>Mobs hit</SortableHeader>
+                  <SortableHeader sortKey="contribution" sort={actorSort} onSort={sortActorsBy}>{t("combat.column.amountPercent", { amount: amountLabel })}</SortableHeader>
+                  <SortableHeader sortKey="critRate" sort={actorSort} onSort={sortActorsBy}>{t("combat.column.critRate")}</SortableHeader>
+                  <SortableHeader sortKey="kills" sort={actorSort} onSort={sortActorsBy}>{t("combat.column.kills")}</SortableHeader>
+                  <SortableHeader sortKey="mobsHit" sort={actorSort} onSort={sortActorsBy}>{t("combat.column.mobsHit")}</SortableHeader>
                 </tr></thead>
                 <tbody>{sortedActors.map((actor) => {
                   const activate = () => void desktopView.rpc?.request.openPlayerDetails({
@@ -200,7 +203,7 @@ function App() {
                     key={actor.actorIds[0]}
                     class="meter-table-row live-player-row"
                     style={`--row-fill:${Math.max(0, Math.min(100, actor.contribution * 100))}%`}
-                    title="Double-click for live player detail"
+                    title={t("combat.party.rowHint")}
                     tabIndex={0}
                     onDblClick={activate}
                     onKeyDown={(event) => activateRow(event, activate)}
@@ -222,46 +225,46 @@ function App() {
 
       <section class="panel" role="tabpanel" hidden={allActive}>
         <div class="personal-form">
-          <span class="t-label">Detected character</span>
-          <p class="detected-character" aria-live="polite">{next.personalName || "Waiting for character detection…"}</p>
-          <label class="t-label actor-label" for="personal-actor">Damage actor</label>
+          <span class="t-label">{t("combat.personal.detected")}</span>
+          <p class="detected-character" aria-live="polite">{next.personalName || t("combat.personal.waiting")}</p>
+          <label class="t-label actor-label" for="personal-actor">{t("combat.personal.actorLabel")}</label>
           <CustomSelect
             id="personal-actor"
-            ariaLabel="Personal damage actor"
+            ariaLabel={t("combat.personal.actorAria")}
             value={next.personalActorId === undefined ? "auto" : String(next.personalActorId)}
             onChange={(value) => {
               void desktopView.rpc?.request.setPersonalActor({ actorId: value === "auto" ? null : Number(value) });
             }}
             options={[
-              { value: "auto", label: "Automatic (name or local actions)" },
+              { value: "auto", label: t("combat.personal.actorAuto") },
               ...actors.flatMap((actor) => actor.actorIds.map((actorId) => ({
                 value: String(actorId),
-                label: `${actor.displayName} · ${compactFormat.format(actor.damage)} damage`,
+                label: t("combat.personal.actorOption", { name: actor.displayName, damage: compactFormat.format(actor.damage) }),
               }))),
             ]}
           />
         </div>
         <p class="personal-hint">
           {personalMatch === "unconfigured"
-            ? "Waiting to detect your active character."
+            ? t("combat.personal.unconfigured")
             : personalMatch === "missing"
-              ? `Waiting for ${next.personalName} to appear in the current encounter.`
+              ? t("combat.personal.missing", { name: next.personalName ?? "" })
               : personalMatch === "ambiguous"
-                ? "More than one visible player matches this name."
-                : "Matched to the current encounter."}
+                ? t("combat.personal.ambiguous")
+                : t("combat.personal.matched")}
         </p>
         {personalSkills.length === 0
-          ? <div class="empty-state">{personalMatch === "matched" ? "No personal skill damage yet." : "Personal skills appear after your character is matched."}</div>
+          ? <div class="empty-state">{personalMatch === "matched" ? t("combat.personal.skills.empty") : t("combat.personal.skills.unmatched")}</div>
           : <div class="table-scroll meter-table-scroll">
-              <table class="data-table meter-table" aria-label="Personal skill damage">
+              <table class="data-table meter-table" aria-label={t("combat.personal.skills.label")}>
                 <thead><tr>
-                  <SortableHeader sortKey="sourceLabel" sort={skillSort} onSort={sortSkillsBy} align="start">{next.statType === "tanked" ? "Attacker skill" : "Skill"}</SortableHeader>
+                  <SortableHeader sortKey="sourceLabel" sort={skillSort} onSort={sortSkillsBy} align="start">{next.statType === "tanked" ? t("combat.column.attackerSkill") : t("combat.column.skill")}</SortableHeader>
                   <SortableHeader sortKey="dps" sort={skillSort} onSort={sortSkillsBy}>{metricLabel}</SortableHeader>
                   <SortableHeader sortKey="damage" sort={skillSort} onSort={sortSkillsBy}>{amountLabel}</SortableHeader>
-                  <SortableHeader sortKey="contribution" sort={skillSort} onSort={sortSkillsBy}>Share</SortableHeader>
-                  <SortableHeader sortKey="hits" sort={skillSort} onSort={sortSkillsBy}>Hits</SortableHeader>
-                  <SortableHeader sortKey="criticalHits" sort={skillSort} onSort={sortSkillsBy}>Crits</SortableHeader>
-                  <SortableHeader sortKey="critRate" sort={skillSort} onSort={sortSkillsBy}>Crit rate</SortableHeader>
+                  <SortableHeader sortKey="contribution" sort={skillSort} onSort={sortSkillsBy}>{t("combat.column.share")}</SortableHeader>
+                  <SortableHeader sortKey="hits" sort={skillSort} onSort={sortSkillsBy}>{t("combat.column.hits")}</SortableHeader>
+                  <SortableHeader sortKey="criticalHits" sort={skillSort} onSort={sortSkillsBy}>{t("combat.column.crits")}</SortableHeader>
+                  <SortableHeader sortKey="critRate" sort={skillSort} onSort={sortSkillsBy}>{t("combat.column.critRateLong")}</SortableHeader>
                 </tr></thead>
                 <tbody>{sortedPersonalSkills.map((skill) => (
                   <tr key={skill.sourceId} class="meter-table-row" style={`--row-fill:${Math.max(0, Math.min(100, skill.contribution * 100))}%`}>

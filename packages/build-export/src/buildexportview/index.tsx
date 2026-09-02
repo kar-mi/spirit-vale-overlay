@@ -8,6 +8,9 @@ import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import { formatMeasuredAt } from "@svoverlay/ui-kit/format";
 import { classIconUrlForName } from "@svoverlay/ui-kit/class-display";
 
+import { useTranslator } from "@svoverlay/i18n/browser";
+import type { MessageKey } from "@svoverlay/i18n/messages";
+
 import type { BuildExportRpc, BuildExportState } from "../app-types.ts";
 
 const MINIMUM_WIDTH = 760;
@@ -20,9 +23,15 @@ const rpc = DesktopView.defineRPC<BuildExportRpc>({
 const desktopView = new DesktopView({ rpc });
 void ensureInitialWindowSize(desktopView.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
 
-const GROUP_LABELS: Record<string, string> = { equipment: "Equipment", cards: "Cards", artifacts: "Artifacts", gems: "Gems", grimoires: "Grimoires", skills: "Skills", substats: "Substats", classes: "Classes" };
+const GROUP_LABEL_KEYS: Record<string, MessageKey> = {
+  equipment: "buildExport.group.equipment", cards: "buildExport.group.cards",
+  artifacts: "buildExport.group.artifacts", gems: "buildExport.group.gems",
+  grimoires: "buildExport.group.grimoires", skills: "buildExport.group.skills",
+  substats: "buildExport.group.substats", classes: "buildExport.group.classes",
+};
 
 function App() {
+  const t = useTranslator();
   const [state, setState] = useState<BuildExportState>();
   const [copied, setCopied] = useState(false);
   const [confirmAction, setConfirmAction] = useState<"clear" | "delete" | undefined>();
@@ -69,7 +78,7 @@ function App() {
   const onlySelf = state?.sources.length === 1 && state.sources[0]?.kind === "self";
 
   return <div class="app-shell">
-    <TitleBar appTag="Build Export" minWidth={MINIMUM_WIDTH} minHeight={MINIMUM_HEIGHT}
+    <TitleBar appTag={t("buildExport.window.tag")} minWidth={MINIMUM_WIDTH} minHeight={MINIMUM_HEIGHT}
       getFrame={() => desktopView.rpc!.request.getWindowFrame({})}
       setFrame={(frame) => desktopView.rpc?.request.setWindowFrame(frame)}
       onMinimize={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}
@@ -77,39 +86,58 @@ function App() {
       extraControls={<SettingsButton onClick={() => void desktopView.rpc?.request.openSettings({})} />}
     />
     <div class="export-body">
-      <div class="export-head"><h1>Open this character in the build planner</h1><p>{state?.statusDetail ?? "Loading…"}</p></div>
+      <div class="export-head"><h1>{t("buildExport.heading")}</h1><p>{t.text(state?.statusDetail) ?? t("buildExport.loading")}</p></div>
       <div class="export-layout">
-        <aside class="roster" aria-label="Captured characters">
-          <div class="roster-head"><div><strong>Saved players</strong><span>{state?.inspectedCount ?? 0} inspected builds</span></div></div>
-          <label class="field roster-search"><span aria-hidden="true">⌕</span><input value={state?.searchQuery ?? ""} onInput={(event) => void update(desktopView.rpc!.request.setSearch({ query: event.currentTarget.value }))} placeholder="Search name or class" aria-label="Search saved players" /></label>
-          <div class="roster-list" role="tablist" aria-label="Captured characters">
+        <aside class="roster" aria-label={t("buildExport.roster.label")}>
+          <div class="roster-head"><div><strong>{t("buildExport.roster.heading")}</strong><span>{t("buildExport.roster.count", { count: state?.inspectedCount ?? 0 })}</span></div></div>
+          <label class="field roster-search"><span aria-hidden="true">⌕</span><input value={state?.searchQuery ?? ""} onInput={(event) => void update(desktopView.rpc!.request.setSearch({ query: event.currentTarget.value }))} placeholder={t("buildExport.roster.searchPlaceholder")} aria-label={t("buildExport.roster.searchAria")} /></label>
+          <div class="roster-list" role="tablist" aria-label={t("buildExport.roster.label")}>
             {state?.sources.map((source) => <button key={source.id} type="button" role="tab" aria-selected={source.id === state.selectedId} class={`roster-row${source.id === state.selectedId ? " is-active" : ""}`} onClick={() => void update(desktopView.rpc!.request.selectCharacter({ id: source.id }))}>
-              <img class="roster-class-icon" src={rosterClassIcon(source.cls)} alt="" /><span class="roster-player"><strong>{source.name}</strong><span>{source.kind === "self" ? "Your character" : `${source.cls} · Level ${source.level}`}</span></span>{source.inspectedAt ? <time title={`Inspected ${new Date(source.inspectedAt).toLocaleString()}`}>{formatMeasuredAt(source.inspectedAt)}</time> : <span class="roster-you">You</span>}
+              <img class="roster-class-icon" src={rosterClassIcon(source.cls)} alt="" /><span class="roster-player"><strong>{source.name}</strong><span>{source.kind === "self" ? t("buildExport.roster.self") : t("buildExport.roster.other", { cls: source.cls, level: source.level })}</span></span>{source.inspectedAt ? <time title={t("buildExport.roster.inspectedTitle", { when: new Date(source.inspectedAt).toLocaleString() })}>{formatMeasuredAt(source.inspectedAt)}</time> : <span class="roster-you">{t("buildExport.roster.you")}</span>}
             </button>)}
-            {onlySelf && state?.searchQuery ? <p class="roster-empty">No saved players match this search.</p> : null}
-            {!state?.sources.length ? <p class="roster-empty">Inspect a player to save them here.</p> : null}
+            {onlySelf && state?.searchQuery ? <p class="roster-empty">{t("buildExport.roster.noMatch")}</p> : null}
+            {!state?.sources.length ? <p class="roster-empty">{t("buildExport.roster.empty")}</p> : null}
           </div>
-          <button class="btn btn-ghost roster-clear" type="button" disabled={!state?.inspectedCount} onClick={() => setConfirmAction("clear")}>Clear saved roster</button>
+          <button class="btn btn-ghost roster-clear" type="button" disabled={!state?.inspectedCount} onClick={() => setConfirmAction("clear")}>{t("buildExport.roster.clear")}</button>
         </aside>
         <section class="export-detail">
-          {character ? <CharacterCard character={character} /> : <div class="character-card"><span class="meta">No character captured yet.</span></div>}
+          {character ? <CharacterCard character={character} /> : <div class="character-card"><span class="meta">{t("buildExport.character.none")}</span></div>}
           <div class="report">
             {state?.notes.map((note) => <p class="note" key={note}>{note}</p>)}
-            {state && state.unresolved.length > 0 ? <><h2>Left out</h2>{state.unresolved.map((group) => <div class="unresolved-group" key={group.group}><div class="group">{GROUP_LABELS[group.group] ?? group.group}</div><ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul></div>)}</> : ready ? <p class="clean">Everything on this character matched the planner's catalog.</p> : null}
+            {state && state.unresolved.length > 0 ? <><h2>{t("buildExport.leftOut")}</h2>{state.unresolved.map((group) => <div class="unresolved-group" key={group.group}><div class="group">{GROUP_LABEL_KEYS[group.group] ? t(GROUP_LABEL_KEYS[group.group]!) : group.group}</div><ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul></div>)}</> : ready ? <p class="clean">{t("buildExport.clean")}</p> : null}
           </div>
-          <div class="actions"><div class="planner-actions"><button class="btn btn-primary planner-open" type="button" disabled={!ready} onClick={() => void update(desktopView.rpc!.request.exportToPlanner({}))}><span aria-hidden="true">↗</span> Open in planner</button><button class="btn planner-copy" type="button" disabled={!ready} onClick={() => void copyLink()}><span aria-hidden="true">{copied ? "✓" : "⧉"}</span> {copied ? "Link copied" : "Copy planner link"}</button></div>{selectedInspected ? <button class="btn danger-button" type="button" onClick={() => setConfirmAction("delete")}>Remove player</button> : null}<span class="grow" />{state?.lastExportedAt ? <span class="confirm">Opened {new Date(state.lastExportedAt).toLocaleTimeString()}</span> : null}</div>
+          <div class="actions"><div class="planner-actions"><button class="btn btn-primary planner-open" type="button" disabled={!ready} onClick={() => void update(desktopView.rpc!.request.exportToPlanner({}))}><span aria-hidden="true">↗</span> {t("buildExport.open")}</button><button class="btn planner-copy" type="button" disabled={!ready} onClick={() => void copyLink()}><span aria-hidden="true">{copied ? "✓" : "⧉"}</span> {t(copied ? "buildExport.copied" : "buildExport.copy")}</button></div>{selectedInspected ? <button class="btn danger-button" type="button" onClick={() => setConfirmAction("delete")}>{t("buildExport.removePlayer")}</button> : null}<span class="grow" />{state?.lastExportedAt ? <span class="confirm">{t("buildExport.openedAt", { when: new Date(state.lastExportedAt).toLocaleTimeString() })}</span> : null}</div>
         </section>
       </div>
-      <div class="provenance"><div>Catalog snapshot from game build {state?.snapshotGameBuild || "unknown"}{state?.snapshotGameLabel ? ` (${state.snapshotGameLabel})` : ""}{state?.snapshotGeneratedAt ? `, generated ${new Date(state.snapshotGeneratedAt).toLocaleDateString()}` : ""}.</div><div>Item and skill data derived from <a href="#" onClick={(event) => { event.preventDefault(); void desktopView.rpc?.request.openSite({}); }}>spiritvalers.com</a>. The planner link carries your build in the URL fragment, which never leaves your browser.</div></div>
+      <div class="provenance"><div>{t("buildExport.provenance.snapshot", {
+        build: state?.snapshotGameBuild || t("buildExport.provenance.unknownBuild"),
+        label: state?.snapshotGameLabel ? ` (${state.snapshotGameLabel})` : "",
+        generated: state?.snapshotGeneratedAt ? t("buildExport.provenance.generated", { date: new Date(state.snapshotGeneratedAt).toLocaleDateString() }) : "",
+      })}</div><div>{t("buildExport.provenance.derivedFrom")} <a href="#" onClick={(event) => { event.preventDefault(); void desktopView.rpc?.request.openSite({}); }}>spiritvalers.com</a>. {t("buildExport.provenance.fragment")}</div></div>
     </div>
-    {confirmAction ? <div class="modal-layer" role="presentation"><form class="modal-card confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" onSubmit={(event) => { event.preventDefault(); void confirmRosterChange(); }}><div class="modal-head"><div><h2 id="confirm-title">{confirmAction === "clear" ? "Clear saved roster?" : "Remove saved player?"}</h2><p>{confirmAction === "clear" ? "This removes every inspected player from this device." : `Remove ${state?.character?.name ?? "this player"} from the saved roster.`}</p></div><button class="modal-close" type="button" aria-label="Cancel" onClick={() => setConfirmAction(undefined)}>×</button></div><div class="modal-actions"><button class="btn" type="button" onClick={() => setConfirmAction(undefined)}>Cancel</button><button ref={confirmButtonRef} class="btn danger-button" type="submit">{confirmAction === "clear" ? "Clear roster" : "Remove player"}</button></div></form></div> : null}
+    {confirmAction ? <div class="modal-layer" role="presentation"><form class="modal-card confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" onSubmit={(event) => { event.preventDefault(); void confirmRosterChange(); }}><div class="modal-head"><div><h2 id="confirm-title">{t(confirmAction === "clear" ? "buildExport.confirm.clearTitle" : "buildExport.confirm.removeTitle")}</h2><p>{confirmAction === "clear" ? t("buildExport.confirm.clearBody") : t("buildExport.confirm.removeBody", { name: state?.character?.name || t("buildExport.confirm.thisPlayer") })}</p></div><button class="modal-close" type="button" aria-label={t("buildExport.confirm.cancel")} onClick={() => setConfirmAction(undefined)}>×</button></div><div class="modal-actions"><button class="btn" type="button" onClick={() => setConfirmAction(undefined)}>{t("buildExport.confirm.cancel")}</button><button ref={confirmButtonRef} class="btn danger-button" type="submit">{t(confirmAction === "clear" ? "buildExport.confirm.clearAction" : "buildExport.removePlayer")}</button></div></form></div> : null}
   </div>;
 }
 
 function CharacterCard({ character }: { character: NonNullable<BuildExportState["character"]> }) {
+  const t = useTranslator();
   const summary = character.base && character.base !== character.cls ? `${character.base} › ${character.cls}` : character.cls;
-  const values = [[character.equipmentCount, "Equipment"], [character.cardCount, "Cards"], [character.artifactCount, "Artifacts"], [character.gemCount, "Gems"], [character.skillCount, "Skills"], [character.grimoireCount, "Grimoires"], ...(character.weaponSetCount === undefined ? [] : [[character.weaponSetCount, "Weapon sets"]])];
-  return <div class="character-card"><div class="who"><span class="name">{character.name}</span><span class="meta">{summary} · Level {character.level} · Job {character.jobLevel}{character.inspectedAt ? ` · inspected ${new Date(character.inspectedAt).toLocaleString()}` : ""}</span></div><div class="tally">{values.map(([value, label]) => <div key={label}><span class="n">{value}</span><span class="k">{label}</span></div>)}</div></div>;
+  const values: Array<[number, MessageKey]> = [
+    [character.equipmentCount, "buildExport.group.equipment"],
+    [character.cardCount, "buildExport.group.cards"],
+    [character.artifactCount, "buildExport.group.artifacts"],
+    [character.gemCount, "buildExport.group.gems"],
+    [character.skillCount, "buildExport.group.skills"],
+    [character.grimoireCount, "buildExport.group.grimoires"],
+    ...(character.weaponSetCount === undefined ? [] : [[character.weaponSetCount, "buildExport.group.weaponSets"] as [number, MessageKey]]),
+  ];
+  const meta = t("buildExport.card.meta", {
+    summary,
+    level: character.level,
+    job: character.jobLevel,
+    inspected: character.inspectedAt ? t("buildExport.card.inspected", { when: new Date(character.inspectedAt).toLocaleString() }) : "",
+  });
+  return <div class="character-card"><div class="who"><span class="name">{character.name || t("buildExport.card.unnamed")}</span><span class="meta">{meta}</span></div><div class="tally">{values.map(([value, labelKey]) => <div key={labelKey}><span class="n">{value}</span><span class="k">{t(labelKey)}</span></div>)}</div></div>;
 }
 
 function rosterClassIcon(className: string): string {

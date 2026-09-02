@@ -1,4 +1,6 @@
+import { useTranslator } from "@svoverlay/i18n/browser";
 import { spiritValeLocationKey, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
+import type { Translator } from "@svoverlay/i18n/translate";
 import type { SessionPickerItem, SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
 import type { SessionDateRange } from "@svoverlay/desktop-platform/session-summary-journal";
 import { CheckboxMultiSelect, type CheckboxMultiSelectOption } from "@svoverlay/ui-kit/checkbox-multi-select";
@@ -27,6 +29,7 @@ export function PastSessionPanel({
   onDateRangeChange,
   onZonesChange,
 }: PastSessionPanelProps) {
+  const t = useTranslator();
   const [fromDate, setFromDate] = useState(() => localDateValue(state.dateRange?.fromMs));
   const [fromTime, setFromTime] = useState(() => localTimeParts(state.dateRange?.fromMs).time);
   const [fromMeridiem, setFromMeridiem] = useState<Meridiem>(() => localTimeParts(state.dateRange?.fromMs).meridiem);
@@ -94,26 +97,27 @@ export function PastSessionPanel({
     <section class="past-session-panel">
       <div class="picker-intro">
         <div>
-          <h1>Recent sessions</h1>
-          <p class={`picker-status is-${state.status}`} aria-live="polite">{state.statusDetail}</p>
+          <h1>{t("sessions.heading")}</h1>
+          <p class={`picker-status is-${state.status}`} aria-live="polite">{t.text(state.statusDetail)}</p>
         </div>
-        <button class="btn" type="button" onClick={onRefresh}>Refresh</button>
+        <button class="btn" type="button" onClick={onRefresh}>{t("sessions.refresh")}</button>
       </div>
-      <div class="past-date-filter" aria-label="Filter past sessions by date, time and zone">
+      <div class="past-date-filter" aria-label={t("sessions.filters.aria")}>
         <div class="custom-date-range">
           <div class="date-boundary">
-            <span class="date-boundary-label">From</span>
+            <span class="date-boundary-label">{t("sessions.filters.from")}</span>
             <button class={`date-field${openCalendar === "from" ? " is-open" : ""}`} type="button" aria-expanded={openCalendar === "from"} onClick={() => setOpenCalendar(openCalendar === "from" ? undefined : "from")}>
               <CalendarIcon />
-              <span>{formattedDraftDate(fromDate) || "Choose date"}</span>
+              <span>{formattedDraftDate(fromDate, t.locale) || t("sessions.filters.chooseDate")}</span>
             </button>
             <div class={`typed-time${invalidFromTime ? " is-invalid" : ""}`}>
-              <label><span class="sr-only">From time</span><input type="text" inputMode="numeric" maxLength={5} placeholder="h:mm" value={fromTime} disabled={!fromDate} aria-invalid={invalidFromTime} onInput={(event) => setFromTime(formatTimeInput(event.currentTarget.value))} onBlur={() => setFromTime(normalizeTimeText(fromTime))} /></label>
-              <MeridiemPicker value={fromMeridiem} disabled={!fromDate} onChange={setFromMeridiem} />
+              <label><span class="sr-only">{t("sessions.filters.fromTime")}</span><input type="text" inputMode="numeric" maxLength={5} placeholder="h:mm" value={fromTime} disabled={!fromDate} aria-invalid={invalidFromTime} onInput={(event) => setFromTime(formatTimeInput(event.currentTarget.value))} onBlur={() => setFromTime(normalizeTimeText(fromTime))} /></label>
+              <MeridiemPicker value={fromMeridiem} disabled={!fromDate} onChange={setFromMeridiem} t={t} />
             </div>
             {openCalendar === "from" && (
-              <DesktopCalendar
-                value={fromDate}
+                <DesktopCalendar
+                  value={fromDate}
+                  t={t}
                 onSelect={(value) => {
                   setFromDate(value);
                   setOpenCalendar(undefined);
@@ -123,18 +127,19 @@ export function PastSessionPanel({
           </div>
           <span class="date-range-arrow" aria-hidden="true">→</span>
           <div class="date-boundary">
-            <span class="date-boundary-label">To</span>
+            <span class="date-boundary-label">{t("sessions.filters.to")}</span>
             <button class={`date-field${openCalendar === "to" ? " is-open" : ""}`} type="button" aria-expanded={openCalendar === "to"} onClick={() => setOpenCalendar(openCalendar === "to" ? undefined : "to")}>
               <CalendarIcon />
-              <span>{formattedDraftDate(toDate) || "Choose date"}</span>
+              <span>{formattedDraftDate(toDate, t.locale) || t("sessions.filters.chooseDate")}</span>
             </button>
             <div class={`typed-time${invalidToTime ? " is-invalid" : ""}`}>
-              <label><span class="sr-only">To time</span><input type="text" inputMode="numeric" maxLength={5} placeholder="h:mm" value={toTime} disabled={!toDate} aria-invalid={invalidToTime} onInput={(event) => setToTime(formatTimeInput(event.currentTarget.value))} onBlur={() => setToTime(normalizeTimeText(toTime))} /></label>
-              <MeridiemPicker value={toMeridiem} disabled={!toDate} onChange={setToMeridiem} />
+              <label><span class="sr-only">{t("sessions.filters.toTime")}</span><input type="text" inputMode="numeric" maxLength={5} placeholder="h:mm" value={toTime} disabled={!toDate} aria-invalid={invalidToTime} onInput={(event) => setToTime(formatTimeInput(event.currentTarget.value))} onBlur={() => setToTime(normalizeTimeText(toTime))} /></label>
+              <MeridiemPicker value={toMeridiem} disabled={!toDate} onChange={setToMeridiem} t={t} />
             </div>
             {openCalendar === "to" && (
-              <DesktopCalendar
-                value={toDate}
+                <DesktopCalendar
+                  value={toDate}
+                  t={t}
                 onSelect={(value) => {
                   setToDate(value);
                   setOpenCalendar(undefined);
@@ -143,27 +148,27 @@ export function PastSessionPanel({
             )}
           </div>
           <div class="date-filter-actions">
-            <button class="btn btn-ghost" type="button" disabled={!fromDate && !toDate && !hasDateRange(state.dateRange) && selectedZones.size === 0} onClick={clearFilters}>Clear</button>
-            <button class="btn apply-date-range" type="button" disabled={(!fromDate && !toDate) || invalidFromTime || invalidToTime} onClick={applyCustomRange}>Apply</button>
+            <button class="btn btn-ghost" type="button" disabled={!fromDate && !toDate && !hasDateRange(state.dateRange) && selectedZones.size === 0} onClick={clearFilters}>{t("sessions.filters.clear")}</button>
+            <button class="btn apply-date-range" type="button" disabled={(!fromDate && !toDate) || invalidFromTime || invalidToTime} onClick={applyCustomRange}>{t("sessions.filters.apply")}</button>
           </div>
         </div>
         {zoneOptions.length > 0 && (
           <div class="zone-filter">
-            <span class="date-boundary-label">Zones</span>
+            <span class="date-boundary-label">{t("sessions.filters.zones")}</span>
             <CheckboxMultiSelect
               options={zoneOptions}
               selected={selectedZones}
               onChange={(next) => onZonesChange([...next])}
-              ariaLabel="Filter by zone"
-              searchPlaceholder="Search zones"
-              clearLabel="Clear filter"
-              noMatchLabel={(query) => `No zones match "${query}".`}
-              summarize={zoneSelectionSummary}
+              ariaLabel={t("sessions.filters.zoneAria")}
+              searchPlaceholder={t("sessions.filters.searchZones")}
+              clearLabel={t("sessions.filters.clearFilter")}
+              noMatchLabel={(query) => t("sessions.filters.noZoneMatch", { query })}
+              summarize={(selected, options) => zoneSelectionSummary(selected, options, t)}
             />
           </div>
         )}
       </div>
-      <div class="session-list" role="list" aria-label="Recent combat sessions">
+      <div class="session-list" role="list" aria-label={t("sessions.listLabel")}>
         {state.sessions.length > 0
           ? state.sessions.map((session) => (
               <div class="session-list-item" role="listitem" key={session.id}>
@@ -174,13 +179,13 @@ export function PastSessionPanel({
               </div>
             ))
           : state.status === "loading"
-            ? <div class="empty-state">Loading recent sessions…</div>
-            : <div class="empty-state">{state.status === "error" ? "Refresh to try scanning again." : "You can still choose a specific JSON file."}</div>}
+            ? <div class="empty-state">{t("sessions.loading")}</div>
+            : <div class="empty-state">{state.status === "error" ? t("sessions.errorHint") : t("sessions.emptyHint")}</div>}
       </div>
       <div class="picker-actions">
-        <button class="btn btn-ghost" type="button" onClick={onChooseFile}>Choose JSON file…</button>
+        <button class="btn btn-ghost" type="button" onClick={onChooseFile}>{t("sessions.chooseFile")}</button>
         {state.canOpenLogFolder && (
-          <button class="btn btn-ghost" type="button" onClick={onOpenLogFolder}>Open log folder</button>
+          <button class="btn btn-ghost" type="button" onClick={onOpenLogFolder}>{t("sessions.openFolder")}</button>
         )}
       </div>
     </section>
@@ -200,16 +205,17 @@ function zoneOptionsOf(available: readonly SpiritValeLocation[]): CheckboxMultiS
 function zoneSelectionSummary(
   selected: ReadonlySet<string>,
   options: readonly CheckboxMultiSelectOption<string>[],
+  t: Translator,
 ): string {
-  if (selected.size === 0) return "All zones";
+  if (selected.size === 0) return t("sessions.filters.allZones");
   return selected.size === 1
-    ? options.find((option) => selected.has(option.value))?.label ?? "1 zone"
-    : `${selected.size} zones`;
+    ? options.find((option) => selected.has(option.value))?.label ?? t.plural("sessions.filters.zoneCount", 1)
+    : t.plural("sessions.filters.zoneCount", selected.size);
 }
 
-function MeridiemPicker({ value, disabled, onChange }: { value: Meridiem; disabled: boolean; onChange(value: Meridiem): void }) {
+function MeridiemPicker({ value, disabled, onChange, t }: { value: Meridiem; disabled: boolean; onChange(value: Meridiem): void; t: Translator }) {
   return (
-    <div class="meridiem-picker" role="group" aria-label="AM or PM">
+    <div class="meridiem-picker" role="group" aria-label={t("sessions.filters.meridiem")}>
       {(["AM", "PM"] as const).map((option) => <button type="button" class={value === option ? "is-active" : ""} disabled={disabled} aria-pressed={value === option} onClick={() => onChange(option)}>{option}</button>)}
     </div>
   );
@@ -276,36 +282,37 @@ export function normalizeTimeText(value: string): string {
   return `${hour}:${String(minute).padStart(2, "0")}`;
 }
 
-function formattedDraftDate(value: string): string {
+function formattedDraftDate(value: string, locale: string): string {
   if (!value) return "";
   const date = dateFromValue(value);
-  return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date) : "";
+  return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "numeric" }).format(date) : "";
 }
 
 function hasDateRange(value: SessionDateRange | undefined): boolean {
   return value?.fromMs !== undefined || value?.toMs !== undefined;
 }
 
-function DesktopCalendar({ value, onSelect }: { value: string; onSelect(value: string): void }) {
+function DesktopCalendar({ value, onSelect, t }: { value: string; onSelect(value: string): void; t: Translator }) {
   const selected = value ? dateFromValue(value) : new Date();
   const [visibleMonth, setVisibleMonth] = useState(() => new Date(selected.getFullYear(), selected.getMonth(), 1));
-  const monthLabel = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(visibleMonth);
+  const monthLabel = new Intl.DateTimeFormat(t.locale, { month: "long", year: "numeric" }).format(visibleMonth);
   const gridStart = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1 - visibleMonth.getDay());
   const days = Array.from({ length: 42 }, (_, index) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index));
+  const weekdays = Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(t.locale, { weekday: "short" }).format(new Date(2024, 0, 7 + index)));
   const todayValue = dateValue(new Date());
   return (
-    <div class="desktop-calendar" role="dialog" aria-label="Choose a date">
+    <div class="desktop-calendar" role="dialog" aria-label={t("sessions.filters.chooseDateAria")}>
       <div class="calendar-header">
-        <button type="button" aria-label="Previous month" onClick={() => setVisibleMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1))}>‹</button>
+        <button type="button" aria-label={t("sessions.filters.previousMonth")} onClick={() => setVisibleMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1))}>‹</button>
         <strong>{monthLabel}</strong>
-        <button type="button" aria-label="Next month" onClick={() => setVisibleMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1))}>›</button>
+        <button type="button" aria-label={t("sessions.filters.nextMonth")} onClick={() => setVisibleMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1))}>›</button>
       </div>
-      <div class="calendar-weekdays" aria-hidden="true">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span>{day}</span>)}</div>
+      <div class="calendar-weekdays" aria-hidden="true">{weekdays.map((day) => <span>{day}</span>)}</div>
       <div class="calendar-days">
         {days.map((day) => {
           const dayValue = dateValue(day);
           const outside = day.getMonth() !== visibleMonth.getMonth();
-          return <button type="button" class={`${outside ? "is-outside " : ""}${dayValue === value ? "is-selected " : ""}${dayValue === todayValue ? "is-today" : ""}`} aria-label={new Intl.DateTimeFormat(undefined, { dateStyle: "full" }).format(day)} aria-pressed={dayValue === value} onClick={() => onSelect(dayValue)}>{day.getDate()}</button>;
+          return <button type="button" class={`${outside ? "is-outside " : ""}${dayValue === value ? "is-selected " : ""}${dayValue === todayValue ? "is-today" : ""}`} aria-label={new Intl.DateTimeFormat(t.locale, { dateStyle: "full" }).format(day)} aria-pressed={dayValue === value} onClick={() => onSelect(dayValue)}>{day.getDate()}</button>;
         })}
       </div>
     </div>
@@ -322,6 +329,7 @@ function dateValue(value: Date): string {
 }
 
 function SessionRow({ session, onOpen }: { session: SessionPickerItem; onOpen(): void }) {
+  const t = useTranslator();
   const locations = session.locations ?? [];
   const zone = formatZoneSummary(locations);
   return (
@@ -333,12 +341,12 @@ function SessionRow({ session, onOpen }: { session: SessionPickerItem; onOpen():
     >
       <span class="session-heading">
         <span class="session-time">
-          {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(session.createdAt))}
+          {new Intl.DateTimeFormat(t.locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(session.createdAt))}
         </span>
-        {zone && <span class="zone-pill" title={`Zones visited: ${locations.map(formatZone).join(", ")}`}>{zone}</span>}
-        {session.active && <span class="pill active-badge">Active</span>}
+        {zone && <span class="zone-pill" title={t("sessions.zonesVisited", { zones: locations.map(formatZone).join(", ") })}>{zone}</span>}
+        {session.active && <span class="pill active-badge">{t("sessions.active")}</span>}
       </span>
-      <span class="session-summary">{session.summary}</span>
+      <span class="session-summary">{session.summary ?? t("sessions.summaryUnavailable")}</span>
     </button>
   );
 }

@@ -1,13 +1,19 @@
 import { UI_SCALE_VALUES } from "@svoverlay/desktop-platform/ui-scale";
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
+import type { NpcapAvailability } from "../../../launcher/types.ts";
 import { useEffect, useState } from "preact/hooks";
 import type { SettingsSection, SettingsSectionContext } from "../settings-section.ts";
+import type { MessageKey } from "@svoverlay/i18n/messages";
 
 const UI_SCALE_OPTIONS = UI_SCALE_VALUES.map((value) => ({ value: String(value), label: `${Math.round(value * 100)}%` }));
-const PERSONAL_DPS_MODE_OPTIONS = [
-  { value: "encounter", label: "Encounter average" },
-  { value: "live", label: "Live (recent rate)" },
-];
+
+const NPCAP_AVAILABILITY_KEYS: Record<NpcapAvailability, MessageKey> = {
+  checking: "npcap.availability.checking",
+  ready: "npcap.availability.ready",
+  missing: "npcap.availability.missing",
+  "admin-only": "npcap.availability.adminOnly",
+  error: "npcap.availability.error",
+};
 
 function PastLogLimitInput({ value, disabled, onChange }: { value: number; disabled: boolean; onChange: (next: number) => void }) {
   const [text, setText] = useState(() => String(value));
@@ -39,79 +45,84 @@ function PastLogLimitInput({ value, disabled, onChange }: { value: number; disab
   />;
 }
 
-export function buildBasicSettingsSections({ state, busy, actions }: SettingsSectionContext): SettingsSection[] {
+export function buildBasicSettingsSections({ state, busy, actions, t }: SettingsSectionContext): SettingsSection[] {
   const { launcher, overlay } = state;
+  const personalDpsModeOptions = [
+    { value: "encounter", label: t("settings.combat.personalDps.encounter") },
+    { value: "live", label: t("settings.combat.personalDps.live") },
+  ];
   const adapterOptions = [
-    { value: "auto", label: "Automatic (default route)" },
+    { value: "auto", label: t("settings.network.adapter.auto") },
     ...launcher.adapters.map((adapter) => ({ value: adapter.id, label: adapter.label })),
     ...(launcher.selectedAdapter !== "auto" && !launcher.adapters.some((adapter) => adapter.id === launcher.selectedAdapter)
-      ? [{ value: launcher.selectedAdapter, label: "Saved adapter (currently unavailable)" }] : []),
+      ? [{ value: launcher.selectedAdapter, label: t("settings.network.adapter.unavailable") }] : []),
   ];
+  const npcapDetail = t.text(launcher.npcapDetail);
 
   return [
     {
       id: "general",
-      label: "General",
-      description: "Configure application behavior and appearance.",
+      label: t("settings.general.label"),
+      description: t("settings.general.description"),
       items: [
         {
           id: "interface-scale",
-          searchText: "Interface scale UI appearance zoom percentage",
-          content: <label class="settings-field"><span>Interface scale</span><CustomSelect ariaLabel="Interface scale" disabled={busy} value={String(launcher.uiScale)} options={UI_SCALE_OPTIONS} onChange={(value) => actions.setUiScale(Number(value) as typeof launcher.uiScale)} /></label>,
+          searchText: t("settings.general.interfaceScale.search"),
+          content: <label class="settings-field"><span>{t("settings.general.interfaceScale.label")}</span><CustomSelect ariaLabel={t("settings.general.interfaceScale.label")} disabled={busy} value={String(launcher.uiScale)} options={UI_SCALE_OPTIONS} onChange={(value) => actions.setUiScale(Number(value) as typeof launcher.uiScale)} /></label>,
         },
         {
           id: "minimize-to-tray",
-          searchText: "Minimize launcher to tray notification area close behavior",
-          content: <label class="settings-check"><input type="checkbox" checked={launcher.minimizeToTray} disabled={busy} onChange={(event) => actions.setMinimizeToTray(event.currentTarget.checked)} /><span>Minimize launcher to tray</span></label>,
+          searchText: t("settings.general.minimizeToTray.search"),
+          content: <label class="settings-check"><input type="checkbox" checked={launcher.minimizeToTray} disabled={busy} onChange={(event) => actions.setMinimizeToTray(event.currentTarget.checked)} /><span>{t("settings.general.minimizeToTray.label")}</span></label>,
         },
       ],
     },
     {
       id: "network",
-      label: "Network",
-      description: "Npcap capture configuration.",
+      label: t("settings.network.label"),
+      description: t("settings.network.description"),
       items: [
         {
           id: "npcap-status",
-          searchText: "Npcap status availability version capture driver",
-          content: <><div class="settings-row"><span>Status</span><strong>{launcher.npcapAvailability}</strong></div><p class="settings-hint">{launcher.npcapVersion ? `${launcher.npcapDetail} · ${launcher.npcapVersion}` : launcher.npcapDetail}</p></>,
+          searchText: t("settings.network.npcapStatus.search"),
+          content: <><div class="settings-row"><span>{t("settings.network.npcapStatus.label")}</span><strong>{t(NPCAP_AVAILABILITY_KEYS[launcher.npcapAvailability])}</strong></div><p class="settings-hint">{launcher.npcapVersion ? `${npcapDetail} · ${launcher.npcapVersion}` : npcapDetail}</p></>,
         },
         {
           id: "network-adapter",
-          searchText: "Network adapter automatic default route saved capture device",
-          content: <label class="settings-field"><span>Network adapter</span><CustomSelect ariaLabel="Network adapter" disabled={busy || launcher.npcapAvailability !== "ready"} value={launcher.selectedAdapter} options={adapterOptions} onChange={actions.setCaptureAdapter} /></label>,
+          searchText: t("settings.network.adapter.search"),
+          content: <label class="settings-field"><span>{t("settings.network.adapter.label")}</span><CustomSelect ariaLabel={t("settings.network.adapter.label")} disabled={busy || launcher.npcapAvailability !== "ready"} value={launcher.selectedAdapter} options={adapterOptions} onChange={actions.setCaptureAdapter} /></label>,
         },
         {
           id: "capture-actions",
-          searchText: "Refresh capture devices get download install Npcap",
-          content: <div class="settings-actions"><button class="btn" type="button" onClick={actions.refreshCaptureDevices}>Refresh</button>{launcher.npcapAvailability !== "ready" && <button class="btn primary" type="button" onClick={actions.openNpcapDownload}>Get Npcap</button>}</div>,
+          searchText: t("settings.network.actions.search"),
+          content: <div class="settings-actions"><button class="btn" type="button" onClick={actions.refreshCaptureDevices}>{t("settings.network.actions.refresh")}</button>{launcher.npcapAvailability !== "ready" && <button class="btn primary" type="button" onClick={actions.openNpcapDownload}>{t("settings.network.actions.getNpcap")}</button>}</div>,
         },
       ],
     },
     {
       id: "combat",
-      label: "Combat",
-      description: "Control how combat tracking behaves.",
+      label: t("settings.combat.label"),
+      description: t("settings.combat.description"),
       items: [
         {
           id: "reset-meter",
-          searchText: "Reset meter map channel change new session zone keybind",
-          content: <><label class="settings-check"><input type="checkbox" checked={launcher.resetMeterOnMapChange} disabled={busy} onChange={(event) => actions.setResetMeterOnMapChange(event.currentTarget.checked)} /><span>Reset meter on map/channel change</span></label><p class="settings-hint">Starts a new session when you zone or switch channel, exactly as the Reset session keybind does.</p></>,
+          searchText: t("settings.combat.resetMeter.search"),
+          content: <><label class="settings-check"><input type="checkbox" checked={launcher.resetMeterOnMapChange} disabled={busy} onChange={(event) => actions.setResetMeterOnMapChange(event.currentTarget.checked)} /><span>{t("settings.combat.resetMeter.label")}</span></label><p class="settings-hint">{t("settings.combat.resetMeter.hint")}</p></>,
         },
         {
           id: "reset-gold",
-          searchText: "Reset gold map channel change all-time tracker zone",
-          content: <><label class="settings-check"><input type="checkbox" checked={launcher.resetGoldOnMapChange} disabled={busy} onChange={(event) => actions.setResetGoldOnMapChange(event.currentTarget.checked)} /><span>Reset gold on map/channel change</span></label><p class="settings-hint">Resets the all-time gold tracker whenever you zone or switch channel.</p></>,
+          searchText: t("settings.combat.resetGold.search"),
+          content: <><label class="settings-check"><input type="checkbox" checked={launcher.resetGoldOnMapChange} disabled={busy} onChange={(event) => actions.setResetGoldOnMapChange(event.currentTarget.checked)} /><span>{t("settings.combat.resetGold.label")}</span></label><p class="settings-hint">{t("settings.combat.resetGold.hint")}</p></>,
         },
         {
           id: "past-log-limit",
-          searchText: "Past logs rewards replays history session count limit",
-          content: <><label class="settings-field"><span>Past sessions shown</span><PastLogLimitInput value={launcher.pastLogLimit} disabled={busy} onChange={actions.setPastLogLimit} /></label><p class="settings-hint">Applies to Combat Past logs and Rewards Replays. Choose between 100 and 100,000 sessions.</p></>,
+          searchText: t("settings.combat.pastLogLimit.search"),
+          content: <><label class="settings-field"><span>{t("settings.combat.pastLogLimit.label")}</span><PastLogLimitInput value={launcher.pastLogLimit} disabled={busy} onChange={actions.setPastLogLimit} /></label><p class="settings-hint">{t("settings.combat.pastLogLimit.hint")}</p></>,
         },
         {
           id: "personal-dps",
-          searchText: "Personal DPS display encounter average party meter live recent rate estimate",
-          content: <><label class="settings-field"><span>Personal DPS display</span><CustomSelect ariaLabel="Personal DPS display" disabled={busy} value={overlay.personalDpsMode} options={PERSONAL_DPS_MODE_OPTIONS} onChange={(value) => actions.setPersonalDpsMode(value as typeof overlay.personalDpsMode)} /></label><p class="settings-hint">Controls whether your personal DPS tile shows the whole-encounter average (matches the party meter) or a live, recent-rate estimate.</p></>,
+          searchText: t("settings.combat.personalDps.search"),
+          content: <><label class="settings-field"><span>{t("settings.combat.personalDps.label")}</span><CustomSelect ariaLabel={t("settings.combat.personalDps.label")} disabled={busy} value={overlay.personalDpsMode} options={personalDpsModeOptions} onChange={(value) => actions.setPersonalDpsMode(value as typeof overlay.personalDpsMode)} /></label><p class="settings-hint">{t("settings.combat.personalDps.hint")}</p></>,
         },
       ],
     },

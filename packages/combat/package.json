@@ -10,14 +10,15 @@
     "./zone-log": "./src/zone-log.ts"
   },
   "dependencies": {
-    "@preact/signals": "^2.9.4",
     "@kar-mi/spirit-vale-tools-capture": "2.7.0",
     "@kar-mi/spirit-vale-tools-character": "0.5.0",
     "@kar-mi/spirit-vale-tools-combat": "3.3.6",
     "@kar-mi/spirit-vale-tools-logging": "0.9.0",
     "@kar-mi/spirit-vale-tools-sqlite": "0.2.1",
-    "@svoverlay/desktop-platform": "workspace:*",
+    "@preact/signals": "^2.9.4",
     "@svoverlay/contracts": "workspace:*",
+    "@svoverlay/desktop-platform": "workspace:*",
+    "@svoverlay/i18n": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*",
     "preact": "^10.29.7"
   }

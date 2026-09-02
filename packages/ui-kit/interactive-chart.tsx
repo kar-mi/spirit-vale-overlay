@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useTranslator } from "@svoverlay/i18n/browser";
 
 
 export interface ChartRange {
@@ -54,6 +55,7 @@ export function InteractiveChart(
     formatTooltipTime = defaultFormatTooltipTime,
   }: InteractiveChartProps,
 ) {
+  const t = useTranslator();
   const [zoom, setZoom] = useState<ChartRange | undefined>(undefined);
 
   const chartRef = useRef<HTMLDivElement>(null);
@@ -251,7 +253,7 @@ export function InteractiveChart(
         <div ref={emptyRef} class="trend-empty" />
         <div ref={tooltipRef} class="trend-tooltip" hidden />
       </div>
-      {interactive && zoom !== undefined && <button class="btn chart-reset-zoom" type="button" onClick={() => setZoom(undefined)}>Reset zoom</button>}
+      {interactive && zoom !== undefined && <button class="btn chart-reset-zoom" type="button" onClick={() => setZoom(undefined)}>{t("chart.resetZoom")}</button>}
     </div>
   );
 }

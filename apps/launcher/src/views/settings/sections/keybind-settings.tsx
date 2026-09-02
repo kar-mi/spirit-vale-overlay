@@ -1,30 +1,24 @@
 import { KEYBIND_ACTIONS, type KeybindAction } from "@svoverlay/overlay/app-types";
+import type { Translator } from "@svoverlay/i18n/translate";
 import type { SettingsSection, SettingsSectionContext } from "../settings-section.ts";
 
-const KEYBIND_LABELS: Record<KeybindAction, string> = {
-  toggleLock: "Lock/unlock overlay", resetSession: "Reset session",
-  openLiveDeathLog: "Open live death log", toggleOverlayVisible: "Show/hide overlay",
-  cycleMeterStatType: "Cycle party meter",
-  resetXpTracker: "Reset all-time XP", resetGoldTracker: "Reset all-time gold",
-  toggleMinimap: "Show/hide minimap",
-  cycleBossRegion: "Cycle boss timer region",
-};
+const keybindLabel = (t: Translator, action: KeybindAction): string => t(`keybind.${action}`);
 
-export function buildKeybindSettingsSection({ state, busy, recordingAction, actions }: SettingsSectionContext): SettingsSection {
+export function buildKeybindSettingsSection({ state, busy, recordingAction, actions, t }: SettingsSectionContext): SettingsSection {
   const { overlay } = state;
   return {
     id: "keybinds",
-    label: "Keybinds",
-    description: "Global pass-through shortcuts remain active while Spirit Vale Overlay is running; the foreground app receives the same key press.",
+    label: t("settings.keybinds.label"),
+    description: t("settings.keybinds.description"),
     items: [
       {
         id: "keybind-assignments",
-        searchText: `Shortcut assignments reset defaults click select record key combination pass through ${Object.values(KEYBIND_LABELS).join(" ")}`,
-        content: <><div class="settings-actions"><button class="btn" type="button" disabled={busy} onClick={actions.resetShortcuts}>Reset to defaults</button></div><section class="keybind-list" aria-label="Keybind assignments"><h2>Click to select</h2>{KEYBIND_ACTIONS.map((action) => <div class="keybind-row" key={action}>
-          <span>{KEYBIND_LABELS[action]}</span>
-          <button class="btn" type="button" onClick={() => actions.beginShortcutCapture(action)} onKeyDown={(event) => actions.captureShortcut(action, event)}>{recordingAction === action ? "Press a shortcut…" : overlay.shortcuts[action]}</button>
-          {(overlay.shortcutErrors[action] || recordingAction === action) && <p class="keybind-message" aria-live="polite">{overlay.shortcutErrors[action] ?? "Press a key or Escape to cancel."}</p>}
-        </div>)}</section><p class="settings-hint">Shortcuts pass through to the foreground app. Windows or another app may also use the same combination; Ctrl+Shift can switch input languages when configured that way in Windows.</p></>,
+        searchText: `${t("settings.keybinds.assignments.search")} ${KEYBIND_ACTIONS.map((action) => keybindLabel(t, action)).join(" ")}`,
+        content: <><div class="settings-actions"><button class="btn" type="button" disabled={busy} onClick={actions.resetShortcuts}>{t("settings.keybinds.reset")}</button></div><section class="keybind-list" aria-label={t("settings.keybinds.list.label")}><h2>{t("settings.keybinds.list.heading")}</h2>{KEYBIND_ACTIONS.map((action) => <div class="keybind-row" key={action}>
+          <span>{keybindLabel(t, action)}</span>
+          <button class="btn" type="button" onClick={() => actions.beginShortcutCapture(action)} onKeyDown={(event) => actions.captureShortcut(action, event)}>{recordingAction === action ? t("settings.keybinds.recording") : overlay.shortcuts[action]}</button>
+          {(overlay.shortcutErrors[action] || recordingAction === action) && <p class="keybind-message" aria-live="polite">{overlay.shortcutErrors[action] ?? t("settings.keybinds.recordingHint")}</p>}
+        </div>)}</section><p class="settings-hint">{t("settings.keybinds.hint")}</p></>,
       },
     ],
   };

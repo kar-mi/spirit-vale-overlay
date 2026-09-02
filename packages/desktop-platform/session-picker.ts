@@ -1,3 +1,5 @@
+import { countedMessage, message, translate } from "@svoverlay/i18n/backend";
+import type { MessageKey } from "@svoverlay/i18n/messages";
 import path from "node:path";
 
 import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
@@ -7,6 +9,7 @@ import { appIconPath } from "./window-publish.ts";
 import { historyScanLimit, loadSessionSummaryJournal, normalizeHistorySessionLimit } from "./session-summary-journal.ts";
 import type { SessionSummaryJournal } from "./session-summary-journal.ts";
 import { registerUiScaleWindow, scaledSize } from "./ui-scale-window.ts";
+import { registerLocaleWindow } from "./locale-window.ts";
 import type { WindowPlacementStore } from "./window-placement.ts";
 
 import type { SessionPickerRpc, SessionPickerState } from "./session-picker-types.ts";
@@ -16,7 +19,7 @@ import { DisposableStore, onWindowEvent, onceWindowEvent } from "./window-lifecy
 export interface SessionPickerOptions {
   logDirectory: string;
   stream: Extract<LogStream, "combat" | "rewards">;
-  title: string;
+  titleKey: MessageKey;
   summarize: (path: string) => Promise<{ recordCount: number; summary: string }>;
   getSessionLimit?: () => number;
   loadReplay: (path: string) => Promise<void>;
@@ -34,7 +37,7 @@ export interface SessionPicker {
 
 export function createSessionPicker(options: SessionPickerOptions): SessionPicker {
   let window: BrowserWindow | undefined;
-  let state: SessionPickerState = loadingState(options.title);
+  let state: SessionPickerState = loadingState(options.titleKey);
   let paths = new Map<string, string>();
   let refreshSequence = 0;
   let journalPromise: Promise<SessionSummaryJournal> | undefined;
@@ -76,7 +79,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
       } else {
         const lifecycle = new DisposableStore();
         const nextWindow = new BrowserWindow({
-          title: options.title,
+          title: translate(options.titleKey),
           url: "views://sessionpickerview/index.html",
           frame: pickerFrame() ?? options.defaultFrame ?? { x: 120, y: 120, width: 640, height: 560 },
           titleBarStyle: "hidden",
@@ -87,6 +90,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         applyRoundedCorners(nextWindow.ptr);
         setWindowIcon(nextWindow.ptr, appIconPath);
         lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
+        lifecycle.add(registerLocaleWindow(nextWindow));
         const disposePlacement = options.placementKey ? options.placements?.track(options.placementKey, nextWindow) : undefined;
         if (disposePlacement) lifecycle.add(disposePlacement);
         lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
@@ -98,7 +102,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
           lifecycle.dispose();
           if (window === nextWindow) window = undefined;
           paths.clear();
-          state = loadingState(options.title);
+          state = loadingState(options.titleKey);
         }));
       }
       void refresh();
@@ -117,7 +121,7 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
 
   async function refresh(): Promise<void> {
     const sequence = ++refreshSequence;
-    state = loadingState(options.title);
+    state = loadingState(options.titleKey);
     publish();
     try {
       const journal = await summaryJournal();
@@ -142,7 +146,6 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
             return {
               id: session.id,
               createdAt: session.createdAt,
-              summary: "Summary unavailable",
               active: session.active,
               disabled: true,
             };
@@ -155,9 +158,9 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         if (!publishProgress) continue;
         paths = nextPaths;
         state = {
-          title: options.title,
+          title: message(options.titleKey),
           status: "loading",
-          statusDetail: `Scanning… ${items.length} session${items.length === 1 ? "" : "s"} found so far`,
+          statusDetail: countedMessage("sessions.scanning", items.length),
           sessions: items.slice(),
           canOpenLogFolder: options.openLogFolder !== undefined,
         };
@@ -166,16 +169,16 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
       if (sequence !== refreshSequence) return;
       paths = nextPaths;
       state = {
-        title: options.title,
+        title: message(options.titleKey),
         status: "ready",
-        statusDetail: items.length === 0 ? "No managed sessions found." : `${items.length} recent session${items.length === 1 ? "" : "s"}`,
+        statusDetail: items.length === 0 ? message("sessions.none") : countedMessage("sessions.recent", items.length),
         sessions: items,
         canOpenLogFolder: options.openLogFolder !== undefined,
       };
     } catch {
       if (sequence !== refreshSequence) return;
       paths.clear();
-      state = { title: options.title, status: "error", statusDetail: "Recent sessions could not be scanned.", sessions: [], canOpenLogFolder: options.openLogFolder !== undefined };
+      state = { title: message(options.titleKey), status: "error", statusDetail: message("sessions.scanFailed"), sessions: [], canOpenLogFolder: options.openLogFolder !== undefined };
     }
     publish();
   }
@@ -212,6 +215,6 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
   }
 }
 
-function loadingState(title: string): SessionPickerState {
-  return { title, status: "loading", statusDetail: "Scanning recent sessions…", sessions: [], canOpenLogFolder: false };
+function loadingState(titleKey: MessageKey): SessionPickerState {
+  return { title: message(titleKey), status: "loading", statusDetail: message("sessions.scanningRecent"), sessions: [], canOpenLogFolder: false };
 }

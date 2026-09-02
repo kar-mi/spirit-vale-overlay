@@ -12,14 +12,6 @@ export type { BossTimer, BossTimerState } from "@svoverlay/contracts/boss-timers
 export const OVERLAY_ELEMENT_IDS = ["dpsChart", "personalDps", "partyRanking", "health", "mana", "characterXp", "jobXp", "weight", "xpTracker", "goldTracker", "xpChart", "buffs", "debuffs", "toggles", "lootToast", "minimap", "bossTimers"] as const;
 export type OverlayElementId = (typeof OVERLAY_ELEMENT_IDS)[number];
 
-export const OVERLAY_ELEMENT_LABELS: Record<OverlayElementId, string> = {
-  dpsChart: "DPS chart", personalDps: "Personal DPSs", partyRanking: "Party DPS Meter",
-  health: "HP bar", mana: "MP bar", characterXp: "Character XP", jobXp: "Job XP",
-  weight: "Weight", xpTracker: "XP Tracker", goldTracker: "Gold Tracker", xpChart: "Character XP chart", buffs: "Buffs",
-  debuffs: "Debuffs", toggles: "Toggles", lootToast: "Loot notifications", minimap: "Minimap",
-  bossTimers: "Boss timers",
-};
-
 export const KEYBIND_ACTIONS = ["toggleLock", "resetSession", "openLiveDeathLog", "toggleOverlayVisible", "cycleMeterStatType", "resetXpTracker", "resetGoldTracker", "toggleMinimap", "cycleBossRegion"] as const;
 export type KeybindAction = (typeof KEYBIND_ACTIONS)[number];
 

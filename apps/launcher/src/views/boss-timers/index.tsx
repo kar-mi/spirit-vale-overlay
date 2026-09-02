@@ -24,6 +24,9 @@ import {
   type BossTimerPhase,
 } from "@svoverlay/contracts/boss-timers";
 
+import { useTranslator } from "@svoverlay/i18n/browser";
+import type { Translator } from "@svoverlay/i18n/translate";
+
 import type { BossTimerRpc, BossTimerWindowState } from "../../boss-timers/rpc.ts";
 
 const MAX_MANUAL_DEATH_MINUTES_AGO = 89;
@@ -50,6 +53,7 @@ function apply(pending: Promise<BossTimerWindowState> | undefined): void {
 }
 
 function App() {
+  const t = useTranslator();
   const chromeRef = useRef<WindowChrome | undefined>(undefined);
   const titlebarRef = (node: HTMLElement | null): void => {
     if (!node || chromeRef.current) return;
@@ -72,24 +76,24 @@ function App() {
       <header ref={titlebarRef} class="titlebar">
         <div class="brand">
           <img class="brand-icon" src="views://assets/app-icon.png" alt="" />
-          <span>Boss Timers</span>
+          <span>{t("bossTimers.brand")}</span>
           <span class="brand-tag">
             {timers.length === 0
-              ? "No timers"
+              ? t("bossTimers.tag.none")
               : spawnable === 0
-                ? `${timers.length} tracked`
-                : `${spawnable} of ${timers.length} up`}
+                ? t("bossTimers.tag.tracked", { count: timers.length })
+                : t("bossTimers.tag.up", { spawnable, count: timers.length })}
           </span>
         </div>
         <div class="window-controls">
-          <button class="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => void desktopView.rpc?.request.openSettings({})}>⚙</button>
-          <button class="icon-button" type="button" aria-label="Minimize" onClick={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}>−</button>
-          <button class="icon-button close-button" type="button" aria-label="Close" onClick={() => void desktopView.rpc?.request.windowAction({ action: "close" })}>×</button>
+          <button class="icon-button" type="button" aria-label={t("settingsButton.label")} title={t("settingsButton.label")} onClick={() => void desktopView.rpc?.request.openSettings({})}>⚙</button>
+          <button class="icon-button" type="button" aria-label={t("titleBar.minimize")} onClick={() => void desktopView.rpc?.request.windowAction({ action: "minimize" })}>−</button>
+          <button class="icon-button close-button" type="button" aria-label={t("titleBar.close")} onClick={() => void desktopView.rpc?.request.windowAction({ action: "close" })}>×</button>
         </div>
       </header>
       <div class="content">
         {next === undefined
-          ? <section class="empty-state"><strong>Loading timers…</strong></section>
+          ? <section class="empty-state"><strong>{t("bossTimers.loading")}</strong></section>
           : <>
             <TimerTable state={next} nowMs={now} />
             <LogGravestone state={next} />
@@ -100,6 +104,7 @@ function App() {
 }
 
 function TimerTable({ state: next, nowMs }: { state: BossTimerWindowState; nowMs: number }) {
+  const t = useTranslator();
   const [search, setSearch] = useState("");
   const [region, setRegion] = useState<string>(ALL_REGIONS);
   const regions = bossRegionsPresent(next.timers);
@@ -110,45 +115,48 @@ function TimerTable({ state: next, nowMs }: { state: BossTimerWindowState; nowMs
     .filter((timer) => activeRegion === ALL_REGIONS || bossTimerRegion(timer) === activeRegion)
     .filter((timer) => query.length === 0 || normalizeSearchText(searchTextOf(timer)).includes(query));
   const regionOptions = [
-    { value: ALL_REGIONS, label: `All regions (${next.timers.length})` },
+    { value: ALL_REGIONS, label: t("bossTimers.allRegions", { count: next.timers.length }) },
     ...[...regions].sort(compareBossRegions).map((candidate) => ({
       value: candidate,
-      label: `${regionLabel(candidate)} (${next.timers.filter((timer) => bossTimerRegion(timer) === candidate).length})`,
+      label: t("bossTimers.regionOption", {
+        region: regionLabel(t, candidate),
+        count: next.timers.filter((timer) => bossTimerRegion(timer) === candidate).length,
+      }),
     })),
   ];
 
   return (
     <section class="card">
       <div class="section-head">
-        <h2>Active timers</h2>
+        <h2>{t("bossTimers.active")}</h2>
         <div class="filters">
           <input
             class="input search"
             type="search"
-            placeholder="Search boss, region, channel or killer"
-            aria-label="Search timers"
+            placeholder={t("bossTimers.searchPlaceholder")}
+            aria-label={t("bossTimers.searchAria")}
             value={search}
             onInput={(event) => setSearch(event.currentTarget.value)}
           />
           {regions.length > 1 && (
             <div class="region-filter">
-              <CustomSelect ariaLabel="Filter by region" value={activeRegion} options={regionOptions} onChange={setRegion} />
+              <CustomSelect ariaLabel={t("bossTimers.regionFilter")} value={activeRegion} options={regionOptions} onChange={setRegion} />
             </div>
           )}
         </div>
       </div>
       {next.timers.length === 0
-        ? <p class="muted">No boss timers yet. They start on their own when you pass a boss's gravestone in game, using the server's own time of death — you do not need to have been there for the kill.</p>
+        ? <p class="muted">{t("bossTimers.empty")}</p>
         : matching.length === 0
-          ? <p class="muted">No timer matches that search.</p>
+          ? <p class="muted">{t("bossTimers.noMatch")}</p>
           : <table class="timer-table">
             <thead>
               <tr>
-                <th>Boss</th>
-                <th>Where</th>
-                <th>Killed by</th>
-                <th>Status</th>
-                <th><span class="visually-hidden">Actions</span></th>
+                <th>{t("bossTimers.column.boss")}</th>
+                <th>{t("bossTimers.column.where")}</th>
+                <th>{t("bossTimers.column.killedBy")}</th>
+                <th>{t("bossTimers.column.status")}</th>
+                <th><span class="visually-hidden">{t("bossTimers.column.actions")}</span></th>
               </tr>
             </thead>
             <tbody>
@@ -164,32 +172,33 @@ function TimerTable({ state: next, nowMs }: { state: BossTimerWindowState; nowMs
 function TimerRow(
   { timer, nowMs, playerName }: { timer: BossTimer; nowMs: number; playerName: string | undefined },
 ) {
+  const t = useTranslator();
   const phase = bossTimerPhase(timer, nowMs);
   const own = isOwnBossKill(timer, playerName);
   return (
     <tr class={`timer-row boss-${phase}`}>
       <td class="timer-boss">
         {timer.bossName}
-        {own && <span class="own-kill" title="You landed this kill" aria-label="Your kill">✓</span>}
+        {own && <span class="own-kill" title={t("bossTimers.ownKill.title")} aria-label={t("bossTimers.ownKill.aria")}>✓</span>}
       </td>
       <td class="timer-where">
-        <span class="timer-place">{`${regionLabel(bossTimerRegion(timer))} · Ch ${timer.channel ?? "?"}`}</span>
+        <span class="timer-place">{t("bossTimers.place", { region: regionLabel(t, bossTimerRegion(timer)), channel: timer.channel ?? "?" })}</span>
         {/* The machine is diagnostic context, not part of the timer identity. */}
         {timer.instanceId !== undefined && <span class="timer-instance">{timer.instanceId}</span>}
       </td>
       <td class="timer-killer">{timer.killedBy ?? "—"}</td>
       <td class="timer-status">
-        <span class="timer-countdown">{statusText(timer, phase, nowMs)}</span>
-        <span class="timer-clock">{clockText(timer, phase)}</span>
+        <span class="timer-countdown">{statusText(t, timer, phase, nowMs)}</span>
+        <span class="timer-clock">{clockText(t, timer, phase)}</span>
       </td>
       <td class="timer-actions">
         <button
           class="btn"
           type="button"
-          title={`Remove the ${timer.bossName} timer`}
+          title={t("bossTimers.remove.title", { boss: timer.bossName })}
           onClick={() => apply(desktopView.rpc?.request.removeTimer({ id: timer.id }))}
         >
-          Remove
+          {t("bossTimers.remove")}
         </button>
       </td>
     </tr>
@@ -197,13 +206,14 @@ function TimerRow(
 }
 
 function LogGravestone({ state: next }: { state: BossTimerWindowState }) {
+  const t = useTranslator();
   const [pickedMobId, setPickedMobId] = useState<string>();
   const [pickedRegion, setPickedRegion] = useState<string>();
   const [channelText, setChannelText] = useState("1");
   const [minutesAgoText, setMinutesAgoText] = useState("0");
   const [open, setOpen] = useState(false);
-  const bossOptions = next.options.map((boss) => ({ value: boss.mobId, label: `${boss.displayName} (Lv ${boss.level})` }));
-  const regionOptions = next.knownRegions.map((candidate) => ({ value: candidate, label: regionLabel(candidate) }));
+  const bossOptions = next.options.map((boss) => ({ value: boss.mobId, label: t("bossTimers.log.bossOption", { boss: boss.displayName, level: boss.level }) }));
+  const regionOptions = next.knownRegions.map((candidate) => ({ value: candidate, label: regionLabel(t, candidate) }));
   const mobId = pickedMobId ?? next.options[0]?.mobId;
   // Whatever the select shows has to be what gets filed, or the entry lands somewhere the player was never told about.
   const region = pickedRegion ?? next.currentRegion ?? next.knownRegions[0];
@@ -214,34 +224,33 @@ function LogGravestone({ state: next }: { state: BossTimerWindowState }) {
   return (
     <section class="card">
       <div class="section-head">
-        <h2>Log a gravestone</h2>
+        <h2>{t("bossTimers.log.heading")}</h2>
         <button class="btn" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {open ? "Hide" : "Add manually"}
+          {t(open ? "bossTimers.log.hide" : "bossTimers.log.add")}
         </button>
       </div>
       <p class="muted">
-        Gravestones you walk past are timed automatically. This is the fallback for one you could see
-        but not reach.
-        {next.currentInstanceId !== undefined && ` You are currently on ${next.currentInstanceId}.`}
+        {t("bossTimers.log.hint")}
+        {next.currentInstanceId !== undefined && t("bossTimers.log.currentInstance", { instance: next.currentInstanceId })}
       </p>
       {open && <>
         <div class="entry-grid">
           <label class="field entry-boss">
-            <span>Boss</span>
-            {mobId !== undefined && <CustomSelect ariaLabel="Boss" value={mobId} options={bossOptions} onChange={setPickedMobId} />}
+            <span>{t("bossTimers.log.boss")}</span>
+            {mobId !== undefined && <CustomSelect ariaLabel={t("bossTimers.log.boss")} value={mobId} options={bossOptions} onChange={setPickedMobId} />}
           </label>
           <label class="field">
-            <span>Region</span>
+            <span>{t("bossTimers.log.region")}</span>
             {region !== undefined && regionOptions.length > 0
-              ? <CustomSelect ariaLabel="Region" value={region} options={regionOptions} onChange={setPickedRegion} />
-              : <input class="input" value="—" disabled readonly aria-label="Region not detected yet" />}
+              ? <CustomSelect ariaLabel={t("bossTimers.log.region")} value={region} options={regionOptions} onChange={setPickedRegion} />
+              : <input class="input" value="—" disabled readonly aria-label={t("bossTimers.log.regionUndetected")} />}
           </label>
           <label class="field">
-            <span>Channel</span>
+            <span>{t("bossTimers.log.channel")}</span>
             <input class="input" type="number" min="1" max={MAX_BOSS_CHANNEL} value={channelText} onInput={(event) => setChannelText(event.currentTarget.value)} />
           </label>
           <label class="field">
-            <span>Died (minutes ago)</span>
+            <span>{t("bossTimers.log.diedMinutesAgo")}</span>
             <input class="input" type="number" min="0" max={MAX_MANUAL_DEATH_MINUTES_AGO} value={minutesAgoText} onInput={(event) => setMinutesAgoText(event.currentTarget.value)} />
           </label>
           <button
@@ -259,12 +268,12 @@ function LogGravestone({ state: next }: { state: BossTimerWindowState }) {
               setOpen(false);
             }}
           >
-            Start timer
+            {t("bossTimers.log.start")}
           </button>
         </div>
-        {channel === undefined && <p class="hint">Channel must be between 1 and {MAX_BOSS_CHANNEL} — world bosses only spawn on those channels.</p>}
-        {minutesAgo === undefined && <p class="hint">Minutes ago must be between 0 and {MAX_MANUAL_DEATH_MINUTES_AGO} — after 90 minutes the boss has already spawned.</p>}
-        <p class="hint">An existing timer for that boss, region and channel is re-anchored to the time you give.</p>
+        {channel === undefined && <p class="hint">{t("bossTimers.log.channelRange", { maximum: MAX_BOSS_CHANNEL })}</p>}
+        {minutesAgo === undefined && <p class="hint">{t("bossTimers.log.minutesRange", { maximum: MAX_MANUAL_DEATH_MINUTES_AGO })}</p>}
+        <p class="hint">{t("bossTimers.log.reanchor")}</p>
       </>}
     </section>
   );
@@ -281,20 +290,20 @@ function searchTextOf(timer: BossTimer): string {
   ].join(" ");
 }
 
-function regionLabel(region: string): string {
-  return bossRegionLabel(region, "Unknown");
+function regionLabel(t: Translator, region: string): string {
+  return bossRegionLabel(region, t("bossTimers.region.unknown"));
 }
 
-function statusText(timer: BossTimer, phase: BossTimerPhase, nowMs: number): string {
-  if (phase === "waiting") return `in ${formatBossCountdown(bossEligibleAtMs(timer) - nowMs)}`;
-  if (phase === "window") return `spawnable · ${formatBossCountdown(bossDueAtMs(timer) - nowMs)} left`;
-  return "spawned";
+function statusText(t: Translator, timer: BossTimer, phase: BossTimerPhase, nowMs: number): string {
+  if (phase === "waiting") return t("bossTimers.status.waiting", { countdown: formatBossCountdown(bossEligibleAtMs(timer) - nowMs) });
+  if (phase === "window") return t("bossTimers.status.window", { countdown: formatBossCountdown(bossDueAtMs(timer) - nowMs) });
+  return t("bossTimers.status.spawned");
 }
 
-function clockText(timer: BossTimer, phase: BossTimerPhase): string {
-  if (phase === "waiting") return `from ${formatBossClock(bossEligibleAtMs(timer))}`;
-  if (phase === "window") return `by ${formatBossClock(bossDueAtMs(timer))}`;
-  return `window closed ${formatBossClock(bossDueAtMs(timer))}`;
+function clockText(t: Translator, timer: BossTimer, phase: BossTimerPhase): string {
+  if (phase === "waiting") return t("bossTimers.clock.waiting", { clock: formatBossClock(bossEligibleAtMs(timer)) });
+  if (phase === "window") return t("bossTimers.clock.window", { clock: formatBossClock(bossDueAtMs(timer)) });
+  return t("bossTimers.clock.spawned", { clock: formatBossClock(bossDueAtMs(timer)) });
 }
 
 function parseBounded(text: string, minimum: number, maximum: number): number | undefined {

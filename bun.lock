@@ -17,6 +17,7 @@
         "@neutralinojs/lib": "6.9.0",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/i18n": "workspace:*",
         "@svoverlay/overlay": "workspace:*",
         "@svoverlay/ui-kit": "workspace:*",
         "preact": "^10.29.7",
@@ -42,6 +43,7 @@
         "@svoverlay/combat": "workspace:*",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/i18n": "workspace:*",
         "@svoverlay/overlay": "workspace:*",
         "@svoverlay/rewards": "workspace:*",
         "@svoverlay/ui-kit": "workspace:*",
@@ -56,6 +58,7 @@
         "@preact/signals": "^2.9.4",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/i18n": "workspace:*",
         "@svoverlay/ui-kit": "workspace:*",
         "preact": "^10.29.7",
       },
@@ -71,6 +74,7 @@
         "@preact/signals": "^2.9.4",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/i18n": "workspace:*",
         "@svoverlay/ui-kit": "workspace:*",
         "preact": "^10.29.7",
       },
@@ -87,7 +91,16 @@
       "dependencies": {
         "@kar-mi/spirit-vale-tools-logging": "0.9.0",
         "@svoverlay/contracts": "workspace:*",
+        "@svoverlay/i18n": "workspace:*",
         "@svoverlay/ui-kit": "workspace:*",
+      },
+    },
+    "packages/i18n": {
+      "name": "@svoverlay/i18n",
+      "version": "0.1.0",
+      "dependencies": {
+        "@preact/signals": "^2.9.4",
+        "preact": "^10.29.7",
       },
     },
     "packages/overlay": {
@@ -103,6 +116,7 @@
         "@svoverlay/combat": "workspace:*",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/i18n": "workspace:*",
         "@svoverlay/ui-kit": "workspace:*",
         "preact": "^10.29.7",
       },
@@ -116,6 +130,7 @@
         "@preact/signals": "^2.9.4",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
+        "@svoverlay/i18n": "workspace:*",
         "@svoverlay/ui-kit": "workspace:*",
         "preact": "^10.29.7",
       },
@@ -124,6 +139,7 @@
       "name": "@svoverlay/ui-kit",
       "version": "0.1.0",
       "dependencies": {
+        "@svoverlay/i18n": "workspace:*",
         "preact": "^10.29.7",
       },
     },
@@ -172,6 +188,8 @@
     "@svoverlay/desktop": ["@svoverlay/desktop@workspace:apps/desktop"],
 
     "@svoverlay/desktop-platform": ["@svoverlay/desktop-platform@workspace:packages/desktop-platform"],
+
+    "@svoverlay/i18n": ["@svoverlay/i18n@workspace:packages/i18n"],
 
     "@svoverlay/launcher": ["@svoverlay/launcher@workspace:apps/launcher"],
 

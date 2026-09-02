@@ -31,6 +31,8 @@ import { xpToLevelUp } from "../xp-to-level.ts";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { createSessionPicker } from "@svoverlay/desktop-platform/session-picker";
 import { registerUiScaleWindow, scaledSize, unscaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
+import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
+import { localized, localizedCount, type LocalizedText } from "@svoverlay/i18n/messages";
 import { visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
 import { managedSessionId } from "@svoverlay/desktop-platform/managed-session";
@@ -83,7 +85,8 @@ let window: BrowserWindow;
 let catalogWindow: BrowserWindow | undefined;
 let mode: RewardsAppMode = "live";
 let status: RewardsAppStatus = "waiting";
-let statusDetail = "Waiting for rewards data from the central capture.";
+let statusDetail: LocalizedText = localized("rewards.status.waiting");
+let statusDetailExtras: LocalizedText[] = [];
 let catalogQuery = "";
 let liveSnapshot = emptyAggregate();
 let replaySnapshot = emptyAggregate();
@@ -91,7 +94,7 @@ let replayFileName: string | undefined;
 let replayWarnings = 0;
 let shuttingDown = false;
 let closedCallbackSent = false;
-let storageWarning: string | undefined;
+let storageWarning: LocalizedText | undefined;
 let resetting = false;
 const lifecycle = new DisposableStore();
 let catalogLifecycle: DisposableStore | undefined;
@@ -99,13 +102,13 @@ let catalogLifecycle: DisposableStore | undefined;
 const settingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "rewards settings",
   save: (value) => saveRewardsSettings(value, options.settingsPath),
-  onWarning: (warning) => { storageWarning = warning; publish(); },
+  onWarning: (warning) => { storageWarning = warning ? localized("storage.saveFailed") : undefined; publish(); },
 });
 
 const replayPicker = createSessionPicker({
   logDirectory: options.logDirectory,
   stream: "rewards",
-  title: "Rewards replays",
+  titleKey: "sessions.title.rewardsReplays",
   summarize: inspectRewardsReplaySummary,
   ...(options.getHistorySessionLimit === undefined ? {} : { getSessionLimit: options.getHistorySessionLimit }),
   loadReplay: loadReplayPath,
@@ -220,6 +223,7 @@ window = new BrowserWindow({
 window.setAlwaysOnTop(settings.pinned);
 mountRoundedWindow(window);
 lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: false }));
+lifecycle.add(registerLocaleWindow(window));
 
 lifecycle.add(onWindowEvent(window, "move", (event: { data: typeof settings.frame }) => {
   if (window.isMaximized()) return;
@@ -254,7 +258,10 @@ function appState(): RewardsAppState {
     mode,
     view: settings.view,
     status: mode === "replay" ? (replayFileName ? "ready" : "stopped") : status,
-    statusDetail: mode === "replay" ? (replayFileName ? `Replay: ${replayFileName}` : "Choose a rewards log") : statusDetail,
+    statusDetail: mode === "replay"
+      ? (replayFileName ? localized("rewards.status.replay", { file: replayFileName }) : localized("rewards.status.chooseLog"))
+      : statusDetail,
+    ...(mode === "replay" || statusDetailExtras.length === 0 ? {} : { statusDetailExtras }),
     ...(storageWarning ? { storageWarning } : {}),
     pinned: settings.pinned,
     resetting,
@@ -319,6 +326,7 @@ function openCatalog(): void {
   nextWindow.setAlwaysOnTop(settings.pinned);
   mountRoundedWindow(nextWindow);
   nextLifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
+  nextLifecycle.add(registerLocaleWindow(nextWindow));
 
   nextLifecycle.add(onWindowEvent(nextWindow, "move", (event: { data: typeof settings.catalogFrame }) => {
     if (nextWindow.isMaximized()) return;
@@ -348,12 +356,14 @@ async function followRewards(): Promise<void> {
       if (batch.changed || batch.reset || batch.status !== status) {
         liveSnapshot = batch.snapshot;
         status = batch.status;
-        statusDetail = detail(batch.status, batch.invalidLines, batch.snapshot.unmatchedByReason.unidentified);
+        statusDetail = detail(batch.status);
+        statusDetailExtras = detailExtras(batch.status, batch.invalidLines, batch.snapshot.unmatchedByReason.unidentified);
         if (mode === "live") publish();
       }
     } catch {
       status = "error";
-      statusDetail = "The current rewards log could not be read.";
+      statusDetail = localized("rewards.status.logUnreadable");
+      statusDetailExtras = [];
       publish();
       // Back off rather than spinning: whatever failed will not be fixed by retrying at once.
       await new Promise((resolve) => setTimeout(resolve, READ_RETRY_MS));
@@ -423,16 +433,23 @@ function itemName(itemId: string): string {
   return itemId.replace(/^currency:/, "Currency ");
 }
 
-function detail(next: RewardLogStatus, invalidLines: number, unidentified: number): string {
-  const skipped = invalidLines > 0 ? ` · ${invalidLines} malformed records skipped` : "";
-  const warmup = unidentified > 0 ? ` · ${unidentified} rewards missed mob identity from before capture` : "";
+function detail(next: RewardLogStatus): LocalizedText {
   switch (next) {
-    case "waiting": return "Waiting for rewards data from the central capture.";
-    case "watching": return `Rewards session found; waiting for a confirmed kill.${warmup}${skipped}`;
-    case "ready": return `Tracking confirmed mob rewards.${warmup}${skipped}`;
-    case "stopped": return `Rewards session stopped; showing its final state.${warmup}${skipped}`;
-    case "error": return "The rewards session reported an error.";
+    case "waiting": return localized("rewards.status.waiting");
+    case "watching": return localized("rewards.status.watching");
+    case "ready": return localized("rewards.status.ready");
+    case "stopped": return localized("rewards.status.stopped");
+    case "error": return localized("rewards.status.error");
   }
+}
+
+/** Only the three mid-session states carry counts; waiting and error stand alone. */
+function detailExtras(next: RewardLogStatus, invalidLines: number, unidentified: number): LocalizedText[] {
+  if (next !== "watching" && next !== "ready" && next !== "stopped") return [];
+  const extras: LocalizedText[] = [];
+  if (unidentified > 0) extras.push(localizedCount("rewards.status.warmup", unidentified));
+  if (invalidLines > 0) extras.push(localizedCount("rewards.status.malformed", invalidLines));
+  return extras;
 }
 
 function publish(): void {

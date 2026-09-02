@@ -1,3 +1,4 @@
+import { useTranslator } from "@svoverlay/i18n/browser";
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { formatDuration } from "@svoverlay/ui-kit/format";
@@ -68,7 +69,9 @@ export function PastAnalysisPanel({
     state.statType === "heal" ? state.healSnapshot :
     state.snapshot;
   const metricLabel = state.statType === "tanked" ? "TPS" : state.statType === "heal" ? "HPS" : "DPS";
-  const damageLabel = state.statType === "tanked" ? "Damage taken" : state.statType === "heal" ? "Healing" : "Damage";
+  const t = useTranslator();
+  const damageLabel = state.statType === "tanked" ? t("amount.damageTaken") : state.statType === "heal" ? t("amount.healing") : t("amount.damage");
+  const amount = damageLabel.toLocaleLowerCase();
   const rows = activeSnapshot?.actors ?? [];
   const filteredRows = applyEnemyFilter(state, rows, selectedEnemyIds);
   const sortedRows = sortTableRows(
@@ -93,11 +96,11 @@ export function PastAnalysisPanel({
       onAuxClick={(event) => navigateBackOnMiddleClick(event, onBack)}
     >
       <section class="toolbar">
-        <button class="btn back-button" type="button" onClick={onBack}>← Back</button>
+        <button class="btn back-button" type="button" onClick={onBack}>{t("combat.past.back")}</button>
         <label class="encounter-picker">
-          <span class="t-label">Encounter</span>
+          <span class="t-label">{t("combat.past.encounter")}</span>
           <CustomSelect
-            ariaLabel="Encounter"
+            ariaLabel={t("combat.past.encounter")}
             disabled={state.status !== "ready" || state.encounters.length < 2}
             value={state.selectedEncounterId ?? ""}
             options={state.encounters.map((encounter) => ({ value: encounter.id, label: encounter.label }))}
@@ -111,16 +114,16 @@ export function PastAnalysisPanel({
           onChange={setSelectedEnemyIds}
         />
         <div class="toolbar-meta">
-          <button class="btn" type="button" disabled={state.status !== "ready"} onClick={onOpenDeathLog}>Death log</button>
+          <button class="btn" type="button" disabled={state.status !== "ready"} onClick={onOpenDeathLog}>{t("combat.past.deathLog")}</button>
         </div>
       </section>
-      <p class="analysis-status" aria-live="polite">{state.statusDetail}</p>
+      <p class="analysis-status" aria-live="polite">{[t.text(state.statusDetail), t.text(state.statusDetailExtra)].filter(Boolean).join(" · ")}</p>
       <p class="banner is-warn" hidden={state.invalidLines === 0}>
-        {state.invalidLines === 0 ? "" : `${state.invalidLines} malformed record${state.invalidLines === 1 ? " was" : "s were"} skipped.`}
+        {state.invalidLines === 0 ? "" : t.plural("common.malformedRecords", state.invalidLines)}
       </p>
       <div class="table-scroll totals">
-        <table class="data-table summary-table" aria-label="Past encounter totals">
-          <thead><tr><th>Party {metricLabel}</th><th>Total {damageLabel.toLowerCase()}</th><th>Duration</th><th>Players</th></tr></thead>
+        <table class="data-table summary-table" aria-label={t("combat.past.totals.label")}>
+          <thead><tr><th>{t("combat.past.totals.party", { metric: metricLabel })}</th><th>{t("combat.past.totals.total", { amount })}</th><th>{t("combat.past.totals.duration")}</th><th>{t("combat.past.totals.players")}</th></tr></thead>
           <tbody><tr>
             <td>{numberFormat.format(partyDps)}</td>
             <td>{compactFormat.format(partyDamage)}</td>
@@ -129,27 +132,27 @@ export function PastAnalysisPanel({
           </tr></tbody>
         </table>
       </div>
-      <section class="players-section" aria-label="Player analysis">
-        <div class="section-head"><h1>Player {damageLabel.toLowerCase()}</h1><p>Double-click a player for skills and damage over time.</p></div>
+      <section class="players-section" aria-label={t("combat.past.players.label")}>
+        <div class="section-head"><h1>{t("combat.past.players.heading", { amount })}</h1><p>{t("combat.past.players.hint")}</p></div>
         {filteredRows.length > 0 && <div class="table-scroll">
-          <table class="data-table combat-table player-combat-table" aria-label={`Player ${damageLabel.toLowerCase()}`}>
+          <table class="data-table combat-table player-combat-table" aria-label={t("combat.past.players.heading", { amount })}>
             <thead><tr>
-              <th>Class</th>
-              <th>Player</th>
+              <th>{t("combat.column.class")}</th>
+              <th>{t("combat.column.player")}</th>
               <SortableHeader sortKey="damage" sort={playerSort} onSort={sortPlayersBy}>{damageLabel}</SortableHeader>
               <SortableHeader sortKey="dps" sort={playerSort} onSort={sortPlayersBy}>{metricLabel}</SortableHeader>
-              <SortableHeader sortKey="contribution" sort={playerSort} onSort={sortPlayersBy}>Share</SortableHeader>
-              <SortableHeader sortKey="hits" sort={playerSort} onSort={sortPlayersBy}>Hits</SortableHeader>
-              <SortableHeader sortKey="criticalHits" sort={playerSort} onSort={sortPlayersBy}>Crits</SortableHeader>
-              <SortableHeader sortKey="critRate" sort={playerSort} onSort={sortPlayersBy}>Crit rate</SortableHeader>
-              <SortableHeader sortKey="kills" sort={playerSort} onSort={sortPlayersBy}>Kills</SortableHeader>
+              <SortableHeader sortKey="contribution" sort={playerSort} onSort={sortPlayersBy}>{t("combat.column.share")}</SortableHeader>
+              <SortableHeader sortKey="hits" sort={playerSort} onSort={sortPlayersBy}>{t("combat.column.hits")}</SortableHeader>
+              <SortableHeader sortKey="criticalHits" sort={playerSort} onSort={sortPlayersBy}>{t("combat.column.crits")}</SortableHeader>
+              <SortableHeader sortKey="critRate" sort={playerSort} onSort={sortPlayersBy}>{t("combat.column.critRateLong")}</SortableHeader>
+              <SortableHeader sortKey="kills" sort={playerSort} onSort={sortPlayersBy}>{t("combat.column.kills")}</SortableHeader>
             </tr></thead>
             <tbody>{sortedRows.map(({ actor, damage, dps, hits, criticalHits, critRate, contribution }) => {
               const activate = () => onOpenPlayerDetails(actor.rowId, [...selectedEnemyIds]);
               return <tr
                 key={actor.rowId}
                 class="player-row"
-                title="Double-click for player detail"
+                title={t("combat.past.players.rowHint")}
                 tabIndex={0}
                 onDblClick={activate}
                 onKeyDown={(event) => activateRow(event, activate)}
@@ -168,7 +171,7 @@ export function PastAnalysisPanel({
           </table>
         </div>}
         {state.status === "ready" && rows.length === 0 && (
-          <p class="empty-state">No {damageLabel.toLowerCase()} was found for this encounter.</p>
+          <p class="empty-state">{t("combat.past.players.empty", { amount })}</p>
         )}
       </section>
     </section>

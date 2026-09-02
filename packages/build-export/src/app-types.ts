@@ -1,4 +1,5 @@
 import type { RPCSchema } from "@svoverlay/contracts/rpc";
+import type { LocalizedText } from "@svoverlay/i18n/messages";
 import type { WindowChromeRequests } from "@svoverlay/contracts/window-rpc";
 
 export type BuildExportStatus = "waiting" | "ready";
@@ -35,7 +36,7 @@ export interface BuildExportSource {
 
 export interface BuildExportState {
   status: BuildExportStatus;
-  statusDetail: string;
+  statusDetail: LocalizedText;
   character?: BuildExportCharacter;
   sources: BuildExportSource[];
   searchQuery: string;
