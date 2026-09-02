@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
 import { loadDpsReplay } from "@kar-mi/spirit-vale-tools-combat";
-import type { CombatHistoryStore, FishNetDpsActorRow, FishNetDpsEncounterSnapshot, FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
+import type { CombatHistoryStore } from "@kar-mi/spirit-vale-tools-combat";
 import { formatDuration } from "@svoverlay/ui-kit/format";
 import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
 import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
@@ -19,6 +19,7 @@ import type {
   DpsEncounterOption,
   MeterActorRow,
   MeterEncounterSnapshot,
+  MeterSkillRow,
   StatType,
 } from "../app-types.ts";
 import { createDeathLogWindow } from "./death-log-window.ts";
@@ -52,7 +53,7 @@ export interface LivePlayerDetailInput extends LivePlayerDetailRefresh {
 
 export interface LivePlayerDetailRefresh {
   fileName: string;
-  snapshot?: FishNetDpsEncounterSnapshot;
+  snapshot?: MeterEncounterSnapshot;
   tankedSnapshot?: MeterEncounterSnapshot;
   healSnapshot?: MeterEncounterSnapshot;
   statType: StatType;
@@ -324,7 +325,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     return true;
   }
 
-  function showDetailWindow(identity: FishNetDpsActorRow | MeterActorRow): void {
+  function showDetailWindow(identity: MeterActorRow): void {
     if (detailWindow) {
       publishDetail();
       detailWindow.show();
@@ -405,8 +406,8 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     rowId: string,
     durationMs: number,
     breakdown = selected?.breakdown,
-  ): Record<number, FishNetDpsSkillRow[]> {
-    const result: Record<number, FishNetDpsSkillRow[]> = {};
+  ): Record<number, MeterSkillRow[]> {
+    const result: Record<number, MeterSkillRow[]> = {};
     if (!breakdown) return result;
     const durationSeconds = Math.max(1, durationMs) / 1000;
     const byTarget = new Map<number, Map<string, EnemySkillStats>>();
@@ -425,7 +426,7 @@ export function createCombatAnalysisController(options: CombatAnalysisController
     }
     for (const [targetId, merged] of byTarget) {
       const totalDamage = [...merged.values()].reduce((sum, stats) => sum + stats.damage, 0);
-      const rows: FishNetDpsSkillRow[] = [...merged.entries()]
+      const rows: MeterSkillRow[] = [...merged.entries()]
         .map(([sourceId, stats]) => ({
           sourceId,
           sourceLabel: stats.sourceLabel,

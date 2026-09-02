@@ -1,7 +1,5 @@
-import type {
-  CombatEncounterRecord,
-  FishNetDpsEncounterSnapshot,
-} from "@kar-mi/spirit-vale-tools-combat";
+import type { CombatEncounterRecord } from "@kar-mi/spirit-vale-tools-combat";
+import type { MeterEncounterSnapshot } from "@svoverlay/contracts/meter";
 
 import type { OverlayMeterPoint, OverlayMeterState, PersonalDpsMode, StatType } from "./app-types.ts";
 import { visiblePartyActors } from "./overlayview/party-ranking.ts";
@@ -55,7 +53,7 @@ export function emptyMeterState(): OverlayMeterState {
   };
 }
 
-function partyTimeline(snapshot: FishNetDpsEncounterSnapshot): OverlayMeterPoint[] {
+function partyTimeline(snapshot: MeterEncounterSnapshot): OverlayMeterPoint[] {
   const buckets = new Map<number, number>();
   for (const actor of snapshot.actors) {
     for (const point of actor.timeline) {

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import type { FishNetDpsActorRow } from "@kar-mi/spirit-vale-tools-combat";
+import type { MeterActorRow } from "@svoverlay/contracts/meter";
 import { PARTY_ACTOR_IDLE_TIMEOUT_MS, visiblePartyActors } from "./party-ranking.ts";
 
 test("party ranking uses encounter DPS and excludes inactive actors before sorting and limiting", () => {
@@ -30,7 +30,7 @@ test("party ranking retains an actor through the 60-second idle boundary", () =>
   expect(visiblePartyActors([row], 10_001 + PARTY_ACTOR_IDLE_TIMEOUT_MS)).toEqual([]);
 });
 
-function actor(actorId: number, dps: number, lastDamageAtMs: number): FishNetDpsActorRow {
+function actor(actorId: number, dps: number, lastDamageAtMs: number): MeterActorRow {
   return {
     rowId: `name:fictional player ${actorId}`,
     actorIds: [actorId],

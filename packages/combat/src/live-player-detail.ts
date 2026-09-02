@@ -1,5 +1,3 @@
-import type { FishNetDpsActorRow } from "@kar-mi/spirit-vale-tools-combat";
-
 import type {
   CombatAnalysisDetailState,
   MeterActorRow,
@@ -9,7 +7,7 @@ import type {
 
 export interface LiveDetailSnapshots {
   fileName: string;
-  snapshot?: { durationMs: number; actors: FishNetDpsActorRow[] };
+  snapshot?: { durationMs: number; actors: MeterActorRow[] };
   tankedSnapshot?: MeterEncounterSnapshot;
   healSnapshot?: MeterEncounterSnapshot;
   statType: StatType;
@@ -40,7 +38,7 @@ export function buildLivePlayerDetailState(
   };
 }
 
-export function emptyDpsRow(identity: FishNetDpsActorRow | MeterActorRow, durationMs: number): FishNetDpsActorRow {
+export function emptyDpsRow(identity: MeterActorRow, durationMs: number): MeterActorRow {
   return {
     rowId: identity.rowId,
     actorIds: identity.actorIds,

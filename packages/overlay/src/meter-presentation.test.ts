@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import type { CombatEncounterRecord, FishNetDpsActorRow, FishNetDpsEncounterSnapshot } from "@kar-mi/spirit-vale-tools-combat";
+import type { CombatEncounterRecord } from "@kar-mi/spirit-vale-tools-combat";
+import type { MeterActorRow, MeterEncounterSnapshot } from "@svoverlay/contracts/meter";
 
 import { emptyMeterState, overlayMeterState } from "./meter-presentation.ts";
 
@@ -52,9 +53,9 @@ test("personal dps mode selects the encounter average or the live rate", () => {
 });
 
 function combatRecord(
-  dps: FishNetDpsEncounterSnapshot,
-  tanked: FishNetDpsEncounterSnapshot,
-  healing: FishNetDpsEncounterSnapshot,
+  dps: MeterEncounterSnapshot,
+  tanked: MeterEncounterSnapshot,
+  healing: MeterEncounterSnapshot,
 ): CombatEncounterRecord {
   return {
     dps,
@@ -63,7 +64,7 @@ function combatRecord(
   };
 }
 
-function snapshot(id: string, durationMs: number, actors: FishNetDpsActorRow[]): FishNetDpsEncounterSnapshot {
+function snapshot(id: string, durationMs: number, actors: MeterActorRow[]): MeterEncounterSnapshot {
   return {
     id,
     startedAtMs: 0,
@@ -79,7 +80,7 @@ function snapshot(id: string, durationMs: number, actors: FishNetDpsActorRow[]):
   };
 }
 
-function actor(actorId: number, dps: number): FishNetDpsActorRow {
+function actor(actorId: number, dps: number): MeterActorRow {
   return {
     rowId: `name:player ${actorId}`,
     actorIds: [actorId],

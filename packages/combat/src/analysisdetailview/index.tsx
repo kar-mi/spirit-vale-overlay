@@ -13,8 +13,7 @@ import type { ChartRange, ChartRenderResult } from "@svoverlay/ui-kit/interactiv
 import { useTranslator } from "@svoverlay/i18n/browser";
 import type { MessageKey } from "@svoverlay/i18n/messages";
 
-import type { FishNetDpsSkillRow } from "@kar-mi/spirit-vale-tools-combat";
-import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState, MeterActorRow, MeterTimelinePoint, StatType } from "../app-types.ts";
+import type { CombatAnalysisDetailRpc, CombatAnalysisDetailState, MeterActorRow, MeterSkillRow, MeterTimelinePoint, StatType } from "../app-types.ts";
 import { nextTableSort, SortableHeader, sortTableRows, type TableSort } from "@svoverlay/ui-kit/sortable-table";
 import { buildDamageChartRender, damageChartExtent, formatElapsedChartTime } from "../damage-chart.ts";
 import type { DamageChartMetric } from "../damage-chart.ts";
@@ -29,7 +28,7 @@ const AMOUNT_KEYS: Record<StatType, { label: MessageKey; cumulative: MessageKey;
 };
 
 interface SkillFold {
-  skills: FishNetDpsSkillRow[];
+  skills: MeterSkillRow[];
   damage: number;
   dps: number;
   hits: number;
@@ -41,7 +40,7 @@ function foldSkillsByEnemy(
   encounterDurationMs: number,
   selectedEnemyIds: ReadonlySet<number>,
   player: MeterActorRow | undefined,
-  skillsByEnemy: Record<number, FishNetDpsSkillRow[]>,
+  skillsByEnemy: Record<number, MeterSkillRow[]>,
 ): SkillFold {
   if (player === undefined) return { skills: [], damage: 0, dps: 0, hits: 0, criticalHits: 0 };
   if (selectedEnemyIds.size === 0) {
@@ -61,7 +60,7 @@ function foldSkillsByEnemy(
   const totalDamage = [...merged.values()].reduce((sum, row) => sum + row.damage, 0);
   const totalHits = [...merged.values()].reduce((sum, row) => sum + row.hits, 0);
   const totalCriticalHits = [...merged.values()].reduce((sum, row) => sum + row.criticalHits, 0);
-  const skills: FishNetDpsSkillRow[] = [...merged.entries()]
+  const skills: MeterSkillRow[] = [...merged.entries()]
     .map(([sourceId, row]) => ({
       sourceId,
       sourceLabel: row.sourceLabel,

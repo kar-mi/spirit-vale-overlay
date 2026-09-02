@@ -1,10 +1,9 @@
-import type { FishNetDpsActorRow } from "@kar-mi/spirit-vale-tools-combat";
 import type { MeterActorRow } from "@svoverlay/contracts/meter";
 
 const MAX_PARTY_ROWS = 12;
 export const PARTY_ACTOR_IDLE_TIMEOUT_MS = 60_000;
 
-export function visiblePartyActors<T extends FishNetDpsActorRow | MeterActorRow>(actors: readonly T[], nowMs: number): T[] {
+export function visiblePartyActors<T extends MeterActorRow>(actors: readonly T[], nowMs: number): T[] {
   return actors
     .filter((actor) => actor.dps > 0
       && actor.lastDamageAtMs !== undefined
