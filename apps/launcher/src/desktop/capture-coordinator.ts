@@ -47,6 +47,7 @@ import type { CaptureStatus, LauncherState } from "../launcher/types.ts";
 import type { BossGravestoneObservation } from "./boss-timer-coordinator.ts";
 import { CaptureDiagnostics } from "./capture-diagnostics.ts";
 import { CaptureHealthMonitor } from "./capture-health-monitor.ts";
+import { systemClock, type Clock, type ClockTimer } from "./clock.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
 import { combatMonsterIdentityCatalog } from "./monster-identity-catalog.ts";
 import { RewardEventAttributor } from "./reward-event-attributor.ts";
@@ -127,6 +128,7 @@ export interface CaptureCoordinatorOptions {
   onServerInstance?: (instanceId: string | undefined) => void;
   stallWarningMs?: number;
   onSessionEnded?: (sessionId: string) => Promise<void>;
+  clock?: Clock;
 }
 
 export class CaptureCoordinator {
@@ -143,7 +145,7 @@ export class CaptureCoordinator {
   });
   private readonly statusTracker = new FishNetStatusTracker();
   private readonly activeStatusListeners = new Set<(statuses: readonly FishNetActiveStatus[]) => void>();
-  private activeStatusTimer?: ReturnType<typeof setTimeout>;
+  private activeStatusTimer?: ClockTimer;
   private lastPublishedStatusRevision = -1;
   private lastPublishedStatusActorId: number | undefined;
   private readonly loggedShortDisplayStatuses = new Set<string>();
@@ -157,7 +159,7 @@ export class CaptureCoordinator {
   private readonly positions: FishNetPositionTracker;
   private readonly loot = new FishNetLootDropTracker();
   private readonly minimapListeners = new Set<(state: CaptureMinimapState) => void>();
-  private minimapTimer?: ReturnType<typeof setTimeout>;
+  private minimapTimer?: ClockTimer;
   private lastPublishedMinimapJson?: string;
   private readonly lootToastListeners = new Set<(event: CaptureLootToastEvent) => void>();
   private readonly toastedLootIds = new Set<number>();
@@ -188,21 +190,23 @@ export class CaptureCoordinator {
   private packetBuffer: CapturedFishNetPacket[] = [];
   private packetBufferBytes = 0;
   private handoffFailure?: Error;
-  private writeMonitor?: ReturnType<typeof setInterval>;
+  private writeMonitor?: ClockTimer;
   private summaryFinalization: Promise<void> = Promise.resolve();
   private readonly loggedMobIdentities = new Map<number, string>();
   private lastLoggedLocation: SpiritValeLocation | undefined;
   private lastObservedMapId: number | undefined;
   private pendingDirectWorldTransition = false;
   private pendingCharacterBoundary = false;
-  private towerLocationTimer?: ReturnType<typeof setTimeout>;
+  private towerLocationTimer?: ClockTimer;
   private towerLocationDeadlineMs?: number;
   private pendingTowerLocationTick = 0;
   private currentChannel: number | undefined;
   private currentInstanceId: string | undefined;
   private readonly reportedGravestones = new Map<number, string>();
   private lifecycleChain: Promise<void> = Promise.resolve();
+  private readonly clock: Clock;
   constructor(private readonly options: CaptureCoordinatorOptions) {
+    this.clock = options.clock ?? systemClock;
     this.actors = new StickyActorDirectory({
       ...(options.knownIdentities === undefined ? {} : { knownIdentities: options.knownIdentities }),
       ...(options.onIdentityLearned === undefined ? {} : { onIdentityLearned: options.onIdentityLearned }),
@@ -220,6 +224,7 @@ export class CaptureCoordinator {
       onLiteNetPacket: (packet) => this.diagnostics.consumeLiteNet(packet),
       onChange: () => this.publishCaptureHealthChange(),
       onWarning: ({ title, reason, details }) => this.reportWarning(title, reason, details),
+      clock: this.clock,
     });
     this.capture.on("started", () => this.captureStarted());
     this.capture.on("targetStatus", (target) => this.targetStatus(target));
@@ -449,7 +454,7 @@ export class CaptureCoordinator {
 
   private async performStop(): Promise<void> {
     this.clearWriteMonitor();
-    if (this.activeStatusTimer !== undefined) clearTimeout(this.activeStatusTimer);
+    if (this.activeStatusTimer !== undefined) this.clock.clearTimeout(this.activeStatusTimer);
     this.activeStatusTimer = undefined;
     try {
       await this.capture.stop();
@@ -457,7 +462,7 @@ export class CaptureCoordinator {
       this.logCaptureError(errorMessage(error), "Capture could not stop cleanly");
     }
     this.writeStoppedLifecycle();
-    if (this.minimapTimer !== undefined) clearTimeout(this.minimapTimer);
+    if (this.minimapTimer !== undefined) this.clock.clearTimeout(this.minimapTimer);
     this.minimapTimer = undefined;
     this.resetTrackers("full");
     this.rewards.reset();
@@ -498,6 +503,12 @@ export class CaptureCoordinator {
   async resetSession(): Promise<void> {
     if (this.towerLocationTimer !== undefined && await this.commitTowerLocationTransition(true)) return;
     return this.rotateSession();
+  }
+
+  /** Resolves after coordinator-triggered lifecycle work has finished. */
+  async whenSettled(): Promise<void> {
+    await this.resettingSession;
+    await this.lifecycleChain;
   }
 
   private async rotateSession(seed?: SessionSeed): Promise<void> {
@@ -868,7 +879,7 @@ export class CaptureCoordinator {
           identities.push(...this.actors.observePlayerActor(event.targetId, event.tick));
         }
       }
-      const observedAtMs = Date.now();
+      const observedAtMs = this.clock.now();
       for (const identity of identities) this.statusTracker.consumeIdentity(identity);
       for (const event of events) this.statusTracker.consume(event, observedAtMs);
       this.scheduleActiveStatusExpiry();
@@ -954,7 +965,7 @@ export class CaptureCoordinator {
     } else {
       return;
     }
-    const now = Date.now();
+    const now = this.clock.now();
     this.unresolvedReportedAtMs ||= now;
     if (now - this.unresolvedReportedAtMs < UNRESOLVED_REPORT_INTERVAL_MS) return;
     const summary = [...this.unresolvedCounts.entries()]
@@ -1094,18 +1105,18 @@ export class CaptureCoordinator {
   }
 
   private scheduleTowerLocationCommit(): void {
-    this.towerLocationDeadlineMs ??= Date.now() + TOWER_LOCATION_MAX_SETTLE_MS;
-    const delay = Math.max(0, Math.min(TOWER_LOCATION_SETTLE_MS, this.towerLocationDeadlineMs - Date.now()));
+    this.towerLocationDeadlineMs ??= this.clock.now() + TOWER_LOCATION_MAX_SETTLE_MS;
+    const delay = Math.max(0, Math.min(TOWER_LOCATION_SETTLE_MS, this.towerLocationDeadlineMs - this.clock.now()));
     this.clearTowerLocationTimer();
-    this.towerLocationTimer = setTimeout(() => {
-      void this.commitTowerLocationTransition().catch((error) => {
+    this.towerLocationTimer = this.clock.setTimeout(async () => {
+      await this.commitTowerLocationTransition().catch((error) => {
         this.reportError("Tower location could not be committed", errorMessage(error));
       });
     }, delay);
   }
 
   private clearTowerLocationTimer(): void {
-    if (this.towerLocationTimer !== undefined) clearTimeout(this.towerLocationTimer);
+    if (this.towerLocationTimer !== undefined) this.clock.clearTimeout(this.towerLocationTimer);
     this.towerLocationTimer = undefined;
   }
 
@@ -1134,14 +1145,14 @@ export class CaptureCoordinator {
     return false;
   }
 
-  private activeStatuses(nowMs = Date.now()): FishNetActiveStatus[] {
+  private activeStatuses(nowMs = this.clock.now()): FishNetActiveStatus[] {
     this.statusTracker.advance(nowMs);
     const actorId = this.character.physicalObjectId();
     return actorId === undefined ? [] : this.statusTracker.getActiveStatuses(actorId, nowMs);
   }
 
   private publishActiveStatuses(force = false): void {
-    const nowMs = Date.now();
+    const nowMs = this.clock.now();
     const statuses = this.activeStatuses(nowMs);
     const actorId = this.character.physicalObjectId();
     if (!force
@@ -1154,14 +1165,14 @@ export class CaptureCoordinator {
   }
 
   private scheduleActiveStatusExpiry(): void {
-    if (this.activeStatusTimer !== undefined) clearTimeout(this.activeStatusTimer);
+    if (this.activeStatusTimer !== undefined) this.clock.clearTimeout(this.activeStatusTimer);
     this.activeStatusTimer = undefined;
     const expiresAtMs = this.statusTracker.nextExpiryAtMs();
     if (expiresAtMs === undefined) return;
-    this.activeStatusTimer = setTimeout(() => {
+    this.activeStatusTimer = this.clock.setTimeout(() => {
       this.activeStatusTimer = undefined;
       this.publishActiveStatuses();
-    }, Math.max(0, expiresAtMs - Date.now()));
+    }, Math.max(0, expiresAtMs - this.clock.now()));
     this.activeStatusTimer.unref?.();
   }
 
@@ -1195,7 +1206,7 @@ export class CaptureCoordinator {
 
   private scheduleMinimapPublish(): void {
     if (this.minimapTimer !== undefined) return;
-    this.minimapTimer = setTimeout(() => {
+    this.minimapTimer = this.clock.setTimeout(() => {
       this.minimapTimer = undefined;
       this.publishMinimap();
     }, MINIMAP_PUBLISH_MS);
@@ -1317,7 +1328,7 @@ export class CaptureCoordinator {
 
   private watchForDroppedRecords(): void {
     if (this.writeMonitor || this.stopping) return;
-    this.writeMonitor = setInterval(() => {
+    this.writeMonitor = this.clock.setInterval(() => {
       if (this.stopping) {
         this.clearWriteMonitor();
         return;
@@ -1332,7 +1343,7 @@ export class CaptureCoordinator {
 
   private clearWriteMonitor(): void {
     if (!this.writeMonitor) return;
-    clearInterval(this.writeMonitor);
+    this.clock.clearInterval(this.writeMonitor);
     this.writeMonitor = undefined;
   }
 

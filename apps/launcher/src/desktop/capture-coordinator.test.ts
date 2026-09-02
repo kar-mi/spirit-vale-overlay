@@ -1,48 +1,46 @@
 import { describe, expect, test } from "bun:test";
-import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import type { CharacterSnapshot } from "@kar-mi/spirit-vale-tools-character";
 import { DpsSessionLogFollower } from "@kar-mi/spirit-vale-tools-combat";
-import type { CapturedFishNetPacket, CapturedLiteNetLibPacket, CaptureConfig } from "@kar-mi/spirit-vale-tools-capture";
+import type { CapturedFishNetPacket, CapturedLiteNetLibPacket } from "@kar-mi/spirit-vale-tools-capture";
 import type { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 import { isLogStreamHeader, readCurrentLogStream } from "@kar-mi/spirit-vale-tools-logging";
 import { RewardSessionLogFollower } from "@kar-mi/spirit-vale-tools-rewards";
 import { getCurrentExecutableNames } from "@svoverlay/desktop-platform/executable-names";
 
 import { CaptureCoordinator } from "./capture-coordinator.ts";
+import { FakeCapture, TestClock, withCoordinator, type TestPacket } from "./capture-coordinator.test-harness.ts";
 
 const gameProcessName = getCurrentExecutableNames().gameProcess;
 
 describe("central capture coordinator", () => {
   test("identifies the deepest stalled capture stage without recording packet contents", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-health-"));
     const capture = new FakeCapture();
     capture.initialTargetState = "active";
     const states: ReturnType<CaptureCoordinator["state"]>[] = [];
     const reports: Array<{ title: string; reason: string; details?: Readonly<Record<string, unknown>> }> = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({
+      capture,
+      options: {
         stallWarningMs: 5,
         onStatus: (state) => states.push(state),
         onWarning: (report) => reports.push(report),
-      });
-      await coordinator.start();
+      },
+    }, async ({ coordinator, clock }) => {
 
       capture.udp(liteNetPacket(new Date(), Buffer.from("udp-only")).udpPacket);
       expect(capture.listenerCount("udpPacket")).toBe(0);
-      await Bun.sleep(15);
+      await clock.advanceBy(5);
       expect(coordinator.state().captureWarning?.code).toBe("unrecognized-game-udp");
       expect(coordinator.state().statusDetail.code).toBe("capture.status.waitingOnData");
 
       capture.liteNet(liteNetPacket(new Date(), Buffer.from("litenet-only")));
       expect(capture.listenerCount("liteNetPacket")).toBe(0);
       expect(coordinator.state().captureWarning).toBeUndefined();
-      await Bun.sleep(15);
+      await clock.advanceBy(5);
       expect(coordinator.state().captureWarning?.code).toBe("fishnet-decode-stalled");
       expect(coordinator.state().statusDetail.code).toBe("capture.status.waitingOnData");
 
@@ -54,49 +52,31 @@ describe("central capture coordinator", () => {
       expect(JSON.stringify(reports)).not.toContain("udp-only");
       expect(JSON.stringify(reports)).not.toContain("litenet-only");
       expect(states.some((state) => state.captureWarning?.code === "fishnet-decode-stalled")).toBe(true);
-      await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("warns when a detected game produces no target-owned UDP", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-no-udp-"));
     const capture = new FakeCapture();
     capture.initialTargetState = "active";
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        stallWarningMs: 5,
-      });
-      await coordinator.start();
-      await Bun.sleep(15);
+    await withCoordinator({ capture, options: { stallWarningMs: 5 } }, async ({ coordinator, clock }) => {
+      await clock.advanceBy(5);
       expect(coordinator.state().captureWarning?.code).toBe("no-game-udp");
       capture.packet(authenticatedPacket(1, "test-connection"));
       expect(coordinator.state().captureWarning).toBeUndefined();
-      await Bun.sleep(15);
+      await clock.advanceBy(5);
       expect(coordinator.state().captureWarning?.code).toBe("fishnet-data-delayed");
       capture.packet(authenticatedPacket(2, "test-connection"));
       expect(coordinator.state().captureWarning).toBeUndefined();
-      await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("reports a missing game once until it has been detected again", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-missing-game-"));
     const capture = new FakeCapture();
     const errorReports: Array<{ title: string; reason: string; details?: Readonly<Record<string, unknown>> }> = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
-        stallWarningMs: 5,
-        onError: (report) => errorReports.push(report),
-      });
-      await coordinator.start();
+    await withCoordinator({ capture, options: {
+      stallWarningMs: 5,
+      onError: (report) => errorReports.push(report),
+    } }, async () => {
 
       capture.target("waiting");
       expect(errorReports).toHaveLength(1);
@@ -110,27 +90,22 @@ describe("central capture coordinator", () => {
       capture.target("waiting");
       capture.target("waiting");
       expect(errorReports).toHaveLength(2);
-      await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("reports game and data activity after target status arrives before capture startup", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-status-"));
     const capture = new FakeCapture();
     capture.initialTargetState = "active";
     const errorReports: Array<{ title: string; reason: string; details?: Readonly<Record<string, unknown>> }> = [];
     const warningReports: Array<{ title: string; reason: string; details?: Readonly<Record<string, unknown>> }> = [];
-    try {
-      const coordinator = new CaptureCoordinator({
-        logDirectory: directory,
-        captureFactory: () => capture as unknown as PacketCapture,
+    await withCoordinator({
+      capture,
+      options: {
         stallWarningMs: 5,
         onError: (report) => errorReports.push(report),
         onWarning: (report) => warningReports.push(report),
-      });
-      await coordinator.start();
+      },
+    }, async ({ coordinator, clock }) => {
 
       expect(coordinator.state()).toEqual({
         captureStatus: "capturing",
@@ -146,7 +121,7 @@ describe("central capture coordinator", () => {
       capture.target("active", [4242]);
       expect(coordinator.state().statusDetail.code).toBe("capture.status.waitingOnData");
       capture.target("active", [4242]);
-      await Bun.sleep(15);
+      await clock.advanceBy(5);
       expect(errorReports.map((report) => report.title)).toEqual(["Game was not detected for capture"]);
       expect(warningReports.map((report) => report.title)).toEqual(["Capture is still waiting for usable game data"]);
       expect(warningReports[0]).toMatchObject({
@@ -156,10 +131,7 @@ describe("central capture coordinator", () => {
           "Network adapter": "Automatic selection",
         },
       });
-      await coordinator.stop();
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("adds the diagnostic stream only when development diagnostics are enabled", async () => {
@@ -611,11 +583,13 @@ describe("central capture coordinator", () => {
   test("records tower floors as zones and returns to the latest physical map on exit", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-zones-"));
     const capture = new FakeCapture();
+    const clock = new TestClock();
     let goldResets = 0;
     try {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
+        clock,
         resetOnMapChange: () => false,
         onGoldMapChange: () => { goldResets += 1; },
       });
@@ -624,13 +598,13 @@ describe("central capture coordinator", () => {
       capture.packet(authenticatedPacket(1, "tower-connection"));
       capture.packet(mapPacket(2, 17, "tower-connection"));
       capture.packet(towerFloorPacket(3, 1, "tower-connection"));
-      await Bun.sleep(550);
+      await clock.advanceBy(500);
       capture.packet(mapPacket(4, 29, "tower-connection"));
       capture.packet(towerFloorPacket(5, 2, "tower-connection"));
-      await Bun.sleep(550);
+      await clock.advanceBy(500);
       capture.packet(towerExitPacket(6, "tower-connection"));
       capture.packet(towerExitPacket(7, "tower-connection"));
-      await Bun.sleep(550);
+      await clock.advanceBy(500);
       await coordinator.stop();
 
       const pointer = await readCurrentLogStream("combat", directory);
@@ -656,11 +630,13 @@ describe("central capture coordinator", () => {
   test("coalesces an exit-entry-floor burst into one session seeded with the final floor", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-reset-"));
     const capture = new FakeCapture();
+    const clock = new TestClock();
     let goldResets = 0;
     try {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
+        clock,
         resetOnMapChange: () => true,
         onGoldMapChange: () => { goldResets += 1; },
       });
@@ -674,11 +650,11 @@ describe("central capture coordinator", () => {
       capture.packet(towerFloorPacket(5, 2, "tower-connection"));
       capture.packet({ ...damagePacket(6, 900, 41), connectionId: "tower-connection" });
 
-      const towerSessionId = await waitForSessionChange(directory, previousSessionId);
+      await clock.advanceBy(500);
+      const towerSessionId = await sessionAfter(coordinator, directory, previousSessionId);
       expect(towerSessionId).toBeDefined();
-      await Bun.sleep(100);
       capture.packet(towerFloorPacket(7, 2, "tower-connection"));
-      await Bun.sleep(550);
+      await clock.advanceBy(500);
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(towerSessionId);
       await coordinator.stop();
 
@@ -700,10 +676,12 @@ describe("central capture coordinator", () => {
   test("preserves actor identities and creates only the floor session across same-connection reauthentication", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-reauth-"));
     const capture = new FakeCapture();
+    const clock = new TestClock();
     try {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
+        clock,
         diagnosticLogging: true,
         resetOnMapChange: () => true,
       });
@@ -719,9 +697,9 @@ describe("central capture coordinator", () => {
       capture.packet({ ...damagePacket(6, 900, 123), connectionId: "tower-connection" });
       capture.packet(identityPacket(7, 123, "Jane", "tower-connection"));
 
-      const towerSessionId = await waitForSessionChange(directory, previousSessionId);
+      await clock.advanceBy(500);
+      const towerSessionId = await sessionAfter(coordinator, directory, previousSessionId);
       expect(towerSessionId).toBeDefined();
-      await settleRotation();
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(towerSessionId);
       await coordinator.stop();
 
@@ -764,10 +742,12 @@ describe("central capture coordinator", () => {
   test("clears the tower floor when the next map authenticates on a new connection", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-switch-"));
     const capture = new FakeCapture();
+    const clock = new TestClock();
     try {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
+        clock,
         resetOnMapChange: () => false,
       });
       await coordinator.start();
@@ -775,10 +755,9 @@ describe("central capture coordinator", () => {
       capture.packet(authenticatedPacket(1, "tower-a"));
       capture.packet(mapPacket(2, 17, "tower-a"));
       capture.packet(towerFloorPacket(3, 1, "tower-a"));
-      await Bun.sleep(550);
+      await clock.advanceBy(500);
       capture.packet(authenticatedPacket(4, "tower-b"));
       capture.packet(mapPacket(5, 29, "tower-b"));
-      await Bun.sleep(50);
       await coordinator.stop();
 
       const pointer = await readCurrentLogStream("combat", directory);
@@ -795,10 +774,12 @@ describe("central capture coordinator", () => {
   test("rotates on a manual reset while the replacement location is still unknown", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-tower-manual-reset-"));
     const capture = new FakeCapture();
+    const clock = new TestClock();
     try {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         captureFactory: () => capture as unknown as PacketCapture,
+        clock,
         resetOnMapChange: () => false,
       });
       await coordinator.start();
@@ -806,12 +787,11 @@ describe("central capture coordinator", () => {
       capture.packet(authenticatedPacket(1, "tower-a"));
       capture.packet(mapPacket(2, 17, "tower-a"));
       capture.packet(towerFloorPacket(3, 1, "tower-a"));
-      await Bun.sleep(550);
+      await clock.advanceBy(500);
       const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
       capture.packet(authenticatedPacket(4, "tower-b"));
       capture.packet(towerExitPacket(5, "tower-b"));
-      await Bun.sleep(50);
       await coordinator.resetSession();
       expect((await readCurrentLogStream("combat", directory))?.sessionId).not.toBe(previousSessionId);
 
@@ -1169,18 +1149,20 @@ describe("central capture coordinator", () => {
   test("restarts capture for a new adapter and rolls back a failed selection", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "spiritvale-central-adapter-"));
     const capture = new FakeCapture();
+    const clock = new TestClock();
     capture.initialTargetState = "active";
     try {
       const coordinator = new CaptureCoordinator({
         logDirectory: directory,
         deviceName: "fictional-adapter-a",
         captureFactory: () => capture as unknown as PacketCapture,
+        clock,
         stallWarningMs: 5,
       });
       await coordinator.start();
       await coordinator.reconfigure("fictional-adapter-b");
       expect(capture.configs.map((config) => config.deviceName)).toEqual(["fictional-adapter-a", "fictional-adapter-b"]);
-      await Bun.sleep(15);
+      await clock.advanceBy(5);
       expect(coordinator.state().captureWarning?.code).toBe("no-game-udp");
 
       capture.failDeviceName = "fictional-adapter-c";
@@ -1289,19 +1271,19 @@ describe("central capture coordinator", () => {
       const loginSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
-      await settleRotation();
+      await coordinator.whenSettled();
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(loginSessionId);
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
-      await settleRotation();
+      await coordinator.whenSettled();
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(loginSessionId);
 
       capture.packet(authenticatedPacket(50, "conn-b"));
-      const mapChangeSessionId = await waitForSessionChange(directory, loginSessionId);
+      const mapChangeSessionId = await sessionAfter(coordinator, directory, loginSessionId);
       expect(mapChangeSessionId).toBeDefined();
 
       capture.packet(authenticatedPacket(80, "conn-b"));
-      await settleRotation();
+      await coordinator.whenSettled();
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(mapChangeSessionId);
 
       await coordinator.stop();
@@ -1328,7 +1310,7 @@ describe("central capture coordinator", () => {
 
       capture.packet(authenticatedPacket(50, "conn-b"));
       capture.packet(mapPacket(55, 48, "conn-b"));
-      expect(await waitForSessionChange(directory, attachedSessionId)).toBeDefined();
+      expect(await sessionAfter(coordinator, directory, attachedSessionId)).toBeDefined();
       await coordinator.stop();
 
       const pointer = await readCurrentLogStream("combat", directory);
@@ -1361,7 +1343,7 @@ describe("central capture coordinator", () => {
 
       capture.packet(authenticatedPacket(50, "conn-b"));
       capture.packet(identityPacket(55, 41, "Aster Vale", "conn-b"));
-      expect(await waitForSessionChange(directory, previousSessionId)).toBeDefined();
+      expect(await sessionAfter(coordinator, directory, previousSessionId)).toBeDefined();
       capture.packet({ ...damagePacket(60, 900, 41), connectionId: "conn-b" });
       await coordinator.stop();
 
@@ -1402,7 +1384,7 @@ describe("central capture coordinator", () => {
 
       capture.packet(authenticatedPacket(50, "conn-b"));
       capture.packet(mapPacket(55, 48, "conn-b"));
-      expect(await waitForSessionChange(directory, previousSessionId)).toBeDefined();
+      expect(await sessionAfter(coordinator, directory, previousSessionId)).toBeDefined();
       await coordinator.stop();
 
       const pointer = await readCurrentLogStream("combat", directory);
@@ -1433,11 +1415,11 @@ describe("central capture coordinator", () => {
       const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
       capture.packet(waypointPacket(1_020, 45, "conn-a"));
-      const nextSessionId = await waitForSessionChange(directory, previousSessionId);
+      const nextSessionId = await sessionAfter(coordinator, directory, previousSessionId);
       expect(nextSessionId).toBeDefined();
       capture.packet(authenticatedPacket(50, "conn-b"));
       capture.packet(mapPacket(55, 45, "conn-b"));
-      await settleRotation();
+      await coordinator.whenSettled();
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(nextSessionId);
       await coordinator.stop();
 
@@ -1465,7 +1447,7 @@ describe("central capture coordinator", () => {
       const previousSessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
 
       capture.packet(quitCharacterPacket(1_020, "conn-a"));
-      expect(await waitForSessionChange(directory, previousSessionId)).toBeDefined();
+      expect(await sessionAfter(coordinator, directory, previousSessionId)).toBeDefined();
       capture.packet(loadCharacterPacket(1_030, "conn-a"));
       capture.packet(identityPacket(1_040, 41, "Current Ranger", "conn-a"));
       await coordinator.stop();
@@ -1501,13 +1483,13 @@ describe("central capture coordinator", () => {
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
       capture.packet(authenticatedPacket(50, "conn-b"));
-      await settleRotation();
+      await coordinator.whenSettled();
       expect((await readCurrentLogStream("combat", directory))?.sessionId).toBe(firstSessionId);
       expect(await readdir(path.join(directory, "combat"))).toHaveLength(1);
 
       resetOnMapChange = true;
       capture.packet(authenticatedPacket(25, "conn-c"));
-      expect(await waitForSessionChange(directory, firstSessionId)).toBeDefined();
+      expect(await sessionAfter(coordinator, directory, firstSessionId)).toBeDefined();
 
       await coordinator.stop();
     } finally {
@@ -1529,19 +1511,19 @@ describe("central capture coordinator", () => {
       await coordinator.start();
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
-      await settleRotation();
+      await coordinator.whenSettled();
       expect(goldResets).toBe(0);
 
       capture.packet(authenticatedPacket(1_000, "conn-a"));
-      await settleRotation();
+      await coordinator.whenSettled();
       expect(goldResets).toBe(0);
 
       capture.packet(authenticatedPacket(50, "conn-b"));
-      await settleRotation();
+      await coordinator.whenSettled();
       expect(goldResets).toBe(1);
 
       capture.packet(authenticatedPacket(80, "conn-b"));
-      await settleRotation();
+      await coordinator.whenSettled();
       expect(goldResets).toBe(1);
 
       await coordinator.stop();
@@ -2002,7 +1984,7 @@ async function sendAcross(rotation: Promise<unknown>, send: (tick: number) => vo
   for (let tick = 2_000; !settled && tick < 2_400; tick += 1) {
     send(tick);
     ticks.push(tick);
-    await Bun.sleep(0);
+    await new Promise<void>((resolve) => setImmediate(resolve));
   }
   await tracked;
   return ticks;
@@ -2026,67 +2008,14 @@ function errorMessageOf(value: unknown): string {
   return value instanceof Error ? value.message : String(value);
 }
 
-class FakeCapture extends EventEmitter {
-  readonly configs: CaptureConfig[] = [];
-  failDeviceName?: string;
-  initialTargetState: "waiting" | "active" = "waiting";
-  constructor(private readonly startError?: Error) { super(); }
-
-  async start(config: CaptureConfig): Promise<void> {
-    this.configs.push(config);
-    if (this.startError) throw this.startError;
-    if (this.failDeviceName !== undefined && config.deviceName === this.failDeviceName) throw new Error("synthetic adapter unavailable");
-    this.target(this.initialTargetState, this.initialTargetState === "active" ? [4242] : []);
-    this.emit("started");
-  }
-
-  async stop(): Promise<void> {
-    this.emit("stopped");
-  }
-
-  packet(packet: TestPacket): void {
-    const captured: CapturedFishNetPacket = {
-      connectionId: "test-connection",
-      liteNetPacket: liteNetPacket(new Date(), packet.raw),
-      ...packet,
-    };
-    this.emit("fishNetPacket", captured);
-  }
-
-  liteNet(packet: CapturedLiteNetLibPacket): void {
-    this.emit("liteNetPacket", packet);
-  }
-
-  udp(packet: CapturedLiteNetLibPacket["udpPacket"]): void {
-    this.emit("udpPacket", packet);
-  }
-
-  connection(connectionId: string, state: "opened" | "closed"): void {
-    this.emit("connection", { connectionId, state });
-  }
-
-  fail(error: Error): void {
-    this.emit("error", error);
-  }
-
-  target(state: "waiting" | "active", processIds: number[] = []): void {
-    this.emit("targetStatus", { processName: gameProcessName, state, processIds });
-  }
-}
-
-type TestPacket = Omit<CapturedFishNetPacket, "liteNetPacket" | "connectionId"> & { connectionId?: string };
-
-async function waitForSessionChange(directory: string, previousSessionId: string | undefined): Promise<string | undefined> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const pointer = await readCurrentLogStream("combat", directory);
-    if (pointer?.sessionId && pointer.sessionId !== previousSessionId) return pointer.sessionId;
-    await Bun.sleep(10);
-  }
-  return undefined;
-}
-
-async function settleRotation(): Promise<void> {
-  for (let attempt = 0; attempt < 10; attempt += 1) await Bun.sleep(10);
+async function sessionAfter(
+  coordinator: CaptureCoordinator,
+  directory: string,
+  previousSessionId: string | undefined,
+): Promise<string | undefined> {
+  await coordinator.whenSettled();
+  const sessionId = (await readCurrentLogStream("combat", directory))?.sessionId;
+  return sessionId === previousSessionId ? undefined : sessionId;
 }
 
 function loggedLocations(content: string): string[] {

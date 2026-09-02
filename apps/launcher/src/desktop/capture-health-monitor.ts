@@ -2,6 +2,7 @@ import type { CapturedLiteNetLibPacket } from "@kar-mi/spirit-vale-tools-capture
 import type { PacketCapture } from "@kar-mi/spirit-vale-tools-capture/capture";
 
 import type { CaptureHealthWarning, CaptureWarningCode } from "../launcher/types.ts";
+import { systemClock, type Clock, type ClockTimer } from "./clock.ts";
 
 type CaptureStage = "waiting" | "udp" | "litenet" | "fishnet";
 
@@ -19,13 +20,14 @@ export interface CaptureHealthMonitorOptions {
   onLiteNetPacket: (packet: CapturedLiteNetLibPacket) => void;
   onChange: () => void;
   onWarning: (report: CaptureHealthReport) => void;
+  clock?: Clock;
 }
 
 export class CaptureHealthMonitor {
   private warningValue?: CaptureHealthWarning;
   private stage: CaptureStage = "waiting";
-  private stageSinceMs = Date.now();
-  private stageTimer?: ReturnType<typeof setTimeout>;
+  private stageSinceMs: number;
+  private stageTimer?: ClockTimer;
   private udpPacketCount = 0;
   private liteNetPacketCount = 0;
   private fishNetPacketCount = 0;
@@ -46,7 +48,11 @@ export class CaptureHealthMonitor {
     this.options.onLiteNetPacket(packet);
   };
 
+  private readonly clock: Clock;
+
   constructor(private readonly options: CaptureHealthMonitorOptions) {
+    this.clock = options.clock ?? systemClock;
+    this.stageSinceMs = this.clock.now();
     this.armListeners();
   }
 
@@ -75,7 +81,7 @@ export class CaptureHealthMonitor {
     const changed = this.warningValue !== undefined;
     this.warningValue = undefined;
     this.stage = "waiting";
-    this.stageSinceMs = Date.now();
+    this.stageSinceMs = this.clock.now();
     this.udpPacketCount = 0;
     this.liteNetPacketCount = 0;
     this.fishNetPacketCount = 0;
@@ -87,7 +93,7 @@ export class CaptureHealthMonitor {
   }
 
   private observe(stage: Exclude<CaptureStage, "waiting">): void {
-    const observedAtMs = Date.now();
+    const observedAtMs = this.clock.now();
     if (stage === "udp") this.udpPacketCount += 1;
     else if (stage === "litenet") this.liteNetPacketCount += 1;
     else {
@@ -117,9 +123,9 @@ export class CaptureHealthMonitor {
   private scheduleWarning(): void {
     this.clearTimer();
     const elapsed = this.stage === "fishnet" && this.lastFishNetPacketAtMs !== undefined
-      ? Date.now() - this.lastFishNetPacketAtMs
+      ? this.clock.now() - this.lastFishNetPacketAtMs
       : 0;
-    this.stageTimer = setTimeout(() => {
+    this.stageTimer = this.clock.setTimeout(() => {
       this.stageTimer = undefined;
       this.publishWarning();
     }, Math.max(0, this.options.stallWarningMs - elapsed));
@@ -129,12 +135,12 @@ export class CaptureHealthMonitor {
   private publishWarning(): void {
     if (!this.targetActive) return;
     if (this.stage === "fishnet" && this.lastFishNetPacketAtMs !== undefined
-      && Date.now() - this.lastFishNetPacketAtMs < this.options.stallWarningMs) {
+      && this.clock.now() - this.lastFishNetPacketAtMs < this.options.stallWarningMs) {
       this.scheduleWarning();
       return;
     }
     const warning = warningForStage(this.stage);
-    this.warningValue = { ...warning, detectedAt: new Date().toISOString() };
+    this.warningValue = { ...warning, detectedAt: new Date(this.clock.now()).toISOString() };
     this.options.onChange();
     if (this.reportedStallStages.has(warning.code)) return;
     this.reportedStallStages.add(warning.code);
@@ -162,7 +168,7 @@ export class CaptureHealthMonitor {
   }
 
   private clearTimer(): void {
-    if (this.stageTimer !== undefined) clearTimeout(this.stageTimer);
+    if (this.stageTimer !== undefined) this.clock.clearTimeout(this.stageTimer);
     this.stageTimer = undefined;
   }
 }
