@@ -9,10 +9,10 @@ import { inspectRewardsReplaySummary } from "@kar-mi/spirit-vale-tools-rewards";
 
 import { createBuildExportWindow } from "@svoverlay/build-export";
 import { createRewardsWindow } from "@svoverlay/rewards";
-import type { LauncherRpc, LauncherSettingsRpc, LauncherState, SettingsSectionId, ToolWindow } from "../launcher/types.ts";
-import { loadLauncherSettings, saveLauncherSettings } from "../launcher/settings.ts";
+import type { LauncherRpc, LauncherSettingsRpc, LauncherState, SettingsSectionId, SharedSettingsState, ToolWindow } from "../launcher/types.ts";
+import { loadLauncherSettings, saveLauncherSettings, type LauncherSettings } from "../launcher/settings.ts";
 import type { LocaleCode } from "@svoverlay/i18n/locale";
-import type { LocalizedText } from "@svoverlay/i18n/messages";
+import type { LocalizedText, MessageKey } from "@svoverlay/i18n/messages";
 import { englishText, message, translate } from "@svoverlay/i18n/backend";
 import {
   applyImport,
@@ -41,7 +41,7 @@ import {
 } from "./actor-identity-storage.ts";
 import { compareBossRegions } from "@svoverlay/contracts/boss-timers";
 import type { BossTimerWindowState } from "../boss-timers/rpc.ts";
-import { CaptureCoordinator } from "./capture-coordinator.ts";
+import { CaptureCoordinator, type CaptureErrorReport } from "./capture-coordinator.ts";
 import { createBossTimerCoordinator } from "./boss-timer-coordinator.ts";
 import { createBossTimerWindow } from "./boss-timer-window.ts";
 import { createXpTrackerCoordinator } from "./xp-tracker-coordinator.ts";
@@ -51,7 +51,13 @@ import { createCharacterWindow } from "./character-window.ts";
 import { createDeathLogWindow, createDpsWindow } from "@svoverlay/combat";
 import { readCombatLocations } from "@svoverlay/combat/zone-log";
 import { createOverlayWindow } from "@svoverlay/overlay";
-import { KEYBIND_ACTIONS, type KeybindAction } from "@svoverlay/overlay/app-types";
+import {
+  KEYBIND_ACTIONS,
+  type KeybindAction,
+  type OverlayElementId,
+  type PersonalDpsMode,
+  type RequiredStatusCategory,
+} from "@svoverlay/overlay/app-types";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { WindowSlot } from "./window-slot.ts";
@@ -101,32 +107,67 @@ await verifyWritableDirectories([
     });
   },
 });
-const reportedStorageWarnings = new Map<string, string>();
-
 /** A storage failure in both forms it is needed in: English for the error log, a code for the view. */
 interface StorageWarning {
   english: string;
   text: LocalizedText;
 }
 
+/** Active storage failures keyed by source, plus which English texts have already reached the error log. */
+const storageWarnings = new Map<string, StorageWarning>();
+const loggedStorageWarnings = new Map<string, string>();
+
 /** Every `SafeSaveQueue`/`onWarning` producer reports the same single failure mode. */
 function saveFailure(warning: string | undefined): StorageWarning | undefined {
   return warning === undefined ? undefined : { english: warning, text: message("storage.saveFailed") };
 }
 
+/** Record or clear a storage failure for `source`: surface one to the view, log each new English text once. */
+function reportStorageWarning(source: string, warning: StorageWarning | undefined): void {
+  if (warning) storageWarnings.set(source, warning);
+  else storageWarnings.delete(source);
+
+  if (!warning) {
+    loggedStorageWarnings.delete(source);
+  } else if (loggedStorageWarnings.get(source) !== warning.english) {
+    loggedStorageWarnings.set(source, warning.english);
+    errorLog.write({
+      title: `${source} storage warning`,
+      reason: warning.english,
+      details: { "Storage root": localRoot, "Log directory": logDirectory },
+    });
+  }
+
+  const active = storageWarnings.values().next().value as StorageWarning | undefined;
+  launcherState = { ...launcherState, storageWarning: active?.text };
+  publish();
+}
+
+/** Both capture log sinks want the same adapter/version context ahead of the report's own details. */
+function withCaptureContext(report: CaptureErrorReport): CaptureErrorReport {
+  return {
+    ...report,
+    details: {
+      "App version": appVersion,
+      "Npcap version": launcherState.npcapVersion,
+      "Selected adapter": launcherState.selectedAdapter,
+      "Effective adapter": launcherState.effectiveAdapter,
+      ...report.details,
+    },
+  };
+}
+
 const readModel = await createReadModelService({ logDirectory });
 const xpTracker = createXpTrackerCoordinator({ logDirectory });
-let bossTimerStorageWarning: StorageWarning | undefined;
 const bossTimers = await createBossTimerCoordinator({
   storagePath: storagePaths.bossTimersPath,
-  onWarning: (warning) => { bossTimerStorageWarning = saveFailure(warning); recordStorageWarning("boss timers", warning); updateStorageWarning(); },
+  onWarning: (warning) => reportStorageWarning("boss timers", saveFailure(warning)),
 });
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
 setActiveLocale(settings.language);
-let placementStorageWarning: StorageWarning | undefined;
 const placements = await WindowPlacementStore.load(storagePaths.windowPlacementsPath, {
-  onWarning: (warning) => { placementStorageWarning = saveFailure(warning); recordStorageWarning("window placements", warning); updateStorageWarning(); },
+  onWarning: (warning) => reportStorageWarning("window placements", saveFailure(warning)),
 });
 let launcherWindow: BrowserWindow;
 let settingsWindow: BrowserWindow | undefined;
@@ -151,10 +192,6 @@ let launcherState: LauncherState = {
   pastLogLimit: settings.pastLogLimit,
 };
 let shuttingDown = false;
-let characterStorageWarning: StorageWarning | undefined;
-let inspectedCharacterStorageWarning: StorageWarning | undefined;
-let launcherSettingsStorageWarning: StorageWarning | undefined;
-let actorIdentityStorageWarning: StorageWarning | undefined;
 let liveCombatLogPath: string | undefined;
 
 const liveDeathLogWindow = createDeathLogWindow({
@@ -169,7 +206,7 @@ const liveDeathLogWindow = createDeathLogWindow({
 const launcherSettingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "launcher settings",
   save: (value) => saveLauncherSettings(value, storagePaths.launcherSettingsPath),
-  onWarning: (warning) => { launcherSettingsStorageWarning = saveFailure(warning); recordStorageWarning("launcher settings", warning); updateStorageWarning(); },
+  onWarning: (warning) => reportStorageWarning("launcher settings", saveFailure(warning)),
 });
 let characterCache: CharacterSnapshotCache = { characters: [] };
 const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
@@ -177,7 +214,7 @@ const characterPersistence = new SafeSaveQueue<CharacterSnapshotCache>({
   // `updateCharacterCache` returns a fresh cache that nothing mutates afterwards, so the queue does not need its own copy.
   clone: false,
   save: (value) => saveCharacterCache(value, storagePaths.characterStatePath),
-  onWarning: (warning) => { characterStorageWarning = saveFailure(warning); recordStorageWarning("character snapshot", warning); updateStorageWarning(); },
+  onWarning: (warning) => reportStorageWarning("character snapshot", saveFailure(warning)),
 });
 const inspectedCharacterStore = new InspectedCharacterStore(storagePaths.inspectedCharactersPath);
 const inspectedCharacterRoster = new DurableInspectedCharacterRoster(inspectedCharacterStore, {
@@ -185,12 +222,10 @@ const inspectedCharacterRoster = new DurableInspectedCharacterRoster(inspectedCh
     const reason = error === undefined
       ? undefined
       : error instanceof Error ? error.message : String(error);
-    inspectedCharacterStorageWarning = reason === undefined ? undefined : {
+    reportStorageWarning("inspected characters", reason === undefined ? undefined : {
       english: `Could not save inspected characters: ${reason}`,
       text: message("storage.inspectedCharactersFailed", { reason }),
-    };
-    recordStorageWarning("inspected characters", inspectedCharacterStorageWarning?.english);
-    updateStorageWarning();
+    });
   },
 });
 let actorIdentityCache: ActorIdentityCache = await loadActorIdentityCache(storagePaths.actorIdentitiesPath);
@@ -198,7 +233,7 @@ const actorIdentityPersistence = new SafeSaveQueue<ActorIdentityCache>({
   label: "actor identities",
   clone: false,
   save: (value) => saveActorIdentityCache(value, storagePaths.actorIdentitiesPath),
-  onWarning: (warning) => { actorIdentityStorageWarning = saveFailure(warning); recordStorageWarning("actor identities", warning); updateStorageWarning(); },
+  onWarning: (warning) => reportStorageWarning("actor identities", saveFailure(warning)),
 });
 
 const combatWindow = new WindowSlot((onClosed) => createDpsWindow({
@@ -262,26 +297,8 @@ const capture = new CaptureCoordinator({
     else delete launcherState.captureWarning;
     publish();
   },
-  onError: (report) => errorLog.write({
-    ...report,
-    details: {
-      "App version": appVersion,
-      "Npcap version": launcherState.npcapVersion,
-      "Selected adapter": launcherState.selectedAdapter,
-      "Effective adapter": launcherState.effectiveAdapter,
-      ...report.details,
-    },
-  }),
-  onWarning: (report) => warningLog.write({
-    ...report,
-    details: {
-      "App version": appVersion,
-      "Npcap version": launcherState.npcapVersion,
-      "Selected adapter": launcherState.selectedAdapter,
-      "Effective adapter": launcherState.effectiveAdapter,
-      ...report.details,
-    },
-  }),
+  onError: (report) => errorLog.write(withCaptureContext(report)),
+  onWarning: (report) => warningLog.write(withCaptureContext(report)),
   resetOnMapChange: () => settings.resetMeterOnMapChange,
   onGoldMapChange: () => { if (settings.resetGoldOnMapChange) xpTracker.resetCoins(); },
   minimapEnabled: () => {
@@ -396,6 +413,16 @@ const rpc = BrowserView.defineRPC<LauncherRpc>({
   },
 });
 
+type OverlayWindowHandle = Awaited<ReturnType<typeof createOverlayWindow>>;
+
+/** Every overlay settings mutation runs against the window, then republishes the merged settings state. */
+function overlayAction<P = void>(apply: (overlay: OverlayWindowHandle, params: P) => unknown) {
+  return async (params: P): Promise<SharedSettingsState> => {
+    await overlayWindow.withWindow((overlay) => apply(overlay, params));
+    return sharedSettingsState();
+  };
+}
+
 const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
   maxRequestTime: 30_000,
   handlers: {
@@ -439,62 +466,20 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
         return sharedSettingsState();
       },
       openNpcapDownload: () => { Utils.openExternal("https://npcap.com/#download"); },
-      setOverlayLocked: async ({ locked }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setLocked(locked));
-        return sharedSettingsState();
-      },
-      setOverlayElementEnabled: async ({ id, enabled }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setElementEnabled(id, enabled));
-        return sharedSettingsState();
-      },
-      setOverlayElementDisplay: async ({ id, display }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setElementDisplay(id, display));
-        return sharedSettingsState();
-      },
-      setOverlayHomeDisplay: async ({ display }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setHomeDisplay(display));
-        return sharedSettingsState();
-      },
-      setOverlayVisible: async ({ visible }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setOverlayVisible(visible));
-        return sharedSettingsState();
-      },
-      setAutoHideWhenUnfocused: async ({ enabled }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setAutoHideWhenUnfocused(enabled));
-        return sharedSettingsState();
-      },
-      setShortcut: async ({ action, shortcut }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setShortcut(action, shortcut));
-        return sharedSettingsState();
-      },
-      resetShortcutsToDefaults: async () => {
-        await overlayWindow.withWindow((overlay) => overlay.resetShortcutsToDefaults());
-        return sharedSettingsState();
-      },
-      setShortcutCapture: async ({ active }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setShortcutCapture(active));
-        return sharedSettingsState();
-      },
-      setOverlayRequiredStatuses: async ({ category, statusIds }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setRequiredStatuses(category, statusIds));
-        return sharedSettingsState();
-      },
-      setPersonalDpsMode: async ({ mode }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setPersonalDpsMode(mode));
-        return sharedSettingsState();
-      },
-      setMinimapEnabled: async ({ enabled }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setMinimapEnabled(enabled));
-        return sharedSettingsState();
-      },
-      setMinimapRarityFilter: async ({ rarity }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setMinimapRarityFilter(rarity));
-        return sharedSettingsState();
-      },
-      setMinimapLootChanceFilter: async ({ chance }) => {
-        await overlayWindow.withWindow((overlay) => overlay.setMinimapLootChanceFilter(chance));
-        return sharedSettingsState();
-      },
+      setOverlayLocked: overlayAction((o, { locked }: { locked: boolean }) => o.setLocked(locked)),
+      setOverlayElementEnabled: overlayAction((o, { id, enabled }: { id: OverlayElementId; enabled: boolean }) => o.setElementEnabled(id, enabled)),
+      setOverlayElementDisplay: overlayAction((o, { id, display }: { id: OverlayElementId; display: string }) => o.setElementDisplay(id, display)),
+      setOverlayHomeDisplay: overlayAction((o, { display }: { display: string }) => o.setHomeDisplay(display)),
+      setOverlayVisible: overlayAction((o, { visible }: { visible: boolean }) => o.setOverlayVisible(visible)),
+      setAutoHideWhenUnfocused: overlayAction((o, { enabled }: { enabled: boolean }) => o.setAutoHideWhenUnfocused(enabled)),
+      setShortcut: overlayAction((o, { action, shortcut }: { action: KeybindAction; shortcut: string }) => o.setShortcut(action, shortcut)),
+      resetShortcutsToDefaults: overlayAction((o) => o.resetShortcutsToDefaults()),
+      setShortcutCapture: overlayAction((o, { active }: { active: boolean }) => o.setShortcutCapture(active)),
+      setOverlayRequiredStatuses: overlayAction((o, { category, statusIds }: { category: RequiredStatusCategory; statusIds: string[] }) => o.setRequiredStatuses(category, statusIds)),
+      setPersonalDpsMode: overlayAction((o, { mode }: { mode: PersonalDpsMode }) => o.setPersonalDpsMode(mode)),
+      setMinimapEnabled: overlayAction((o, { enabled }: { enabled: boolean }) => o.setMinimapEnabled(enabled)),
+      setMinimapRarityFilter: overlayAction((o, { rarity }: { rarity: number }) => o.setMinimapRarityFilter(rarity)),
+      setMinimapLootChanceFilter: overlayAction((o, { chance }: { chance: number }) => o.setMinimapLootChanceFilter(chance)),
       importSettings: () => importSettingsAndClose(),
       importSetting: ({ kind }) => importSingleSettingAndClose(kind),
       exportSetting: ({ kind }) => exportSettingAndNotify(kind),
@@ -661,6 +646,29 @@ function readDisplays() {
   return [Screen.getPrimaryDisplay()];
 }
 
+/** Every manage-settings dialog is a single-OK box under the same title; `body` selects the message. */
+function notifyManageSettings(body: MessageKey, type: "info" | "warning" = "info"): Promise<unknown> {
+  return Utils.showMessageBox({
+    type,
+    title: translate("dialog.manageSettings.title"),
+    message: translate(body),
+    buttons: [translate("common.ok")],
+    defaultId: 0,
+    cancelId: 0,
+  });
+}
+
+/** Import/reset flows close every window, apply the change on disk, confirm, then quit so the next launch adopts it. */
+async function applyAndRestart(mutate: () => Promise<void>, confirm: MessageKey): Promise<void> {
+  try {
+    await closeAllWindowsAndFlush();
+    await mutate();
+    await notifyManageSettings(confirm);
+  } finally {
+    await quitImmediately();
+  }
+}
+
 async function importSettingsAndClose(): Promise<void> {
   const [selected] = await Utils.openFileDialog({
     canChooseDirectory: true,
@@ -671,41 +679,14 @@ async function importSettingsAndClose(): Promise<void> {
   if (!selected) return;
   const plan = planImport(selected, storagePaths);
   if (plan.status === "same-folder") {
-    await Utils.showMessageBox({
-      type: "info",
-      title: translate("dialog.manageSettings.title"),
-      message: translate("dialog.manageSettings.sameFolder"),
-      buttons: [translate("common.ok")],
-      defaultId: 0,
-      cancelId: 0,
-    });
+    await notifyManageSettings("dialog.manageSettings.sameFolder");
     return;
   }
   if (plan.status === "not-found") {
-    await Utils.showMessageBox({
-      type: "warning",
-      title: translate("dialog.manageSettings.title"),
-      message: translate("dialog.manageSettings.notFound"),
-      buttons: [translate("common.ok")],
-      defaultId: 0,
-      cancelId: 0,
-    });
+    await notifyManageSettings("dialog.manageSettings.notFound", "warning");
     return;
   }
-  try {
-    await closeAllWindowsAndFlush();
-    await applyImport(plan.oldPaths, storagePaths, readDisplays());
-    await Utils.showMessageBox({
-      type: "info",
-      title: translate("dialog.manageSettings.title"),
-      message: translate("dialog.manageSettings.imported"),
-      buttons: [translate("common.ok")],
-      defaultId: 0,
-      cancelId: 0,
-    });
-  } finally {
-    await quitImmediately();
-  }
+  await applyAndRestart(() => applyImport(plan.oldPaths, storagePaths, readDisplays()), "dialog.manageSettings.imported");
 }
 
 async function importSingleSettingAndClose(kind: SettingsKind): Promise<void> {
@@ -717,20 +698,7 @@ async function importSingleSettingAndClose(kind: SettingsKind): Promise<void> {
     startingFolder: path.dirname(settingsKindPath(kind, storagePaths)),
   });
   if (!selected) return;
-  try {
-    await closeAllWindowsAndFlush();
-    await importSingleSetting(kind, selected, storagePaths, readDisplays());
-    await Utils.showMessageBox({
-      type: "info",
-      title: translate("dialog.manageSettings.title"),
-      message: translate("dialog.manageSettings.imported"),
-      buttons: [translate("common.ok")],
-      defaultId: 0,
-      cancelId: 0,
-    });
-  } finally {
-    await quitImmediately();
-  }
+  await applyAndRestart(() => importSingleSetting(kind, selected, storagePaths, readDisplays()), "dialog.manageSettings.imported");
 }
 
 async function exportSettingAndNotify(kind: SettingsKind): Promise<void> {
@@ -740,14 +708,7 @@ async function exportSettingAndNotify(kind: SettingsKind): Promise<void> {
   });
   if (!destination) return;
   await exportSingleSetting(kind, storagePaths, destination, readDisplays());
-  await Utils.showMessageBox({
-    type: "info",
-    title: translate("dialog.manageSettings.title"),
-    message: translate("dialog.manageSettings.exported"),
-    buttons: [translate("common.ok")],
-    defaultId: 0,
-    cancelId: 0,
-  });
+  await notifyManageSettings("dialog.manageSettings.exported");
 }
 
 function openSettingsDataFolder(): void {
@@ -755,20 +716,9 @@ function openSettingsDataFolder(): void {
 }
 
 async function resetSettingsAndClose(): Promise<void> {
-  try {
-    await closeAllWindowsAndFlush();
+  await applyAndRestart(async () => {
     await resetAllSettings(storagePaths, readDisplays());
-    await Utils.showMessageBox({
-      type: "info",
-      title: translate("dialog.manageSettings.title"),
-      message: translate("dialog.manageSettings.reset"),
-      buttons: [translate("common.ok")],
-      defaultId: 0,
-      cancelId: 0,
-    });
-  } finally {
-    await quitImmediately();
-  }
+  }, "dialog.manageSettings.reset");
 }
 
 async function openTool(tool: ToolWindow): Promise<void> {
@@ -847,54 +797,42 @@ async function setCaptureAdapter(deviceName: string | null): Promise<LauncherSta
   return launcherState;
 }
 
-async function setLauncherUiScale(uiScale: typeof settings.uiScale): Promise<LauncherState> {
-  settings.uiScale = setUiScale(uiScale);
-  launcherState = { ...launcherState, uiScale: settings.uiScale };
+/** Persist one launcher setting, mirror it into the published state under the same key, and republish. */
+function applySetting<K extends keyof LauncherSettings & keyof LauncherState>(
+  key: K,
+  value: LauncherSettings[K] & LauncherState[K],
+): LauncherState {
+  settings[key] = value;
+  launcherState = { ...launcherState, [key]: value };
   launcherSettingsPersistence.schedule(settings);
   publish();
   return launcherState;
+}
+
+async function setLauncherUiScale(uiScale: typeof settings.uiScale): Promise<LauncherState> {
+  return applySetting("uiScale", setUiScale(uiScale));
 }
 
 function setLanguage(language: LocaleCode): LauncherState {
-  settings.language = language;
   setActiveLocale(language);
-  launcherState = { ...launcherState, language };
   refreshTrayMenu();
-  launcherSettingsPersistence.schedule(settings);
-  publish();
-  return launcherState;
+  return applySetting("language", language);
 }
 
 function setMinimizeToTray(minimizeToTray: boolean): LauncherState {
-  settings.minimizeToTray = minimizeToTray;
-  launcherState = { ...launcherState, minimizeToTray };
-  launcherSettingsPersistence.schedule(settings);
-  publish();
-  return launcherState;
+  return applySetting("minimizeToTray", minimizeToTray);
 }
 
 function setResetMeterOnMapChange(resetMeterOnMapChange: boolean): LauncherState {
-  settings.resetMeterOnMapChange = resetMeterOnMapChange;
-  launcherState = { ...launcherState, resetMeterOnMapChange };
-  launcherSettingsPersistence.schedule(settings);
-  publish();
-  return launcherState;
+  return applySetting("resetMeterOnMapChange", resetMeterOnMapChange);
 }
 
 function setResetGoldOnMapChange(resetGoldOnMapChange: boolean): LauncherState {
-  settings.resetGoldOnMapChange = resetGoldOnMapChange;
-  launcherState = { ...launcherState, resetGoldOnMapChange };
-  launcherSettingsPersistence.schedule(settings);
-  publish();
-  return launcherState;
+  return applySetting("resetGoldOnMapChange", resetGoldOnMapChange);
 }
 
 function setPastLogLimit(pastLogLimit: number): LauncherState {
-  settings.pastLogLimit = normalizeHistorySessionLimit(pastLogLimit);
-  launcherState = { ...launcherState, pastLogLimit: settings.pastLogLimit };
-  launcherSettingsPersistence.schedule(settings);
-  publish();
-  return launcherState;
+  return applySetting("pastLogLimit", normalizeHistorySessionLimit(pastLogLimit));
 }
 
 function rememberOverlayShortcuts(shortcuts: Record<KeybindAction, string>): void {
@@ -927,7 +865,7 @@ function publish(): void {
   void publishSettings();
 }
 
-async function sharedSettingsState() {
+async function sharedSettingsState(): Promise<SharedSettingsState> {
   const overlay = await overlayWindow.withWindow((managed) => managed.getSettingsState());
   return { launcher: launcherState, overlay, dataFolder: path.dirname(storagePaths.launcherSettingsPath) };
 }
@@ -949,33 +887,13 @@ function bossTimerWindowState(): BossTimerWindowState {
   };
 }
 
-async function publishSettings(overlayState?: Awaited<ReturnType<typeof sharedSettingsState>>["overlay"]): Promise<void> {
+async function publishSettings(overlayState?: SharedSettingsState["overlay"]): Promise<void> {
   if (!settingsWindow) return;
   try {
     settingsRpc.send.stateChanged(overlayState
       ? { launcher: launcherState, overlay: overlayState, dataFolder: path.dirname(storagePaths.launcherSettingsPath) }
       : await sharedSettingsState());
   } catch { /* Settings may be connecting or closing. */ }
-}
-
-function updateStorageWarning(): void {
-  const warning = characterStorageWarning ?? inspectedCharacterStorageWarning ?? launcherSettingsStorageWarning ?? placementStorageWarning ?? actorIdentityStorageWarning ?? bossTimerStorageWarning;
-  launcherState = { ...launcherState, storageWarning: warning?.text };
-  publish();
-}
-
-function recordStorageWarning(source: string, warning: string | undefined): void {
-  if (!warning) {
-    reportedStorageWarnings.delete(source);
-    return;
-  }
-  if (reportedStorageWarnings.get(source) === warning) return;
-  reportedStorageWarnings.set(source, warning);
-  errorLog.write({
-    title: `${source} storage warning`,
-    reason: warning,
-    details: { "Storage root": localRoot, "Log directory": logDirectory },
-  });
 }
 
 async function finalizeSessionSummaries(sessionId: string): Promise<void> {
