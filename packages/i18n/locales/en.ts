@@ -224,6 +224,7 @@ export const en = {
   "combat.status.encountersOmitted.other": "{count} older encounters not shown",
 
   "launcher.brandTag": "Tools",
+  "launcher.backend.reconnecting": "Reconnecting to the capture service — retrying automatically.",
   "launcher.capture.heading": "Central capture",
   "launcher.tools.label": "Spirit Vale tools",
   "launcher.tool.combat": "Combat",

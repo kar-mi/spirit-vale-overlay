@@ -1,4 +1,11 @@
-/** Traditional Chinese (zh-TW) locale. Translated from en.ts. */
+/** Traditional Chinese (zh-TW) locale. Translated from en.ts. 
+ * 
+ * needs translation
+ * do not machine translate, add here and ask for review for new keys
+ * 
+ * needs transalation
+ * "launcher.backend.reconnecting"
+*/
 export const zhTW = {
   "app.name": "Spirit Vale Overlay",
   "common.ok": "確定",

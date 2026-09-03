@@ -15,6 +15,18 @@ const RECONNECT_ATTEMPT_LIMIT = 5;
 const RECONNECT_BASE_DELAY_MS = 250;
 const RECONNECT_MAX_DELAY_MS = 4_000;
 
+// The launcher window shows a reconnecting hint instead of the full-window failure
+// overlay while the transport retries; this is how it learns the retry state.
+let onReconnectingChange: ((reconnecting: boolean) => void) | undefined;
+
+export function watchBackendReconnecting(listener: (reconnecting: boolean) => void): void {
+  onReconnectingChange = listener;
+}
+
+function reportReconnecting(reconnecting: boolean): void {
+  onReconnectingChange?.(reconnecting);
+}
+
 class DesktopTransport {
   private socket?: WebSocket;
   private handler?: Handler;
@@ -64,8 +76,12 @@ class DesktopTransport {
         }
         this.bootstrapChecked = true;
       }
-      const connection = await backendConnection((failure) => renderStartupFailure(failure, "slow"));
+      const connection = await backendConnection((failure) => {
+        console.warn(failure.message);
+        reportReconnecting(true);
+      });
       document.getElementById("desktop-startup-failure")?.remove();
+      reportReconnecting(false);
       const socket = new WebSocket(`ws://127.0.0.1:${connection.port}/rpc`);
       this.socket = socket;
       socket.addEventListener("open", async () => {
@@ -91,6 +107,7 @@ class DesktopTransport {
       this.sessionReady = true;
       this.reconnectAttempts = 0;
       document.getElementById("desktop-startup-failure")?.remove();
+      reportReconnecting(false);
       for (const queued of this.queued.splice(0)) this.send(queued);
       await registerWindowEvents(this.socket!);
       return;
@@ -109,6 +126,7 @@ class DesktopTransport {
   private fail(failure: StartupFailure): void {
     console.error(failure.message);
     document.body.dataset["backendError"] = failure.message;
+    reportReconnecting(false);
     renderStartupFailure(failure, "terminal");
   }
 
@@ -120,12 +138,12 @@ class DesktopTransport {
       this.scheduleReconnect();
       return;
     }
-    const failure = startupFailure("The desktop backend disconnected after the app started.");
     if (!this.launcher) {
+      const failure = startupFailure("The desktop backend disconnected after the app started.");
       renderStartupFailure(failure, "runtime");
       return;
     }
-    renderStartupFailure(failure, "reconnecting");
+    reportReconnecting(true);
     this.scheduleReconnect();
   }
 
@@ -273,20 +291,15 @@ function neutralinoApplicationPath(): string | undefined {
   return typeof globals.NL_PATH === "string" ? globals.NL_PATH : undefined;
 }
 
-function renderStartupFailure(failure: StartupFailure, mode: "terminal" | "slow" | "reconnecting" | "runtime"): void {
+function renderStartupFailure(failure: StartupFailure, mode: "terminal" | "runtime"): void {
   document.getElementById("desktop-startup-failure")?.remove();
   const overlay = document.createElement("section");
   overlay.id = "desktop-startup-failure";
   overlay.setAttribute("role", "alert");
-  const heading = mode === "slow"
-    ? "Spirit Vale Overlay is still starting"
-    : mode === "reconnecting" ? "Reconnecting to Spirit Vale Overlay"
-      : mode === "runtime" ? "Spirit Vale Overlay disconnected" : "Spirit Vale Overlay could not start";
-  const guidance = mode === "slow"
-    ? "Startup is continuing automatically. Antivirus scanning, synchronized storage, or a busy drive can delay the bundled backend on first launch."
-    : mode === "reconnecting" ? "The app is reconnecting automatically. Capture continues if the backend process is still available."
-      : mode === "runtime" ? "Close this window and reopen Spirit Vale Overlay."
-        : "The app retried this operation, but the file or folder remained unavailable. Close other programs that may be scanning or synchronizing it and try again. If it keeps failing, make sure the complete extracted folder is writable or move it to a local folder.";
+  const heading = mode === "runtime" ? "Spirit Vale Overlay disconnected" : "Spirit Vale Overlay could not start";
+  const guidance = mode === "runtime"
+    ? "Close this window and reopen Spirit Vale Overlay."
+    : "The app retried this operation, but the file or folder remained unavailable. Close other programs that may be scanning or synchronizing it and try again. If it keeps failing, make sure the complete extracted folder is writable or move it to a local folder.";
   overlay.innerHTML = `
     <style>
       #desktop-startup-failure{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:28px;background:#0c110e;color:#edf5ee;font:14px/1.45 system-ui,sans-serif}

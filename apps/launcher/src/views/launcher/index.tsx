@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { useRef } from "preact/hooks";
-import { DesktopView } from "@svoverlay/desktop-runtime/view";
+import { DesktopView, watchBackendReconnecting } from "@svoverlay/desktop-runtime/view";
 import { initWindowChrome, type WindowChrome } from "@svoverlay/ui-kit/window-chrome";
 import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
@@ -29,6 +29,9 @@ const rpc = DesktopView.defineRPC<LauncherRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => { state.value = repairRendererPayload(next); } } },
 });
 const desktopView = new DesktopView({ rpc });
+
+const backendReconnecting = signal(false);
+watchBackendReconnecting((reconnecting) => { backendReconnecting.value = reconnecting; });
 
 disableWebChrome();
 void ensureInitialWindowSize(desktopView.rpc?.request, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
@@ -69,6 +72,10 @@ function App() {
       </header>
 
       <section class="launcher-content">
+        {backendReconnecting.value && (
+          <div class="banner is-warn" aria-live="polite">{t("launcher.backend.reconnecting")}</div>
+        )}
+
         <div class={`capture-status${unavailable ? " is-error" : warning ? " is-warning" : ""}`} aria-live="polite">
           <span class={`status-dot ${unavailable ? "is-err" : warning ? "is-warn" : next?.captureStatus === "capturing" ? "is-ok" : "is-idle"}`} />
           <div><strong>{t("launcher.capture.heading")}</strong><p>{t.text(next?.statusDetail) ?? t("capture.status.starting")}</p></div>
