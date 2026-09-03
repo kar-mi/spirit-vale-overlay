@@ -144,6 +144,8 @@ export const en = {
   "detail.chart.heading": "{amount} over time",
   "detail.chart.perSecond": "{amount} per second in five-second buckets.",
   "detail.chart.aria": "{amount} over time chart",
+  "detail.chart.show": "Show graph",
+  "detail.chart.hide": "Hide graph",
   // One sentence per stat type: the amount is a noun mid-sentence, which not every language may lowercase.
   "detail.chart.cumulative.damage": "Cumulative damage across the encounter.",
   "detail.chart.cumulative.damageTaken": "Cumulative damage taken across the encounter.",

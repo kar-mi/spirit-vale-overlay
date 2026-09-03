@@ -100,6 +100,7 @@ void ensureInitialWindowSize(desktopView.rpc?.request, { width: 620, height: 500
 function App() {
   const t = useTranslator();
   const [metric, setMetric] = useState<DamageChartMetric>("dps");
+  const [chartOpen, setChartOpen] = useState(false);
   const [skillSort, setSkillSort] = useState<TableSort<SkillSortKey>>({ key: "damage", direction: "descending" });
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<Set<number>>(new Set());
   const [statType, setStatType] = useState<StatType>("damage");
@@ -202,20 +203,27 @@ function App() {
         </div>
         <section class="chart-section">
           <div class="section-head">
-            <h2>{t("detail.chart.heading", { amount: damageLabel })}</h2>
-            <p>{metric === "cumulative" ? t(amountKeys.cumulative) : t("detail.chart.perSecond", { amount: damageLabel })}</p>
+            <button type="button" class="chart-toggle" aria-expanded={chartOpen} onClick={() => setChartOpen((open) => !open)}>
+              {t(chartOpen ? "detail.chart.hide" : "detail.chart.show")}
+            </button>
+            {chartOpen && <>
+              <h2>{t("detail.chart.heading", { amount: damageLabel })}</h2>
+              <p>{metric === "cumulative" ? t(amountKeys.cumulative) : t("detail.chart.perSecond", { amount: damageLabel })}</p>
+            </>}
           </div>
-          <div class="chart-card">
-            <DamageChart
-              points={activePlayer?.timeline ?? []}
-              durationMs={next.encounterDurationMs}
-              metric={metric}
-              damageLabel={damageLabel}
-              metricLabel={metricLabel}
-              emptyLabel={t(amountKeys.empty)}
-              resetKey={`${selectionScope}:${statType}:${metric}`}
-            />
-          </div>
+          {chartOpen && (
+            <div class="chart-card">
+              <DamageChart
+                points={activePlayer?.timeline ?? []}
+                durationMs={next.encounterDurationMs}
+                metric={metric}
+                damageLabel={damageLabel}
+                metricLabel={metricLabel}
+                emptyLabel={t(amountKeys.empty)}
+                resetKey={`${selectionScope}:${statType}:${metric}`}
+              />
+            </div>
+          )}
         </section>
         <section class="skills-section">
           <div class="section-head">
