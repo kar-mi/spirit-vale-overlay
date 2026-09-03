@@ -1,4 +1,5 @@
 import {
+  FishNetActorDirectory,
   FishNetCombatTracker,
   FishNetPositionTracker,
   FishNetStatusTracker,
@@ -50,7 +51,6 @@ import { CaptureHealthMonitor } from "./capture-health-monitor.ts";
 import { systemClock, type Clock, type ClockTimer } from "./clock.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
 import { RewardEventAttributor } from "./reward-event-attributor.ts";
-import { StickyActorDirectory } from "./sticky-actor-directory.ts";
 
 const SPAWN_PAYLOAD_LOG_LIMIT = 2_048;
 const HANDOFF_PACKET_LIMIT = 4_096;
@@ -134,7 +134,7 @@ export class CaptureCoordinator {
   private readonly capture: PacketCapture;
   private readonly diagnostics: CaptureDiagnostics;
   private readonly health: CaptureHealthMonitor;
-  private readonly actors: StickyActorDirectory;
+  private readonly actors: FishNetActorDirectory;
   private readonly combat = new FishNetCombatTracker({
     actorIdentityResolver: (actorId) => this.actors.getAttribution(actorId),
     healingTraitsResolver: (actorId: number) => {
@@ -206,7 +206,8 @@ export class CaptureCoordinator {
   private readonly clock: Clock;
   constructor(private readonly options: CaptureCoordinatorOptions) {
     this.clock = options.clock ?? systemClock;
-    this.actors = new StickyActorDirectory({
+    this.actors = new FishNetActorDirectory({
+      stickyPlayerIdentities: true,
       ...(options.knownIdentities === undefined ? {} : { knownIdentities: options.knownIdentities }),
       ...(options.onIdentityLearned === undefined ? {} : { onIdentityLearned: options.onIdentityLearned }),
     });
