@@ -27,38 +27,19 @@ The in-game overlay shows live party DPS along with HP/MP during combat. Press
 `Ctrl+Shift+4` to show or hide it, and `Ctrl+Shift+1` to unlock it and drag
 elements into the layout you want.
 
-![In-game DPS overlay](img/dps_overlay.png)
-
-![Editing the overlay layout](img/edit_overlay.png)
-
-## Combat and death logs
-
-Combat logs break down per-player damage, DPS, crit rate, and kills, and the
-death log shows the hits taken in the seconds before a death.
-
-![Combat log analysis](img/combat_logs.png)
-
-![Death log](img/death_log.png)
+![In-game DPS overlay](img/overlay/dps_overlay.png)
 
 Because capture is proximity-based, DPS reported for other players drops when
 they move out of capture range.
 
-## Default hotkeys
+## Full guide
 
-| Shortcut | Action |
-| --- | --- |
-| `Ctrl+Shift+1` | Lock or unlock the overlay |
-| `Ctrl+Shift+2` | Reset the session |
-| `Ctrl+Shift+3` | Open the live death log |
-| `Ctrl+Shift+4` | Show or hide the overlay |
-| `Ctrl+Shift+5` | Cycle the party meter |
-| `Ctrl+Shift+6` / `Ctrl+Shift+7` | Reset all-time XP / gold |
-| `Ctrl+Shift+8` | Cycle the boss timer tile between regions |
+The [Guide](guide/index.md) covers each tool in detail:
 
-All of these can be rebound in **Settings > Keybinds**. Hotkeys pass through to
-the foreground program, so its normal action for the same combination still
-runs. Windows may also use Ctrl+Shift to switch input languages when configured
-that way.
+- [Overlay](guide/overlay/) — tiles, layout editing, and hotkeys
+- [Combat](guide/combat/) — live DPS, combat logs, and the death log
+- [Boss timers](guide/boss-timers/), [Character](guide/character/), [Rewards](guide/rewards/), and [Build export](guide/build-export/)
+- [Settings](guide/settings/) — network capture, overlay layout, and keybinds
 
 ## Get started
 

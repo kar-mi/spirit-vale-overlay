@@ -28,19 +28,12 @@ configuration.
 
 The in-game overlay shows live party DPS along with HP/MP during combat.
 
-![In-game DPS overlay](docs/img/dps_overlay.png)
+![In-game DPS overlay](docs/img/overlay/dps_overlay.png)
 
-Press `Ctrl+Shift+1` to unlock the overlay and drag elements into the layout you want.
-
-![Editing the overlay layout](docs/img/edit_overlay.png)
-
-Review full combat logs with per-player damage, DPS, crit rate, and kills.
-
-![Combat log analysis](docs/img/combat_logs.png)
-
-The death log breaks down the hits taken in the seconds leading up to a death.
-
-![Death log](docs/img/death_log.png)
+The **[Guide](https://kar-mi.github.io/spirit-vale-overlay/guide/)** walks
+through each tool with screenshots — the overlay and its tiles, combat logs and
+the death log, boss timers, character data, rewards, build export, and every
+settings tab.
 
 ## Installation
 

@@ -47,9 +47,34 @@ exclude:
 nav:
   - title: Features
     url: /
+  - title: Guide
+    url: /guide/
   - title: Install
     url: /install/
   - title: Troubleshooting
     url: /troubleshooting/
   - title: VPN issues
     url: /vpn/
+
+guide_nav:
+  - title: Overlay
+    url: /guide/overlay/
+    blurb: The in-game overlay, its tiles, and editing the layout.
+  - title: Combat
+    url: /guide/combat/
+    blurb: Live DPS, combat logs, player detail, and the death log.
+  - title: Boss timers
+    url: /guide/boss-timers/
+    blurb: World boss respawns tracked by region and channel.
+  - title: Character
+    url: /guide/character/
+    blurb: Live character data, attributes, gear, and calculated stats.
+  - title: Rewards
+    url: /guide/rewards/
+    blurb: Mob rewards, XP and coin tracking, and the catalog.
+  - title: Build export
+    url: /guide/build-export/
+    blurb: Open inspected characters in the spiritvalers.com planner.
+  - title: Settings
+    url: /guide/settings/
+    blurb: Every settings tab, from network capture to keybinds.

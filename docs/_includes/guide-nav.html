@@ -1,0 +1,6 @@
+<nav class="guide-nav" aria-label="Guide">
+  <a href="{{ '/guide/' | relative_url }}"{% if page.url == '/guide/' %} aria-current="page"{% endif %}>Guide</a>
+  {% for item in site.guide_nav %}
+    <a href="{{ item.url | relative_url }}"{% if page.url == item.url %} aria-current="page"{% endif %}>{{ item.title }}</a>
+  {% endfor %}
+</nav>
