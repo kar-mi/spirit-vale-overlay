@@ -7,6 +7,7 @@
     <meta name="color-scheme" content="dark">
     {% seo %}
     <link rel="stylesheet" href="{{ '/assets/css/site.css' | relative_url }}">
+    <link rel="stylesheet" href="{{ '/pagefind/pagefind-ui.css' | relative_url }}">
     <link rel="icon" href="{{ '/assets/favicon.svg' | relative_url }}" type="image/svg+xml">
   </head>
   <body>
@@ -46,10 +47,11 @@
     {% endif %}
 
     <main id="content" class="wrap page">
+      <div id="search" class="site-search" data-pagefind-ignore></div>
       {% unless page.hero %}
         <h1 class="page-title">{{ page.title }}</h1>
       {% endunless %}
-      <div class="prose">
+      <div class="prose" data-pagefind-body{% if page.title %} data-pagefind-meta="title:{{ page.title | xml_escape }}"{% endif %}>
         {{ content }}
       </div>
     </main>
@@ -69,5 +71,18 @@
     </footer>
 
     <script src="{{ '/assets/js/download.js' | relative_url }}" defer></script>
+    <script src="{{ '/pagefind/pagefind-ui.js' | relative_url }}"></script>
+    <script>
+      window.addEventListener('DOMContentLoaded', function () {
+        if (window.PagefindUI) {
+          new PagefindUI({
+            element: '#search',
+            baseUrl: '{{ "/" | relative_url }}',
+            showImages: false,
+            showSubResults: true
+          });
+        }
+      });
+    </script>
   </body>
 </html>

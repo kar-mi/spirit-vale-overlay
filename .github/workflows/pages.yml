@@ -31,6 +31,10 @@ jobs:
         with:
           source: ./docs
           destination: ./_site
+      - name: Build search index
+        run: |
+          sudo chown -R "$USER":"$USER" _site
+          npx -y pagefind@^1 --site _site
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
