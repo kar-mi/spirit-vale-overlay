@@ -10,7 +10,7 @@
     "./window-rpc": "./window-rpc.ts"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-combat": "4.0.0",
+    "@kar-mi/spirit-vale-tools-combat": "5.0.1",
     "@svoverlay/ui-kit": "workspace:*"
   }
 }

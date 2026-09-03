@@ -27,7 +27,7 @@
     "./locale-window": "./locale-window.ts"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-logging": "0.10.0",
+    "@kar-mi/spirit-vale-tools-logging": "0.10.1",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*",
     "@svoverlay/i18n": "workspace:*"

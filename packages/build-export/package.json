@@ -9,8 +9,8 @@
     "refresh-snapshot": "bun run scripts/refresh-snapshot.ts"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-character": "0.6.0",
-    "@kar-mi/spirit-vale-tools-combat": "4.0.0",
+    "@kar-mi/spirit-vale-tools-character": "0.6.1",
+    "@kar-mi/spirit-vale-tools-combat": "5.0.1",
     "@preact/signals": "^2.9.4",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/desktop-platform": "workspace:*",
