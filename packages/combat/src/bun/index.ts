@@ -1,40 +1,28 @@
-import { localized, localizedCount, sameLocalizedText, type LocalizedText } from "@svoverlay/i18n/messages";
+import { localized, localizedCount } from "@svoverlay/i18n/messages";
 import path from "node:path";
 
-import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
-import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
-import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
+import { BrowserView, Utils } from "@svoverlay/desktop-runtime";
+import type { BrowserWindow } from "@svoverlay/desktop-runtime";
 
-import {
-  DpsLogFollower,
-  DpsSessionLogFollower,
-  inspectCombatReplaySummary,
-  LiveCombatService,
-} from "@kar-mi/spirit-vale-tools-combat";
+import { inspectCombatReplaySummary } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
-import type { CombatEncounterRecord, DpsLogBatch } from "@kar-mi/spirit-vale-tools-combat";
 import { loadDpsAppSettings, saveDpsAppSettings } from "../settings.ts";
-import type { CombatLogScreen, DpsAppRpc, DpsAppState, DpsAppStatus } from "../app-types.ts";
+import type { CombatLogScreen, DpsAppRpc, DpsAppState } from "../app-types.ts";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { createCombatAnalysisController } from "./combat-analysis-window.ts";
-import { registerUiScaleWindow, scaledSize, unscaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
-import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
-import { visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
+import { createManagedWindow } from "@svoverlay/desktop-platform/managed-window";
+import { frameClamp, visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { DPS_WINDOW_MINIMUM_HEIGHT, DPS_WINDOW_MINIMUM_WIDTH } from "../window-size.ts";
 import { historyScanLimit, loadSessionSummaryJournal, normalizeHistorySessionLimit, type SessionDateRange, type SessionSummaryJournal } from "@svoverlay/desktop-platform/session-summary-journal";
 import type { SessionPickerState, SessionZoneFilter } from "@svoverlay/desktop-platform/session-picker-types";
 import { activeDeathLogSource } from "../combat-navigation.ts";
-import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
-import { detectedPersonalName } from "../personal-character.ts";
 import type { CombatReadModelSource } from "../combat-history.ts";
-import { locationFromLogData, readCombatLocations } from "../zone-log.ts";
+import { readCombatLocations } from "../zone-log.ts";
 import { matchesZoneKeys, spiritValeLocationKey, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
+import { LiveCombatController } from "./live-combat-controller.ts";
 
 const MINIMUM_WIDTH = DPS_WINDOW_MINIMUM_WIDTH;
 const MINIMUM_HEIGHT = DPS_WINDOW_MINIMUM_HEIGHT;
-const LIVE_LOG_OVERRIDE_POLL_MS = 1_000;
-const LIVE_METER_TICK_MS = 1_000;
-const TIMELINE_POINTS = 720;
 export interface DpsWindowOptions {
   logDirectory: string;
   readModel?: CombatReadModelSource;
@@ -50,30 +38,15 @@ export interface DpsWindowOptions {
 }
 
 export async function createDpsWindow(options: DpsWindowOptions) {
-const liveLogOverride = process.env.SPIRIT_VALE_COMBAT_LOG;
 const settings = await loadDpsAppSettings(options.settingsPath);
 const initialCharacterState = options.getCharacterState();
-let personalName = detectedPersonalName(initialCharacterState);
 
 let window: BrowserWindow;
-let status: DpsAppStatus = "waiting";
-let statusDetail: LocalizedText = liveLogOverride
-  ? localized("combat.status.lookingForFile", { file: path.basename(liveLogOverride) })
-  : localized("combat.status.lookingForSession");
-let manualPersonalActorId: number | undefined;
-let liveMeter = createLiveMeter();
-const liveLog = createLiveLogSource();
-let liveMeterTimer: ReturnType<typeof setTimeout> | undefined;
-let lastLivePublishMs = Number.NEGATIVE_INFINITY;
 let publishing = false;
 let shuttingDown = false;
 let closedCallbackSent = false;
 let storageWarning: string | undefined;
 let resetting = false;
-let lastEventObservedAtMs: number | undefined;
-let lastEventWallMs: number | undefined;
-let currentLiveLogPath: string | undefined;
-let currentLiveLocation: SpiritValeLocation | undefined;
 let screen: CombatLogScreen = "live";
 let pastDateRange: SessionDateRange = {};
 let pastZones: string[] = [];
@@ -82,13 +55,14 @@ let past: DpsAppState["past"] = { view: "selector", picker: pastPickerLoadingSta
 let pastPaths = new Map<string, string>();
 let pastRefreshSequence = 0;
 let pastSummaryJournalPromise: Promise<SessionSummaryJournal> | undefined;
-const lifecycle = new DisposableStore();
+const mainFrame = frameClamp(MINIMUM_WIDTH, MINIMUM_HEIGHT);
 
 const settingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "DPS settings",
   save: (value) => saveDpsAppSettings(value, options.settingsPath),
   onWarning: (warning) => { storageWarning = warning; publish(); },
 });
+const live = new LiveCombatController(options.logDirectory, initialCharacterState, publish);
 
 const analysis = createCombatAnalysisController({
   logDirectory: options.logDirectory,
@@ -150,17 +124,17 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
           return;
         }
         if (screen !== "live") return;
-        const live = liveSnapshots();
-        if (!currentLiveLogPath || !live.snapshot) return;
+        const liveState = live.state();
+        if (!liveState.logPath || !liveState.snapshots.snapshot) return;
         analysis.openLivePlayerDetails({
           actorId: request.actorId,
-          fileName: path.basename(currentLiveLogPath),
-          ...live,
+          fileName: path.basename(liveState.logPath),
+          ...liveState.snapshots,
           statType: settings.statType,
         });
       },
       openActiveDeathLog: async () => {
-        const source = activeDeathLogSource(screen, past.view, currentLiveLogPath !== undefined);
+        const source = activeDeathLogSource(screen, past.view, live.state().logPath !== undefined);
         if (source === "live") await options.onOpenLiveDeathLog?.();
         else if (source === "past") await analysis.openDeathLog();
       },
@@ -172,10 +146,7 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
           publish();
           try {
             await options.onReset();
-            liveMeter = createLiveMeter();
-            lastEventObservedAtMs = undefined;
-            lastEventWallMs = undefined;
-            currentLiveLocation = undefined;
+            live.reset();
           } catch {
             // Keep the existing meter/UI data unchanged when rotation fails.
           } finally {
@@ -186,9 +157,7 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
         return appState();
       },
       setPersonalActor: ({ actorId }) => {
-        manualPersonalActorId = actorId ?? undefined;
-        liveMeter.setPersonalActorId(manualPersonalActorId);
-        publish();
+        live.setPersonalActor(actorId ?? undefined);
         return appState();
       },
       setTab: ({ tab }) => {
@@ -218,37 +187,19 @@ const rpc = BrowserView.defineRPC<DpsAppRpc>({
   },
 });
 
-window = new BrowserWindow({
+const managed = createManagedWindow({
   title: "Spirit Vale DPS",
   url: "views://mainview/index.html",
-  frame: visibleScaledWindowFrame(settings.frame, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }),
-  titleBarStyle: "hidden",
-  transparent: false,
   rpc,
+  minimum: { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT },
+  frame: visibleScaledWindowFrame(settings.frame, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT }),
+  onFrameChange: (logical) => { settings.frame = logical; scheduleSettingsSave(); },
+  onClose: () => { void shutdown(); },
 });
-applyRoundedCorners(window.ptr);
-setWindowIcon(window.ptr, appIconPath);
-lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: false }));
-lifecycle.add(registerLocaleWindow(window));
+window = managed.window;
 
-lifecycle.add(onWindowEvent(window, "move", (event: { data: typeof settings.frame }) => {
-  if (window.isMaximized()) return;
-  settings.frame = unscaleFrame(clampPhysicalFrame(event.data));
-  scheduleSettingsSave();
-}));
-lifecycle.add(onWindowEvent(window, "resize", (event: { data: typeof settings.frame }) => {
-  if (window.isMaximized()) return;
-  const frame = clampPhysicalFrame(event.data);
-  settings.frame = unscaleFrame(frame);
-  if (event.data.width < scaledSize(MINIMUM_WIDTH) || event.data.height < scaledSize(MINIMUM_HEIGHT)) {
-    window.setSize(frame.width, frame.height);
-  }
-  scheduleSettingsSave();
-}));
-lifecycle.add(onceWindowEvent(window, "close", () => { void shutdown(); }));
-
-const unsubscribeCharacter = options.subscribeCharacter(syncDetectedCharacter);
-void followLiveLog();
+const unsubscribeCharacter = options.subscribeCharacter((state) => live.syncCharacter(state));
+live.start();
 return {
   show: () => window.show(),
   activate: () => window.activate(),
@@ -256,22 +207,20 @@ return {
 };
 
 function appState(): DpsAppState {
-  const { snapshot, tankedSnapshot, healSnapshot } = liveSnapshots();
+  const liveState = live.state();
   return {
     screen,
     tab: settings.tab,
     statType: settings.statType,
-    status,
-    statusDetail,
+    status: liveState.status,
+    statusDetail: liveState.statusDetail,
     ...(storageWarning ? { storageWarning: localized("storage.saveFailed") } : {}),
-    personalName,
-    ...(liveMeter.getPersonalActorId() === undefined ? {} : { personalActorId: liveMeter.getPersonalActorId() }),
-    ...(snapshot ? { snapshot } : {}),
-    ...(tankedSnapshot ? { tankedSnapshot } : {}),
-    ...(healSnapshot ? { healSnapshot } : {}),
+    personalName: liveState.personalName,
+    ...(liveState.personalActorId === undefined ? {} : { personalActorId: liveState.personalActorId }),
+    ...liveState.snapshots,
     resetting,
-    ...(currentLiveLocation === undefined ? {} : { location: currentLiveLocation }),
-    liveDeathLogAvailable: currentLiveLogPath !== undefined,
+    ...(liveState.location === undefined ? {} : { location: liveState.location }),
+    liveDeathLogAvailable: liveState.logPath !== undefined,
     past,
   };
 }
@@ -280,10 +229,11 @@ function publish(): void {
   if (publishing || !window) return;
   publishing = true;
   try {
-    if (screen === "live" && currentLiveLogPath) {
+    const liveState = live.state();
+    if (screen === "live" && liveState.logPath) {
       analysis.refreshLivePlayerDetails({
-        fileName: path.basename(currentLiveLogPath),
-        ...liveSnapshots(),
+        fileName: path.basename(liveState.logPath),
+        ...liveState.snapshots,
         statType: settings.statType,
       });
     }
@@ -293,142 +243,6 @@ function publish(): void {
   } finally {
     publishing = false;
   }
-}
-
-interface LiveLogSource {
-  next(): Promise<DpsLogBatch>;
-  close(): void;
-}
-
-function createLiveLogSource(): LiveLogSource {
-  if (liveLogOverride === undefined) {
-    const follower = new DpsSessionLogFollower(options.logDirectory);
-    return { next: () => follower.next(), close: () => follower.close() };
-  }
-  const follower = new DpsLogFollower(liveLogOverride);
-  return {
-    next: async () => {
-      await new Promise((resolve) => setTimeout(resolve, LIVE_LOG_OVERRIDE_POLL_MS));
-      return follower.poll();
-    },
-    close: () => {},
-  };
-}
-
-async function followLiveLog(): Promise<void> {
-  while (!shuttingDown) {
-    let batch: DpsLogBatch;
-    try {
-      batch = await liveLog.next();
-    } catch {
-      updateLiveStatus("error", localized("combat.status.readFailed", { file: path.basename(liveLogOverride ?? "combat.jsonl") }));
-      // Back off rather than spinning: whatever failed will not be fixed by retrying at once.
-      await new Promise((resolve) => setTimeout(resolve, LIVE_LOG_OVERRIDE_POLL_MS));
-      continue;
-    }
-    if (shuttingDown) return;
-    applyLiveLogBatch(batch);
-  }
-}
-
-function applyLiveLogBatch(batch: DpsLogBatch): void {
-  if (!batch.changed) return;
-  currentLiveLogPath = batch.path ?? liveLogOverride ?? currentLiveLogPath;
-  if (batch.reset) {
-    liveMeter = createLiveMeter();
-    lastEventObservedAtMs = undefined;
-    lastEventWallMs = undefined;
-    currentLiveLocation = undefined;
-  }
-  let batchLastObservedAtMs: number | undefined;
-  for (const { event, observedAtMs } of batch.events) {
-    if (event.kind === "activation") {
-      const location = locationFromLogData(event as unknown as Record<string, unknown>);
-      if (location !== undefined) currentLiveLocation = location;
-    }
-    if (event.kind === "actorIdentity") liveMeter.consumeIdentity(event, observedAtMs);
-    else liveMeter.consumeCombat(event, observedAtMs);
-    batchLastObservedAtMs = Math.max(batchLastObservedAtMs ?? observedAtMs, observedAtMs);
-  }
-  if (batchLastObservedAtMs !== undefined) {
-    lastEventObservedAtMs = batchLastObservedAtMs;
-    lastEventWallMs = Date.now();
-  }
-  const nowMs = relativeNowMs();
-  if (nowMs !== undefined) liveMeter.advance(nowMs);
-  const fileName = path.basename(batch.path ?? liveLogOverride ?? "combat.jsonl");
-  const statusChanged = batch.missing
-    ? updateLiveStatus("waiting", localized("combat.status.waitingForFile", { file: fileName }))
-    : batch.invalidLines > 0
-      ? updateLiveStatus("ready", localized("combat.status.readingSkipped", { file: fileName }))
-      : batch.events.length > 0
-        ? updateLiveStatus("capturing", localized("combat.status.reading", { file: fileName }))
-        : updateLiveStatus(latestRecord() ? "ready" : "waiting", localized("combat.status.watching", { file: fileName }));
-  if (!statusChanged && (batch.events.length > 0 || batch.reset)) publishLiveProgress();
-  // Events carried the meter forward; whether it still needs a beat of its own is decided here.
-  scheduleLiveMeterTick();
-}
-
-function tickLiveMeter(): void {
-  liveMeterTimer = undefined;
-  if (shuttingDown) return;
-  const nowMs = relativeNowMs();
-  if (nowMs !== undefined) liveMeter.advance(nowMs);
-  lastLivePublishMs = Date.now();
-  publish();
-  scheduleLiveMeterTick();
-}
-
-function publishLiveProgress(): void {
-  const now = Date.now();
-  if (now - lastLivePublishMs < LIVE_METER_TICK_MS) return;
-  lastLivePublishMs = now;
-  publish();
-}
-
-function scheduleLiveMeterTick(): void {
-  if (liveMeterTimer !== undefined) clearTimeout(liveMeterTimer);
-  liveMeterTimer = undefined;
-  if (shuttingDown || liveMeter.getState(relativeNowMs()).current === undefined) return;
-  liveMeterTimer = setTimeout(tickLiveMeter, LIVE_METER_TICK_MS);
-  // A pending redraw is never a reason to keep the process alive.
-  liveMeterTimer.unref?.();
-}
-
-function relativeNowMs(): number | undefined {
-  if (lastEventObservedAtMs === undefined || lastEventWallMs === undefined) return undefined;
-  return lastEventObservedAtMs + (Date.now() - lastEventWallMs);
-}
-
-function syncDetectedCharacter(characterState: CharacterViewState): void {
-  const nextPersonalName = detectedPersonalName(characterState);
-  if (nextPersonalName === personalName) return;
-  personalName = nextPersonalName;
-  liveMeter.setPersonalName(personalName);
-  if (manualPersonalActorId !== undefined) {
-    manualPersonalActorId = undefined;
-    liveMeter.setPersonalActorId(undefined);
-  }
-  publish();
-}
-
-function createLiveMeter(): LiveCombatService {
-  return new LiveCombatService({
-    personalName,
-    timelinePoints: TIMELINE_POINTS,
-    ...(manualPersonalActorId === undefined ? {} : { personalActorId: manualPersonalActorId }),
-  });
-}
-
-function latestRecord(): CombatEncounterRecord | undefined {
-  const state = liveMeter.getState(relativeNowMs());
-  return state.current ?? state.latestFinished;
-}
-
-function liveSnapshots(): Pick<DpsAppState, "snapshot" | "tankedSnapshot" | "healSnapshot"> {
-  const record = latestRecord();
-  if (!record) return {};
-  return { snapshot: record.dps, tankedSnapshot: record.tps.detail, healSnapshot: record.hps.detail };
 }
 
 function setScreen(nextScreen: CombatLogScreen): void {
@@ -613,33 +427,6 @@ function normalizeZones(value: readonly string[]): string[] {
   return [...new Set(value)].filter((zone) => known.has(zone));
 }
 
-function updateLiveStatus(nextStatus: DpsAppStatus, detail: LocalizedText): boolean {
-  if (status === nextStatus && sameLocalizedText(statusDetail, detail)) return false;
-  status = nextStatus;
-  statusDetail = detail;
-  publish();
-  return true;
-}
-
-function clampFrame(frame: DpsAppSettingsFrame): DpsAppSettingsFrame {
-  return {
-    x: frame.x,
-    y: frame.y,
-    width: Math.max(MINIMUM_WIDTH, frame.width),
-    height: Math.max(MINIMUM_HEIGHT, frame.height),
-  };
-}
-
-function unscaleFrame(frame: DpsAppSettingsFrame): DpsAppSettingsFrame {
-  return clampFrame({ x: frame.x, y: frame.y, width: unscaledSize(frame.width), height: unscaledSize(frame.height) });
-}
-
-function clampPhysicalFrame(frame: DpsAppSettingsFrame): DpsAppSettingsFrame {
-  return { x: frame.x, y: frame.y, width: Math.max(scaledSize(MINIMUM_WIDTH), frame.width), height: Math.max(scaledSize(MINIMUM_HEIGHT), frame.height) };
-}
-
-type DpsAppSettingsFrame = typeof settings.frame;
-
 function scheduleSettingsSave(): void {
   settingsPersistence.schedule(settings);
 }
@@ -647,13 +434,11 @@ function scheduleSettingsSave(): void {
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
-  lifecycle.dispose();
+  managed.lifecycle.dispose();
   analysis.close();
   unsubscribeCharacter();
-  if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
-  liveLog.close();
-  if (liveMeterTimer !== undefined) clearTimeout(liveMeterTimer);
-  liveMeterTimer = undefined;
+  if (!window.isMaximized()) settings.frame = mainFrame.unscale(window.getFrame());
+  live.close();
   try {
     await settingsPersistence.flush(settings);
   } finally {

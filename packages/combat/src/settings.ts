@@ -1,6 +1,7 @@
 import path from "node:path";
 import { resolveLocalStorageRoot } from "@svoverlay/desktop-platform/local-storage";
 import { loadJsonSettings, writeJsonFileAtomic } from "@svoverlay/desktop-platform/json-settings";
+import { isWindowFrame } from "@svoverlay/desktop-platform/window-placement";
 
 import type { DpsAppTab, StatType } from "./app-types.ts";
 import {
@@ -49,9 +50,7 @@ async function resolveSettingsPath(settingsPath: string | undefined): Promise<st
 }
 
 function validFrame(value: unknown): value is DpsAppSettings["frame"] {
-  if (typeof value !== "object" || value === null) return false;
-  const frame = value as Record<string, unknown>;
-  return ["x", "y", "width", "height"].every((key) => typeof frame[key] === "number" && Number.isFinite(frame[key]))
-    && (frame["width"] as number) >= DPS_WINDOW_MINIMUM_WIDTH
-    && (frame["height"] as number) >= DPS_WINDOW_MINIMUM_HEIGHT;
+  return isWindowFrame(value)
+    && value.width >= DPS_WINDOW_MINIMUM_WIDTH
+    && value.height >= DPS_WINDOW_MINIMUM_HEIGHT;
 }

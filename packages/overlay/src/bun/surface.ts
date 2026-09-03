@@ -15,8 +15,6 @@ export interface OverlaySurfaceOptions {
 
 export interface OverlaySurface {
   readonly display: string;
-  show(): void;
-  hide(): void;
   close(): void;
 }
 
@@ -137,8 +135,6 @@ export function createOverlaySurface({ controller, display, onClosed }: OverlayS
 
   return {
     display: key,
-    show: () => sink.setVisible(true),
-    hide: () => sink.setVisible(false),
     close: () => {
       if (closed) return;
       closed = true;

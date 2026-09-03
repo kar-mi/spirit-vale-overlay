@@ -13,18 +13,9 @@ export async function loadJsonSettings<T>(
   }
 }
 
-export interface WriteJsonFileOptions {
-  pretty?: boolean;
-  uniqueTemp?: boolean;
-}
-
-export async function writeJsonFileAtomic(
-  file: string,
-  value: unknown,
-  options: WriteJsonFileOptions = {},
-): Promise<void> {
-  const contents = options.pretty === false ? JSON.stringify(value) : `${JSON.stringify(value, null, 2)}\n`;
-  const temporary = options.uniqueTemp ? `${file}.${crypto.randomUUID()}.tmp` : `${file}.tmp`;
+export async function writeJsonFileAtomic(file: string, value: unknown): Promise<void> {
+  const contents = `${JSON.stringify(value, null, 2)}\n`;
+  const temporary = `${file}.tmp`;
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(temporary, contents, "utf8");
   await rename(temporary, file);

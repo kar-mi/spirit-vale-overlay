@@ -8,6 +8,7 @@ import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { StatusDot } from "@svoverlay/ui-kit/status-dot";
 import type { StatusTone } from "@svoverlay/ui-kit/status-dot";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
+import { formatChance, formatInteger, safeDomId } from "@svoverlay/ui-kit/format";
 import { InteractiveChart } from "@svoverlay/ui-kit/interactive-chart";
 import type { ChartRenderResult } from "@svoverlay/ui-kit/interactive-chart";
 import {
@@ -36,7 +37,6 @@ const STATUS_TONE: Record<RewardsAppState["status"], StatusTone> = {
   error: "is-err",
 };
 
-const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const timestampFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "medium" });
 
 const state = signal<RewardsAppState | undefined>(undefined);
@@ -62,18 +62,14 @@ function returnToLive(): void {
 
 function formatDecimal(value: string): string {
   try {
-    return format.format(BigInt(value));
+    return formatInteger(BigInt(value));
   } catch {
     return value;
   }
 }
 
 function killsLabel(mob: { kills: number; attributedKills: number }): string {
-  return format.format(mob.kills);
-}
-
-function formatChance(value: number): string {
-  return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(value)}%`;
+  return formatInteger(mob.kills);
 }
 
 function formatDrop(drop: RewardsUiDrop): string {
@@ -168,13 +164,13 @@ function App() {
         <div class="table-scroll totals">
           <table class="data-table summary-table rewards-total-table" aria-label={t("rewards.totals.label")}>
             <thead><tr><th>{t("rewards.totals.characterXp")}</th><th>{t("rewards.totals.xpToLevel")}</th><th>{t("rewards.totals.jobXp")}</th><th>{t("rewards.totals.coins")}</th><th>{t("rewards.totals.unmatched")}</th></tr></thead>
-            <tbody><tr><td>{format.format(next.totalExperience)}</td><td>{next.xpToLevelUp === undefined ? "—" : format.format(next.xpToLevelUp)}</td><td>{format.format(next.totalJobExperience)}</td><td class="is-value">{formatDecimal(next.totalCoins)}</td><td>{format.format(next.unmatched)}</td></tr></tbody>
+            <tbody><tr><td>{formatInteger(next.totalExperience)}</td><td>{next.xpToLevelUp === undefined ? "—" : formatInteger(next.xpToLevelUp)}</td><td>{formatInteger(next.totalJobExperience)}</td><td class="is-value">{formatDecimal(next.totalCoins)}</td><td>{formatInteger(next.unmatched)}</td></tr></tbody>
           </table>
         </div>
 
         {next.unidentified > 0 && (
           <div class="banner is-warn">
-            {t.plural("rewards.unidentified", next.unidentified, { count: format.format(next.unidentified) })}
+            {t.plural("rewards.unidentified", next.unidentified, { count: formatInteger(next.unidentified) })}
           </div>
         )}
 
@@ -199,7 +195,7 @@ function App() {
                       key={mob.mobId}
                       rowKey={`summary-${mob.mobId}`}
                       name={mob.displayName}
-                      values={[format.format(mob.level), killsLabel(mob), format.format(mob.experience), format.format(mob.jobExperience), formatDecimal(mob.coins)]}
+                      values={[formatInteger(mob.level), killsLabel(mob), formatInteger(mob.experience), formatInteger(mob.jobExperience), formatDecimal(mob.coins)]}
                       drops={mob.drops}
                       expanded={expanded}
                       onToggle={toggleExpanded}
@@ -231,7 +227,7 @@ function App() {
                     key={kill.id}
                     rowKey={`kill-${kill.id}`}
                     name={kill.displayName}
-                    values={[format.format(kill.level), `+${format.format(kill.experience)}`, `+${format.format(kill.jobExperience)}`, `+${formatDecimal(kill.coins)}`]}
+                    values={[formatInteger(kill.level), `+${formatInteger(kill.experience)}`, `+${formatInteger(kill.jobExperience)}`, `+${formatDecimal(kill.coins)}`]}
                     drops={kill.drops}
                     trailingValues={[formatTimestamp(kill.timestamp)]}
                     expanded={expanded}
@@ -270,7 +266,7 @@ function XpTrackerSection({ xp, gold }: { xp: RewardsAppState["xp"]; gold: Rewar
         time: point.time,
         ratio: maximum > 0 ? point.value / maximum : 0,
         primary: `${formatRate(point.value)}/sec`,
-        secondary: t("rewards.trends.gain", { amount: format.format(point.gain), duration: formatTrendDuration(t, point.seconds) }),
+        secondary: t("rewards.trends.gain", { amount: formatInteger(point.gain), duration: formatTrendDuration(t, point.seconds) }),
       })),
       yLabels: axisTicks(5).map((tick) => formatRate((maximum * tick) / 4)),
     };
@@ -283,9 +279,9 @@ function XpTrackerSection({ xp, gold }: { xp: RewardsAppState["xp"]; gold: Rewar
           <thead><tr><th>{t("rewards.xpTracker.totalXp")}</th><th>{t("rewards.xpTracker.xpPerSec")}</th><th>{t("rewards.xpTracker.xpPerHour")}</th></tr></thead>
           <tbody>
             <tr>
-              <td>{format.format(xp.total)}</td>
-              <td>{format.format(xp.perSecond)}</td>
-              <td>{format.format(xp.perHour)}</td>
+              <td>{formatInteger(xp.total)}</td>
+              <td>{formatInteger(xp.perSecond)}</td>
+              <td>{formatInteger(xp.perHour)}</td>
             </tr>
           </tbody>
         </table>
@@ -295,9 +291,9 @@ function XpTrackerSection({ xp, gold }: { xp: RewardsAppState["xp"]; gold: Rewar
           <thead><tr><th>{t("rewards.xpTracker.totalGold")}</th><th>{t("rewards.xpTracker.goldPerSec")}</th><th>{t("rewards.xpTracker.goldPerHour")}</th></tr></thead>
           <tbody>
             <tr>
-              <td>{format.format(gold.total)}</td>
-              <td>{format.format(gold.perSecond)}</td>
-              <td>{format.format(gold.perHour)}</td>
+              <td>{formatInteger(gold.total)}</td>
+              <td>{formatInteger(gold.perSecond)}</td>
+              <td>{formatInteger(gold.perHour)}</td>
             </tr>
           </tbody>
         </table>
@@ -341,7 +337,6 @@ function RewardRow({ rowKey, name, values, drops, trailingValues = [], expanded,
   </Fragment>;
 }
 
-function safeDomId(value: string): string { return value.replace(/[^a-zA-Z0-9_-]/g, "-"); }
 
 interface TrendChartProps {
   samples: readonly TrendSample[];

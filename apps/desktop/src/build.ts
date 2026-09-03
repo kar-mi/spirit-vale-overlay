@@ -21,7 +21,6 @@ await build({
   entrypoint: path.join(appRoot, "src/backend/index.ts"),
   outdir: backend,
   target: "bun",
-  alias: {},
 });
 await Promise.all([
   buildView("launcherview", path.join(workspace, "apps/launcher/src/views/launcher")),
@@ -66,7 +65,6 @@ async function buildView(name: string, source: string): Promise<void> {
     entrypoint: path.join(source, "index.tsx"),
     outdir: destination,
     target: "browser",
-    alias: {},
   });
   await Promise.all([
     copyFile(path.join(source, "index.css"), path.join(destination, "index.css")),
@@ -79,15 +77,10 @@ async function buildView(name: string, source: string): Promise<void> {
   await writeFile(jsPath, js);
 }
 
-async function build(options: { entrypoint: string; outdir: string; target: "bun" | "browser"; alias: Record<string, string> }): Promise<void> {
+async function build(options: { entrypoint: string; outdir: string; target: "bun" | "browser" }): Promise<void> {
   const result = await Bun.build({
     entrypoints: [options.entrypoint], outdir: options.outdir, target: options.target, format: "esm", minify: false, sourcemap: "external",
     ...(options.target === "bun" ? { naming: "index.[ext]" } : {}),
-    plugins: [{ name: "neutralino-runtime-alias", setup(builder) {
-      for (const [specifier, replacement] of Object.entries(options.alias)) {
-        builder.onResolve({ filter: new RegExp(`^${specifier.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`) }, () => ({ path: replacement }));
-      }
-    } }],
   });
   if (!result.success) throw new AggregateError(result.logs, `Build failed: ${options.entrypoint}`);
 }

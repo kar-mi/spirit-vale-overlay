@@ -1,11 +1,7 @@
-import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
-import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
-import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
-import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
-import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
+import { BrowserView } from "@svoverlay/desktop-runtime";
 import { translate } from "@svoverlay/i18n/backend";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
-import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
+import { createManagedWindow } from "@svoverlay/desktop-platform/managed-window";
 
 import type { BossTimerRpc, BossTimerWindowState } from "../boss-timers/rpc.ts";
 
@@ -20,9 +16,6 @@ export interface BossTimerWindowOptions {
 }
 
 export async function createBossTimerWindow(options: BossTimerWindowOptions) {
-  let window: BrowserWindow;
-  let closing = false;
-  const lifecycle = new DisposableStore();
   const rpc = BrowserView.defineRPC<BossTimerRpc>({
     handlers: {
       requests: {
@@ -47,39 +40,20 @@ export async function createBossTimerWindow(options: BossTimerWindowOptions) {
     },
   });
 
-  window = new BrowserWindow({
+  const { window, lifecycle } = createManagedWindow({
     title: translate("bossTimers.window.title"),
     url: "views://bosstimersview/index.html",
-    frame: options.placements?.frame(
-      "boss-timers",
-      { x: 170, y: 130, width: 860, height: 660 },
-      { width: 620, height: 420 },
-    ) ?? { x: 170, y: 130, width: 860, height: 660 },
-    titleBarStyle: "hidden",
-    transparent: false,
     rpc,
+    minimum: { width: 620, height: 420 },
+    placements: options.placements,
+    placementKey: "boss-timers",
+    defaultFrame: { x: 170, y: 130, width: 860, height: 660 },
+    onClose: () => { options.onClosed?.(); },
   });
-  applyRoundedCorners(window.ptr);
-  setWindowIcon(window.ptr, appIconPath);
-  lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: !options.placements }));
-  lifecycle.add(registerLocaleWindow(window));
-  const disposePlacement = options.placements?.track("boss-timers", window);
-  if (disposePlacement) lifecycle.add(disposePlacement);
-  const unsubscribe = options.subscribe(() => {
+  lifecycle.add(options.subscribe(() => {
     try { rpc.send.stateChanged(options.getState()); } catch { /* View may still be connecting. */ }
-  });
-  lifecycle.add(unsubscribe);
-  lifecycle.add(onWindowEvent(window, "resize", (event: { data: { width: number; height: number } }) => {
-    const width = Math.max(scaledSize(620), event.data.width);
-    const height = Math.max(scaledSize(420), event.data.height);
-    if (width !== event.data.width || height !== event.data.height) window.setSize(width, height);
   }));
-  lifecycle.add(onceWindowEvent(window, "close", () => {
-    if (closing) return;
-    closing = true;
-    lifecycle.dispose();
-    options.onClosed?.();
-  }));
+
   return {
     show: () => window.show(),
     activate: () => window.activate(),

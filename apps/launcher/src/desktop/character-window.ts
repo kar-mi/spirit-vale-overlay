@@ -1,13 +1,9 @@
-import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
-import { applyRoundedCorners, setWindowIcon } from "@svoverlay/desktop-platform/win32";
-import { appIconPath } from "@svoverlay/desktop-platform/window-publish";
+import { BrowserView } from "@svoverlay/desktop-runtime";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
 import type { CharacterRpc } from "../character/rpc.ts";
-import { registerUiScaleWindow, scaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
-import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
 import { translate } from "@svoverlay/i18n/backend";
 import type { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
-import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
+import { createManagedWindow } from "@svoverlay/desktop-platform/managed-window";
 
 export interface CharacterWindowOptions {
   getState: () => CharacterViewState;
@@ -18,9 +14,6 @@ export interface CharacterWindowOptions {
 }
 
 export async function createCharacterWindow(options: CharacterWindowOptions) {
-  let window: BrowserWindow;
-  let closing = false;
-  const lifecycle = new DisposableStore();
   const rpc = BrowserView.defineRPC<CharacterRpc>({
     handlers: {
       requests: {
@@ -37,39 +30,20 @@ export async function createCharacterWindow(options: CharacterWindowOptions) {
     },
   });
 
-  window = new BrowserWindow({
+  const { window, lifecycle } = createManagedWindow({
     title: translate("character.window.title"),
     url: "views://characterview/index.html",
-    frame: options.placements?.frame(
-      "character",
-      { x: 140, y: 100, width: 1120, height: 973 },
-      { width: 680, height: 520 },
-    ) ?? { x: 140, y: 100, width: 1120, height: 973 },
-    titleBarStyle: "hidden",
-    transparent: false,
     rpc,
+    minimum: { width: 680, height: 520 },
+    placements: options.placements,
+    placementKey: "character",
+    defaultFrame: { x: 140, y: 100, width: 1120, height: 973 },
+    onClose: () => { options.onClosed?.(); },
   });
-  applyRoundedCorners(window.ptr);
-  setWindowIcon(window.ptr, appIconPath);
-  lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: !options.placements }));
-  lifecycle.add(registerLocaleWindow(window));
-  const disposePlacement = options.placements?.track("character", window);
-  if (disposePlacement) lifecycle.add(disposePlacement);
-  const unsubscribe = options.subscribe((state) => {
+  lifecycle.add(options.subscribe((state) => {
     try { rpc.send.stateChanged(state); } catch { /* View may still be connecting. */ }
-  });
-  lifecycle.add(unsubscribe);
-  lifecycle.add(onWindowEvent(window, "resize", (event: { data: { width: number; height: number } }) => {
-    const width = Math.max(scaledSize(680), event.data.width);
-    const height = Math.max(scaledSize(520), event.data.height);
-    if (width !== event.data.width || height !== event.data.height) window.setSize(width, height);
   }));
-  lifecycle.add(onceWindowEvent(window, "close", () => {
-    if (closing) return;
-    closing = true;
-    lifecycle.dispose();
-    options.onClosed?.();
-  }));
+
   return {
     show: () => window.show(),
     activate: () => window.activate(),

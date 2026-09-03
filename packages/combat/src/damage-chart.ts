@@ -1,9 +1,8 @@
 import type { ChartRange, ChartRenderResult } from "@svoverlay/ui-kit/interactive-chart";
+import { formatCompact } from "@svoverlay/ui-kit/format";
 import type { MeterTimelinePoint } from "./app-types.ts";
 
 export type DamageChartMetric = "cumulative" | "dps";
-
-const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
 
 export function damageChartExtent(
   points: readonly MeterTimelinePoint[],
@@ -32,12 +31,12 @@ export function buildDamageChartRender(
         time: point.elapsedMs,
         ratio: maximum > 0 ? value / maximum : 0,
         primary: metric === "cumulative"
-          ? compactFormat.format(value)
-          : `${compactFormat.format(value)} ${metricLabel}`,
+          ? formatCompact(value)
+          : `${formatCompact(value)} ${metricLabel}`,
         secondary: metric === "cumulative" ? `Cumulative ${damageLabel.toLowerCase()}` : `${damageLabel} per second`,
       };
     }),
-    yLabels: Array.from({ length: 5 }, (_, tick) => compactFormat.format((maximum * tick) / 4)),
+    yLabels: Array.from({ length: 5 }, (_, tick) => formatCompact((maximum * tick) / 4)),
   };
 }
 

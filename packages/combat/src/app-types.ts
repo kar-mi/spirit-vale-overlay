@@ -3,12 +3,10 @@ import type { RPCSchema } from "@svoverlay/contracts/rpc";
 
 
 import type {
-  FishNetDpsActorRow,
-  FishNetDpsEncounterSnapshot,
-  FishNetDpsSkillRow,
-  FishNetDpsTimelinePoint,
-} from "@kar-mi/spirit-vale-tools-combat";
-import type { MeterActorRow } from "@svoverlay/contracts/meter";
+  MeterActorRow,
+  MeterEncounterSnapshot,
+  MeterSkillRow,
+} from "@svoverlay/contracts/meter";
 import type { DeathLogEntry } from "./death-log.ts";
 import type { SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
 import type { EnemyDamageRow, EnemyOption } from "./enemy-breakdown.ts";
@@ -18,9 +16,12 @@ import type { SessionDateRange } from "@svoverlay/desktop-platform/session-summa
 export type { StatType } from "@svoverlay/ui-kit/stat-type-select";
 import type { StatType } from "@svoverlay/ui-kit/stat-type-select";
 
-export type MeterTimelinePoint = FishNetDpsTimelinePoint;
-export type { MeterActorRow } from "@svoverlay/contracts/meter";
-export type MeterEncounterSnapshot = FishNetDpsEncounterSnapshot;
+export type {
+  MeterActorRow,
+  MeterEncounterSnapshot,
+  MeterSkillRow,
+  MeterTimelinePoint,
+} from "@svoverlay/contracts/meter";
 
 export type DpsAppTab = "all" | "personal";
 export type CombatLogScreen = "live" | "past";
@@ -40,7 +41,7 @@ export interface DpsAppState {
   storageWarning?: LocalizedText;
   personalName: string;
   personalActorId?: number;
-  snapshot?: FishNetDpsEncounterSnapshot;
+  snapshot?: MeterEncounterSnapshot;
   tankedSnapshot?: MeterEncounterSnapshot;
   healSnapshot?: MeterEncounterSnapshot;
   resetting: boolean;
@@ -99,7 +100,7 @@ export interface CombatAnalysisState {
   encounters: DpsEncounterOption[];
   selectedEncounterId?: string;
   statType: StatType;
-  snapshot?: FishNetDpsEncounterSnapshot;
+  snapshot?: MeterEncounterSnapshot;
   tankedSnapshot?: MeterEncounterSnapshot;
   healSnapshot?: MeterEncounterSnapshot;
   enemies: EnemyOption[];
@@ -115,15 +116,15 @@ export interface CombatAnalysisDetailState {
   encounterDurationMs: number;
   statType: StatType;
   selectedEnemyIds: number[];
-  player: FishNetDpsActorRow;
+  player: MeterActorRow;
   tankedPlayer?: MeterActorRow;
   healPlayer?: MeterActorRow;
   enemies: EnemyOption[];
   /** Attackers that hit this player, for the enemy filter when the popup is on the TPS view. */
   tankedEnemies: EnemyOption[];
-  skillsByEnemy: Record<number, FishNetDpsSkillRow[]>;
+  skillsByEnemy: Record<number, MeterSkillRow[]>;
   /** Tanked meter: incoming enemy skills per attacker, for the per-enemy breakdown in the popup. */
-  tankedSkillsByEnemy?: Record<number, FishNetDpsSkillRow[]>;
+  tankedSkillsByEnemy?: Record<number, MeterSkillRow[]>;
 }
 
 export interface CombatDeathLogState {

@@ -11,12 +11,12 @@
     "./rarity": "./src/rarity.ts"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-character": "0.6.0",
-    "@kar-mi/spirit-vale-tools-combat": "4.0.0",
-    "@kar-mi/spirit-vale-tools-metrics": "0.2.0",
-    "@kar-mi/spirit-vale-tools-rewards": "1.3.2",
-    "@kar-mi/spirit-vale-tools-skills": "0.2.2",
-    "@kar-mi/spirit-vale-tools-statuses": "0.2.5",
+    "@kar-mi/spirit-vale-tools-character": "0.6.1",
+    "@kar-mi/spirit-vale-tools-combat": "5.0.1",
+    "@kar-mi/spirit-vale-tools-metrics": "0.2.1",
+    "@kar-mi/spirit-vale-tools-rewards": "1.4.1",
+    "@kar-mi/spirit-vale-tools-skills": "0.2.4",
+    "@kar-mi/spirit-vale-tools-statuses": "0.2.7",
     "@preact/signals": "^2.9.4",
     "@svoverlay/combat": "workspace:*",
     "@svoverlay/contracts": "workspace:*",

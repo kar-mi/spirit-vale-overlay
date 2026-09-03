@@ -10,11 +10,11 @@
     "./zone-log": "./src/zone-log.ts"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-capture": "3.0.0",
-    "@kar-mi/spirit-vale-tools-character": "0.6.0",
-    "@kar-mi/spirit-vale-tools-combat": "4.0.0",
-    "@kar-mi/spirit-vale-tools-logging": "0.10.0",
-    "@kar-mi/spirit-vale-tools-sqlite": "0.2.2",
+    "@kar-mi/spirit-vale-tools-capture": "3.0.1",
+    "@kar-mi/spirit-vale-tools-character": "0.6.1",
+    "@kar-mi/spirit-vale-tools-combat": "5.0.1",
+    "@kar-mi/spirit-vale-tools-logging": "0.10.1",
+    "@kar-mi/spirit-vale-tools-sqlite": "0.2.3",
     "@preact/signals": "^2.9.4",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/desktop-platform": "workspace:*",

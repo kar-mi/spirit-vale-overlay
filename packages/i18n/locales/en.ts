@@ -350,8 +350,8 @@ export const en = {
   "rarity.rare": "Rare",
   "rarity.epic": "Epic",
 
-  "overlay.edit.hint": "Drag elements to arrange the overlay. Press {shortcut} to lock or unlock.",
-  "overlay.edit.hintMultiDisplay": "Drag elements to arrange the overlay, or onto another screen to move them there. Press {shortcut} to lock or unlock.",
+  "overlay.edit.hint": "Drag elements to arrange the overlay. Right-click to enable/disable. Press {shortcut} to lock or unlock.",
+  "overlay.edit.hintMultiDisplay": "Drag elements to arrange the overlay. Right-click to enable/disable. Press {shortcut} to lock or unlock.",
   "overlay.edit.gridOn": "Grid: On",
   "overlay.edit.gridOff": "Grid: Off",
   "overlay.edit.lock": "Lock overlay",

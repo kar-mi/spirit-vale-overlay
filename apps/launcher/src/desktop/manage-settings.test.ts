@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { exportSingleSetting, importSettingsFrom, importSingleSetting, resetAllSettings } from "./manage-settings.ts";
+import { applyImport, exportSingleSetting, importSingleSetting, planImport, resetAllSettings } from "./manage-settings.ts";
 import { resolveDesktopStoragePaths } from "./portable-paths.ts";
 import { defaultLauncherSettings } from "../launcher/settings.ts";
 import { defaultOverlaySettings } from "@svoverlay/overlay/settings";
@@ -23,6 +23,17 @@ async function createRoot(): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), "manage-settings-"));
   temporaryRoots.push(root);
   return root;
+}
+
+async function importSettingsFrom(
+  selectedDirectory: string,
+  currentPaths: ReturnType<typeof resolveDesktopStoragePaths>,
+  displayList: typeof displays,
+): Promise<"same-folder" | "not-found" | "imported"> {
+  const plan = planImport(selectedDirectory, currentPaths);
+  if (plan.status !== "ready") return plan.status;
+  await applyImport(plan.oldPaths, currentPaths, displayList);
+  return "imported";
 }
 
 describe("importSettingsFrom", () => {

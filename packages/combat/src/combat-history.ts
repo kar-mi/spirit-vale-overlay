@@ -2,9 +2,9 @@ import { CombatHistoryStore } from "@kar-mi/spirit-vale-tools-combat";
 import type {
   CombatDeathRecord,
   CombatEnemyBreakdown,
-  FishNetDpsEncounterSnapshot,
 } from "@kar-mi/spirit-vale-tools-combat";
 import type { ReadModel } from "@kar-mi/spirit-vale-tools-sqlite";
+import type { MeterEncounterSnapshot } from "@svoverlay/contracts/meter";
 
 import type { DeathLogEntry, DeathLogHit } from "./death-log.ts";
 import type { EnemyBreakdownEncounter, EnemySkillStats } from "./enemy-breakdown.ts";
@@ -20,9 +20,9 @@ export interface CombatReadModelSource {
 }
 
 export interface IndexedEncounter {
-  snapshot: FishNetDpsEncounterSnapshot;
-  tankedSnapshot?: FishNetDpsEncounterSnapshot;
-  healSnapshot?: FishNetDpsEncounterSnapshot;
+  snapshot: MeterEncounterSnapshot;
+  tankedSnapshot?: MeterEncounterSnapshot;
+  healSnapshot?: MeterEncounterSnapshot;
   breakdown: EnemyBreakdownEncounter;
   /** Per-attacker breakdown of damage taken, for the TPS enemy filter. */
   tankedBreakdown: EnemyBreakdownEncounter;

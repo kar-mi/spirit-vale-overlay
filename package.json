@@ -11,10 +11,10 @@
   "scripts": {
     "build": "bun run --filter @svoverlay/desktop build",
     "build:stable": "bun run --filter @svoverlay/desktop build",
-    "check": "bun run typecheck && bun test",
+    "check": "bun run typecheck && bun test --parallel",
     "dev": "bun run --filter @svoverlay/desktop dev",
     "package:portable": "bun run --filter @svoverlay/desktop package",
-    "test": "bun test",
+    "test": "bun test --parallel",
     "typecheck": "tsc --noEmit",
     "verify:portable": "bun run tooling/release/verify-portable.ts"
   },

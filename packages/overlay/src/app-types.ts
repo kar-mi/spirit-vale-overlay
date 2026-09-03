@@ -29,6 +29,39 @@ export interface OverlayElementSettings {
   display: string;
 }
 
+export interface ElementSize {
+  width: number;
+  height: number;
+}
+
+const MIN_ELEMENT_WIDTH = 160;
+const MIN_ELEMENT_HEIGHT = 100;
+const MIN_BAR_HEIGHT = 24;
+const MIN_COMPACT_ELEMENT_HEIGHT = 40;
+
+const MIN_ELEMENT_HEIGHTS: Partial<Record<OverlayElementId, number>> = {
+  health: MIN_BAR_HEIGHT,
+  mana: MIN_BAR_HEIGHT,
+  characterXp: MIN_BAR_HEIGHT,
+  jobXp: MIN_BAR_HEIGHT,
+  weight: MIN_COMPACT_ELEMENT_HEIGHT,
+  buffs: MIN_COMPACT_ELEMENT_HEIGHT,
+  debuffs: MIN_COMPACT_ELEMENT_HEIGHT,
+  toggles: MIN_COMPACT_ELEMENT_HEIGHT,
+  bossTimers: MIN_COMPACT_ELEMENT_HEIGHT,
+};
+
+export const ELEMENT_MIN_SIZE: Record<OverlayElementId, ElementSize> = Object.fromEntries(
+  OVERLAY_ELEMENT_IDS.map((id) => [id, {
+    width: MIN_ELEMENT_WIDTH,
+    height: MIN_ELEMENT_HEIGHTS[id] ?? MIN_ELEMENT_HEIGHT,
+  }]),
+) as Record<OverlayElementId, ElementSize>;
+
+export function minimumSizeFor(id: OverlayElementId): ElementSize {
+  return ELEMENT_MIN_SIZE[id];
+}
+
 export interface OverlayDisplayOption {
   key: string;
   label: string;

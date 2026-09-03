@@ -1,14 +1,14 @@
 import path from "node:path";
 
-import { BrowserView, BrowserWindow } from "@svoverlay/desktop-runtime";
-import { mountRoundedWindow, publishSafely } from "@svoverlay/desktop-platform/window-publish";
+import { BrowserView } from "@svoverlay/desktop-runtime";
+import type { BrowserWindow } from "@svoverlay/desktop-runtime";
+import { publishSafely } from "@svoverlay/desktop-platform/window-publish";
 import {
   inspectRewardsReplaySummary,
   LiveRewardService,
   LiveRewardSessionLogFollower,
   loadBundledMobRewardCatalog,
   loadRewardReplay,
-  queryMobRewardCatalog,
   RewardHistoryStore,
 } from "@kar-mi/spirit-vale-tools-rewards";
 import type {
@@ -23,21 +23,18 @@ import type {
   RewardsAppRpc,
   RewardsAppState,
   RewardsAppStatus,
-  RewardsCatalogRpc,
-  RewardsCatalogState,
 } from "../app-types.ts";
 import { loadRewardsSettings, saveRewardsSettings } from "../settings.ts";
 import { xpToLevelUp } from "../xp-to-level.ts";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { createSessionPicker } from "@svoverlay/desktop-platform/session-picker";
-import { registerUiScaleWindow, scaledSize, unscaledSize } from "@svoverlay/desktop-platform/ui-scale-window";
-import { registerLocaleWindow } from "@svoverlay/desktop-platform/locale-window";
 import { localized, localizedCount, type LocalizedText } from "@svoverlay/i18n/messages";
-import { visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
-import { DisposableStore, onWindowEvent, onceWindowEvent } from "@svoverlay/desktop-platform/window-lifecycle";
+import { createManagedWindow } from "@svoverlay/desktop-platform/managed-window";
+import { frameClamp, visibleScaledWindowFrame, type WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { managedSessionId } from "@svoverlay/desktop-platform/managed-session";
 import { chartBuckets, chartSample, CHART_POINTS, RECENT_KILL_LIMIT } from "../reward-chart.ts";
 import { attributedKills, attributedMobSummaries } from "../reward-display.ts";
+import { createRewardsCatalogWindow } from "./rewards-catalog-window.ts";
 
 const READ_RETRY_MS = 1_000;
 const catalog = loadBundledMobRewardCatalog();
@@ -82,12 +79,10 @@ const follower = new LiveRewardSessionLogFollower(options.logDirectory, {
 });
 
 let window: BrowserWindow;
-let catalogWindow: BrowserWindow | undefined;
 let mode: RewardsAppMode = "live";
 let status: RewardsAppStatus = "waiting";
 let statusDetail: LocalizedText = localized("rewards.status.waiting");
 let statusDetailExtras: LocalizedText[] = [];
-let catalogQuery = "";
 let liveSnapshot = emptyAggregate();
 let replaySnapshot = emptyAggregate();
 let replayFileName: string | undefined;
@@ -96,13 +91,18 @@ let shuttingDown = false;
 let closedCallbackSent = false;
 let storageWarning: LocalizedText | undefined;
 let resetting = false;
-const lifecycle = new DisposableStore();
-let catalogLifecycle: DisposableStore | undefined;
+const mainFrameClamp = frameClamp(620, 520);
 
 const settingsPersistence = new SafeSaveQueue<typeof settings>({
   label: "rewards settings",
   save: (value) => saveRewardsSettings(value, options.settingsPath),
   onWarning: (warning) => { storageWarning = warning ? localized("storage.saveFailed") : undefined; publish(); },
+});
+
+const catalogWindow = createRewardsCatalogWindow({
+  settings,
+  onOpenSettings: options.onOpenSettings,
+  onSettingsChanged: scheduleSave,
 });
 
 const replayPicker = createSessionPicker({
@@ -125,7 +125,7 @@ const rpc = BrowserView.defineRPC<RewardsAppRpc>({
       getState: () => appState(),
       setMode: ({ mode: nextMode }) => { mode = nextMode; publish(); return appState(); },
       setView: ({ view }) => { settings.view = view; scheduleSave(); publish(); return appState(); },
-      openCatalog: () => { openCatalog(); },
+      openCatalog: () => { catalogWindow.open(); },
       openSettings: () => { options.onOpenSettings?.(); },
       openReplayPicker: () => { replayPicker.open(); },
       resetSession: async () => {
@@ -155,7 +155,7 @@ const rpc = BrowserView.defineRPC<RewardsAppRpc>({
       setPinned: ({ pinned }) => {
         settings.pinned = pinned;
         window.setAlwaysOnTop(pinned);
-        catalogWindow?.setAlwaysOnTop(pinned);
+        catalogWindow.setAlwaysOnTop(pinned);
         scheduleSave();
         publish();
         return appState();
@@ -179,65 +179,17 @@ const rpc = BrowserView.defineRPC<RewardsAppRpc>({
   },
 });
 
-const catalogRpc = BrowserView.defineRPC<RewardsCatalogRpc>({
-  handlers: {
-    requests: {
-      getState: () => catalogState(),
-      openSettings: () => { options.onOpenSettings?.(); },
-      setQuery: ({ query }) => {
-        catalogQuery = query.trim().slice(0, 200);
-        publishCatalog();
-        return catalogState();
-      },
-      windowAction: ({ action }) => {
-        if (action === "minimize") catalogWindow?.minimize();
-        else if (catalogWindow) {
-          if (!catalogWindow.isMaximized()) {
-            settings.catalogFrame = unscaleCatalogFrame(clampPhysicalCatalogFrame(catalogWindow.getFrame()));
-          }
-          scheduleSave();
-          catalogWindow.close();
-        }
-      },
-      getWindowFrame: () => catalogWindow?.getFrame() ?? settings.catalogFrame,
-      setWindowFrame: ({ x, y, width, height }) => { catalogWindow?.setFrame(x, y, width, height); },
-      toggleMaximize: () => {
-        if (!catalogWindow) return { maximized: false };
-        if (catalogWindow.isMaximized()) catalogWindow.unmaximize();
-        else catalogWindow.maximize();
-        return { maximized: catalogWindow.isMaximized() };
-      },
-    },
-    messages: {},
-  },
-});
-
-window = new BrowserWindow({
+const managed = createManagedWindow({
   title: "Spirit Vale Mob Rewards",
   url: "views://rewardsview/index.html",
-  frame: visibleScaledWindowFrame(settings.frame, { width: 620, height: 520 }),
-  titleBarStyle: "hidden",
-  transparent: false,
   rpc,
+  minimum: { width: 620, height: 520 },
+  alwaysOnTop: settings.pinned,
+  frame: visibleScaledWindowFrame(settings.frame, { width: 620, height: 520 }),
+  onFrameChange: (logical) => { settings.frame = logical; scheduleSave(); },
+  onClose: () => { void shutdown(); },
 });
-window.setAlwaysOnTop(settings.pinned);
-mountRoundedWindow(window);
-lifecycle.add(registerUiScaleWindow(window, { scaleInitialFrame: false }));
-lifecycle.add(registerLocaleWindow(window));
-
-lifecycle.add(onWindowEvent(window, "move", (event: { data: typeof settings.frame }) => {
-  if (window.isMaximized()) return;
-  settings.frame = unscaleFrame(clampPhysicalFrame(event.data));
-  scheduleSave();
-}));
-lifecycle.add(onWindowEvent(window, "resize", (event: { data: typeof settings.frame }) => {
-  if (window.isMaximized()) return;
-  const frame = clampPhysicalFrame(event.data);
-  settings.frame = unscaleFrame(frame);
-  if (frame.width !== event.data.width || frame.height !== event.data.height) window.setSize(frame.width, frame.height);
-  scheduleSave();
-}));
-lifecycle.add(onceWindowEvent(window, "close", () => { void shutdown(); }));
+window = managed.window;
 
 void followRewards();
 const unsubscribeXp = options.xp.subscribe(() => publish());
@@ -294,58 +246,6 @@ function appState(): RewardsAppState {
     xp: options.xp.getSnapshot(),
     gold: options.xp.getCoinsSnapshot(),
   };
-}
-
-function catalogState(): RewardsCatalogState {
-  const mobs = queryMobRewardCatalog(catalog, { text: catalogQuery });
-  return {
-    query: catalogQuery,
-    catalogCount: catalog.mobs.length,
-    catalog: mobs.map((mob) => ({ ...mob, drops: mob.drops.map((drop) => ({ ...drop })) })),
-  };
-}
-
-function openCatalog(): void {
-  if (catalogWindow) {
-    catalogWindow.show();
-    catalogWindow.activate();
-    return;
-  }
-
-  const nextWindow = new BrowserWindow({
-    title: "Spirit Vale Mob Catalog",
-    url: "views://rewardscatalogview/index.html",
-    frame: visibleScaledWindowFrame(settings.catalogFrame, { width: 520, height: 420 }),
-    titleBarStyle: "hidden",
-    transparent: false,
-    rpc: catalogRpc,
-  });
-  const nextLifecycle = new DisposableStore();
-  catalogWindow = nextWindow;
-  catalogLifecycle = nextLifecycle;
-  nextWindow.setAlwaysOnTop(settings.pinned);
-  mountRoundedWindow(nextWindow);
-  nextLifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
-  nextLifecycle.add(registerLocaleWindow(nextWindow));
-
-  nextLifecycle.add(onWindowEvent(nextWindow, "move", (event: { data: typeof settings.catalogFrame }) => {
-    if (nextWindow.isMaximized()) return;
-    settings.catalogFrame = unscaleCatalogFrame(clampPhysicalCatalogFrame(event.data));
-    scheduleSave();
-  }));
-  nextLifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: typeof settings.catalogFrame }) => {
-    if (nextWindow.isMaximized()) return;
-    const frame = clampPhysicalCatalogFrame(event.data);
-    settings.catalogFrame = unscaleCatalogFrame(frame);
-    if (frame.width !== event.data.width || frame.height !== event.data.height) nextWindow.setSize(frame.width, frame.height);
-    scheduleSave();
-  }));
-  nextLifecycle.add(onceWindowEvent(nextWindow, "close", () => {
-    nextLifecycle.dispose();
-    catalogWindow = undefined;
-    catalogLifecycle = undefined;
-    scheduleSave();
-  }));
 }
 
 async function followRewards(): Promise<void> {
@@ -456,34 +356,6 @@ function publish(): void {
   publishSafely(() => rpc.send.stateChanged(appState()));
 }
 
-function publishCatalog(): void {
-  publishSafely(() => catalogRpc.send.stateChanged(catalogState()));
-}
-
-function clampFrame(frame: typeof settings.frame): typeof settings.frame {
-  return { x: frame.x, y: frame.y, width: Math.max(620, frame.width), height: Math.max(520, frame.height) };
-}
-
-function clampCatalogFrame(frame: typeof settings.catalogFrame): typeof settings.catalogFrame {
-  return { x: frame.x, y: frame.y, width: Math.max(520, frame.width), height: Math.max(420, frame.height) };
-}
-
-function unscaleFrame(frame: typeof settings.frame): typeof settings.frame {
-  return clampFrame({ x: frame.x, y: frame.y, width: unscaledSize(frame.width), height: unscaledSize(frame.height) });
-}
-
-function clampPhysicalFrame(frame: typeof settings.frame): typeof settings.frame {
-  return { x: frame.x, y: frame.y, width: Math.max(scaledSize(620), frame.width), height: Math.max(scaledSize(520), frame.height) };
-}
-
-function unscaleCatalogFrame(frame: typeof settings.catalogFrame): typeof settings.catalogFrame {
-  return clampCatalogFrame({ x: frame.x, y: frame.y, width: unscaledSize(frame.width), height: unscaledSize(frame.height) });
-}
-
-function clampPhysicalCatalogFrame(frame: typeof settings.catalogFrame): typeof settings.catalogFrame {
-  return { x: frame.x, y: frame.y, width: Math.max(scaledSize(520), frame.width), height: Math.max(scaledSize(420), frame.height) };
-}
-
 function scheduleSave(): void {
   if (shuttingDown) return;
   settingsPersistence.schedule(settings);
@@ -492,18 +364,15 @@ function scheduleSave(): void {
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
-  lifecycle.dispose();
-  catalogLifecycle?.dispose();
-  catalogLifecycle = undefined;
+  managed.lifecycle.dispose();
+  catalogWindow.close();
   replayPicker.close();
   follower.close();
   unsubscribeXp();
   unsubscribeCharacter();
-  catalogWindow?.close();
-  catalogWindow = undefined;
   liveSnapshot = emptyAggregate();
   replaySnapshot = emptyAggregate();
-  if (!window.isMaximized()) settings.frame = unscaleFrame(window.getFrame());
+  if (!window.isMaximized()) settings.frame = mainFrameClamp.unscale(window.getFrame());
   try {
     await settingsPersistence.flush(settings);
   } finally {

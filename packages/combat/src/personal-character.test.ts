@@ -12,7 +12,7 @@ function meterStub(state?: CharacterViewState) {
   return meter;
 }
 
-describe("overlay personal character detection", () => {
+describe("personal character detection", () => {
   test("uses the active cached character immediately", () => {
     const state = characterState("Fictional Hero", "cached");
     const meter = meterStub(state);

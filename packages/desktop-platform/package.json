@@ -11,6 +11,7 @@
     "./window-publish": "./window-publish.ts",
     "./window-lifecycle": "./window-lifecycle.ts",
     "./window-placement": "./window-placement.ts",
+    "./managed-window": "./managed-window.ts",
     "./ui-scale": "./ui-scale.ts",
     "./ui-scale-window": "./ui-scale-window.ts",
     "./local-storage": "./local-storage.ts",
@@ -26,7 +27,7 @@
     "./locale-window": "./locale-window.ts"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-logging": "0.10.0",
+    "@kar-mi/spirit-vale-tools-logging": "0.10.1",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/ui-kit": "workspace:*",
     "@svoverlay/i18n": "workspace:*"

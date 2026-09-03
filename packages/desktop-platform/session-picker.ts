@@ -2,19 +2,16 @@ import { countedMessage, message, translate } from "@svoverlay/i18n/backend";
 import type { MessageKey } from "@svoverlay/i18n/messages";
 import path from "node:path";
 
-import { BrowserView, BrowserWindow, Utils } from "@svoverlay/desktop-runtime";
+import { BrowserView, Utils } from "@svoverlay/desktop-runtime";
+import type { BrowserWindow } from "@svoverlay/desktop-runtime";
 import type { LogStream } from "@kar-mi/spirit-vale-tools-logging";
-import { applyRoundedCorners, setWindowIcon } from "./win32.ts";
-import { appIconPath } from "./window-publish.ts";
 import { historyScanLimit, loadSessionSummaryJournal, normalizeHistorySessionLimit } from "./session-summary-journal.ts";
 import type { SessionSummaryJournal } from "./session-summary-journal.ts";
-import { registerUiScaleWindow, scaledSize } from "./ui-scale-window.ts";
-import { registerLocaleWindow } from "./locale-window.ts";
 import type { WindowPlacementStore } from "./window-placement.ts";
+import { createManagedWindow } from "./managed-window.ts";
 
 import type { SessionPickerRpc, SessionPickerState } from "./session-picker-types.ts";
 import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
-import { DisposableStore, onWindowEvent, onceWindowEvent } from "./window-lifecycle.ts";
 
 export interface SessionPickerOptions {
   logDirectory: string;
@@ -77,33 +74,21 @@ export function createSessionPicker(options: SessionPickerOptions): SessionPicke
         window.show();
         window.activate();
       } else {
-        const lifecycle = new DisposableStore();
-        const nextWindow = new BrowserWindow({
+        const managed = createManagedWindow({
           title: translate(options.titleKey),
           url: "views://sessionpickerview/index.html",
-          frame: pickerFrame() ?? options.defaultFrame ?? { x: 120, y: 120, width: 640, height: 560 },
-          titleBarStyle: "hidden",
-          transparent: false,
           rpc,
+          minimum: { width: 480, height: 400 },
+          placements: options.placementKey ? options.placements : undefined,
+          placementKey: options.placementKey ?? "session-picker",
+          defaultFrame: options.defaultFrame ?? { x: 120, y: 120, width: 640, height: 560 },
+          onClose: () => {
+            if (window === managed.window) window = undefined;
+            paths.clear();
+            state = loadingState(options.titleKey);
+          },
         });
-        window = nextWindow;
-        applyRoundedCorners(nextWindow.ptr);
-        setWindowIcon(nextWindow.ptr, appIconPath);
-        lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: !options.placements }));
-        lifecycle.add(registerLocaleWindow(nextWindow));
-        const disposePlacement = options.placementKey ? options.placements?.track(options.placementKey, nextWindow) : undefined;
-        if (disposePlacement) lifecycle.add(disposePlacement);
-        lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
-          const width = Math.max(scaledSize(480), event.data.width);
-          const height = Math.max(scaledSize(400), event.data.height);
-          if (width !== event.data.width || height !== event.data.height) nextWindow.setSize(width, height);
-        }));
-        lifecycle.add(onceWindowEvent(nextWindow, "close", () => {
-          lifecycle.dispose();
-          if (window === nextWindow) window = undefined;
-          paths.clear();
-          state = loadingState(options.titleKey);
-        }));
+        window = managed.window;
       }
       void refresh();
     },

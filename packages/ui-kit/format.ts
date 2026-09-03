@@ -1,5 +1,27 @@
 const integerFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
+const percentFormat = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 1 });
+const chanceFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 });
+
+export function formatInteger(value: number | bigint): string {
+  return integerFormat.format(value);
+}
+
+export function formatCompact(value: number): string {
+  return compactFormat.format(value);
+}
+
+export function formatPercent(value: number): string {
+  return percentFormat.format(value);
+}
+
+export function formatChance(value: number): string {
+  return `${chanceFormat.format(value)}%`;
+}
+
+export function safeDomId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "-");
+}
 
 export function formatDuration(milliseconds: number): string {
   const seconds = Math.round(milliseconds / 1_000);

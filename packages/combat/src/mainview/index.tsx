@@ -9,7 +9,7 @@ import { ensureInitialWindowSize } from "@svoverlay/ui-kit/ensure-window-size";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { StatusDot } from "@svoverlay/ui-kit/status-dot";
 import type { StatusTone } from "@svoverlay/ui-kit/status-dot";
-import { formatDps, formatDuration } from "@svoverlay/ui-kit/format";
+import { formatCompact, formatDps, formatDuration, formatInteger } from "@svoverlay/ui-kit/format";
 import { CustomSelect } from "@svoverlay/ui-kit/custom-select";
 import { StatTypeSelect } from "@svoverlay/ui-kit/stat-type-select";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
@@ -35,9 +35,6 @@ const STATUS_TONE: Record<DpsAppState["status"], StatusTone> = {
   stopped: "is-warn",
   error: "is-err",
 };
-
-const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-const compactFormat = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
 
 type ActorSortKey = "dps" | "damage" | "contribution" | "critRate" | "kills" | "mobsHit";
 type SkillSortKey = "sourceLabel" | "dps" | "damage" | "contribution" | "hits" | "criticalHits" | "critRate";
@@ -163,8 +160,8 @@ function App() {
             <tbody><tr>
               <td>{activeSnapshot ? formatDuration(activeSnapshot.durationMs) : "—"}</td>
               <td>{formatDps(activeSnapshot?.partyDps ?? 0)}</td>
-              <td>{compactFormat.format(activeSnapshot?.totalDamage ?? 0)}</td>
-              <td>{numberFormat.format(activeSnapshot?.actors.reduce((total, actor) => total + actor.kills, 0) ?? 0)}</td>
+              <td>{formatCompact(activeSnapshot?.totalDamage ?? 0)}</td>
+              <td>{formatInteger(activeSnapshot?.actors.reduce((total, actor) => total + actor.kills, 0) ?? 0)}</td>
             </tr></tbody>
           </table>
         </div>
@@ -211,11 +208,11 @@ function App() {
                     <CombatClassCell archetype={actor.archetype} />
                     <th scope="row">{actor.displayName}</th>
                     <td>{formatDps(actor.dps)}</td>
-                    <td>{compactFormat.format(actor.damage)}</td>
+                    <td>{formatCompact(actor.damage)}</td>
                     <td>{formatPercent(actor.contribution)}</td>
                     <td>{formatCritRate(actor.critRate)}</td>
-                    <td>{numberFormat.format(actor.kills)}</td>
-                    <td>{numberFormat.format(actor.mobsHit)}</td>
+                    <td>{formatInteger(actor.kills)}</td>
+                    <td>{formatInteger(actor.mobsHit)}</td>
                   </tr>
                   );
                 })}</tbody>
@@ -239,7 +236,7 @@ function App() {
               { value: "auto", label: t("combat.personal.actorAuto") },
               ...actors.flatMap((actor) => actor.actorIds.map((actorId) => ({
                 value: String(actorId),
-                label: t("combat.personal.actorOption", { name: actor.displayName, damage: compactFormat.format(actor.damage) }),
+                label: t("combat.personal.actorOption", { name: actor.displayName, damage: formatCompact(actor.damage) }),
               }))),
             ]}
           />
@@ -270,10 +267,10 @@ function App() {
                   <tr key={skill.sourceId} class="meter-table-row" style={`--row-fill:${Math.max(0, Math.min(100, skill.contribution * 100))}%`}>
                     <th scope="row">{skill.sourceLabel}</th>
                     <td>{formatDps(skill.dps)}</td>
-                    <td>{compactFormat.format(skill.damage)}</td>
+                    <td>{formatCompact(skill.damage)}</td>
                     <td>{formatPercent(skill.contribution)}</td>
-                    <td>{numberFormat.format(skill.hits)}</td>
-                    <td>{numberFormat.format(skill.criticalHits)}</td>
+                    <td>{formatInteger(skill.hits)}</td>
+                    <td>{formatInteger(skill.criticalHits)}</td>
                     <td>{formatCritRate(skill.critRate)}</td>
                   </tr>
                 ))}</tbody>
@@ -287,8 +284,8 @@ function App() {
               <tbody>{(activeSnapshot?.personal?.absorbedSkills ?? []).map((skill) => (
                 <tr key={skill.sourceId} class="meter-table-row" style={`--row-fill:${Math.max(0, Math.min(100, skill.contribution * 100))}%`}>
                   <th scope="row">{skill.sourceLabel}</th>
-                  <td>{compactFormat.format(skill.damage)}</td>
-                  <td>{numberFormat.format(skill.hits)}</td>
+                  <td>{formatCompact(skill.damage)}</td>
+                  <td>{formatInteger(skill.hits)}</td>
                 </tr>
               ))}</tbody>
             </table>
