@@ -35,7 +35,7 @@ import type {
   LogStream,
   LogWriteFailure,
 } from "@kar-mi/spirit-vale-tools-logging";
-import { FishNetLootDropTracker, FishNetMobDirectory, FishNetMobRewardTracker } from "@kar-mi/spirit-vale-tools-rewards";
+import { FishNetLootDropTracker, FishNetMobDirectory, FishNetMobRewardTracker, mobIdentityDefinitionsById } from "@kar-mi/spirit-vale-tools-rewards";
 import type { FishNetLootDrop, FishNetLootDropEvent } from "@kar-mi/spirit-vale-tools-rewards";
 import { TOWER_FLOOR_EVENT_SOURCE_PREFIX, TOWER_FLOOR_UNKNOWN_SUFFIX, ZONE_EVENT_SOURCE_PREFIX } from "@svoverlay/combat/zone-log";
 import { sameSpiritValeLocation, type SpiritValeLocation } from "@svoverlay/desktop-platform/location";
@@ -49,7 +49,6 @@ import { CaptureDiagnostics } from "./capture-diagnostics.ts";
 import { CaptureHealthMonitor } from "./capture-health-monitor.ts";
 import { systemClock, type Clock, type ClockTimer } from "./clock.ts";
 import { LocalCharacterRouter } from "./local-character-router.ts";
-import { combatMonsterIdentityCatalog } from "./monster-identity-catalog.ts";
 import { RewardEventAttributor } from "./reward-event-attributor.ts";
 import { StickyActorDirectory } from "./sticky-actor-directory.ts";
 
@@ -141,7 +140,7 @@ export class CaptureCoordinator {
     healingTraitsResolver: (actorId: number) => {
       return actorId === this.character.physicalObjectId() ? this.localHealingTraits() : undefined;
     },
-    monsterCatalog: combatMonsterIdentityCatalog(),
+    monsterCatalog: mobIdentityDefinitionsById(),
   });
   private readonly statusTracker = new FishNetStatusTracker();
   private readonly activeStatusListeners = new Set<(statuses: readonly FishNetActiveStatus[]) => void>();
