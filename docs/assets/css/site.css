@@ -405,6 +405,30 @@ a:hover {
   color: var(--heading);
 }
 
+/* Search (Pagefind) ---------------------------------------------------- */
+
+.site-search {
+  margin-bottom: 2rem;
+
+  --pagefind-ui-scale: 0.9;
+  --pagefind-ui-primary: var(--accent);
+  --pagefind-ui-text: var(--text);
+  --pagefind-ui-background: var(--bg-inset);
+  --pagefind-ui-border: var(--border);
+  --pagefind-ui-tag: var(--bg-raised);
+  --pagefind-ui-border-width: 1px;
+  --pagefind-ui-border-radius: var(--radius);
+  --pagefind-ui-font: var(--font-sans);
+}
+
+.site-search .pagefind-ui__result {
+  border-top: 1px solid var(--border);
+}
+
+.site-search .pagefind-ui__result-link {
+  color: var(--heading);
+}
+
 /* Guide section --------------------------------------------------------- */
 
 .guide-nav {
