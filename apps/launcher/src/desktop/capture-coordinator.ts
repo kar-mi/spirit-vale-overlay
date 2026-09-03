@@ -590,7 +590,7 @@ export class CaptureCoordinator {
       this.diagnostics.setLogger(this.otherLog);
 
       for (const identity of seedIdentities) {
-        this.combatLog.log("combat.actorIdentity", jsonObject({ kind: "actorIdentity", operation: "upsert", tick: 0, ...identity }));
+        this.combatLog.log("combat.actorIdentity", { kind: "actorIdentity", operation: "upsert", tick: 0, ...identity });
       }
       if (seedLocation !== undefined) this.logLocation(seedLocation, 0);
       this.publishActiveStatuses(true);
@@ -1029,14 +1029,14 @@ export class CaptureCoordinator {
     const fingerprint = `${mob.mobId}\u0000${mob.level}\u0000${mob.displayName}`;
     if (this.loggedMobIdentities.get(actorId) === fingerprint) return;
     this.loggedMobIdentities.set(actorId, fingerprint);
-    this.combatLog?.log("combat.event", jsonObject({
+    this.combatLog?.log("combat.event", {
       kind: "activation",
       tick,
       actorId,
       sourceId: `__spiritvaleMobIdentity:${mob.mobId}`,
       sourceLabel: mob.displayName,
       level: mob.level,
-    }));
+    });
   }
 
   private trackChannel(packet: CapturedFishNetPacket): void {
