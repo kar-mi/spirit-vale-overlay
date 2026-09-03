@@ -408,9 +408,11 @@ a:hover {
 /* Search (Pagefind) ---------------------------------------------------- */
 
 .site-search {
-  margin-bottom: 2rem;
+  position: relative;
+  width: min(15rem, 100%);
+  margin-left: auto;
 
-  --pagefind-ui-scale: 0.9;
+  --pagefind-ui-scale: 0.8;
   --pagefind-ui-primary: var(--accent);
   --pagefind-ui-text: var(--text);
   --pagefind-ui-background: var(--bg-inset);
@@ -419,6 +421,30 @@ a:hover {
   --pagefind-ui-border-width: 1px;
   --pagefind-ui-border-radius: var(--radius);
   --pagefind-ui-font: var(--font-sans);
+}
+
+.site-search .pagefind-ui__form {
+  margin: 0;
+}
+
+/* Keep the results out of the document flow so the sticky header
+   doesn't grow while searching. */
+.site-search .pagefind-ui__drawer {
+  position: absolute;
+  right: 0;
+  left: 0;
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  max-height: min(70vh, 32rem);
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.site-search .pagefind-ui__drawer:not(.pagefind-ui__hidden) {
+  z-index: 30;
 }
 
 .site-search .pagefind-ui__result {
@@ -520,6 +546,11 @@ a:hover {
 
   .site-nav ul {
     justify-content: center;
+  }
+
+  .site-search {
+    width: 100%;
+    margin-left: 0;
   }
 
   .hero {
