@@ -89,6 +89,24 @@ describe("window slot", () => {
     expect(windows[1]).toMatchObject({ shown: 1, activated: 1 });
   });
 
+  test("recreates when reactivating a window whose session has gone", async () => {
+    const windows: FakeWindow[] = [];
+    const slot = new WindowSlot(() => {
+      const window = new FakeWindow();
+      windows.push(window);
+      return window;
+    });
+
+    await slot.open();
+    windows[0]!.disconnected = true;
+
+    await slot.open();
+    expect(windows).toHaveLength(2);
+
+    await slot.open();
+    expect(windows[1]).toMatchObject({ shown: 1, activated: 1 });
+  });
+
   test("runs operations against the managed singleton", async () => {
     const slot = new WindowSlot(() => new FakeWindow());
     const result = await slot.withWindow((window) => {
@@ -105,10 +123,14 @@ class FakeWindow {
   activated = 0;
   closed = 0;
   destroyed = false;
+  disconnected = false;
   show(): void {
     if (this.destroyed) throw new Error("Can't show window. Window no longer exists");
     this.shown += 1;
   }
-  activate(): void { this.activated += 1; }
+  async activate(): Promise<void> {
+    if (this.disconnected) throw new Error("Spirit Vale DPS is not connected.");
+    this.activated += 1;
+  }
   close(): void { this.closed += 1; }
 }
