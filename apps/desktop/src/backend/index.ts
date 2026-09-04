@@ -18,6 +18,22 @@ function logBackend(message: string): void {
   try { appendFileSync(backendLog, `${new Date().toISOString()} ${message}\n`); } catch {}
 }
 
+function formatLogArg(value: unknown): string {
+  if (value instanceof Error) return value.stack ?? value.message;
+  if (typeof value === "string") return value;
+  try { return JSON.stringify(value); } catch { return String(value); }
+}
+
+// Neutralino does not persist an extension's stdout/stderr, so mirror error/warn output
+// into backend.log — otherwise a non-fatal runtime fault leaves no trace.
+for (const level of ["error", "warn"] as const) {
+  const write = console[level].bind(console);
+  console[level] = (...args: unknown[]): void => {
+    write(...args);
+    logBackend(`console.${level}: ${args.map(formatLogArg).join(" ")}`);
+  };
+}
+
 process.on("uncaughtException", (error) => logBackend(`uncaughtException: ${error?.stack ?? error}`));
 process.on("unhandledRejection", (error) => logBackend(`unhandledRejection: ${error instanceof Error ? error.stack : String(error)}`));
 

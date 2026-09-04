@@ -275,10 +275,12 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
     return this.session?.command<T>(method, params) ?? Promise.reject(new Error(`${this.title} is not connected.`));
   }
 
-  show(): void { this.desiredVisible = true; void this.applyVisibility(true); }
-  showInactive(): void { this.show(); }
+  // show/activate return their promise so WindowSlot.open can catch a dead session and
+  // rebuild the window instead of leaking an unhandled rejection.
+  show(): Promise<void> { this.desiredVisible = true; return this.applyVisibility(true); }
+  showInactive(): void { void this.show(); }
   hide(): void { this.desiredVisible = false; void this.applyVisibility(false); }
-  activate(): void { void this.command("focus"); }
+  activate(): Promise<void> { return this.command("focus"); }
   minimize(): void { void this.command("minimize"); }
   maximize(): void { this.maximized = true; void this.command("maximize"); }
   unmaximize(): void { this.maximized = false; void this.command("unmaximize"); }

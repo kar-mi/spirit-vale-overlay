@@ -439,11 +439,8 @@ async function shutdown(): Promise<void> {
   unsubscribeCharacter();
   if (!window.isMaximized()) settings.frame = mainFrame.unscale(window.getFrame());
   live.close();
-  try {
-    await settingsPersistence.flush(settings);
-  } finally {
-    notifyClosed();
-  }
+  notifyClosed();
+  await settingsPersistence.flush(settings);
 }
 
 function notifyClosed(): void {

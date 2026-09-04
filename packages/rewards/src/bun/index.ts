@@ -373,11 +373,8 @@ async function shutdown(): Promise<void> {
   liveSnapshot = emptyAggregate();
   replaySnapshot = emptyAggregate();
   if (!window.isMaximized()) settings.frame = mainFrameClamp.unscale(window.getFrame());
-  try {
-    await settingsPersistence.flush(settings);
-  } finally {
-    notifyClosed();
-  }
+  notifyClosed();
+  await settingsPersistence.flush(settings);
 }
 
 function notifyClosed(): void {
