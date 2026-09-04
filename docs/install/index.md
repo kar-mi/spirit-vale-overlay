@@ -33,7 +33,7 @@ Administrators only** unchecked.
 ## Portable release
 
 1. Download the latest `spirit-vale-overlay-windows-x64-v*.zip` from [GitHub Releases](https://github.com/kar-mi/spirit-vale-overlay/releases/latest).
-2. Extract the complete ZIP. It contains one versioned folder, such as `spirit-vale-overlay-windows-x64-v0.10.6`.
+2. Extract the complete ZIP. It contains one versioned folder, such as `spirit-vale-overlay-windows-x64-v0.10.7`.
 3. Open that folder and run `spirit-vale-overlay-win_x64.exe`.
 
 The portable app supports Windows x64 and, by default, keeps its settings, logs, and writable runtime data inside the extracted folder.
