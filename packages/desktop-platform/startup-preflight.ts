@@ -49,8 +49,10 @@ export class StartupPreflightError extends Error {
   }
 }
 
-const defaultAttempts = 3;
-const defaultRetryDelayMs = 250;
+// Six attempts at 200ms linear backoff ride out ~3s of transient file locking (AV
+// scanners, indexers, sync clients) before a check counts as a real, fatal failure.
+const defaultAttempts = 6;
+const defaultRetryDelayMs = 200;
 
 export async function verifyReadableFiles(
   files: readonly string[],

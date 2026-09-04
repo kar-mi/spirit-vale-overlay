@@ -11,9 +11,12 @@ import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapFiles } from 
 type Handler = (packet: RpcPacket) => void;
 interface WindowFrame { x: number; y: number; width: number; height: number }
 
-const RECONNECT_ATTEMPT_LIMIT = 5;
+// The launcher gets fresh tickets from the backend, so it retries ~165s to ride out a
+// restart; a child window's ticket is single-use and spent, so it concedes fast.
+const CHILD_RECONNECT_ATTEMPT_LIMIT = 5;
+const LAUNCHER_RECONNECT_ATTEMPT_LIMIT = 25;
 const RECONNECT_BASE_DELAY_MS = 250;
-const RECONNECT_MAX_DELAY_MS = 4_000;
+const RECONNECT_MAX_DELAY_MS = 8_000;
 
 // The launcher window shows a reconnecting hint instead of the full-window failure
 // overlay while the transport retries; this is how it learns the retry state.
@@ -25,6 +28,22 @@ export function watchBackendReconnecting(listener: (reconnecting: boolean) => vo
 
 function reportReconnecting(reconnecting: boolean): void {
   onReconnectingChange?.(reconnecting);
+}
+
+// @neutralinojs/lib silently queues native calls made before its socket opens, and the
+// failure card can render that early — so its buttons must wait for "ready" first.
+let neutralinoReady = false;
+const whenNeutralinoReady = (): Promise<void> =>
+  neutralinoReady ? Promise.resolve() : new Promise((resolve) => void events.on("ready", () => resolve()));
+
+async function quitApplication(): Promise<void> {
+  await whenNeutralinoReady();
+  await app.exit().catch((error) => console.error("Exit failed.", error));
+}
+
+async function openApplicationFolder(path: string): Promise<void> {
+  await whenNeutralinoReady();
+  await os.open(path).catch((error) => console.error("Opening the application folder failed.", error));
 }
 
 class DesktopTransport {
@@ -40,6 +59,7 @@ class DesktopTransport {
 
   constructor() {
     init();
+    void events.on("ready", () => { neutralinoReady = true; });
     void this.connect().catch((error) => this.fail(startupFailure(error)));
     void settleInitialWindowSize();
   }
@@ -80,7 +100,7 @@ class DesktopTransport {
         console.warn(failure.message);
         reportReconnecting(true);
       });
-      document.getElementById("desktop-startup-failure")?.remove();
+      clearBackendFailureUi();
       reportReconnecting(false);
       const socket = new WebSocket(`ws://127.0.0.1:${connection.port}/rpc`);
       this.socket = socket;
@@ -106,7 +126,7 @@ class DesktopTransport {
     if (packet.kind === "ready") {
       this.sessionReady = true;
       this.reconnectAttempts = 0;
-      document.getElementById("desktop-startup-failure")?.remove();
+      clearBackendFailureUi();
       reportReconnecting(false);
       for (const queued of this.queued.splice(0)) this.send(queued);
       await registerWindowEvents(this.socket!);
@@ -127,7 +147,8 @@ class DesktopTransport {
     console.error(failure.message);
     document.body.dataset["backendError"] = failure.message;
     reportReconnecting(false);
-    renderStartupFailure(failure, "terminal");
+    if (this.launcher) renderStartupFailure(failure);
+    else setBackendBanner(BACKEND_LOST_MESSAGE);
   }
 
   private disconnected(): void {
@@ -139,8 +160,9 @@ class DesktopTransport {
       return;
     }
     if (!this.launcher) {
-      const failure = startupFailure("The desktop backend disconnected after the app started.");
-      renderStartupFailure(failure, "runtime");
+      console.error("The desktop backend disconnected after the app started.");
+      document.body.dataset["backendError"] = "backend disconnected";
+      setBackendBanner(BACKEND_LOST_MESSAGE);
       return;
     }
     reportReconnecting(true);
@@ -148,12 +170,9 @@ class DesktopTransport {
   }
 
   private scheduleReconnect(): void {
-    // A child window carries its ticket in its URL, and the backend burns that ticket on
-    // first use (or expires it after 60s), so a rejected handshake never recovers by
-    // retrying the same ticket. Back off between attempts and give up rather than
-    // spinning connect/close as fast as the socket can fail.
     if (this.reconnectTimer !== undefined) return;
-    if (this.reconnectAttempts >= RECONNECT_ATTEMPT_LIMIT) {
+    const attemptLimit = this.launcher ? LAUNCHER_RECONNECT_ATTEMPT_LIMIT : CHILD_RECONNECT_ATTEMPT_LIMIT;
+    if (this.reconnectAttempts >= attemptLimit) {
       this.fail(startupFailure("The desktop backend connection could not be re-established."));
       return;
     }
@@ -291,15 +310,39 @@ function neutralinoApplicationPath(): string | undefined {
   return typeof globals.NL_PATH === "string" ? globals.NL_PATH : undefined;
 }
 
-function renderStartupFailure(failure: StartupFailure, mode: "terminal" | "runtime"): void {
+const BACKEND_LOST_MESSAGE = "Disconnected from Spirit Vale Overlay. Close this window and reopen it from the launcher.";
+
+function clearBackendFailureUi(): void {
+  document.getElementById("desktop-startup-failure")?.remove();
+  setBackendBanner(undefined);
+}
+
+// Top-pinned banner for child windows, styled by ui-kit's `.banner`.
+function setBackendBanner(message: string | undefined): void {
+  const id = "desktop-backend-banner";
+  if (message === undefined) {
+    document.getElementById(id)?.remove();
+    return;
+  }
+  let banner = document.getElementById(id);
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = id;
+    banner.className = "banner is-error";
+    banner.setAttribute("role", "status");
+    banner.style.cssText = "position:fixed;inset:0 0 auto 0;z-index:2147483000;justify-content:center";
+    document.body.prepend(banner);
+  }
+  banner.textContent = message;
+}
+
+function renderStartupFailure(failure: StartupFailure): void {
   document.getElementById("desktop-startup-failure")?.remove();
   const overlay = document.createElement("section");
   overlay.id = "desktop-startup-failure";
   overlay.setAttribute("role", "alert");
-  const heading = mode === "runtime" ? "Spirit Vale Overlay disconnected" : "Spirit Vale Overlay could not start";
-  const guidance = mode === "runtime"
-    ? "Close this window and reopen Spirit Vale Overlay."
-    : "The app retried this operation, but the file or folder remained unavailable. Close other programs that may be scanning or synchronizing it and try again. If it keeps failing, make sure the complete extracted folder is writable or move it to a local folder.";
+  const heading = "Spirit Vale Overlay could not start";
+  const guidance = "The app retried this operation, but the file or folder remained unavailable. Close other programs that may be scanning or synchronizing it and try again. If it keeps failing, make sure the complete extracted folder is writable or move it to a local folder.";
   overlay.innerHTML = `
     <style>
       #desktop-startup-failure{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:28px;background:#0c110e;color:#edf5ee;font:14px/1.45 system-ui,sans-serif}
@@ -324,9 +367,9 @@ function renderStartupFailure(failure: StartupFailure, mode: "terminal" | "runti
       <div class="actions">${failure.applicationPath ? '<button type="button" data-action="folder">Open application folder</button>' : ""}<button type="button" data-action="exit">Exit</button></div>
     </div>`;
   overlay.querySelector<HTMLButtonElement>('[data-action="folder"]')?.addEventListener("click", () => {
-    if (failure.applicationPath) void os.open(failure.applicationPath);
+    if (failure.applicationPath) void openApplicationFolder(failure.applicationPath);
   });
-  overlay.querySelector<HTMLButtonElement>('[data-action="exit"]')?.addEventListener("click", () => void app.exit());
+  overlay.querySelector<HTMLButtonElement>('[data-action="exit"]')?.addEventListener("click", () => void quitApplication());
   document.body.append(overlay);
 }
 

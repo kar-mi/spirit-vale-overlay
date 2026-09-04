@@ -51,8 +51,9 @@ async function verifyBootstrapFile(
   file: { displayName: string; path: string },
   options: BootstrapPreflightOptions,
 ): Promise<void> {
-  const attempts = Math.max(1, Math.floor(options.attempts ?? 3));
-  const retryDelayMs = Math.max(0, options.retryDelayMs ?? 250);
+  // ~3s of retries (matching startup-preflight) to ride out transient file locking.
+  const attempts = Math.max(1, Math.floor(options.attempts ?? 6));
+  const retryDelayMs = Math.max(0, options.retryDelayMs ?? 200);
 
   for (let attempt = 1; ; attempt += 1) {
     try {
