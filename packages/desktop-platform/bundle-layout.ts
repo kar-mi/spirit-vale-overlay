@@ -1,10 +1,5 @@
 import { executableBaseNames, platformExecutableName } from "./executable-names.ts";
 
-// Every path a built desktop bundle is made of, relative to the application root
-// (Neutralino's NL_PATH). Startup preflight, the backend, the frontend failure card,
-// the build script and the release verifier all describe the same bundle, so they all
-// read this layout instead of repeating literals that only some of them would be
-// updated when the layout moves.
 export const bundleLayout = {
   resourceBundle: "resources.neu",
   resourcesDirectory: "resources",
@@ -21,10 +16,7 @@ export const bundleLayout = {
   backendLog: "neutralino-backend.log",
 } as const;
 
-// The Electron build ships the plain resources/ tree (no resources.neu) with the
-// backend sidecars staged under resources/extensions/** via electron-builder
-// extraResources. Paths are relative to the bundle root — the folder that holds
-// "Spirit Vale Overlay.exe" — which is also where portable `data/` lives.
+
 export const electronBundleLayout = {
   resourcesDirectory: "resources",
   viewsDirectory: "resources/views",

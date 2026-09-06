@@ -141,9 +141,6 @@ function receiveWindowEvent(session: Session, event: string, data: unknown): voi
 
 async function launchWindow(window: BrowserWindow): Promise<void> {
   if (!host || !server || window.launched || window.id === "launcher") return;
-  // The Neutralino shell routes window.create through the launcher's renderer, so it
-  // cannot open a window until the launcher session is up. Electron main owns windows
-  // directly and has no such dependency.
   if (host.kind === "neutralino" && !launcherSession) return;
   pendingWindows.delete(window);
   window.launched = true;

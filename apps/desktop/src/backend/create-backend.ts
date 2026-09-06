@@ -10,10 +10,6 @@ import {
 import type { StartupFailure } from "../shared/protocol.ts";
 import type { ShellHost } from "./shell-host.ts";
 
-// The shell-agnostic backend boot sequence. Both `apps/desktop/src/backend/index.ts`
-// (Neutralino) and `apps/desktop-electron/src/backend/index.ts` build a ShellHost,
-// resolve their own bundle paths and owner/liveness rules, then hand off here.
-
 export interface BackendEntryConfig {
   host: ShellHost;
   version: string;

@@ -16,10 +16,6 @@ import type {
   TrayItem,
 } from "./shell-host.ts";
 
-// The ShellHost for the Neutralino build. Everything here is behaviour lifted
-// verbatim from the pre-injection `runtime.ts`: the extension socket, the
-// launcher-session-routed `window.create`, the `os.*` native calls, and the
-// overlay-window style-settling poll.
 
 export class NeutralinoShellHost implements ShellHost {
   readonly kind = "neutralino" as const;

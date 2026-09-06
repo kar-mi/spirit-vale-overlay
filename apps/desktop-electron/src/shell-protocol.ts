@@ -1,8 +1,4 @@
-// Line-delimited JSON control channel between the Bun backend (ElectronShellHost)
-// and the Electron main process. Main listens on 127.0.0.1 with an ephemeral port
-// and a one-time token, both handed to the backend through the SPIRIT_VALE_SHELL
-// environment variable. The renderer <-> backend RPC stays a separate, unchanged
-// ws://127.0.0.1/rpc socket owned by DesktopRpcServer.
+
 
 export interface ShellSocketConfig {
   port: number;

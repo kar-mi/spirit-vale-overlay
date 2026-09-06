@@ -23,12 +23,6 @@ import {
   type ShellRequest,
 } from "../shell-protocol.ts";
 
-// ShellHost for the Electron build. Window ownership, dialogs, the tray and the
-// app:// windows all live in the Electron main process; this talks to it over the
-// SPIRIT_VALE_SHELL control socket. Win32 style work (overlay tool-window /
-// click-through / visibility) still happens here via bun:ffi — handles are
-// process-agnostic, so the raw WS_EX_* path from the Neutralino build is reused
-// verbatim against the HWND main reports for each window.
 
 function handleFromBase64(value: string): Pointer {
   const bytes = Buffer.from(value, "base64");

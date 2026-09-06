@@ -1,9 +1,5 @@
 import type { StartupFailure } from "../shared/protocol.ts";
 
-// Startup-failure card and backend-lost banner. Shell-agnostic: the Neutralino and
-// Electron views both render the same markup and only differ in how the card's
-// buttons reach the native "open folder" / "exit" actions, which are injected.
-
 export const BACKEND_LOST_MESSAGE =
   "Disconnected from Spirit Vale Overlay. Close this window and reopen it from the launcher.";
 

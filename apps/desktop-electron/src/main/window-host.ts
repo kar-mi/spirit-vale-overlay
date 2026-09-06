@@ -2,11 +2,6 @@ import path from "node:path";
 import { BrowserWindow } from "electron";
 import type { CreateWindowPayload } from "../shell-protocol.ts";
 
-// Owns every native window in the Electron build. The backend's runtime.ts drives
-// these through the shell socket; the events they emit are forwarded back so the
-// runtime's window registry stays in sync exactly as it does with Neutralino's
-// renderer-sent window-event packets.
-
 export interface WindowHostCallbacks {
   onWindowEvent(windowId: string, event: string, data: unknown): void;
   onHandle(windowId: string, handle: Buffer | null): void;

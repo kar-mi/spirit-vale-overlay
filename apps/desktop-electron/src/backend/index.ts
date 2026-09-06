@@ -8,14 +8,7 @@ import {
 import { createBackendLogger, runBackend } from "@svoverlay/desktop/src/backend/create-backend.ts";
 import { ElectronShellHost } from "./electron-host.ts";
 
-// The Bun backend for the Electron build. Electron main spawns this exact process
-// (same bundled bun.exe, same index.js contract) and owns its lifetime, so there
-// is no owner file and no cmd.exe-hop watchdog — a dead control socket is the
-// single liveness signal, handled by ElectronShellHost.onOwnerGone.
 
-// Main passes the bundle root explicitly: with electron-builder extraResources the
-// backend runs from resources/extensions/backend, and executable-based discovery
-// would resolve the portable root to the wrong directory (see electron.md §Packaging).
 const root = process.env["SPIRIT_VALE_ROOT"] ?? path.resolve(import.meta.dir, "../../..");
 const backendLog = path.join(root, electronBundleLayout.backendLog);
 const logBackend = createBackendLogger(backendLog);

@@ -1,8 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-// The only renderer-owned native surface under Electron: the custom-titlebar
-// actions and the frameless-drag frame accessors. Everything else (window
-// lifecycle, overlay styles, dialogs, tray) is driven from the backend/main.
 
 export interface WindowFrame {
   x: number;

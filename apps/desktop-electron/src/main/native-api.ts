@@ -2,9 +2,7 @@ import path from "node:path";
 import { Notification, Tray, dialog, nativeImage, shell, Menu } from "electron";
 import type { TrayItemPayload } from "../shell-protocol.ts";
 
-// The `os.*` surface from the Neutralino runtime, reimplemented on Electron's
-// dialog / shell / Notification / Tray. Kept deliberately thin: the backend
-// already normalises option shapes before they reach the shell socket.
+// todo - don't reimplment things from neutralino that don't exist in electron, just use electron native
 
 interface DialogFilter { name: string; extensions: string[] }
 

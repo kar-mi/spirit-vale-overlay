@@ -10,11 +10,6 @@ import {
 } from "@svoverlay/desktop/src/frontend/failure-ui.ts";
 import type { SpiritValeBridge } from "../main/preload.ts";
 
-// The Electron flavour of `@svoverlay/desktop-runtime/view`. The wire protocol to
-// the backend (ws://127.0.0.1/rpc, ticketed hello, ready/rpc/fatal, reconnect
-// policy) is byte-identical to the Neutralino build; only the two backend-ready /
-// backend-fatal signals and the custom-titlebar / frame accessors change — those
-// come from the preload `window.spiritVale` bridge instead of `@neutralinojs/lib`.
 
 declare global {
   interface Window { spiritVale: SpiritValeBridge }

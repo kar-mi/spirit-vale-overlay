@@ -8,10 +8,6 @@ import {
   electronBundledRuntimePath,
 } from "@svoverlay/desktop-platform/bundle-layout";
 
-// Electron flavour of the desktop build. The Preact view bundles are produced by
-// the shared module (identical to the Neutralino build) with one plugin swapping
-// `@svoverlay/desktop-runtime/view` for the Electron bridge implementation; on top
-// of that it bundles the Electron main + preload and stages the backend sidecars.
 
 const appRoot = path.resolve(import.meta.dir, "..");
 const workspace = path.resolve(appRoot, "../..");

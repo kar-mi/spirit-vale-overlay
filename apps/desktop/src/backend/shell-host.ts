@@ -1,10 +1,5 @@
 import type { NativeDisplay } from "./win32.ts";
 
-// The seam between the shared desktop runtime and the native shell that hosts it.
-// `runtime.ts` owns the RPC server, the session/window registries and all window
-// bookkeeping; everything that actually talks to Neutralino or Electron goes
-// through a ShellHost implementation injected at startup.
-
 export interface HostWindowRef {
   readonly windowId: string;
   readonly processId: number | undefined;

@@ -13,15 +13,9 @@ import {
   type ShellRequest,
 } from "../shell-protocol.ts";
 
-// Bundle root = folder that holds the app's own `resources/` tree (and, in
-// portable mode, `data/`). In `bun run dev` that is the staged `dist/` directory
-// (app.getAppPath()); when packaged it is the folder beside the Electron exe.
 const bundleRoot = app.isPackaged ? path.dirname(process.resourcesPath) : app.getAppPath();
 const resourcesRoot = path.join(bundleRoot, "resources");
 const PORTABLE = existsSync(path.join(bundleRoot, ".spirit-vale-portable"));
-
-// Portable mode: Chromium's own caches must land in data/ beside the exe, not in
-// %APPDATA%. This has to happen before app.whenReady().
 if (PORTABLE) {
   const runtimeDir = path.join(bundleRoot, "data", "runtime");
   for (const [key, sub] of [["userData", "user-data"], ["sessionData", "session"], ["temp", "temp"]] as const) {

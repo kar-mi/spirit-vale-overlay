@@ -2,10 +2,6 @@ import { cp, mkdir, readFile, writeFile, copyFile } from "node:fs/promises";
 import path from "node:path";
 import type { BunPlugin } from "bun";
 
-// View and asset bundling shared by both desktop shells. The Neutralino and Electron
-// build scripts differ only in where they stage the output and in the plugin that
-// swaps `@svoverlay/desktop-runtime/view`; the Preact bundles themselves are identical.
-
 const VIEW_SOURCES: Record<string, string> = {
   launcherview: "apps/launcher/src/views/launcher",
   settingsview: "apps/launcher/src/views/settings",
