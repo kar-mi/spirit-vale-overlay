@@ -2,9 +2,8 @@
 title: Settings
 permalink: /guide/settings/
 description: >-
-  Every Spirit Vale Overlay settings tab — general, language, network capture,
-  overlay layout, combat, buff warnings, minimap and loot, keybinds, and
-  import/export.
+  Every Spirit Vale Overlay settings tab — general, network capture, overlay
+  layout, combat, buff warnings, minimap and loot, keybinds, and import/export.
 ---
 
 {% include guide-nav.html %}
@@ -17,13 +16,6 @@ Overlay window. Use the search box at the top to jump to a specific setting.
 Interface scale and whether the launcher minimizes to the system tray.
 
 ![General settings](../img/settings/general_settings.png)
-
-## Language
-
-Choose the language used across the app. English is the default; other
-languages appear as translations are contributed.
-
-![Language settings](../img/settings/language_settings.png)
 
 ## Network
 

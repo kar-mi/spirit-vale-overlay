@@ -1,25 +1,7 @@
-import { DEFAULT_LOCALE, normalizeLocale, type LocaleCode } from "./locale.ts";
 import { localized, localizedCount, type LocalizedText, type MessageKey, type MessageParams, type PluralKey } from "./messages.ts";
 import { createTranslator, type Translator } from "./translate.ts";
 
-let locale: LocaleCode = DEFAULT_LOCALE;
-let translator: Translator = createTranslator(locale);
-const english: Translator = createTranslator(DEFAULT_LOCALE);
-
-/** The locale used by backend-owned surfaces and newly created windows. */
-export function backendLocale(): LocaleCode {
-  return locale;
-}
-
-/** Updates the single backend translator, normalizing unknown locale values to English. */
-export function setBackendLocale(value: unknown): LocaleCode {
-  const next = normalizeLocale(value);
-  if (next !== locale) {
-    locale = next;
-    translator = createTranslator(next);
-  }
-  return next;
-}
+const translator: Translator = createTranslator();
 
 /** Immediately translates text rendered by the backend, such as native menus and dialogs. */
 export function translate(key: MessageKey, params?: MessageParams): string {
@@ -33,14 +15,12 @@ export function translateText(value: LocalizedText | undefined): string | undefi
   return translator.text(value);
 }
 
-/**
- * Renders `LocalizedText` in English regardless of the current locale, for diagnostic logs. Support
- * reads those logs; they must not arrive in whatever language the player happened to pick.
- */
+/** Renders `LocalizedText` in English for diagnostic logs. Kept distinct from `translateText` so
+ * callers stay explicit about intent even though English is now the only locale. */
 export function englishText(value: LocalizedText): string;
 export function englishText(value: LocalizedText | undefined): string | undefined;
 export function englishText(value: LocalizedText | undefined): string | undefined {
-  return english.text(value);
+  return translator.text(value);
 }
 
 /** Creates deferred RPC text that will be translated by the receiving view. */

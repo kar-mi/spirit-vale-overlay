@@ -271,12 +271,6 @@ export const en = {
   "settings.general.minimizeToTray.label": "Minimize launcher to tray",
   "settings.general.minimizeToTray.search": "Minimize launcher to tray notification area close behavior",
 
-  "settings.language.label": "Language",
-  "settings.language.description": "Choose the language used across Spirit Vale Overlay.",
-  "settings.language.select.label": "Display language",
-  "settings.language.select.search": "Language locale translation english localisation localization display",
-  "settings.language.hint": "English is the default language. Additional languages are available when translations are contributed.",
-
   "settings.network.label": "Network",
   "settings.network.description": "Npcap capture configuration.",
   "settings.network.npcapStatus.label": "Status",

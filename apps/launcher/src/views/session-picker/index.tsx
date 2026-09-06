@@ -8,14 +8,12 @@ import { disableWebChrome } from "@svoverlay/ui-kit/disable-web-chrome";
 import { SettingsButton } from "@svoverlay/ui-kit/settings-button";
 import { repairRendererPayload } from "@svoverlay/ui-kit/renderer-text";
 import type { SessionPickerItem, SessionPickerRpc, SessionPickerState } from "@svoverlay/desktop-platform/session-picker-types";
-import { activeLocale, useTranslator } from "@svoverlay/i18n/browser";
-import { createTranslator } from "@svoverlay/i18n/translate";
+import { translator, useTranslator } from "@svoverlay/i18n/browser";
 
 const state = signal<SessionPickerState | undefined>(undefined);
-// `document.title` is set outside the render tree, so it reads the locale signal directly.
 function applyState(next: SessionPickerState): void {
   state.value = next;
-  document.title = createTranslator(activeLocale.value).text(next.title);
+  document.title = translator.text(next.title);
 }
 const rpc = DesktopView.defineRPC<SessionPickerRpc>({
   handlers: { requests: {}, messages: { stateChanged: (next) => applyState(repairRendererPayload(next)) } },

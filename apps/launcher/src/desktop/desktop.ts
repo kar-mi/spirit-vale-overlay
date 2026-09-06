@@ -11,7 +11,6 @@ import { createBuildExportWindow } from "@svoverlay/build-export";
 import { createRewardsWindow } from "@svoverlay/rewards";
 import type { LauncherRpc, LauncherSettingsRpc, LauncherState, SettingsSectionId, SharedSettingsState, ToolWindow } from "../launcher/types.ts";
 import { loadLauncherSettings, saveLauncherSettings, type LauncherSettings } from "../launcher/settings.ts";
-import type { LocaleCode } from "@svoverlay/i18n/locale";
 import type { LocalizedText, MessageKey } from "@svoverlay/i18n/messages";
 import { englishText, message, translate } from "@svoverlay/i18n/backend";
 import {
@@ -64,7 +63,6 @@ import { WindowSlot } from "./window-slot.ts";
 import { resolveDesktopStoragePaths } from "./portable-paths.ts";
 import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
 import { registerUiScaleWindow, scaledSize, setUiScale } from "@svoverlay/desktop-platform/ui-scale-window";
-import { registerLocaleWindow, setActiveLocale } from "@svoverlay/desktop-platform/locale-window";
 import { WindowPlacementStore } from "@svoverlay/desktop-platform/window-placement";
 import { launcherMinimizeAction, trayAction } from "./launcher-tray-actions.ts";
 import { findAvailableUpdate } from "../launcher/update-check.ts";
@@ -165,7 +163,6 @@ const bossTimers = await createBossTimerCoordinator({
 });
 const settings = await loadLauncherSettings(storagePaths.launcherSettingsPath);
 setUiScale(settings.uiScale);
-setActiveLocale(settings.language);
 const placements = await WindowPlacementStore.load(storagePaths.windowPlacementsPath, {
   onWarning: (warning) => reportStorageWarning("window placements", saveFailure(warning)),
 });
@@ -184,7 +181,6 @@ let launcherState: LauncherState = {
   selectedAdapter: settings.captureAdapter,
   adapterFallback: false,
   adapters: [],
-  language: settings.language,
   uiScale: settings.uiScale,
   minimizeToTray: settings.minimizeToTray,
   resetMeterOnMapChange: settings.resetMeterOnMapChange,
@@ -366,7 +362,6 @@ function sharedLauncherHandlers(getWindow: () => BrowserWindow | undefined, fall
     getState: () => launcherState,
     setCaptureAdapter: ({ deviceName }: { deviceName: string | null }) => setCaptureAdapter(deviceName),
     setUiScale: ({ uiScale }: { uiScale: typeof settings.uiScale }) => setLauncherUiScale(uiScale),
-    setLanguage: ({ language }: { language: LocaleCode }) => setLanguage(language),
     setMinimizeToTray: ({ minimizeToTray }: { minimizeToTray: boolean }) => setMinimizeToTray(minimizeToTray),
     refreshCaptureDevices: async () => {
       await refreshCaptureDevices();
@@ -440,10 +435,6 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
         await setLauncherUiScale(uiScale);
         return sharedSettingsState();
       },
-      setLanguage: async ({ language }) => {
-        setLanguage(language);
-        return sharedSettingsState();
-      },
       setMinimizeToTray: async ({ minimizeToTray }) => {
         setMinimizeToTray(minimizeToTray);
         return sharedSettingsState();
@@ -510,7 +501,6 @@ launcherWindow = new BrowserWindow({
 applyRoundedCorners(launcherWindow.ptr);
 setWindowIcon(launcherWindow.ptr, appIconPath);
 launcherLifecycle.add(registerUiScaleWindow(launcherWindow, { scaleInitialFrame: false }));
-launcherLifecycle.add(registerLocaleWindow(launcherWindow));
 launcherLifecycle.add(placements.track("launcher", launcherWindow));
 
 const tray = new Tray({
@@ -519,7 +509,6 @@ const tray = new Tray({
   width: 32,
   height: 32,
 });
-// Tray labels are set once, so a language change has to lay the menu down again.
 function refreshTrayMenu(): void {
   tray.setMenu([
     { type: "normal", label: translate("tray.showLauncher"), action: "show-launcher" },
@@ -769,7 +758,6 @@ function openSettings(section?: SettingsSectionId): void {
   applyRoundedCorners(nextWindow.ptr);
   setWindowIcon(nextWindow.ptr, appIconPath);
   lifecycle.add(registerUiScaleWindow(nextWindow, { scaleInitialFrame: false }));
-  lifecycle.add(registerLocaleWindow(nextWindow));
   lifecycle.add(placements.track("launcher-settings", nextWindow));
   lifecycle.add(onWindowEvent(nextWindow, "resize", (event: { data: { width: number; height: number } }) => {
     const width = Math.max(scaledSize(560), event.data.width);
@@ -811,12 +799,6 @@ function applySetting<K extends keyof LauncherSettings & keyof LauncherState>(
 
 async function setLauncherUiScale(uiScale: typeof settings.uiScale): Promise<LauncherState> {
   return applySetting("uiScale", setUiScale(uiScale));
-}
-
-function setLanguage(language: LocaleCode): LauncherState {
-  setActiveLocale(language);
-  refreshTrayMenu();
-  return applySetting("language", language);
 }
 
 function setMinimizeToTray(minimizeToTray: boolean): LauncherState {

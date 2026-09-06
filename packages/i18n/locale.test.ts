@@ -1,22 +1,20 @@
 import { expect, test } from "bun:test";
-import { DEFAULT_LOCALE, LOCALE_OPTIONS, LOCALES, isLocaleCode, normalizeLocale, type LocaleCode } from "./locale.ts";
+import { DEFAULT_LOCALE, LOCALES, isLocaleCode, normalizeLocale } from "./locale.ts";
 import { en } from "./locales/en.ts";
 import { sameLocalizedText } from "./messages.ts";
 
 test("normalizes a known code", () => {
   expect(normalizeLocale("en")).toBe("en");
-  expect(normalizeLocale("zh-TW")).toBe("zh-TW");
 });
 
 test("normalizes case and region variants to the base language", () => {
   expect(normalizeLocale("EN")).toBe("en");
   expect(normalizeLocale("en-GB")).toBe("en");
   expect(normalizeLocale(" en_US ")).toBe("en");
-  expect(normalizeLocale("ZH-tw")).toBe("zh-TW");
-  expect(normalizeLocale("zh_TW")).toBe("zh-TW");
 });
 
-test("falls back for anything unrecognized so a newer settings file still loads", () => {
+test("falls back for anything unrecognized so an older settings file still loads", () => {
+  expect(normalizeLocale("zh-TW")).toBe(DEFAULT_LOCALE);
   expect(normalizeLocale("de")).toBe(DEFAULT_LOCALE);
   expect(normalizeLocale("")).toBe(DEFAULT_LOCALE);
   expect(normalizeLocale(undefined)).toBe(DEFAULT_LOCALE);
@@ -26,11 +24,7 @@ test("falls back for anything unrecognized so a newer settings file still loads"
 test("isLocaleCode rejects inherited object keys", () => {
   expect(isLocaleCode("toString")).toBe(false);
   expect(isLocaleCode("en")).toBe(true);
-  expect(isLocaleCode("zh-TW")).toBe(true);
-});
-
-test("every registered locale is offered in the picker", () => {
-  expect([...LOCALE_OPTIONS.map((option) => option.value)].sort()).toEqual([...Object.keys(LOCALES)].sort() as LocaleCode[]);
+  expect(isLocaleCode("zh-TW")).toBe(false);
 });
 
 test("the default locale is registered", () => {

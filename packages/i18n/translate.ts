@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, LOCALES, type LocaleCode } from "./locale.ts";
+import { DEFAULT_LOCALE, type LocaleCode } from "./locale.ts";
 import { en } from "./locales/en.ts";
 import type { LocalizedText, MessageKey, MessageParams, PluralKey } from "./messages.ts";
 
@@ -13,17 +13,13 @@ export interface Translator {
 
 const PLACEHOLDER = /\{(\w+)\}/gu;
 
-export function createTranslator(locale: LocaleCode): Translator {
-  const resolved = LOCALES[locale] ? locale : DEFAULT_LOCALE;
-  const catalog: Record<string, string | undefined> = LOCALES[resolved];
-  const fallback: Record<string, string | undefined> = en;
-  // Built from the resolved code: Intl throws on a malformed tag, and nothing here may throw.
-  const pluralRules = new Intl.PluralRules(resolved);
-  const lookup = (key: string): string | undefined => catalog[key] ?? fallback[key];
+export function createTranslator(locale: LocaleCode = DEFAULT_LOCALE): Translator {
+  const catalog: Record<string, string | undefined> = en;
+  const pluralRules = new Intl.PluralRules(DEFAULT_LOCALE);
 
   // Never throws: an unknown key renders as itself.
   function translate(key: MessageKey, params?: MessageParams): string {
-    return interpolate(lookup(key) ?? key, params);
+    return interpolate(catalog[key] ?? key, params);
   }
 
   function text(value: LocalizedText | undefined): string | undefined {
@@ -34,7 +30,7 @@ export function createTranslator(locale: LocaleCode): Translator {
   }
 
   function plural(key: PluralKey, count: number, params?: MessageParams): string {
-    const template = lookup(`${key}.${pluralRules.select(count)}`) ?? lookup(`${key}.other`) ?? key;
+    const template = catalog[`${key}.${pluralRules.select(count)}`] ?? catalog[`${key}.other`] ?? key;
     return interpolate(template, { count, ...params });
   }
 

@@ -1,5 +1,4 @@
 import type { RPCSchema } from "@svoverlay/contracts/rpc";
-import type { LocaleCode } from "@svoverlay/i18n/locale";
 import type { LocalizedText } from "@svoverlay/i18n/messages";
 import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
 import type { UiScale } from "@svoverlay/desktop-platform/ui-scale";
@@ -49,7 +48,6 @@ export interface LauncherState {
   effectiveAdapter?: string;
   adapterFallback: boolean;
   adapters: CaptureAdapterOption[];
-  language: LocaleCode;
   uiScale: UiScale;
   minimizeToTray: boolean;
   resetMeterOnMapChange: boolean;
@@ -64,7 +62,6 @@ export interface LauncherState {
 
 export type SettingsSectionId =
   | "general"
-  | "language"
   | "network"
   | "overlay"
   | "combat"
@@ -109,7 +106,6 @@ export type LauncherSettingsRpc = {
     getState: { params: Record<string, never>; response: SharedSettingsState };
     setCaptureAdapter: { params: { deviceName: string | null }; response: SharedSettingsState };
     setUiScale: { params: { uiScale: UiScale }; response: SharedSettingsState };
-    setLanguage: { params: { language: LocaleCode }; response: SharedSettingsState };
     setMinimizeToTray: { params: { minimizeToTray: boolean }; response: SharedSettingsState };
     setResetMeterOnMapChange: { params: { resetMeterOnMapChange: boolean }; response: SharedSettingsState };
     setResetGoldOnMapChange: { params: { resetGoldOnMapChange: boolean }; response: SharedSettingsState };

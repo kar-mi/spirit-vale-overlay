@@ -17,7 +17,6 @@
         "@neutralinojs/lib": "6.9.0",
         "@svoverlay/contracts": "workspace:*",
         "@svoverlay/desktop-platform": "workspace:*",
-        "@svoverlay/i18n": "workspace:*",
         "@svoverlay/overlay": "workspace:*",
         "@svoverlay/ui-kit": "workspace:*",
         "preact": "^10.29.7",
@@ -98,10 +97,6 @@
     "packages/i18n": {
       "name": "@svoverlay/i18n",
       "version": "0.1.0",
-      "dependencies": {
-        "@preact/signals": "^2.9.4",
-        "preact": "^10.29.7",
-      },
     },
     "packages/overlay": {
       "name": "@svoverlay/overlay",

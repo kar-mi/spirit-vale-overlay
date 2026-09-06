@@ -3,8 +3,7 @@ import type { DesktopRPCSchema } from "@svoverlay/contracts/rpc";
 import { bundleLogPaths } from "@svoverlay/desktop-platform/bundle-layout";
 
 import type { BackendReady, ClientPacket, RpcPacket, ServerPacket, StartupFailure } from "../shared/protocol.ts";
-import { setActiveLocale } from "@svoverlay/i18n/browser";
-import { backendConnectionFromSearch, localeFromSearch } from "../shared/backend-connection.ts";
+import { backendConnectionFromSearch } from "../shared/backend-connection.ts";
 import { defineRpc, type RpcInstance } from "../shared/rpc.ts";
 import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapFiles } from "./bootstrap-preflight.ts";
 
@@ -184,9 +183,6 @@ class DesktopTransport {
     }, delay);
   }
 }
-
-// Every view goes through DesktopView, so this is the one place a window learns its language.
-setActiveLocale(localeFromSearch(location.search));
 
 const transport = new DesktopTransport();
 
