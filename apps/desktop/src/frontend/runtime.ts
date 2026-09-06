@@ -3,7 +3,6 @@ import path from "node:path";
 import type { CombinedSchema, RpcInstance } from "../shared/rpc.ts";
 import type { StartupFailure } from "../shared/protocol.ts";
 import { defineRpc } from "../shared/rpc.ts";
-import { getActiveLocale } from "@svoverlay/desktop-platform/locale-window";
 import { backendConnectionUrl } from "../shared/backend-connection.ts";
 import { DesktopRpcServer, type Session } from "../backend/rpc-server.ts";
 import { NeutralinoClient } from "../backend/neutralino-client.ts";
@@ -145,7 +144,7 @@ async function launchWindow(window: BrowserWindow): Promise<void> {
   pendingWindows.delete(window);
   window.launched = true;
   const ticket = server.issueWindow(window.id);
-  const url = backendConnectionUrl(window.url.replace("views://", "/views/"), { port: server.port, ticket }, getActiveLocale());
+  const url = backendConnectionUrl(window.url.replace("views://", "/views/"), { port: server.port, ticket });
   try {
     await launcherSession.command("createWindow", {
       url,

@@ -3,7 +3,6 @@ import type { WindowFrame } from "@svoverlay/ui-kit/window-chrome";
 
 import { mountRoundedWindow } from "./window-publish.ts";
 import { registerUiScaleWindow } from "./ui-scale-window.ts";
-import { registerLocaleWindow } from "./locale-window.ts";
 import { frameClamp, type WindowPlacementStore } from "./window-placement.ts";
 import type { WindowMinimumSize } from "./window-placement-frame.ts";
 import { DisposableStore, onWindowEvent, onceWindowEvent } from "./window-lifecycle.ts";
@@ -68,7 +67,6 @@ export function createManagedWindow(options: ManagedWindowOptions): ManagedWindo
   lifecycle.add(registerUiScaleWindow(window, {
     scaleInitialFrame: isPlacementTracked(options) ? !options.placements : false,
   }));
-  lifecycle.add(registerLocaleWindow(window));
 
   const clamp = frameClamp(minimum.width, minimum.height);
 

@@ -10,9 +10,5 @@
     "./translate": "./translate.ts",
     "./backend": "./backend.ts",
     "./browser": "./browser.ts"
-  },
-  "dependencies": {
-    "@preact/signals": "^2.9.4",
-    "preact": "^10.29.7"
   }
 }

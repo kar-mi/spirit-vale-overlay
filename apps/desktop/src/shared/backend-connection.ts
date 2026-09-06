@@ -2,19 +2,12 @@ import type { BackendReady } from "./protocol.ts";
 
 const CONNECTION_PARAMETER = "desktopBackend";
 
-/** The locale rides inside the payload so the URL keeps its single shell-safe parameter. */
-export function backendConnectionUrl(path: string, connection: BackendReady, locale?: string): string {
-  const payload = btoa(JSON.stringify(locale ? { ...connection, locale } : connection))
+export function backendConnectionUrl(path: string, connection: BackendReady): string {
+  const payload = btoa(JSON.stringify(connection))
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replace(/=+$/, "");
   return `${path}?${CONNECTION_PARAMETER}=${payload}`;
-}
-
-/** The language a child window was opened with, available before it first paints. */
-export function localeFromSearch(search: string): string | undefined {
-  const payload = decodePayload(search);
-  return typeof payload?.locale === "string" ? payload.locale : undefined;
 }
 
 export function backendConnectionFromSearch(search: string): BackendReady | undefined {
@@ -37,7 +30,7 @@ function validConnection(port: unknown, ticket: unknown): BackendReady | undefin
   return { port: Number(port), ticket };
 }
 
-function decodePayload(search: string): (Partial<BackendReady> & { locale?: unknown }) | undefined {
+function decodePayload(search: string): Partial<BackendReady> | undefined {
   const payload = new URLSearchParams(search).get(CONNECTION_PARAMETER);
   if (!payload) return undefined;
   try {

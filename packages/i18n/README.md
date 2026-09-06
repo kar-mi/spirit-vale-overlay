@@ -3,25 +3,13 @@
 Message catalogs and the translator. No dependencies — it is imported by the Bun backend and by
 every browser bundle alike.
 
-## Adding a language
+## Locales
 
-1. Add `locales/<code>.ts` with as many or as few keys as you have:
-   ```ts
-   import type { PartialMessages } from "../messages.ts";
-   export const de: PartialMessages = { "settings.general.label": "Allgemein" };
-   ```
-2. Register it in `locale.ts` — one entry in `LOCALES`, one in `LOCALE_OPTIONS`.
-
-English and Traditional Chinese are currently registered. The language picker uses English by
-default and applies language changes to open windows immediately.
-
-**English is always the fallback.** A locale supplies whatever it has translated; every key it
-omits renders the English string, so a translation can land a few strings at a time and the UI
-never shows a blank or a raw key. `PartialMessages` permits missing keys but rejects unknown
-ones, so a misspelled key fails `bun run typecheck`.
-
-Locale names in `LOCALE_OPTIONS` are endonyms — "Deutsch", never "German". Someone hunting for
-their language has to recognise it while the interface is still in one they cannot read.
+English is the only supported locale. The translator still routes every string through the
+catalog so a locale can be re-added later: add `locales/<code>.ts` as a `PartialMessages` and
+register it in `locale.ts` (`LOCALES`), then reintroduce a picker and the window-broadcast
+plumbing. `PartialMessages` permits missing keys but rejects unknown ones, so a misspelled key
+fails `bun run typecheck`.
 
 ## Writing keys
 
@@ -43,29 +31,20 @@ which is loud in review and harmless in play.
 ## Text from the backend
 
 The backend has no renderer, so status and warning text travels as `LocalizedText` — a key plus
-params — and is translated where it is shown with `t.text(value)`. A language change then
-re-renders instantly with no backend round-trip, and tests assert on stable codes instead of
-English sentences. Surfaces the OS owns (tray menu, window titles, native dialogs) have no
-renderer at all and use a backend-side translator built from the persisted setting.
+params — and is translated where it is shown with `t.text(value)`. Tests assert on stable codes
+instead of English sentences, and this keeps the door open for re-adding a locale later.
 
 Backend code imports that shared runtime from `@svoverlay/i18n/backend`: use `translate(...)`
 for native surfaces, `translateText(...)` when backend code must render a `LocalizedText`, and
-`message(...)` / `countedMessage(...)` for deferred text sent to a view. `setBackendLocale(...)`
-owns the single current backend translator.
+`message(...)` / `countedMessage(...)` for deferred text sent to a view.
 
-**Diagnostic logs use `englishText(...)`, never `translateText(...)`.** Support reads those logs;
-they must not arrive in whatever language the player picked. A warning that is both logged and shown
-should carry its English string and its `LocalizedText` side by side rather than being recovered from
-the rendered text later.
+**Diagnostic logs use `englishText(...)`, never `translateText(...)`.** The two are equivalent
+today, but keeping the call explicit means a re-added locale never leaks into support logs.
 
 ## Known gaps
 
-- Native window titles are translated once, when the window is built. `BrowserWindow.title` is
-  readonly with no runtime `setTitle`, so a language change relabels the tray menu but leaves
-  taskbar and Alt-Tab entries in the previous language until the window is reopened.
-- `normalizeSettingsSearch` splits queries on whitespace, which will not serve CJK locales.
-- About a dozen `Intl.NumberFormat`/`DateTimeFormat` sites still pass `undefined` and so follow
-  the OS locale rather than this setting.
+- About a dozen `Intl.NumberFormat`/`DateTimeFormat` sites pass `undefined` and so follow the
+  OS locale rather than a fixed one.
 - Skill, status, monster and class display names come from the `@kar-mi/spirit-vale-tools-*`
   packages and are not translatable from here. So are session summaries, the character window's
   `statusDetail`, and the build-export notes: each arrives as composed English and is rendered as-is.
