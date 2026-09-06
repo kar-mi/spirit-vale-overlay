@@ -5,13 +5,7 @@ import type { StartupFailure } from "../shared/protocol.ts";
 import { defineRpc } from "../shared/rpc.ts";
 import { backendConnectionUrl } from "../shared/backend-connection.ts";
 import { DesktopRpcServer, type Session } from "../backend/rpc-server.ts";
-import { NeutralinoClient } from "../backend/neutralino-client.ts";
-import {
-  configureOverlayWindow,
-  findWindowHandle,
-  getDisplays,
-  setOverlayWindowVisible,
-} from "../backend/win32.ts";
+import type { DialogFilter, HostWindowRef, ShellHost, TrayItem } from "../backend/shell-host.ts";
 
 type Frame = { x: number; y: number; width: number; height: number };
 type Handler = (...args: unknown[]) => void;
@@ -34,7 +28,7 @@ class RuntimeEvents {
 }
 
 const events = new RuntimeEvents();
-let native: NeutralinoClient | undefined;
+let host: ShellHost | undefined;
 let server: DesktopRpcServer | undefined;
 let launcherSession: Session | undefined;
 let announceTimer: ReturnType<typeof setInterval> | undefined;
@@ -48,6 +42,7 @@ const pendingWindows = new Set<BrowserWindow>();
 const trays = new Set<Tray>();
 
 export function isDesktopWindowProcess(processId: number): boolean {
+  if (host?.isAppProcess) return host.isAppProcess(processId);
   for (const session of sessions.values()) {
     if (session.processId === processId) return true;
   }
@@ -71,18 +66,23 @@ export function terminateAllWindowProcesses(options: { preserveLauncher?: boolea
   }
 }
 
-export async function initializeNeutralinoRuntime(options: { version: string }): Promise<void> {
+export async function initializeDesktopRuntime(shellHost: ShellHost, options: { version: string }): Promise<void> {
+  host = shellHost;
   appVersion = options.version;
-  native = await NeutralinoClient.fromStdin();
+  await shellHost.initialize({
+    launcherCommand: (method, params) => launcherSession
+      ? launcherSession.command(method, params)
+      : Promise.reject(new Error("The launcher window is not connected.")),
+    dispatchWindowEvent: (windowId, event, data) => windows.get(windowId)?.receiveEvent(event, data),
+  });
   server = new DesktopRpcServer();
   server.onSession = attachSession;
   server.onClose = detachSession;
   server.onWindowEvent = receiveWindowEvent;
-  native.on("trayMenuItemClicked", (data) => {
-    const action = String((data as { id?: string })?.id ?? "");
+  shellHost.onTrayClick((action) => {
     for (const tray of trays) tray.dispatch(action);
   });
-  native.onClose(() => {
+  shellHost.onOwnerGone(() => {
     if (shuttingDown) return;
     terminateAllWindowProcesses();
     process.exit(0);
@@ -100,15 +100,15 @@ export async function reportStartupFailure(failure: StartupFailure): Promise<voi
   if (announceTimer) clearInterval(announceTimer);
   announceTimer = undefined;
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    await native?.call("app.broadcast", { event: "desktopBackendFatal", data: failure });
+    await host?.broadcast("desktopBackendFatal", failure);
     if (attempt < 3) await new Promise<void>((resolve) => setTimeout(resolve, 500));
   }
 }
 
 async function announceLauncher(): Promise<void> {
-  if (!native || !server || launcherSession || shuttingDown) return;
+  if (!host || !server || launcherSession || shuttingDown) return;
   const ticket = server.issueWindow("launcher");
-  await native.call("app.broadcast", { event: "desktopBackendReady", data: { port: server.port, ticket } });
+  await host.broadcast("desktopBackendReady", { port: server.port, ticket });
 }
 
 function attachSession(session: Session): void {
@@ -140,33 +140,30 @@ function receiveWindowEvent(session: Session, event: string, data: unknown): voi
 }
 
 async function launchWindow(window: BrowserWindow): Promise<void> {
-  if (!server || !launcherSession || window.launched || window.id === "launcher") return;
+  if (!host || !server || window.launched || window.id === "launcher") return;
+  // The Neutralino shell routes window.create through the launcher's renderer, so it
+  // cannot open a window until the launcher session is up. Electron main owns windows
+  // directly and has no such dependency.
+  if (host.kind === "neutralino" && !launcherSession) return;
   pendingWindows.delete(window);
   window.launched = true;
   const ticket = server.issueWindow(window.id);
   const url = backendConnectionUrl(window.url.replace("views://", "/views/"), { port: server.port, ticket });
   try {
-    await launcherSession.command("createWindow", {
+    await host.createWindow(window.id, {
       url,
-      options: {
-        title: window.title,
-        ...window.frame,
-        borderless: window.titleBarStyle === "hidden",
-        transparent: window.transparent,
-        resizable: window.resizable,
-        hidden: true,
-        alwaysOnTop: window.alwaysOnTop,
-        exitProcessOnClose: true,
-        injectGlobals: true,
-        injectClientLibrary: false,
-        useLogicalPixels: false,
-        processArgs: `--window-skip-taskbar=${window.skipTaskbar} --window-use-saved-state=false`,
-      },
+      title: window.title,
+      frame: window.frame,
+      borderless: window.titleBarStyle === "hidden",
+      transparent: window.transparent,
+      resizable: window.resizable,
+      alwaysOnTop: window.alwaysOnTop,
+      skipTaskbar: window.skipTaskbar,
     });
   } catch (error) {
     window.launched = false;
     pendingWindows.add(window);
-    console.error(`[neutralino] could not launch ${window.title}:`, error);
+    console.error(`[${host.kind}] could not launch ${window.title}:`, error);
   }
 }
 
@@ -235,7 +232,9 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
     }
   }
 
-  get ptr(): unknown { return this.session?.processId ? findWindowHandle(this.session.processId) : undefined; }
+  private windowRef(): HostWindowRef { return { windowId: this.id, processId: this.session?.processId }; }
+
+  get ptr(): unknown { return host?.nativeWindowHandle(this.windowRef()); }
 
   attach(session: Session): void {
     this.session = session;
@@ -271,6 +270,9 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
   }
 
   command<T = unknown>(method: string, params?: unknown): Promise<T> {
+    // Electron main owns the native windows, so window commands go to the host;
+    // Neutralino drives each window from its own renderer session.
+    if (host?.kind === "electron") return host.windowCommand<T>(this.windowRef(), method, params);
     return this.session?.command<T>(method, params) ?? Promise.reject(new Error(`${this.title} is not connected.`));
   }
 
@@ -296,24 +298,22 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
   isMaximized(): boolean { return this.maximized; }
 
   private async applyNativeState(): Promise<void> {
-    const pid = this.session?.processId;
-    if (!pid) return;
+    if (!this.session) return;
     if (this.synchronizeFrameOnAttach) {
       this.synchronizeFrameOnAttach = false;
       await this.command("setBounds", this.frame).catch(() => {});
     }
     await this.command("setAlwaysOnTop", { enabled: this.alwaysOnTop }).catch(() => {});
     if (this.transparent) {
-      const ready = await configureOverlayWindow(pid, this.clickThrough);
+      const ready = await host?.configureOverlayWindow(this.windowRef(), this.clickThrough);
       if (!ready && this.clickThrough) return;
     }
     await this.applyVisibility(this.desiredVisible);
   }
 
   private async applyVisibility(visible: boolean): Promise<void> {
-    const pid = this.session?.processId;
-    if (this.transparent && pid) {
-      setOverlayWindowVisible(pid, visible);
+    if (this.transparent && this.session) {
+      host?.setOverlayWindowVisible(this.windowRef(), visible);
       return;
     }
     await this.command(visible ? "show" : "hide").catch(() => {});
@@ -336,7 +336,7 @@ export class BrowserView {
 }
 
 export const Screen = {
-  getAllDisplays: () => getDisplays().map((display, index) => ({ ...display, id: String(index) })),
+  getAllDisplays: () => (host?.getDisplays() ?? []).map((display, index) => ({ ...display, id: String(index) })),
   getPrimaryDisplay: () => {
     const displays = Screen.getAllDisplays();
     return displays.find((display) => display.isPrimary) ?? displays[0] ?? {
@@ -353,40 +353,47 @@ export class Tray {
   private handler?: (event: unknown) => void;
   constructor(private readonly options: { title: string; image: string; width?: number; height?: number }) { trays.add(this); }
   setMenu(items: Array<{ type: string; label?: string; action?: string }>): void {
-    const menuItems = items.map((item, index) => item.type === "divider"
-      ? { id: `separator-${index}`, text: "-" }
-      : { id: item.action ?? `item-${index}`, text: item.label ?? "" });
-    void native?.call("os.setTray", { icon: this.options.image.replace("views://", "/resources/views/"), menuItems });
+    host?.setTray(this.options.image, items.map<TrayItem>((item) => ({
+      type: item.type === "divider" ? "divider" : "item",
+      label: item.label,
+      action: item.action,
+    })));
   }
   on(name: string, handler: (event: unknown) => void): void { if (name === "tray-clicked") this.handler = handler; }
   dispatch(action: string): void { this.handler?.({ data: { action } }); }
 }
 
+function dialogFilters(extensions: string[] | undefined): DialogFilter[] | undefined {
+  return extensions ? [{ name: extensions.map((extension) => `.${extension}`).join(", "), extensions }] : undefined;
+}
+
 export const Utils = {
   paths: { documents: path.join(process.env.USERPROFILE ?? process.cwd(), "Documents") },
-  openExternal: (url: string) => { void native?.call("os.open", { url }); },
-  openPath: (target: string) => native?.call("os.open", { url: target }),
-  showItemInFolder: (target: string) => { void native?.call("os.open", { url: path.dirname(target) }); },
+  openExternal: (url: string) => { void host?.openExternal(url); },
+  openPath: (target: string) => host?.openExternal(target),
+  showItemInFolder: (target: string) => { void host?.openExternal(path.dirname(target)); },
   openFileDialog: async (options: { canChooseDirectory?: boolean; canChooseFiles?: boolean; startingFolder?: string; allowsMultipleSelection?: boolean; allowedFileTypes?: string | string[] }) => {
     if (options.canChooseDirectory) {
-      const selected = await native?.call<string>("os.showFolderDialog", { title: "Select folder", defaultPath: options.startingFolder });
+      const selected = await host?.showFolderDialog({ title: "Select folder", defaultPath: options.startingFolder });
       return selected ? [selected] : [];
     }
     const extensions = typeof options.allowedFileTypes === "string" ? [options.allowedFileTypes] : options.allowedFileTypes;
-    const filters = extensions ? [{ name: extensions.map((extension) => `.${extension}`).join(", "), extensions }] : undefined;
-    return await native?.call<string[]>("os.showOpenDialog", { title: "Select file", defaultPath: options.startingFolder, multiSelections: options.allowsMultipleSelection, filters }) ?? [];
+    return await host?.showOpenDialog({
+      title: "Select file",
+      defaultPath: options.startingFolder,
+      multiSelections: options.allowsMultipleSelection,
+      filters: dialogFilters(extensions),
+    }) ?? [];
   },
-  showSaveDialog: async (options: { defaultPath?: string; filters?: string[] }) => {
-    const filters = options.filters ? [{ name: options.filters.map((extension) => `.${extension}`).join(", "), extensions: options.filters }] : undefined;
-    return native?.call<string>("os.showSaveDialog", { title: "Save file", defaultPath: options.defaultPath, filters });
-  },
-  showMessageBox: async (options: { title: string; message: string; type?: string; buttons?: string[]; defaultId?: number; cancelId?: number }) => native?.call("os.showMessageBox", {
+  showSaveDialog: async (options: { defaultPath?: string; filters?: string[] }) =>
+    host?.showSaveDialog({ title: "Save file", defaultPath: options.defaultPath, filters: dialogFilters(options.filters) }),
+  showMessageBox: async (options: { title: string; message: string; type?: string; buttons?: string[]; defaultId?: number; cancelId?: number }) => host?.showMessageBox({
     title: options.title,
     content: options.message,
     choice: options.buttons?.length === 2 ? "YES_NO" : "OK",
     icon: options.type === "warning" ? "WARNING" : options.type === "error" ? "ERROR" : "INFO",
   }),
-  showNotification: (options: { title: string; body: string }) => { void native?.call("os.showNotification", { title: options.title, content: options.body }); },
+  showNotification: (options: { title: string; body: string }) => { void host?.showNotification(options); },
   quit: () => { void quitRuntime(); },
 };
 
@@ -395,8 +402,7 @@ async function quitRuntime(): Promise<void> {
   shuttingDown = true;
   if (announceTimer) clearInterval(announceTimer);
   server?.stop();
-  await native?.call("app.exit").catch(() => {});
-  native?.close();
+  await host?.exit().catch(() => {});
   process.exit(0);
 }
 

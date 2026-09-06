@@ -92,27 +92,31 @@ describe("Neutralino configuration", () => {
 
     expect(config.modes?.window?.useSavedState).toBeUndefined();
 
-    const runtimeSource = await Bun.file(`${import.meta.dir}/frontend/runtime.ts`).text();
-    expect(runtimeSource).toContain("--window-use-saved-state=false");
+    const hostSource = await Bun.file(`${import.meta.dir}/backend/neutralino-host.ts`).text();
+    expect(hostSource).toContain("--window-use-saved-state=false");
   });
 
-  test("keeps transparent overlay geometry owned by Neutralino", async () => {
-    const [runtimeSource, viewSource, win32Source] = await Promise.all([
+  test("keeps transparent overlay geometry owned by the shell", async () => {
+    const [runtimeSource, hostSource, viewSource, win32Source] = await Promise.all([
       Bun.file(`${import.meta.dir}/frontend/runtime.ts`).text(),
+      Bun.file(`${import.meta.dir}/backend/neutralino-host.ts`).text(),
       Bun.file(`${import.meta.dir}/frontend/view.ts`).text(),
       Bun.file(`${import.meta.dir}/backend/win32.ts`).text(),
     ]);
 
     expect(runtimeSource).toContain("options.restoreFrameOnAttach === true || this.transparent");
-    expect(runtimeSource).toContain("setOverlayWindowVisible(pid, visible)");
-    expect(runtimeSource).not.toContain("setOverlayWindowVisible(pid, visible, this.frame)");
+    // Visibility toggles must not carry geometry: the overlay frame is pushed
+    // separately through setBounds / neutralinoWindow.setSize.
+    expect(runtimeSource).toContain("host?.setOverlayWindowVisible(this.windowRef(), visible)");
+    expect(hostSource).toContain("setOverlayWindowVisible(handle, visible)");
+    expect(hostSource).not.toContain("setOverlayWindowVisible(handle, visible, this.frame)");
     expect(viewSource).toContain("result = await neutralinoWindow.setSize({ width, height })");
     expect(win32Source).not.toContain("GetWindowRect");
   });
 
   test("packages the default browser favicon from the application icon", async () => {
-    const buildSource = await Bun.file(`${import.meta.dir}/build.ts`).text();
-    expect(buildSource).toContain('path.join(resources, "favicon.ico")');
-    expect(buildSource).toContain('assets/icon/eggplant_icon.ico');
+    const buildSource = await Bun.file(`${import.meta.dir}/build-shared.ts`).text();
+    expect(buildSource).toContain('path.join(options.resourcesDir, "favicon.ico")');
+    expect(buildSource).toContain('icon/eggplant_icon.ico');
   });
 });

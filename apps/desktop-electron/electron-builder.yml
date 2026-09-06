@@ -1,0 +1,29 @@
+appId: dev.spiritvale.overlay
+productName: Spirit Vale Overlay
+copyright: Copyright (C) 2026 kar-mi. Licensed under the GNU AGPL v3.
+
+directories:
+  app: dist
+  output: release
+
+# The Bun backend, its bundled runtime and the hotkey helper must exist as real
+# files on disk (bun:ffi / bun:sqlite / Bun.spawn cannot run from inside an asar),
+# so keep the whole resources/extensions tree unpacked.
+asar: true
+asarUnpack:
+  - resources/extensions/**
+
+files:
+  - main/**
+  - resources/**
+  - package.json
+
+extraResources: []
+
+win:
+  # NOT electron-builder's `portable` target: that self-extracts to %TEMP% on every
+  # run, which breaks the .spirit-vale-portable marker's data/runtime redirection.
+  target:
+    - dir
+  icon: ../launcher/assets/icon/eggplant_icon.ico
+  artifactName: spirit-vale-overlay-electron-windows-x64.${ext}

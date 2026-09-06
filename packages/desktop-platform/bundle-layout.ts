@@ -21,6 +21,33 @@ export const bundleLayout = {
   backendLog: "neutralino-backend.log",
 } as const;
 
+// The Electron build ships the plain resources/ tree (no resources.neu) with the
+// backend sidecars staged under resources/extensions/** via electron-builder
+// extraResources. Paths are relative to the bundle root — the folder that holds
+// "Spirit Vale Overlay.exe" — which is also where portable `data/` lives.
+export const electronBundleLayout = {
+  resourcesDirectory: "resources",
+  viewsDirectory: "resources/views",
+  extensionsDirectory: "resources/extensions",
+  backendDirectory: "resources/extensions/backend",
+  backendEntrypoint: "resources/extensions/backend/index.js",
+  binaryDirectory: "resources/extensions/bin",
+  portableMarker: bundleLayout.portableMarker,
+  portableReadme: bundleLayout.portableReadme,
+  portableRuntimeData: "data/runtime",
+  backendLog: "electron-backend.log",
+} as const;
+
+/** The bundled Bun for the Electron build, relative to the bundle root. */
+export function electronBundledRuntimePath(platform: NodeJS.Platform = process.platform): string {
+  return `${electronBundleLayout.binaryDirectory}/${platformExecutableName(executableBaseNames.bunRuntime, platform)}`;
+}
+
+/** The bundled pass-through hotkey helper for the Electron build, relative to the bundle root. */
+export function electronBundledHotkeyHelperPath(platform: NodeJS.Platform = process.platform): string {
+  return `${electronBundleLayout.binaryDirectory}/${platformExecutableName(executableBaseNames.hotkeyHelper, platform)}`;
+}
+
 /** Joins a bundle-relative path onto an application root, native separators included. */
 export function joinBundlePath(applicationPath: string, relativePath: string): string {
   return `${applicationPath.replace(/[\\/]+$/, "")}/${relativePath}`;
