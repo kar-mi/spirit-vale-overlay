@@ -197,9 +197,12 @@ function startShellSocket(): Promise<number> {
 function spawnBackend(port: number): void {
   const bun = path.join(resourcesRoot, "extensions", "bin", process.platform === "win32" ? "bun.exe" : "bun");
   const entry = path.join(resourcesRoot, "extensions", "backend", "index.js");
+  // don't show bun.exe console
+  const pipeOutput = app.isPackaged ? "ignore" : "inherit";
   backendProcess = spawn(bun, ["--no-orphans", entry], {
     cwd: bundleRoot,
-    stdio: ["ignore", "inherit", "inherit"],
+    stdio: ["ignore", pipeOutput, pipeOutput],
+    windowsHide: true,
     env: {
       ...process.env,
       SPIRIT_VALE_ROOT: bundleRoot,
@@ -252,7 +255,9 @@ if (!singleInstance) {
   void app.whenReady().then(async () => {
     registerAppProtocol();
     spawnBackend(await startShellSocket());
-    windowHost.createLauncher("app://-/views/launcherview/index.html", iconPathFor(resourcesRoot));
+    const launcher = windowHost.createLauncher("app://-/views/launcherview/index.html", iconPathFor(resourcesRoot));
+    // launcher has to drive the quit, or the app lingers in the tray.
+    launcher.on("closed", () => app.quit());
   });
 
   app.on("window-all-closed", () => app.quit());
@@ -268,6 +273,7 @@ if (!singleInstance) {
     }
     quitting = true;
     event.preventDefault();
+    backendSocket?.destroy();
     const finish = (): void => {
       clearTimeout(forceTimer);
       windowHost.destroyAll();
