@@ -73,6 +73,9 @@ export class WindowHost {
 
   create(payload: CreateWindowPayload): BrowserWindow {
     const frame = toDip(payload.frame);
+    // Window bounds are DIPs but the backend lays tiles out in physical pixels; the preload
+    // zooms the frame back out so one CSS pixel is one physical pixel.
+    const scaleFactor = screen.getDisplayMatching(frame).scaleFactor;
     const win = new BrowserWindow({
       x: frame.x,
       y: frame.y,
@@ -85,7 +88,12 @@ export class WindowHost {
       alwaysOnTop: payload.alwaysOnTop,
       skipTaskbar: payload.skipTaskbar,
       hasShadow: !payload.transparent,
-      webPreferences: { preload: this.preloadPath, contextIsolation: true, sandbox: false },
+      webPreferences: {
+        preload: this.preloadPath,
+        contextIsolation: true,
+        sandbox: false,
+        additionalArguments: [`--sv-zoom=${1 / scaleFactor}`],
+      },
     });
     this.register(payload.windowId, win);
     void win.loadURL(payload.url.startsWith("/") ? `app://-${payload.url}` : payload.url);
@@ -96,7 +104,12 @@ export class WindowHost {
     const win = this.windows.get(windowId);
     if (!win || win.isDestroyed()) throw new Error(`Window ${windowId} is not available.`);
     switch (method) {
-      case "show": win.showInactive(); return undefined;
+      // showInactive alone leaves the window wherever it sat in the z-order, so an overlay
+      // that something has covered comes back invisible even though it is shown and painting.
+      case "show":
+        win.showInactive();
+        if (win.isAlwaysOnTop()) win.moveTop();
+        return undefined;
       case "hide": win.hide(); return undefined;
       case "focus": win.focus(); return undefined;
       case "minimize": win.minimize(); return undefined;
@@ -104,7 +117,14 @@ export class WindowHost {
       case "unmaximize": win.unmaximize(); return undefined;
       case "close": win.close(); return undefined;
       case "isMaximized": return win.isMaximized();
-      case "setAlwaysOnTop": win.setAlwaysOnTop(Boolean(params?.["enabled"])); return undefined;
+      case "setAlwaysOnTop": {
+        // "screen-saver" is the highest level Electron exposes; plain topmost loses to the
+        // game's own topmost windows.
+        const enabled = Boolean(params?.["enabled"]);
+        win.setAlwaysOnTop(enabled, "screen-saver");
+        if (enabled) win.moveTop();
+        return undefined;
+      }
       case "setSkipTaskbar": win.setSkipTaskbar(Boolean(params?.["enabled"])); return undefined;
       case "setIgnoreMouseEvents": win.setIgnoreMouseEvents(Boolean(params?.["enabled"])); return undefined;
       case "getBounds": return toPhysical(win.getBounds(), win);

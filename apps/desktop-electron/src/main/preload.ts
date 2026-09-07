@@ -1,5 +1,9 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webFrame } from "electron";
 
+// Per-frame, unlike webContents.setZoomFactor, which Chromium keys by origin and would
+// therefore leak between windows sharing app://.
+const zoomArgument = process.argv.find((argument) => argument.startsWith("--sv-zoom="));
+if (zoomArgument) webFrame.setZoomFactor(Number(zoomArgument.slice("--sv-zoom=".length)));
 
 export interface WindowFrame {
   x: number;

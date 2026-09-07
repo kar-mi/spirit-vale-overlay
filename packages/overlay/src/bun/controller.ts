@@ -511,8 +511,9 @@ export async function createOverlayController(options: OverlayControllerOptions)
     // same display-aware normalization used at load before making tiles interactive.
     if (!locked) settings = normalizeOverlaySettings(settings, displays);
     settings.locked = locked;
-    // Tiles have to be on screen to be arranged, so unlocking clears any manual hide.
-    if (!locked) applyFocusVisibility(manuallySetVisibility(true));
+    // Force the push: each window tracks its own desired visibility, and a stale one would
+    // otherwise be re-applied by the click-through update below and hide the overlay.
+    if (!locked) applyFocusVisibility(manuallySetVisibility(true), true);
     reconcileFocusVisibility(autoHideEnabledForMode(settings.autoHideWhenUnfocused, locked));
     scheduleClickThroughUpdate();
     persist();
@@ -647,15 +648,14 @@ export async function createOverlayController(options: OverlayControllerOptions)
     updateShortcutBindings();
   }
 
-  function updateOverlayVisible(visible: boolean): void {
-    if (overlayVisible === visible) return;
+  function updateOverlayVisible(visible: boolean, force = false): void {
+    if (overlayVisible === visible && !force) return;
     overlayVisible = visible;
     for (const surface of surfaces.values()) surface.setVisible(visible);
     publishControl();
   }
 
   function setOverlayVisibleManually(visible: boolean): void {
-    if (!visible && !settings.locked) return;
     applyFocusVisibility(manuallySetVisibility(visible));
   }
 
@@ -688,10 +688,12 @@ export async function createOverlayController(options: OverlayControllerOptions)
     return classifyForegroundProcess(foreground, process.pid, options.isAppProcess);
   }
 
-  function applyFocusVisibility(next: FocusVisibilityState): void {
-    manualHideEngaged = next.manualHideEngaged;
-    autoHidden = next.autoHidden;
-    updateOverlayVisible(next.visible);
+  function applyFocusVisibility(next: FocusVisibilityState, force = false): void {
+    // Tiles can only be arranged on screen, so edit mode ignores focus and any pending hide.
+    const state = settings.locked ? next : { visible: true, manualHideEngaged: false, autoHidden: false };
+    manualHideEngaged = state.manualHideEngaged;
+    autoHidden = state.autoHidden;
+    updateOverlayVisible(state.visible, force);
   }
 
   function cycleMeterStatType(): void {
