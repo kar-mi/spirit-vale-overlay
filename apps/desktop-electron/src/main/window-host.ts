@@ -4,10 +4,6 @@ import type { CreateWindowPayload } from "../shell-protocol.ts";
 
 interface Rect { x: number; y: number; width: number; height: number }
 
-// The backend speaks physical pixels throughout (its displays come from Win32
-// EnumDisplayMonitors, and Neutralino windows are created with useLogicalPixels:false),
-// but Electron's window bounds are DIPs. Convert at this boundary so overlay tiles land
-// where the backend placed them on a scaled display.
 export const toDip = (rect: Rect, win?: BrowserWindow): Rect =>
   process.platform === "win32" ? screen.screenToDipRect(win ?? null, rect) : rect;
 export const toPhysical = (rect: Rect, win?: BrowserWindow): Rect =>

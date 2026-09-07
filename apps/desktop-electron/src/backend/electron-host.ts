@@ -1,6 +1,6 @@
 import net from "node:net";
 import type { Pointer } from "bun:ffi";
-import { getDisplays } from "@svoverlay/desktop/src/backend/win32.ts";
+import { getDisplays, setOverlayWindowVisible as showWindowNative } from "@svoverlay/desktop/src/backend/win32.ts";
 import { disableWindowTransitions } from "@svoverlay/desktop-platform/win32";
 import type {
   CreateWindowOptions,
@@ -136,6 +136,8 @@ export class ElectronShellHost implements ShellHost {
   }
 
   setOverlayWindowVisible(window: HostWindowRef, visible: boolean): void {
+    const handle = this.handles.get(window.windowId);
+    if (handle && showWindowNative(handle, visible)) return;
     void this.windowCommand(window, visible ? "show" : "hide").catch(() => {});
   }
 
