@@ -18,6 +18,12 @@ afterEach(() => {
 });
 
 describe("electron-builder configuration", () => {
+  test("has no application auto-update publisher", () => {
+    const config = loadConfig();
+    expect(config.publish).toBeUndefined();
+    expect(config.win.target).not.toContain("nsis-web");
+  });
+
   test("ships an unpacked directory, never a self-extracting installer", () => {
     // electron-builder's `portable`/`nsis` targets self-extract to %TEMP%, which breaks
     // the .spirit-vale-portable marker's data/runtime redirection.

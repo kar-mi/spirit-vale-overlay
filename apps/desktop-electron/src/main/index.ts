@@ -15,9 +15,11 @@ import {
   BrowserWindow,
   Menu,
   Notification,
+  session,
   Tray,
 } from "electron";
 import { WindowHost, iconPathFor } from "./window-host.ts";
+import { installPrivacyGuard } from "./privacy-guard.ts";
 import type { StartupFailure } from "@svoverlay/desktop/src/shared/protocol.ts";
 import {
   LineDecoder,
@@ -272,6 +274,7 @@ if (!singleInstance) {
   });
 
   void app.whenReady().then(async () => {
+    installPrivacyGuard(session.defaultSession);
     registerAppProtocol();
     spawnBackend(await startShellSocket());
     const launcher = windowHost.createLauncher("app://-/views/launcherview/index.html");
