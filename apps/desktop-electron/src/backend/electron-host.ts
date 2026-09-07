@@ -33,6 +33,7 @@ export class ElectronShellHost implements ShellHost {
   private nextRequestId = 1;
   private readonly pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
   private readonly handles = new Map<string, Pointer>();
+  private readonly electronShown = new Set<string>();
   private context?: RuntimeHostContext;
   private trayClick?: (action: string) => void;
   private ownerGone?: () => void;
@@ -145,9 +146,19 @@ export class ElectronShellHost implements ShellHost {
       .then(() => true, () => false);
   }
 
+  // Electron has to perform the first show: raw ShowWindow flips WS_VISIBLE behind Chromium's
+  // back, and a window created with show:false has never painted, so it would come up empty.
+  // Every later toggle goes native on purpose - hiding without telling Chromium keeps the
+  // renderer producing frames, so the overlay reappears instantly instead of re-rasterizing.
   setOverlayWindowVisible(window: HostWindowRef, visible: boolean): void {
+    const firstShow = visible && !this.electronShown.has(window.windowId);
     const handle = this.handles.get(window.windowId);
-    if (handle && showWindowNative(handle, visible)) return;
+    if (!firstShow && handle && showWindowNative(handle, visible)) {
+      // A native show does not restore z-order, and the game's own topmost windows can sit above.
+      if (visible) void this.windowCommand(window, "moveTop").catch(() => {});
+      return;
+    }
+    if (visible) this.electronShown.add(window.windowId);
     void this.windowCommand(window, visible ? "show" : "hide").catch(() => {});
   }
 

@@ -311,8 +311,10 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
   }
 
   private async applyVisibility(visible: boolean): Promise<void> {
-    if (this.transparent && this.session) {
-      host?.setOverlayWindowVisible(this.windowRef(), visible);
+    // Showing a transparent window before applyNativeState has run leaves it opaque-framed,
+    // in the taskbar and catching the mouse, so it waits for its session either way.
+    if (this.transparent) {
+      if (this.session) host?.setOverlayWindowVisible(this.windowRef(), visible);
       return;
     }
     await this.command(visible ? "show" : "hide").catch(() => {});

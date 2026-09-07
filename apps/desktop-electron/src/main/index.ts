@@ -40,6 +40,10 @@ if (PORTABLE) {
   }
 }
 
+// The overlay is hidden with a raw ShowWindow so its renderer keeps painting. Chromium's
+// occlusion tracking would notice the invisible HWND and stop those frames anyway.
+app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
+
 protocol.registerSchemesAsPrivileged([
   { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
 ]);
