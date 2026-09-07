@@ -56,7 +56,7 @@ let backendProcess: ChildProcess | undefined;
 let tray: Tray | undefined;
 
 function sendToBackend(event: ShellEvent): void {
-  backendSocket?.write(encodeMessage(event));
+  if (backendSocket?.writable) backendSocket.write(encodeMessage(event));
 }
 
 function reply(id: number, run: () => unknown | Promise<unknown>): void {
@@ -179,7 +179,11 @@ function startShellSocket(): Promise<number> {
           handleBackendRequest(message);
         }
       });
-      socket.on("close", () => { if (backendSocket === socket) backendSocket = undefined; });
+      const drop = (): void => { if (backendSocket === socket) backendSocket = undefined; };
+      // The backend peer going away (killed, crashed) surfaces as an unhandled 'error' on the
+      // socket, which Electron would otherwise escalate to its main-process error dialog.
+      socket.on("error", drop);
+      socket.on("close", drop);
     });
     (server as unknown as NodeJS.EventEmitter).on("error", reject);
     server.listen(0, "127.0.0.1", () => {
@@ -252,9 +256,24 @@ if (!singleInstance) {
   });
 
   app.on("window-all-closed", () => app.quit());
-  app.on("before-quit", () => {
-    windowHost.destroyAll();
+
+  // Give the backend time to exit on its own before tearing anything down;
+  let quitting = false;
+  app.on("before-quit", (event) => {
     tray?.destroy();
-    backendProcess?.kill();
+    const child = backendProcess;
+    if (quitting || !child || child.exitCode !== null || child.signalCode !== null) {
+      windowHost.destroyAll();
+      return;
+    }
+    quitting = true;
+    event.preventDefault();
+    const finish = (): void => {
+      clearTimeout(forceTimer);
+      windowHost.destroyAll();
+      app.quit();
+    };
+    const forceTimer = setTimeout(() => { try { child.kill(); } catch {} finish(); }, 5000);
+    (child as unknown as NodeJS.EventEmitter).once("exit", finish);
   });
 }
