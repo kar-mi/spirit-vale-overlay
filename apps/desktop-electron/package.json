@@ -6,7 +6,7 @@
     "prepare": "bun run src/build.ts",
     "build": "bun run prepare",
     "dev": "bun run prepare && bun run src/dev.ts",
-    "package": "bun run prepare && electron-builder --win --config electron-builder.yml && bun run ../../tooling/release/wrap-portable.ts --shell electron",
+    "package": "bun run prepare && electron-builder --win --config electron-builder.config.cjs && bun run ../../tooling/release/wrap-portable.ts --shell electron",
     "test": "bun test src"
   },
   "dependencies": {

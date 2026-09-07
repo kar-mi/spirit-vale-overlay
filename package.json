@@ -3,6 +3,8 @@
   "version": "0.10.7",
   "private": true,
   "type": "module",
+  "author": "kar-mi",
+  "description": "Spirit Vale Overlay",
   "workspaces": [
     "apps/*",
     "packages/*",
@@ -11,12 +13,16 @@
   "scripts": {
     "build": "bun run --filter @svoverlay/desktop build",
     "build:stable": "bun run --filter @svoverlay/desktop build",
+    "build:electron": "bun run --filter @svoverlay/desktop-electron build",
     "check": "bun run typecheck && bun test --parallel",
     "dev": "bun run --filter @svoverlay/desktop dev",
+    "dev:electron": "bun run --filter @svoverlay/desktop-electron dev",
     "package:portable": "bun run --filter @svoverlay/desktop package",
+    "package:electron": "bun run --filter @svoverlay/desktop-electron package",
     "test": "bun test --parallel",
     "typecheck": "tsc --noEmit",
-    "verify:portable": "bun run tooling/release/verify-portable.ts"
+    "verify:portable": "bun run tooling/release/verify-portable.ts",
+    "verify:portable:electron": "bun run tooling/release/verify-portable.ts --shell electron"
   },
   "devDependencies": {
     "@types/bun": "1.4.0",

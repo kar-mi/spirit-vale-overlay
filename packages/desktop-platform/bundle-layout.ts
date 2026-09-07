@@ -21,8 +21,11 @@ export const bundleLayout = {
 } as const;
 
 export const electronBundleLayout = {
+  desktopExecutable: "Spirit Vale Overlay.exe",
+  asarPath: "resources/app.asar",
   resourcesDirectory: "resources",
   viewsDirectory: "resources/views",
+  launcherEntrypoint: "resources/views/launcherview/index.html",
   extensionsDirectory: "resources/extensions",
   backendDirectory: "resources/extensions/backend",
   backendEntrypoint: "resources/extensions/backend/index.js",

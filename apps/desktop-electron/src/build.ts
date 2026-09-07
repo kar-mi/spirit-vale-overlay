@@ -46,10 +46,17 @@ for (const entry of [
   if (!result.success) throw new AggregateError(result.logs, `Build failed: ${entry.entrypoints[0]}`);
 }
 
+const workspacePackage = await Bun.file(path.join(workspace, "package.json")).json() as {
+  version: string;
+  author: string;
+  description: string;
+};
 await writeFile(path.join(outRoot, "package.json"), `${JSON.stringify({
   name: "spirit-vale-overlay",
   productName: "Spirit Vale Overlay",
-  version: (await Bun.file(path.join(workspace, "package.json")).json() as { version: string }).version,
+  version: workspacePackage.version,
+  description: workspacePackage.description,
+  author: workspacePackage.author,
   main: "main/index.js",
   type: "module",
 }, null, 2)}\n`);
