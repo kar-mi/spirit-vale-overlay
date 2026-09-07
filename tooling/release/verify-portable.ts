@@ -20,6 +20,7 @@ import {
   sharedReadmeText,
   toWindowsFileVersion,
 } from "./verify-portable-shared.ts";
+import { readWindowsManifest } from "./windows-dpi-manifest.ts";
 
 interface PackageJson {
   version?: string;
@@ -100,6 +101,10 @@ async function verifyNeutralino(): Promise<void> {
   });
 
   const metadata = readVersionInfo(path.join(bundleRoot, "spirit-vale-overlay-win_x64.exe"), projectRoot);
+  const manifest = await readWindowsManifest(path.join(bundleRoot, "spirit-vale-overlay-win_x64.exe"));
+  if (!/PerMonitorV2/i.test(manifest)) {
+    throw new Error("Portable executable is not Per-Monitor DPI Awareness V2.");
+  }
   const expectedEntries = {
     CompanyName: neutralinoConfig.author,
     FileDescription: neutralinoConfig.description,

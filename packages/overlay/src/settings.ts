@@ -34,7 +34,7 @@ export type { KeybindAction, OverlayElementId, OverlayElementSettings, PersonalD
 export type { DisplayBounds, OverlayDisplay };
 
 export interface OverlaySettings {
-  schemaVersion: 7;
+  schemaVersion: 8;
   homeDisplay: string;
   locked: boolean;
   shortcuts: Record<KeybindAction, string>;
@@ -102,7 +102,7 @@ function resolveDefaultPosition(
 }
 
 export function defaultOverlaySettings(displays: readonly OverlayDisplay[]): OverlaySettings {
-  return normalizeOverlaySettings({ schemaVersion: 7 }, displays);
+  return normalizeOverlaySettings({ schemaVersion: 8 }, displays);
 }
 
 export function resetOverlayShortcuts(settings: OverlaySettings): OverlaySettings {
@@ -128,12 +128,17 @@ export function normalizeOverlaySettings(
   displays: readonly OverlayDisplay[],
 ): OverlaySettings {
   const parsed = candidate && typeof candidate === "object" ? candidate as Record<string, unknown> : {};
-  const source = parsed.schemaVersion === 4 || parsed.schemaVersion === 5 || parsed.schemaVersion === 6 || parsed.schemaVersion === 7
+  const source = parsed.schemaVersion === 4 || parsed.schemaVersion === 5 || parsed.schemaVersion === 6 || parsed.schemaVersion === 7 || parsed.schemaVersion === 8
     ? parsed
     : {};
+  const legacyPhysicalLayout = parsed.schemaVersion === 7;
+  const legacyDisplay = legacyPhysicalLayout
+    ? displays.find((display) => display.nativeBounds && displayKey({ bounds: display.nativeBounds }) === source.homeDisplay)
+    : undefined;
+  const migratedHomeDisplay = legacyDisplay ? displayKey(legacyDisplay) : source.homeDisplay;
   const homeDisplay = resolveHomeDisplayKey(
     displays,
-    typeof source.homeDisplay === "string" ? source.homeDisplay : "",
+    typeof migratedHomeDisplay === "string" ? migratedHomeDisplay : "",
   );
   const fallbackBounds = displays[0]?.bounds ?? { x: 0, y: 0, width: 0, height: 0 };
   const sourceElements = source.elements && typeof source.elements === "object"
@@ -145,16 +150,23 @@ export function normalizeOverlaySettings(
     const value = sourceElements[id] && typeof sourceElements[id] === "object"
       ? sourceElements[id] as Record<string, unknown>
       : {};
-    const assigned = typeof value.display === "string" ? value.display : "";
+    const storedAssigned = typeof value.display === "string" ? value.display : "";
+    const physicalDisplay = legacyPhysicalLayout
+      ? displays.find((candidate) => candidate.nativeBounds && displayKey({ bounds: candidate.nativeBounds }) === storedAssigned)
+      : undefined;
+    const assigned = physicalDisplay ? displayKey(physicalDisplay) : storedAssigned;
+    const coordinateScale = physicalDisplay?.scaleFactor && physicalDisplay.scaleFactor > 0
+      ? physicalDisplay.scaleFactor
+      : 1;
     const display = resolveElementDisplayKey(displays, assigned, homeDisplay);
     const bounds = resolveElementDisplay(displays, assigned, homeDisplay)?.bounds ?? fallbackBounds;
     const minimum = minimumSizeFor(id);
-    const width = clampNumber(value.width, defaults.width, minimum.width, Math.max(minimum.width, bounds.width));
-    const height = clampNumber(value.height, defaults.height, minimum.height, Math.max(minimum.height, bounds.height));
+    const width = clampNumber(scaleLegacy(value.width, coordinateScale), defaults.width, minimum.width, Math.max(minimum.width, bounds.width));
+    const height = clampNumber(scaleLegacy(value.height, coordinateScale), defaults.height, minimum.height, Math.max(minimum.height, bounds.height));
     const defaultPosition = resolveDefaultPosition(defaults, bounds);
     const constrained = constrainRectToBounds({
-      x: clampNumber(value.x, defaultPosition.x, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
-      y: clampNumber(value.y, defaultPosition.y, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
+      x: clampNumber(scaleLegacy(value.x, coordinateScale), defaultPosition.x, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
+      y: clampNumber(scaleLegacy(value.y, coordinateScale), defaultPosition.y, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
       width,
       height,
     }, { x: 0, y: 0, width: bounds.width, height: bounds.height });
@@ -171,7 +183,7 @@ export function normalizeOverlaySettings(
   })) as unknown as Record<OverlayElementId, OverlayElementSettings>;
   const shortcuts = normalizeShortcuts(source);
   return {
-    schemaVersion: 7,
+    schemaVersion: 8,
     homeDisplay,
     locked: typeof source.locked === "boolean" ? source.locked : DEFAULT_LOCKED,
     shortcuts,
@@ -186,6 +198,10 @@ export function normalizeOverlaySettings(
     minimapRarityFilter: normalizeRarityFilter(source.minimapRarityFilter),
     minimapLootChanceFilter: normalizeLootChanceFilter(source.minimapLootChanceFilter),
   };
+}
+
+function scaleLegacy(value: unknown, scale: number): unknown {
+  return typeof value === "number" && Number.isFinite(value) && scale !== 1 ? value / scale : value;
 }
 
 // Profiles predating the toggle carry the feature state on the tile itself.
