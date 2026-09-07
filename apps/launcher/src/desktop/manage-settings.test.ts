@@ -201,6 +201,68 @@ describe("exportSingleSetting", () => {
   });
 });
 
+describe("imported settings result", () => {
+  test("applyImport returns what it wrote, and nothing for files the old folder lacks", async () => {
+    const currentRoot = await createRoot();
+    const oldRoot = await createRoot();
+    const currentPaths = resolveDesktopStoragePaths({ root: currentRoot });
+    const oldSettingsDir = path.join(oldRoot, "data", "settings");
+    await mkdir(oldSettingsDir, { recursive: true });
+    await writeFile(path.join(oldSettingsDir, "launcher.json"), JSON.stringify({
+      ...defaultLauncherSettings(),
+      captureAdapter: "Result Adapter",
+    }), "utf8");
+    await writeFile(path.join(oldSettingsDir, "dps.json"), JSON.stringify({
+      ...defaultDpsAppSettings(),
+      statType: "heal",
+    }), "utf8");
+
+    const plan = planImport(path.join(oldRoot, "data"), currentPaths);
+    if (plan.status !== "ready") throw new Error(`expected a ready plan, got ${plan.status}`);
+    const imported = await applyImport(plan.oldPaths, currentPaths, displays);
+
+    expect(imported.launcher).toEqual(JSON.parse(await readFile(currentPaths.launcherSettingsPath, "utf8")));
+    expect(imported.dps).toEqual(JSON.parse(await readFile(currentPaths.dpsSettingsPath, "utf8")));
+    expect(imported.overlay).toBeUndefined();
+    expect(imported.rewards).toBeUndefined();
+    expect(imported.windowLayout).toBeUndefined();
+  });
+
+  test("importSingleSetting returns only the imported kind", async () => {
+    const currentPaths = resolveDesktopStoragePaths({ root: await createRoot() });
+    const sourceFile = path.join(await createRoot(), "rewards.json");
+    await writeFile(sourceFile, JSON.stringify({ ...defaultRewardsSettings(), pinned: true }), "utf8");
+
+    const imported = await importSingleSetting("rewards", sourceFile, currentPaths, displays);
+
+    expect(imported).toEqual({ rewards: { ...defaultRewardsSettings(), pinned: true } });
+  });
+
+  test("importSingleSetting reports a window layout import without a settings value", async () => {
+    const currentPaths = resolveDesktopStoragePaths({ root: await createRoot() });
+    const sourceFile = path.join(await createRoot(), "windows.json");
+    await writeFile(sourceFile, JSON.stringify({ frames: { launcher: { x: 5, y: 6, width: 700, height: 400 } } }), "utf8");
+
+    const imported = await importSingleSetting("windowLayout", sourceFile, currentPaths, displays);
+
+    expect(imported).toEqual({ windowLayout: true });
+  });
+
+  test("resetAllSettings returns the defaults it wrote", async () => {
+    const paths = resolveDesktopStoragePaths({ root: await createRoot() });
+
+    const imported = await resetAllSettings(paths, displays);
+
+    expect(imported).toEqual({
+      launcher: defaultLauncherSettings(),
+      overlay: defaultOverlaySettings(displays),
+      dps: defaultDpsAppSettings(),
+      rewards: defaultRewardsSettings(),
+      windowLayout: true,
+    });
+  });
+});
+
 describe("resetAllSettings", () => {
   test("overwrites every settings file with its defaults", async () => {
     const root = await createRoot();

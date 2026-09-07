@@ -21,6 +21,7 @@ import {
   resetAllSettings,
   settingsKindFileName,
   settingsKindPath,
+  type ImportedSettings,
   type SettingsKind,
 } from "./manage-settings.ts";
 import {
@@ -471,11 +472,11 @@ const settingsRpc = BrowserView.defineRPC<LauncherSettingsRpc>({
       setMinimapEnabled: overlayAction((o, { enabled }: { enabled: boolean }) => o.setMinimapEnabled(enabled)),
       setMinimapRarityFilter: overlayAction((o, { rarity }: { rarity: number }) => o.setMinimapRarityFilter(rarity)),
       setMinimapLootChanceFilter: overlayAction((o, { chance }: { chance: number }) => o.setMinimapLootChanceFilter(chance)),
-      importSettings: () => importSettingsAndClose(),
-      importSetting: ({ kind }) => importSingleSettingAndClose(kind),
+      importSettings: () => importSettings(),
+      importSetting: ({ kind }) => importSetting(kind),
       exportSetting: ({ kind }) => exportSettingAndNotify(kind),
       openDataFolder: () => { openSettingsDataFolder(); },
-      resetSettings: () => resetSettingsAndClose(),
+      resetSettings: () => resetSettings(),
       windowAction: ({ action }) => {
         if (action === "minimize") settingsWindow?.minimize();
         else settingsWindow?.close();
@@ -647,18 +648,56 @@ function notifyManageSettings(body: MessageKey, type: "info" | "warning" = "info
   });
 }
 
-/** Import/reset flows close every window, apply the change on disk, confirm, then quit so the next launch adopts it. */
-async function applyAndRestart(mutate: () => Promise<void>, confirm: MessageKey): Promise<void> {
+/**
+ * Import/reset flows write the new files, then hand the parsed settings to whichever windows are
+ * open. Nothing shuts down, so no stale in-memory state can be flushed over what was just written.
+ */
+async function applySettingsChange(
+  mutate: () => Promise<ImportedSettings>,
+  confirm: MessageKey,
+): Promise<void> {
+  let imported: ImportedSettings;
   try {
-    await closeAllWindowsAndFlush();
-    await mutate();
-    await notifyManageSettings(confirm);
-  } finally {
-    await quitImmediately();
+    imported = await mutate();
+  } catch {
+    await notifyManageSettings("dialog.manageSettings.importFailed", "warning");
+    return;
   }
+  await applyImportedSettings(imported);
+  await notifyManageSettings(confirm);
 }
 
-async function importSettingsAndClose(): Promise<void> {
+/** A closed window is left closed; it picks the settings up from disk when it next opens. */
+async function applyImportedSettings(imported: ImportedSettings): Promise<void> {
+  if (imported.launcher) await applyLauncherSettings(imported.launcher);
+  if (imported.overlay) overlayWindow.current?.replaceSettings(imported.overlay);
+  if (imported.dps) combatWindow.current?.replaceSettings(imported.dps);
+  if (imported.rewards) rewardsWindow.current?.replaceSettings(imported.rewards);
+  if (imported.windowLayout) await placements.reload();
+}
+
+async function applyLauncherSettings(next: LauncherSettings): Promise<void> {
+  const previousAdapter = settings.captureAdapter;
+  Object.assign(settings, next);
+  setUiScale(settings.uiScale);
+  launcherState = {
+    ...launcherState,
+    uiScale: settings.uiScale,
+    minimizeToTray: settings.minimizeToTray,
+    resetMeterOnMapChange: settings.resetMeterOnMapChange,
+    resetGoldOnMapChange: settings.resetGoldOnMapChange,
+    pastLogLimit: settings.pastLogLimit,
+    selectedAdapter: settings.captureAdapter,
+  };
+  // The file already holds these values, so only the capture device needs re-applying.
+  if (settings.captureAdapter !== previousAdapter) {
+    await capture.reconfigure(settings.captureAdapter === "auto" ? undefined : settings.captureAdapter);
+    await refreshCaptureDevices();
+  }
+  publish();
+}
+
+async function importSettings(): Promise<void> {
   const [selected] = await Utils.openFileDialog({
     canChooseDirectory: true,
     canChooseFiles: false,
@@ -675,10 +714,10 @@ async function importSettingsAndClose(): Promise<void> {
     await notifyManageSettings("dialog.manageSettings.notFound", "warning");
     return;
   }
-  await applyAndRestart(() => applyImport(plan.oldPaths, storagePaths, readDisplays()), "dialog.manageSettings.imported");
+  await applySettingsChange(() => applyImport(plan.oldPaths, storagePaths, readDisplays()), "dialog.manageSettings.imported");
 }
 
-async function importSingleSettingAndClose(kind: SettingsKind): Promise<void> {
+async function importSetting(kind: SettingsKind): Promise<void> {
   const [selected] = await Utils.openFileDialog({
     canChooseDirectory: false,
     canChooseFiles: true,
@@ -687,7 +726,7 @@ async function importSingleSettingAndClose(kind: SettingsKind): Promise<void> {
     startingFolder: path.dirname(settingsKindPath(kind, storagePaths)),
   });
   if (!selected) return;
-  await applyAndRestart(() => importSingleSetting(kind, selected, storagePaths, readDisplays()), "dialog.manageSettings.imported");
+  await applySettingsChange(() => importSingleSetting(kind, selected, storagePaths, readDisplays()), "dialog.manageSettings.imported");
 }
 
 async function exportSettingAndNotify(kind: SettingsKind): Promise<void> {
@@ -704,10 +743,8 @@ function openSettingsDataFolder(): void {
   Utils.showItemInFolder(storagePaths.launcherSettingsPath);
 }
 
-async function resetSettingsAndClose(): Promise<void> {
-  await applyAndRestart(async () => {
-    await resetAllSettings(storagePaths, readDisplays());
-  }, "dialog.manageSettings.reset");
+async function resetSettings(): Promise<void> {
+  await applySettingsChange(() => resetAllSettings(storagePaths, readDisplays()), "dialog.manageSettings.reset");
 }
 
 async function openTool(tool: ToolWindow): Promise<void> {
