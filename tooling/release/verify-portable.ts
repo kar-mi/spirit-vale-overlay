@@ -164,7 +164,9 @@ async function verifyElectron(): Promise<void> {
     // CI can run electron-builder's rcedit pass, so the exe carries our branding.
     const expectedEntries = {
       CompanyName: packageJson.author,
-      FileVersion: toWindowsFileVersion(version!),
+      // electron-builder's rcedit pass stamps FileVersion with the raw version string,
+      // not the 4-part form Neutralino's own build uses.
+      FileVersion: version,
       LegalCopyright: builderConfig.copyright,
       ProductName: "Spirit Vale Overlay",
       ProductVersion: version,
