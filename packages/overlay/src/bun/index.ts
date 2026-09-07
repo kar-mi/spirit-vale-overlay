@@ -6,6 +6,7 @@ import type {
   RequiredStatusCategory,
 } from "../app-types.ts";
 import { displayKey, type OverlayDisplay } from "../display-layout.ts";
+import type { OverlaySettings } from "../settings.ts";
 import { createOverlayController, type OverlayControllerOptions } from "./controller.ts";
 import { createOverlaySurface, type OverlaySurface } from "./surface.ts";
 
@@ -41,6 +42,7 @@ export async function createOverlayWindow(options: OverlayWindowOptions) {
     },
     getSettingsState: (): OverlaySettingsState => controller.settingsState(),
     setLocked: (locked: boolean) => controller.updateLocked(locked),
+    replaceSettings: (settings: OverlaySettings) => { controller.replaceSettings(settings); },
     setElementEnabled: (id: OverlayElementId, enabled: boolean) => controller.setElementEnabled(id, enabled),
     setElementDisplay: (id: OverlayElementId, display: string) => controller.setElementDisplay(id, display),
     setHomeDisplay: (display: string) => controller.setHomeDisplay(display),

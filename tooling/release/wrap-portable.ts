@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { extract, Zip } from "zip-lib";
 import { electronBundleLayout } from "../../packages/desktop-platform/bundle-layout.ts";
+import { patchWindowsDpiManifest } from "./windows-dpi-manifest.ts";
 
 interface PackageJson {
   version?: string;
@@ -39,6 +40,7 @@ async function wrapNeutralino(stagingRoot: string): Promise<void> {
   const bundleRoot = path.join(stagingRoot, bundleName);
   await mkdir(bundleRoot, { recursive: true });
   await extract(neutralinoZip, bundleRoot);
+  await patchWindowsDpiManifest(path.join(bundleRoot, "spirit-vale-overlay-win_x64.exe"));
   await zipSingleFolder(bundleRoot, bundleName, path.join(appDist, `${bundleName}.zip`));
   await rm(neutralinoZip);
 }

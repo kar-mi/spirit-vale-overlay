@@ -54,7 +54,7 @@
       "exitProcessOnClose": true,
       "injectGlobals": true,
       "injectClientLibrary": false,
-      "useLogicalPixels": false,
+      "useLogicalPixels": true,
       "icon": "/resources/views/assets/app-icon.png"
     }
   },

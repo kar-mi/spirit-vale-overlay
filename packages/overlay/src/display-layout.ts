@@ -9,6 +9,9 @@ export interface DisplayBounds {
 
 export interface OverlayDisplay {
   bounds: DisplayBounds;
+  /** Optional physical-pixel bounds used to migrate schema-seven layouts. */
+  nativeBounds?: DisplayBounds;
+  scaleFactor?: number;
   isPrimary?: boolean;
 }
 

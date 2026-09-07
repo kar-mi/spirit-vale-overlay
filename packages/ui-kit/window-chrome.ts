@@ -66,10 +66,10 @@ export function initWindowChrome(options: WindowChromeOptions): WindowChrome {
 
   function startResize(edge: Edge, event: PointerEvent): void {
     if (maximized) return;
-    trackPointer(event, (frame, dx, dy, scale) => {
+    trackPointer(event, (frame, dx, dy) => {
       let { x, y, width, height } = frame;
-      const minWidth = options.minWidth * scale;
-      const minHeight = options.minHeight * scale;
+      const minWidth = options.minWidth;
+      const minHeight = options.minHeight;
       if (edge.includes("e")) width = Math.max(minWidth, width + dx);
       if (edge.includes("s")) height = Math.max(minHeight, height + dy);
       if (edge.includes("w")) {
@@ -88,7 +88,7 @@ export function initWindowChrome(options: WindowChromeOptions): WindowChrome {
 
   function trackPointer(
     event: PointerEvent,
-    apply: (initial: WindowFrame, dx: number, dy: number, scale: number) => WindowFrame,
+    apply: (initial: WindowFrame, dx: number, dy: number) => WindowFrame,
   ): void {
     const el = event.currentTarget as HTMLElement;
     el.setPointerCapture(event.pointerId);
@@ -111,12 +111,10 @@ export function initWindowChrome(options: WindowChromeOptions): WindowChrome {
       requestAnimationFrame(() => {
         rafScheduled = false;
         if (!initialFrame) return;
-        const scale = window.devicePixelRatio || 1;
         void options.setFrame(apply(
           initialFrame,
-          (lastScreenX - startX) * scale,
-          (lastScreenY - startY) * scale,
-          scale,
+          lastScreenX - startX,
+          lastScreenY - startY,
         ));
       });
     }

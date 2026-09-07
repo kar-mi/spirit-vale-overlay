@@ -5,8 +5,8 @@
   "scripts": {
     "prepare": "bun run src/build.ts",
     "update": "neu update",
-    "dev": "bun run prepare && neu build && bun run src/dev.ts",
-    "build": "bun run prepare && neu build",
+    "dev": "bun run prepare && neu build && bun run src/patch-windows-dpi-manifest.ts && bun run src/dev.ts",
+    "build": "bun run prepare && neu build && bun run src/patch-windows-dpi-manifest.ts",
     "package": "bun run prepare && bun run src/select-windows-release-binaries.ts && neu build --clean --release && bun run ../../tooling/release/wrap-portable.ts",
     "test": "bun test src"
   },

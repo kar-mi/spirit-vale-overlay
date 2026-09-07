@@ -54,7 +54,7 @@ export class NeutralinoShellHost implements ShellHost {
         exitProcessOnClose: true,
         injectGlobals: true,
         injectClientLibrary: false,
-        useLogicalPixels: false,
+        useLogicalPixels: true,
         processArgs: `--window-skip-taskbar=${options.skipTaskbar} --window-use-saved-state=false`,
       },
     });

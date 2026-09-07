@@ -6,7 +6,7 @@ import type { BrowserWindow } from "@svoverlay/desktop-runtime";
 
 import { inspectCombatReplaySummary } from "@kar-mi/spirit-vale-tools-combat";
 import type { CharacterViewState } from "@kar-mi/spirit-vale-tools-character";
-import { loadDpsAppSettings, saveDpsAppSettings } from "../settings.ts";
+import { loadDpsAppSettings, saveDpsAppSettings, type DpsAppSettings } from "../settings.ts";
 import type { CombatLogScreen, DpsAppRpc, DpsAppState } from "../app-types.ts";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { createCombatAnalysisController } from "./combat-analysis-window.ts";
@@ -204,7 +204,17 @@ return {
   show: () => window.show(),
   activate: () => window.activate(),
   close: async () => { await shutdown(); window.close(); },
+  replaceSettings,
 };
+
+/** Adopt imported settings. The object is mutated in place because sub-controllers hold this reference. */
+function replaceSettings(next: DpsAppSettings): void {
+  if (shuttingDown) return;
+  Object.assign(settings, next);
+  const frame = visibleScaledWindowFrame(settings.frame, { width: MINIMUM_WIDTH, height: MINIMUM_HEIGHT });
+  window.setFrame(frame.x, frame.y, frame.width, frame.height);
+  publish();
+}
 
 function appState(): DpsAppState {
   const liveState = live.state();

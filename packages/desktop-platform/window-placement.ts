@@ -32,7 +32,7 @@ export class WindowPlacementStore {
   private readonly persistence: SafeSaveQueue<StoredPlacements>;
 
   private constructor(
-    file: string,
+    private readonly file: string,
     private readonly placements: StoredPlacements,
     private readonly workAreas: () => readonly DisplayWorkArea[],
     onWarning: (warning: string | undefined) => void,
@@ -95,6 +95,11 @@ export class WindowPlacementStore {
       height: unscaledSize(frame.height),
     };
     this.persistence.schedule(this.placements);
+  }
+
+  /** Adopt frames written to the file by someone else, so the next `remember` does not undo them. */
+  async reload(): Promise<void> {
+    this.placements.frames = (await loadWindowPlacements(this.file)).frames;
   }
 
   async flush(): Promise<void> {

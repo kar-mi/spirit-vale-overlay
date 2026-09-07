@@ -4,6 +4,9 @@ import { hideWindowFromTaskbar, setWindowClickThrough } from "@svoverlay/desktop
 export interface NativeDisplay {
   bounds: { x: number; y: number; width: number; height: number };
   workArea: { x: number; y: number; width: number; height: number };
+  /** Physical-pixel bounds, retained internally for migrating legacy layouts. */
+  nativeBounds?: { x: number; y: number; width: number; height: number };
+  nativeWorkArea?: { x: number; y: number; width: number; height: number };
   scaleFactor: number;
   isPrimary: boolean;
 }
@@ -14,21 +17,41 @@ export function getDisplays(): NativeDisplay[] {
     const user32 = dlopen("user32", {
       EnumDisplayMonitors: { args: [FFIType.ptr, FFIType.ptr, FFIType.function, FFIType.i64_fast], returns: FFIType.bool },
       GetMonitorInfoW: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.bool },
+      SetThreadDpiAwarenessContext: { args: [FFIType.i64_fast], returns: FFIType.i64_fast },
     });
-    const displays: NativeDisplay[] = [];
-    const callback = new JSCallback((monitor: Pointer) => {
-      const info = new Int32Array(10);
-      info[0] = info.byteLength;
-      if (!user32.symbols.GetMonitorInfoW(monitor, ptr(info))) return true;
-      displays.push({
-        bounds: rect(info[1]!, info[2]!, info[3]!, info[4]!),
-        workArea: rect(info[5]!, info[6]!, info[7]!, info[8]!),
-        scaleFactor: 1,
-        isPrimary: (info[9]! & 1) !== 0,
-      });
-      return true;
-    }, { args: [FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.i64_fast], returns: FFIType.bool });
-    try { user32.symbols.EnumDisplayMonitors(null, null, callback.ptr, 0); } finally { callback.close(); }
+    const enumerate = () => {
+      const result: Array<{ bounds: ReturnType<typeof rect>; workArea: ReturnType<typeof rect>; isPrimary: boolean }> = [];
+      const callback = new JSCallback((monitor: Pointer) => {
+        const info = new Int32Array(10);
+        info[0] = info.byteLength;
+        if (!user32.symbols.GetMonitorInfoW(monitor, ptr(info))) return true;
+        result.push({
+          bounds: rect(info[1]!, info[2]!, info[3]!, info[4]!),
+          workArea: rect(info[5]!, info[6]!, info[7]!, info[8]!),
+          isPrimary: (info[9]! & 1) !== 0,
+        });
+        return true;
+      }, { args: [FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.i64_fast], returns: FFIType.bool });
+      try { user32.symbols.EnumDisplayMonitors(null, null, callback.ptr, 0); } finally { callback.close(); }
+      return result;
+    };
+    // DPI_AWARENESS_CONTEXT_UNAWARE gives the canonical DIP desktop. PMv2 gives
+    // the corresponding physical rectangles needed only at the native boundary.
+    const previous = user32.symbols.SetThreadDpiAwarenessContext(-1);
+    let logical: ReturnType<typeof enumerate>;
+    let native: ReturnType<typeof enumerate>;
+    try {
+      logical = enumerate();
+      user32.symbols.SetThreadDpiAwarenessContext(-4);
+      native = enumerate();
+    } finally {
+      user32.symbols.SetThreadDpiAwarenessContext(previous);
+    }
+    const displays = logical.map((display, index) => {
+      const physical = native[index] ?? display;
+      const scaleFactor = display.bounds.width > 0 ? physical.bounds.width / display.bounds.width : 1;
+      return { ...display, nativeBounds: physical.bounds, nativeWorkArea: physical.workArea, scaleFactor };
+    });
     return displays.length ? displays : [fallbackDisplay()];
   } catch (error) {
     console.warn("[neutralino] could not enumerate displays:", error);

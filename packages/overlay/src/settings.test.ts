@@ -411,10 +411,35 @@ describe("overlay settings", () => {
       elements: { health: { enabled: false, x: 25, width: 325 } },
     }, displays);
 
-    expect(settings.schemaVersion).toBe(7);
+    expect(settings.schemaVersion).toBe(8);
     expect(settings.homeDisplay).toBe(primaryKey);
     expect(new Set(Object.values(settings.elements).map((element) => element.display))).toEqual(new Set([primaryKey]));
     expect(settings.elements.health).toMatchObject({ enabled: false, x: 25, width: 325 });
+  });
+
+  test("migrates schema-seven physical coordinates to DIPs", () => {
+    const scaledDisplays = [{
+      bounds: { x: 0, y: 0, width: 1536, height: 864 },
+      nativeBounds: { x: 0, y: 0, width: 1920, height: 1080 },
+      scaleFactor: 1.25,
+      isPrimary: true,
+    }];
+    const settings = normalizeOverlaySettings({
+      schemaVersion: 7,
+      homeDisplay: "1920x1080@0,0",
+      elements: {
+        partyRanking: {
+          enabled: true, x: 1500, y: 250, width: 300, height: 500,
+          display: "1920x1080@0,0",
+        },
+      },
+    }, scaledDisplays);
+
+    expect(settings.schemaVersion).toBe(8);
+    expect(settings.homeDisplay).toBe("1536x864@0,0");
+    expect(settings.elements.partyRanking).toMatchObject({
+      x: 1200, y: 200, width: 240, height: 400, display: "1536x864@0,0",
+    });
   });
 
   test("resolves an unset or unknown home display to the primary display", () => {

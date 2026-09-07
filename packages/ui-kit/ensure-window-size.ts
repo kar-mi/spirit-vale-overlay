@@ -14,9 +14,8 @@ export async function ensureInitialWindowSize(
   if (!requests) return;
   if (sessionStorage.getItem(INITIAL_SIZE_CHECKED_KEY)) return;
   const frame = await requests.getWindowFrame({});
-  const scale = window.devicePixelRatio || 1;
-  const width = Math.max(frame.width, Math.ceil(minimumSize.width * scale));
-  const height = Math.max(frame.height, Math.ceil(minimumSize.height * scale));
+  const width = Math.max(frame.width, Math.ceil(minimumSize.width));
+  const height = Math.max(frame.height, Math.ceil(minimumSize.height));
   if (width !== frame.width || height !== frame.height) {
     await requests.setWindowFrame({ ...frame, width, height });
   }

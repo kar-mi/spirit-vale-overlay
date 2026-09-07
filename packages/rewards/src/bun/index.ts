@@ -24,7 +24,7 @@ import type {
   RewardsAppState,
   RewardsAppStatus,
 } from "../app-types.ts";
-import { loadRewardsSettings, saveRewardsSettings } from "../settings.ts";
+import { loadRewardsSettings, saveRewardsSettings, type RewardsAppSettings } from "../settings.ts";
 import { xpToLevelUp } from "../xp-to-level.ts";
 import { SafeSaveQueue } from "@svoverlay/desktop-platform/safe-save";
 import { createSessionPicker } from "@svoverlay/desktop-platform/session-picker";
@@ -198,7 +198,19 @@ return {
   show: () => window.show(),
   activate: () => window.activate(),
   close: async () => { await shutdown(); window.close(); },
+  replaceSettings,
 };
+
+/** Adopt imported settings. The object is mutated in place because the catalog window holds this reference. */
+function replaceSettings(next: RewardsAppSettings): void {
+  if (shuttingDown) return;
+  Object.assign(settings, next);
+  window.setAlwaysOnTop(settings.pinned);
+  catalogWindow.setAlwaysOnTop(settings.pinned);
+  const frame = visibleScaledWindowFrame(settings.frame, { width: 620, height: 520 });
+  window.setFrame(frame.x, frame.y, frame.width, frame.height);
+  publish();
+}
 
 function appState(): RewardsAppState {
   const snapshot = mode === "live" ? liveSnapshot : replaySnapshot;

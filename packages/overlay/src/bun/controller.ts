@@ -265,6 +265,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
     start: () => { void followLiveLog(); },
 
     updateLocked,
+    replaceSettings,
     setElementEnabled,
     setElementDisplay,
     setHomeDisplay,
@@ -519,6 +520,21 @@ export async function createOverlayController(options: OverlayControllerOptions)
     persist();
     publishControl();
     // Unlocking opens a surface on every monitor so tiles can be dragged between them; locking closes the ones that hold nothing.
+    void options.onSurfacesChanged?.();
+  }
+
+  /** Adopt imported settings in place of the current ones, keeping the overlay's runtime lock mode. */
+  function replaceSettings(raw: OverlaySettings): void {
+    if (shuttingDown) return;
+    settings = normalizeOverlaySettings({ ...raw, locked: settings.locked }, displays);
+    shortcutErrors.clear();
+    updateShortcutBindings();
+    // Normalizing can clamp the imported geometry, so memory may no longer match the file.
+    persist();
+    publishControl(true);
+    publishStatuses(relativeNowMs() ?? 0, true);
+    publishMeter(true);
+    publishMinimap(true);
     void options.onSurfacesChanged?.();
   }
 

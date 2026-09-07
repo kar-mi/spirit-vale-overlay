@@ -1,13 +1,8 @@
 import path from "node:path";
-import { BrowserWindow, screen, type BrowserWindowConstructorOptions } from "electron";
+import { BrowserWindow, type BrowserWindowConstructorOptions } from "electron";
 import type { CreateWindowPayload } from "../shell-protocol.ts";
 
 interface Rect { x: number; y: number; width: number; height: number }
-
-export const toDip = (rect: Rect, win?: BrowserWindow): Rect =>
-  process.platform === "win32" ? screen.screenToDipRect(win ?? null, rect) : rect;
-export const toPhysical = (rect: Rect, win?: BrowserWindow): Rect =>
-  process.platform === "win32" ? screen.dipToScreenRect(win ?? null, rect) : rect;
 
 export interface WindowHostCallbacks {
   onWindowEvent(windowId: string, event: string, data: unknown): void;
@@ -46,7 +41,7 @@ export class WindowHost {
       win.on(nativeEvent as never, () => {
         const bounds = win.isDestroyed()
           ? { x: 0, y: 0, width: 0, height: 0 }
-          : toPhysical(win.getBounds(), win);
+          : win.getBounds();
         this.callbacks.onWindowEvent(windowId, wireEvent, bounds);
       });
     }
@@ -69,11 +64,8 @@ export class WindowHost {
   }
 
   async create(payload: CreateWindowPayload): Promise<BrowserWindow> {
-    const frame = toDip(payload.frame);
-    // Window bounds are DIPs but the backend lays tiles out in physical pixels. Isolated
-    // per-WebContents zoom keeps one CSS pixel aligned to one physical pixel.
-    const scaleFactor = screen.getDisplayMatching(frame).scaleFactor;
-    const win = new BrowserWindow(childWindowOptions(payload, this.preloadPath, this.iconPath, scaleFactor, frame));
+    const frame = payload.frame;
+    const win = new BrowserWindow(childWindowOptions(payload, this.preloadPath, this.iconPath, frame));
     this.register(payload.windowId, win);
     await win.loadURL(payload.url.startsWith("/") ? `app://-${payload.url}` : payload.url);
     return win;
@@ -107,14 +99,14 @@ export class WindowHost {
       }
       case "setSkipTaskbar": win.setSkipTaskbar(Boolean(params?.["enabled"])); return undefined;
       case "setIgnoreMouseEvents": win.setIgnoreMouseEvents(Boolean(params?.["enabled"])); return undefined;
-      case "getBounds": return toPhysical(win.getBounds(), win);
+      case "getBounds": return win.getBounds();
       case "setBounds": {
-        win.setBounds(toDip({
+        win.setBounds({
           x: Number(params?.["x"]),
           y: Number(params?.["y"]),
           width: Number(params?.["width"]),
           height: Number(params?.["height"]),
-        }, win));
+        });
         return undefined;
       }
       case "openExternal": return undefined;
@@ -135,7 +127,6 @@ export function childWindowOptions(
   payload: CreateWindowPayload,
   preloadPath: string,
   iconPath: string,
-  scaleFactor: number,
   frame: Rect,
 ): BrowserWindowConstructorOptions {
   return {
@@ -158,8 +149,6 @@ export function childWindowOptions(
       contextIsolation: true,
       sandbox: true,
       backgroundThrottling: !payload.transparent,
-      zoomMode: "isolated",
-      zoomFactor: 1 / scaleFactor,
     },
   };
 }
