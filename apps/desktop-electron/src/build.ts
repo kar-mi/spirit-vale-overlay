@@ -42,7 +42,7 @@ for (const entry of [
   { entrypoints: [path.join(appRoot, "src/main/index.ts")], outdir: mainDir, naming: "index.js" },
   { entrypoints: [path.join(appRoot, "src/main/preload.ts")], outdir: mainDir, naming: "preload.cjs", format: "cjs" as const },
 ]) {
-  const result = await Bun.build({ target: "node", sourcemap: "external", ...entry });
+  const result = await Bun.build({ target: "node", sourcemap: "external", external: ["electron"], ...entry });
   if (!result.success) throw new AggregateError(result.logs, `Build failed: ${entry.entrypoints[0]}`);
 }
 

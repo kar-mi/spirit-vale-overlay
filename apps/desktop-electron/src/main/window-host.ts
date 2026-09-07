@@ -80,7 +80,9 @@ export class WindowHost {
       webPreferences: { preload: this.preloadPath, contextIsolation: true, sandbox: false },
     });
     this.register(payload.windowId, win);
-    void win.loadURL(payload.url);
+    // The backend hands us a root-relative view path ("/views/…?port=&ticket=");
+    // the launcher URL is already fully-qualified against the app:// scheme.
+    void win.loadURL(payload.url.startsWith("/") ? `app://-${payload.url}` : payload.url);
     return win;
   }
 

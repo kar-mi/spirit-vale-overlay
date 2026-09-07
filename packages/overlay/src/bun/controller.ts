@@ -511,6 +511,8 @@ export async function createOverlayController(options: OverlayControllerOptions)
     // same display-aware normalization used at load before making tiles interactive.
     if (!locked) settings = normalizeOverlaySettings(settings, displays);
     settings.locked = locked;
+    // Tiles have to be on screen to be arranged, so unlocking clears any manual hide.
+    if (!locked) applyFocusVisibility(manuallySetVisibility(true));
     reconcileFocusVisibility(autoHideEnabledForMode(settings.autoHideWhenUnfocused, locked));
     scheduleClickThroughUpdate();
     persist();
@@ -653,6 +655,7 @@ export async function createOverlayController(options: OverlayControllerOptions)
   }
 
   function setOverlayVisibleManually(visible: boolean): void {
+    if (!visible && !settings.locked) return;
     applyFocusVisibility(manuallySetVisibility(visible));
   }
 

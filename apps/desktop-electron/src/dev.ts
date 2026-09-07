@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import path from "node:path";
 
 // Launch the staged Electron app (produced by `bun run prepare`) against the local
@@ -5,7 +6,7 @@ import path from "node:path";
 
 const appRoot = path.resolve(import.meta.dir, "..");
 const staged = path.join(appRoot, "dist");
-const electronBin = path.join(appRoot, "node_modules", ".bin", process.platform === "win32" ? "electron.cmd" : "electron");
+const electronBin = createRequire(import.meta.url)("electron") as string;
 
 const child = Bun.spawn([electronBin, staged], {
   cwd: staged,
