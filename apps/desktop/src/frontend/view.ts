@@ -2,32 +2,20 @@ import { app, events, filesystem, init, os, window as neutralinoWindow } from "@
 import type { DesktopRPCSchema } from "@svoverlay/contracts/rpc";
 import { bundleLogPaths } from "@svoverlay/desktop-platform/bundle-layout";
 
-import type { BackendReady, ClientPacket, RpcPacket, ServerPacket, StartupFailure } from "../shared/protocol.ts";
+import type { BackendReady, ClientPacket, StartupFailure } from "../shared/protocol.ts";
 import { backendConnectionFromSearch } from "../shared/backend-connection.ts";
 import { defineRpc, type RpcInstance } from "../shared/rpc.ts";
 import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapFiles } from "./bootstrap-preflight.ts";
+import {
+  DesktopTransport,
+  StartupFailureError,
+  watchBackendReconnecting,
+  type ShellFrontendBridge,
+} from "./backend-transport.ts";
 
-type Handler = (packet: RpcPacket) => void;
 interface WindowFrame { x: number; y: number; width: number; height: number }
 
-// The launcher gets fresh tickets from the backend, so it retries ~165s to ride out a
-// restart; a child window's ticket is single-use and spent, so it concedes fast.
-const CHILD_RECONNECT_ATTEMPT_LIMIT = 5;
-const LAUNCHER_RECONNECT_ATTEMPT_LIMIT = 25;
-const RECONNECT_BASE_DELAY_MS = 250;
-const RECONNECT_MAX_DELAY_MS = 8_000;
-
-// The launcher window shows a reconnecting hint instead of the full-window failure
-// overlay while the transport retries; this is how it learns the retry state.
-let onReconnectingChange: ((reconnecting: boolean) => void) | undefined;
-
-export function watchBackendReconnecting(listener: (reconnecting: boolean) => void): void {
-  onReconnectingChange = listener;
-}
-
-function reportReconnecting(reconnecting: boolean): void {
-  onReconnectingChange?.(reconnecting);
-}
+export { watchBackendReconnecting };
 
 // @neutralinojs/lib silently queues native calls made before its socket opens, and the
 // failure card can render that early — so its buttons must wait for "ready" first.
@@ -45,146 +33,28 @@ async function openApplicationFolder(path: string): Promise<void> {
   await os.open(path).catch((error) => console.error("Opening the application folder failed.", error));
 }
 
-class DesktopTransport {
-  private socket?: WebSocket;
-  private handler?: Handler;
-  private readonly queued: RpcPacket[] = [];
-  private connecting = false;
-  private sessionReady = false;
-  private bootstrapChecked = false;
-  private reconnectAttempts = 0;
-  private reconnectTimer?: ReturnType<typeof setTimeout>;
-  private readonly launcher = backendConnectionFromSearch(location.search) === undefined;
+init();
+void events.on("ready", () => { neutralinoReady = true; });
 
-  constructor() {
-    init();
-    void events.on("ready", () => { neutralinoReady = true; });
-    void this.connect().catch((error) => this.fail(startupFailure(error)));
-    void settleInitialWindowSize();
-  }
+const bridge: ShellFrontendBridge = {
+  awaitConnection: backendConnection,
+  failureActions: { openApplicationFolder, quitApplication },
+  bootstrap: async () => {
+    const globals = globalThis as typeof globalThis & { NL_PATH?: unknown; NL_OS?: unknown };
+    if (typeof globals.NL_PATH !== "string") return;
+    await verifyBootstrapFiles({
+      applicationPath: globals.NL_PATH,
+      platform: neutralinoPlatform(typeof globals.NL_OS === "string" ? globals.NL_OS : "Windows"),
+      filesystem,
+    });
+  },
+  helloExtras: async () => ({ processId: await app.getProcessId().catch(() => undefined) }),
+  onSessionReady: registerWindowEvents,
+  onWindowCommand: (socket, command) => executeWindowCommand(socket, command.id, command.method, command.params),
+};
 
-  send(packet: RpcPacket): void {
-    if (this.socket?.readyState !== WebSocket.OPEN) {
-      this.queued.push(packet);
-      return;
-    }
-    this.socket.send(JSON.stringify({ kind: "rpc", packet } satisfies ClientPacket));
-  }
-
-  sendWindowEvent(event: string, data: unknown): void {
-    if (this.socket?.readyState !== WebSocket.OPEN) return;
-    this.socket.send(JSON.stringify({ kind: "window-event", event, data } satisfies ClientPacket));
-  }
-
-  registerHandler(handler: Handler): void {
-    this.handler = handler;
-  }
-
-  private async connect(): Promise<void> {
-    if (this.connecting) return;
-    this.connecting = true;
-    try {
-      if (this.launcher && !this.bootstrapChecked) {
-        const globals = globalThis as typeof globalThis & { NL_PATH?: unknown; NL_OS?: unknown };
-        if (typeof globals.NL_PATH === "string") {
-          await verifyBootstrapFiles({
-            applicationPath: globals.NL_PATH,
-            platform: neutralinoPlatform(typeof globals.NL_OS === "string" ? globals.NL_OS : "Windows"),
-            filesystem,
-          });
-        }
-        this.bootstrapChecked = true;
-      }
-      const connection = await backendConnection((failure) => {
-        console.warn(failure.message);
-        reportReconnecting(true);
-      });
-      clearBackendFailureUi();
-      reportReconnecting(false);
-      const socket = new WebSocket(`ws://127.0.0.1:${connection.port}/rpc`);
-      this.socket = socket;
-      socket.addEventListener("open", async () => {
-        const processId = await app.getProcessId().catch(() => undefined);
-        socket.send(JSON.stringify({ kind: "hello", ticket: connection.ticket, processId } satisfies ClientPacket));
-      });
-      socket.addEventListener("message", (event) => void this.receive(String(event.data)));
-      socket.addEventListener("close", () => this.disconnected());
-      socket.addEventListener("error", () => console.error("The desktop backend connection failed."));
-    } finally {
-      this.connecting = false;
-    }
-  }
-
-  private async receive(serialized: string): Promise<void> {
-    let packet: ServerPacket;
-    try {
-      packet = JSON.parse(serialized) as ServerPacket;
-    } catch {
-      return;
-    }
-    if (packet.kind === "ready") {
-      this.sessionReady = true;
-      this.reconnectAttempts = 0;
-      clearBackendFailureUi();
-      reportReconnecting(false);
-      for (const queued of this.queued.splice(0)) this.send(queued);
-      await registerWindowEvents(this.socket!);
-      return;
-    }
-    if (packet.kind === "rpc") {
-      this.handler?.(packet.packet);
-      return;
-    }
-    if (packet.kind === "window-command") {
-      await executeWindowCommand(this.socket!, packet.id, packet.method, packet.params);
-      return;
-    }
-    if (packet.kind === "fatal") this.fail(startupFailure(packet.message));
-  }
-
-  private fail(failure: StartupFailure): void {
-    console.error(failure.message);
-    document.body.dataset["backendError"] = failure.message;
-    reportReconnecting(false);
-    if (this.launcher) renderStartupFailure(failure);
-    else setBackendBanner(BACKEND_LOST_MESSAGE);
-  }
-
-  private disconnected(): void {
-    const wasReady = this.sessionReady;
-    this.sessionReady = false;
-    this.socket = undefined;
-    if (!wasReady) {
-      this.scheduleReconnect();
-      return;
-    }
-    if (!this.launcher) {
-      console.error("The desktop backend disconnected after the app started.");
-      document.body.dataset["backendError"] = "backend disconnected";
-      setBackendBanner(BACKEND_LOST_MESSAGE);
-      return;
-    }
-    reportReconnecting(true);
-    this.scheduleReconnect();
-  }
-
-  private scheduleReconnect(): void {
-    if (this.reconnectTimer !== undefined) return;
-    const attemptLimit = this.launcher ? LAUNCHER_RECONNECT_ATTEMPT_LIMIT : CHILD_RECONNECT_ATTEMPT_LIMIT;
-    if (this.reconnectAttempts >= attemptLimit) {
-      this.fail(startupFailure("The desktop backend connection could not be re-established."));
-      return;
-    }
-    const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts, RECONNECT_MAX_DELAY_MS);
-    this.reconnectAttempts += 1;
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = undefined;
-      void this.connect().catch((error) => this.fail(startupFailure(error)));
-    }, delay);
-  }
-}
-
-const transport = new DesktopTransport();
+const transport = new DesktopTransport(bridge, startupFailure);
+void settleInitialWindowSize();
 
 export class DesktopView<T extends { setTransport(transport: DesktopTransport): void }> {
   readonly rpc: T;
@@ -267,112 +137,26 @@ async function backendConnection(onSlow: (failure: StartupFailure) => void): Pro
   });
 }
 
-class StartupFailureError extends Error {
-  constructor(readonly failure: StartupFailure) {
-    super(failure.message);
-    this.name = "StartupFailureError";
-  }
-}
-
 function startupFailure(error: unknown): StartupFailure {
   if (error instanceof StartupFailureError) return error.failure;
-  if (error instanceof BootstrapRuntimeError) {
-    const applicationPath = neutralinoApplicationPath();
-    return {
-      ...error.details,
-      phase: "frontend bootstrap",
-      category: "bundle",
-      ...(applicationPath === undefined ? {} : {
-        applicationPath,
-        logPaths: bundleLogPaths(applicationPath),
-      }),
-    };
-  }
-  const message = error instanceof Error ? error.message : String(error);
   const applicationPath = neutralinoApplicationPath();
+  const paths = applicationPath === undefined
+    ? {}
+    : { applicationPath, logPaths: bundleLogPaths(applicationPath) };
+  if (error instanceof BootstrapRuntimeError) {
+    return { ...error.details, phase: "frontend bootstrap", category: "bundle", ...paths };
+  }
   return {
     phase: "backend handshake",
     operation: "connect",
-    message,
-    ...(applicationPath === undefined ? {} : {
-      applicationPath,
-      logPaths: bundleLogPaths(applicationPath),
-    }),
+    message: error instanceof Error ? error.message : String(error),
+    ...paths,
   };
 }
 
 function neutralinoApplicationPath(): string | undefined {
   const globals = globalThis as typeof globalThis & { NL_PATH?: unknown };
   return typeof globals.NL_PATH === "string" ? globals.NL_PATH : undefined;
-}
-
-const BACKEND_LOST_MESSAGE = "Disconnected from Spirit Vale Overlay. Close this window and reopen it from the launcher.";
-
-function clearBackendFailureUi(): void {
-  document.getElementById("desktop-startup-failure")?.remove();
-  setBackendBanner(undefined);
-}
-
-// Top-pinned banner for child windows, styled by ui-kit's `.banner`.
-function setBackendBanner(message: string | undefined): void {
-  const id = "desktop-backend-banner";
-  if (message === undefined) {
-    document.getElementById(id)?.remove();
-    return;
-  }
-  let banner = document.getElementById(id);
-  if (!banner) {
-    banner = document.createElement("div");
-    banner.id = id;
-    banner.className = "banner is-error";
-    banner.setAttribute("role", "status");
-    banner.style.cssText = "position:fixed;inset:0 0 auto 0;z-index:2147483000;justify-content:center";
-    document.body.prepend(banner);
-  }
-  banner.textContent = message;
-}
-
-function renderStartupFailure(failure: StartupFailure): void {
-  document.getElementById("desktop-startup-failure")?.remove();
-  const overlay = document.createElement("section");
-  overlay.id = "desktop-startup-failure";
-  overlay.setAttribute("role", "alert");
-  const heading = "Spirit Vale Overlay could not start";
-  const guidance = "The app retried this operation, but the file or folder remained unavailable. Close other programs that may be scanning or synchronizing it and try again. If it keeps failing, make sure the complete extracted folder is writable or move it to a local folder.";
-  overlay.innerHTML = `
-    <style>
-      #desktop-startup-failure{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:28px;background:#0c110e;color:#edf5ee;font:14px/1.45 system-ui,sans-serif}
-      #desktop-startup-failure .card{width:min(680px,100%);padding:24px;border:1px solid #b95252;border-radius:14px;background:#171d19;box-shadow:0 18px 50px #0008}
-      #desktop-startup-failure h1{margin:0 0 10px;font-size:22px}#desktop-startup-failure p{margin:8px 0;color:#c8d2ca}
-      #desktop-startup-failure dl{display:grid;grid-template-columns:max-content 1fr;gap:5px 12px;margin:16px 0;padding:12px;border-radius:8px;background:#0f1511}
-      #desktop-startup-failure dt{color:#91a095}#desktop-startup-failure dd{margin:0;overflow-wrap:anywhere}
-      #desktop-startup-failure .actions{display:flex;gap:8px;margin-top:18px}#desktop-startup-failure button{padding:9px 13px;border:1px solid #667269;border-radius:7px;background:#252d27;color:#edf5ee;cursor:pointer}
-    </style>
-    <div class="card">
-      <h1>${heading}</h1>
-      <p>${escapeHtml(failure.message)}</p>
-      <p>${guidance}</p>
-      <dl>
-        <dt>Phase</dt><dd>${escapeHtml(failure.phase)}</dd>
-        ${failure.category ? `<dt>Category</dt><dd>${escapeHtml(failure.category)}</dd>` : ""}
-        <dt>Operation</dt><dd>${escapeHtml(failure.operation)}</dd>
-        ${failure.code ? `<dt>Error code</dt><dd>${escapeHtml(failure.code)}</dd>` : ""}
-        ${failure.path ? `<dt>Path</dt><dd>${escapeHtml(failure.path)}</dd>` : ""}
-        ${failure.logPaths?.length ? `<dt>Logs</dt><dd>${failure.logPaths.map(escapeHtml).join("<br>")}</dd>` : ""}
-      </dl>
-      <div class="actions">${failure.applicationPath ? '<button type="button" data-action="folder">Open application folder</button>' : ""}<button type="button" data-action="exit">Exit</button></div>
-    </div>`;
-  overlay.querySelector<HTMLButtonElement>('[data-action="folder"]')?.addEventListener("click", () => {
-    if (failure.applicationPath) void openApplicationFolder(failure.applicationPath);
-  });
-  overlay.querySelector<HTMLButtonElement>('[data-action="exit"]')?.addEventListener("click", () => void quitApplication());
-  document.body.append(overlay);
-}
-
-function escapeHtml(value: string): string {
-  const node = document.createElement("span");
-  node.textContent = value;
-  return node.innerHTML;
 }
 
 async function registerWindowEvents(socket: WebSocket): Promise<void> {

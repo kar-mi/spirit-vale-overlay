@@ -36,30 +36,17 @@ export function getDisplays(): NativeDisplay[] {
   }
 }
 
-export async function configureOverlayWindow(pid: number, clickThrough: boolean): Promise<boolean> {
-  let stableChecks = 0;
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    const handle = findWindowHandle(pid);
-    if (handle) {
-      hideWindowFromTaskbar(handle);
-      const applied = setWindowClickThrough(handle, clickThrough);
-      stableChecks = applied && overlayWindowStylesReady(handle, clickThrough) ? stableChecks + 1 : 0;
-      // Neutralino applies its own final styles shortly after creating the HWND.
-      // Require several consecutive checks so we do not report a transient success.
-      if (stableChecks >= 4) return true;
-    }
-    await Bun.sleep(50);
-  }
-  return false;
+export function applyOverlayWindowStyles(handle: Pointer, clickThrough: boolean): boolean {
+  hideWindowFromTaskbar(handle);
+  const applied = setWindowClickThrough(handle, clickThrough);
+  return applied && overlayWindowStylesReady(handle, clickThrough);
 }
 
 export function setOverlayWindowVisible(
-  pid: number,
+  handle: Pointer,
   visible: boolean,
 ): boolean {
   if (process.platform !== "win32") return false;
-  const handle = findWindowHandle(pid);
-  if (!handle) return false;
   try {
     const user32 = dlopen("user32", {
       ShowWindow: { args: [FFIType.ptr, FFIType.i32], returns: FFIType.bool },

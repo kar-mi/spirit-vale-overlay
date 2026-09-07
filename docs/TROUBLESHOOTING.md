@@ -72,6 +72,17 @@ Right-click `spirit-vale-overlay-win_x64.exe` and choose **Run as administrator*
 2. Close all leftover Spirit Vale Overlay and bundled `bun.exe` processes before trying again.
 3. Reset only the WebView/runtime state as described below.
 4. Make sure security software is not blocking local loopback traffic. Neutralino and the backend communicate on `127.0.0.1` using temporary local ports.
+5. If the window is still blank after all of the above, try the **Electron build** instead (see below).
+
+## Try the Electron build
+
+Releases ship two ZIPs. The default `spirit-vale-overlay-windows-x64-vX.Y.Z.zip` uses
+Neutralino + WebView2. The larger `spirit-vale-overlay-electron-windows-x64-vX.Y.Z.zip`
+is a feature-equivalent fallback that bundles its own Chromium, so it does not depend on
+WebView2 at all. Reach for it when WebView2 will not install or repair, or when windows
+render with wrong borders/transparency. Run `Spirit Vale Overlay.exe` from the extracted
+folder; it is portable and stores data the same way (`data\` beside the executable, with
+`.spirit-vale-portable` present). The two builds can be kept side by side.
 
 ## Reset settings or cached runtime data
 

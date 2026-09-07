@@ -58,6 +58,31 @@ export function applyRoundedCorners(windowPtr: unknown): void {
   }
 }
 
+/** Suppress the Windows open/close animation, so an overlay appears and disappears instantly. */
+export function disableWindowTransitions(windowPtr: unknown): void {
+  if (process.platform !== "win32") return;
+  const handle = windowPtr as Pointer | null | undefined;
+  if (!handle) return;
+  try {
+    const dwmapi = dlopen("dwmapi", {
+      DwmSetWindowAttribute: {
+        args: [FFIType.ptr, FFIType.i32, FFIType.ptr, FFIType.u32],
+        returns: FFIType.i32,
+      },
+    });
+    const DWMWA_TRANSITIONS_FORCEDISABLED = 3;
+    const disabled = new Uint32Array([1]);
+    dwmapi.symbols.DwmSetWindowAttribute(
+      handle,
+      DWMWA_TRANSITIONS_FORCEDISABLED,
+      ptr(disabled),
+      disabled.byteLength,
+    );
+  } catch (error) {
+    console.warn("[ui-core] could not disable window transitions:", error);
+  }
+}
+
 export function hideWindowFromTaskbar(windowPtr: unknown): boolean {
   if (process.platform !== "win32") return false;
   const handle = windowPtr as Pointer | null | undefined;

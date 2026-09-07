@@ -312,6 +312,7 @@ export const en = {
   "settings.overlay.visibility.hidden": "Overlay hidden",
   "settings.overlay.visibility.hide": "Hide overlay",
   "settings.overlay.visibility.show": "Show overlay",
+  "settings.overlay.visibility.editMode": "The overlay stays visible while edit mode is open.",
   "settings.overlay.autoHide.label": "Auto-hide overlay when the game or Spirit Vale Overlay is not focused",
   "settings.overlay.autoHide.hint": "Spirit Vale and this app's own windows keep the overlay visible. Switching to another app hides it; a manual hide remains hidden until you show it again.",
   "settings.overlay.autoHide.search": "Auto-hide overlay game application focus unfocused switching app manual hide",

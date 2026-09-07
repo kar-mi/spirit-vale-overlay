@@ -1,10 +1,9 @@
 import { executableBaseNames, platformExecutableName } from "./executable-names.ts";
 
-// Every path a built desktop bundle is made of, relative to the application root
-// (Neutralino's NL_PATH). Startup preflight, the backend, the frontend failure card,
-// the build script and the release verifier all describe the same bundle, so they all
-// read this layout instead of repeating literals that only some of them would be
-// updated when the layout moves.
+// Every path a built desktop bundle is made of, relative to the application root.
+// Startup preflight, the backend, the frontend failure card, the build scripts and the
+// release verifier all describe the same bundle, so they all read these layouts instead
+// of repeating literals that only some of them would be updated when the layout moves.
 export const bundleLayout = {
   resourceBundle: "resources.neu",
   resourcesDirectory: "resources",
@@ -20,6 +19,30 @@ export const bundleLayout = {
   neutralinoLog: "neutralinojs.log",
   backendLog: "neutralino-backend.log",
 } as const;
+
+export const electronBundleLayout = {
+  desktopExecutable: "Spirit Vale Overlay.exe",
+  asarPath: "resources/app.asar",
+  resourcesDirectory: "resources",
+  viewsDirectory: "resources/views",
+  launcherEntrypoint: "resources/views/launcherview/index.html",
+  extensionsDirectory: "resources/extensions",
+  backendDirectory: "resources/extensions/backend",
+  backendEntrypoint: "resources/extensions/backend/index.js",
+  binaryDirectory: "resources/extensions/bin",
+  portableMarker: bundleLayout.portableMarker,
+  portableReadme: bundleLayout.portableReadme,
+  portableRuntimeData: "data/runtime",
+  backendLog: "electron-backend.log",
+} as const;
+
+export function electronBundledRuntimePath(platform: NodeJS.Platform = process.platform): string {
+  return `${electronBundleLayout.binaryDirectory}/${platformExecutableName(executableBaseNames.bunRuntime, platform)}`;
+}
+
+export function electronBundledHotkeyHelperPath(platform: NodeJS.Platform = process.platform): string {
+  return `${electronBundleLayout.binaryDirectory}/${platformExecutableName(executableBaseNames.hotkeyHelper, platform)}`;
+}
 
 /** Joins a bundle-relative path onto an application root, native separators included. */
 export function joinBundlePath(applicationPath: string, relativePath: string): string {

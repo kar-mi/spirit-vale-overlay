@@ -1,0 +1,25 @@
+{
+  "name": "@svoverlay/desktop-electron",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare": "bun run src/build.ts",
+    "build": "bun run prepare",
+    "dev": "bun run prepare && bun run src/dev.ts",
+    "package": "bun run prepare && electron-builder --win --config electron-builder.config.cjs && bun run ../../tooling/release/wrap-portable.ts --shell electron",
+    "test": "bun test src"
+  },
+  "dependencies": {
+    "@kar-mi/spirit-vale-tools-capture": "3.0.1",
+    "@svoverlay/contracts": "workspace:*",
+    "@svoverlay/desktop": "workspace:*",
+    "@svoverlay/desktop-platform": "workspace:*",
+    "@svoverlay/overlay": "workspace:*",
+    "@svoverlay/ui-kit": "workspace:*",
+    "preact": "^10.29.7"
+  },
+  "devDependencies": {
+    "electron": "44.2.0",
+    "electron-builder": "^25.1.8"
+  }
+}

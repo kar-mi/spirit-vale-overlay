@@ -1,6 +1,7 @@
 node_modules/
 dist/
 packages/*/dist/
+apps/desktop-electron/release/
 packages/*/node_modules/
 *.log
 *.zip

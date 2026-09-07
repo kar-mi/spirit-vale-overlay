@@ -22,7 +22,7 @@ export function buildOverlaySettingsSection({ state, busy, actions, t }: Setting
       {
         id: "overlay-visibility",
         searchText: t("settings.overlay.visibility.search"),
-        content: <div class="settings-card settings-row"><span><strong>{overlay.overlayVisible ? t("settings.overlay.visibility.shown") : t("settings.overlay.visibility.hidden")}</strong></span><button class="btn" type="button" onClick={() => actions.setOverlayVisible(!overlay.overlayVisible)}>{overlay.overlayVisible ? t("settings.overlay.visibility.hide") : t("settings.overlay.visibility.show")}</button></div>,
+        content: <><div class="settings-card settings-row"><span><strong>{overlay.overlayVisible ? t("settings.overlay.visibility.shown") : t("settings.overlay.visibility.hidden")}</strong></span><button class="btn" type="button" disabled={busy || !overlay.locked} onClick={() => actions.setOverlayVisible(!overlay.overlayVisible)}>{overlay.overlayVisible ? t("settings.overlay.visibility.hide") : t("settings.overlay.visibility.show")}</button></div>{!overlay.locked && <p class="settings-hint">{t("settings.overlay.visibility.editMode")}</p>}</>,
       },
       {
         id: "overlay-auto-hide",
