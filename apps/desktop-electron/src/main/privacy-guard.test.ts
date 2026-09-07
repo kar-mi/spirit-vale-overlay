@@ -14,6 +14,17 @@ describe("Electron privacy guard", () => {
     }
   });
 
+  test("allows the loopback backend socket", () => {
+    for (const url of [
+      "ws://127.0.0.1:43125/rpc",
+      "ws://localhost:43125/rpc",
+      "ws://[::1]:43125/rpc",
+      "http://127.0.0.1:43125/",
+    ]) {
+      expect(isRemoteNetworkUrl(url)).toBe(false);
+    }
+  });
+
   test("allows packaged application resources", () => {
     for (const url of [
       "app://-/views/launcherview/index.html",

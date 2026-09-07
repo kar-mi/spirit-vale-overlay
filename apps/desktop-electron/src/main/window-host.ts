@@ -82,6 +82,7 @@ export class WindowHost {
         if (win.isAlwaysOnTop()) win.moveTop();
         return undefined;
       case "hide": win.hide(); return undefined;
+      case "moveTop": win.moveTop(); return undefined;
       case "focus": win.focus(); return undefined;
       case "minimize": win.minimize(); return undefined;
       case "maximize": win.maximize(); return undefined;
@@ -147,6 +148,9 @@ export function childWindowOptions(
       preload: preloadPath,
       contextIsolation: true,
       sandbox: true,
+      backgroundThrottling: !payload.transparent,
+      zoomMode: "isolated",
+      zoomFactor: 1 / scaleFactor,
     },
   };
 }

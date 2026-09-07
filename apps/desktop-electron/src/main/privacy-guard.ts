@@ -1,10 +1,14 @@
 import type { Session } from "electron";
 
 const REMOTE_NETWORK_SCHEMES = new Set(["http:", "https:", "ws:", "wss:"]);
+// URL.hostname brackets IPv6 literals, hence the bracketed ::1 form.
+const LOOPBACK_HOSTS = /^(127\.\d+\.\d+\.\d+|\[::1\]|localhost)$/i;
 
 export function isRemoteNetworkUrl(url: string): boolean {
   try {
-    return REMOTE_NETWORK_SCHEMES.has(new URL(url).protocol);
+    const parsed = new URL(url);
+    if (!REMOTE_NETWORK_SCHEMES.has(parsed.protocol)) return false;
+    return !LOOPBACK_HOSTS.test(parsed.hostname);
   } catch {
     return false;
   }
