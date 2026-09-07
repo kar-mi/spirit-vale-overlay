@@ -149,8 +149,6 @@ export function childWindowOptions(
       contextIsolation: true,
       sandbox: true,
       backgroundThrottling: !payload.transparent,
-      zoomMode: "isolated",
-      zoomFactor: 1 / scaleFactor,
     },
   };
 }
