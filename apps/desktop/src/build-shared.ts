@@ -36,7 +36,6 @@ export async function bundle(options: {
   if (!result.success) throw new AggregateError(result.logs, `Build failed: ${options.entrypoint}`);
 }
 
-/** Rewrite the `views://` scheme the view sources use into a server-root path. */
 export function rewriteViewScheme(source: string): string {
   return source.replaceAll("views://", "/views/");
 }

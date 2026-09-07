@@ -22,8 +22,7 @@ await runBackend({
   host: new ElectronShellHost(),
   version,
   applicationRoot: root,
-  // Electron ships the plain resources/ directory, not resources.neu, so there is
-  // no single bundle file to preflight.
+  // No preflightFiles: Electron ships the plain resources/ directory, not a resources.neu bundle.
   portableRoot,
   hotkeyHelperPath: path.join(root, electronBundledHotkeyHelperPath()),
   backendLogPath: backendLog,

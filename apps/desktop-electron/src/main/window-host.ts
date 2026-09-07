@@ -1,6 +1,17 @@
 import path from "node:path";
-import { BrowserWindow } from "electron";
+import { BrowserWindow, screen } from "electron";
 import type { CreateWindowPayload } from "../shell-protocol.ts";
+
+interface Rect { x: number; y: number; width: number; height: number }
+
+// The backend speaks physical pixels throughout (its displays come from Win32
+// EnumDisplayMonitors, and Neutralino windows are created with useLogicalPixels:false),
+// but Electron's window bounds are DIPs. Convert at this boundary so overlay tiles land
+// where the backend placed them on a scaled display.
+export const toDip = (rect: Rect, win?: BrowserWindow): Rect =>
+  process.platform === "win32" ? screen.screenToDipRect(win ?? null, rect) : rect;
+export const toPhysical = (rect: Rect, win?: BrowserWindow): Rect =>
+  process.platform === "win32" ? screen.dipToScreenRect(win ?? null, rect) : rect;
 
 export interface WindowHostCallbacks {
   onWindowEvent(windowId: string, event: string, data: unknown): void;
@@ -36,14 +47,13 @@ export class WindowHost {
     win.once("closed", () => this.windows.delete(windowId));
     for (const [nativeEvent, wireEvent] of FORWARDED_EVENTS) {
       win.on(nativeEvent as never, () => {
-        const [x, y] = win.isDestroyed() ? [0, 0] : win.getPosition();
-        const [width, height] = win.isDestroyed() ? [0, 0] : win.getSize();
-        this.callbacks.onWindowEvent(windowId, wireEvent, { x, y, width, height });
+        const bounds = win.isDestroyed()
+          ? { x: 0, y: 0, width: 0, height: 0 }
+          : toPhysical(win.getBounds(), win);
+        this.callbacks.onWindowEvent(windowId, wireEvent, bounds);
       });
     }
-    win.webContents.once("did-finish-load", () => {
-      this.callbacks.onHandle(windowId, win.isDestroyed() ? null : win.getNativeWindowHandle());
-    });
+    this.callbacks.onHandle(windowId, win.getNativeWindowHandle());
   }
 
   createLauncher(url: string, iconPath: string): BrowserWindow {
@@ -62,26 +72,22 @@ export class WindowHost {
   }
 
   create(payload: CreateWindowPayload): BrowserWindow {
+    const frame = toDip(payload.frame);
     const win = new BrowserWindow({
-      x: payload.frame.x,
-      y: payload.frame.y,
-      width: payload.frame.width,
-      height: payload.frame.height,
+      x: frame.x,
+      y: frame.y,
+      width: frame.width,
+      height: frame.height,
       show: false,
       frame: !payload.borderless,
       transparent: payload.transparent,
       resizable: payload.resizable ?? true,
       alwaysOnTop: payload.alwaysOnTop,
       skipTaskbar: payload.skipTaskbar,
-      // Overlay surfaces must never steal focus from the game; the raw
-      // WS_EX_NOACTIVATE style applied backend-side reinforces this.
-      focusable: !payload.transparent,
       hasShadow: !payload.transparent,
       webPreferences: { preload: this.preloadPath, contextIsolation: true, sandbox: false },
     });
     this.register(payload.windowId, win);
-    // The backend hands us a root-relative view path ("/views/…?port=&ticket=");
-    // the launcher URL is already fully-qualified against the app:// scheme.
     void win.loadURL(payload.url.startsWith("/") ? `app://-${payload.url}` : payload.url);
     return win;
   }
@@ -99,14 +105,16 @@ export class WindowHost {
       case "close": win.close(); return undefined;
       case "isMaximized": return win.isMaximized();
       case "setAlwaysOnTop": win.setAlwaysOnTop(Boolean(params?.["enabled"])); return undefined;
-      case "getBounds": return win.getBounds();
+      case "setSkipTaskbar": win.setSkipTaskbar(Boolean(params?.["enabled"])); return undefined;
+      case "setIgnoreMouseEvents": win.setIgnoreMouseEvents(Boolean(params?.["enabled"])); return undefined;
+      case "getBounds": return toPhysical(win.getBounds(), win);
       case "setBounds": {
-        win.setBounds({
+        win.setBounds(toDip({
           x: Number(params?.["x"]),
           y: Number(params?.["y"]),
           width: Number(params?.["width"]),
           height: Number(params?.["height"]),
-        });
+        }, win));
         return undefined;
       }
       case "openExternal": return undefined;

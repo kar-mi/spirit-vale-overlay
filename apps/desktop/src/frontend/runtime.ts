@@ -267,8 +267,6 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
   }
 
   command<T = unknown>(method: string, params?: unknown): Promise<T> {
-    // Electron main owns the native windows, so window commands go to the host;
-    // Neutralino drives each window from its own renderer session.
     if (host?.kind === "electron") return host.windowCommand<T>(this.windowRef(), method, params);
     return this.session?.command<T>(method, params) ?? Promise.reject(new Error(`${this.title} is not connected.`));
   }
@@ -301,6 +299,10 @@ export class BrowserWindow<Schema extends CombinedSchema = CombinedSchema> {
       await this.command("setBounds", this.frame).catch(() => {});
     }
     await this.command("setAlwaysOnTop", { enabled: this.alwaysOnTop }).catch(() => {});
+    // Neutralino takes skipTaskbar as a process arg at creation; Electron needs it applied to the live window.
+    if (host?.kind === "electron" && this.skipTaskbar) {
+      await this.command("setSkipTaskbar", { enabled: true }).catch(() => {});
+    }
     if (this.transparent) {
       const ready = await host?.configureOverlayWindow(this.windowRef(), this.clickThrough);
       if (!ready && this.clickThrough) return;

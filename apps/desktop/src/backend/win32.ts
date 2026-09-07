@@ -36,12 +36,6 @@ export function getDisplays(): NativeDisplay[] {
   }
 }
 
-/**
- * Apply the tool-window and click-through extended styles to an overlay HWND and
- * report whether they took. The caller owns retrying: Neutralino re-applies its own
- * styles after HWND creation, so it polls this until several consecutive successes;
- * Electron does not, so one confirmed apply is enough.
- */
 export function applyOverlayWindowStyles(handle: Pointer, clickThrough: boolean): boolean {
   hideWindowFromTaskbar(handle);
   const applied = setWindowClickThrough(handle, clickThrough);

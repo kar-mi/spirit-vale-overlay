@@ -1,5 +1,3 @@
-
-
 export interface ShellSocketConfig {
   port: number;
   token: string;
@@ -35,7 +33,6 @@ export interface TrayItemPayload {
   action?: string;
 }
 
-/** Backend -> main. */
 export type ShellRequest =
   | { t: "hello"; token: string }
   | { t: "create-window"; payload: CreateWindowPayload }
@@ -47,9 +44,7 @@ export type ShellRequest =
   | { t: "notification"; title: string; body: string }
   | { t: "exit" };
 
-/** Main -> backend. */
 export type ShellEvent =
-  | { t: "hello-ok" }
   | { t: "window-handle"; windowId: string; handle: string | null }
   | { t: "window-event"; windowId: string; event: string; data: unknown }
   | { t: "reply"; id: number; ok: true; value: unknown }

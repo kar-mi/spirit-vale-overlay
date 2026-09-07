@@ -1,10 +1,7 @@
 import net from "node:net";
 import type { Pointer } from "bun:ffi";
-import {
-  applyOverlayWindowStyles,
-  getDisplays,
-  setOverlayWindowVisible,
-} from "@svoverlay/desktop/src/backend/win32.ts";
+import { getDisplays } from "@svoverlay/desktop/src/backend/win32.ts";
+import { disableWindowTransitions } from "@svoverlay/desktop-platform/win32";
 import type {
   CreateWindowOptions,
   HostWindowRef,
@@ -37,7 +34,6 @@ export class ElectronShellHost implements ShellHost {
   private nextRequestId = 1;
   private readonly pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
   private readonly handles = new Map<string, Pointer>();
-  private readonly handleWaiters = new Map<string, Array<(handle: Pointer) => void>>();
   private context?: RuntimeHostContext;
   private trayClick?: (action: string) => void;
   private ownerGone?: () => void;
@@ -76,14 +72,9 @@ export class ElectronShellHost implements ShellHost {
 
   private receive(message: ShellEvent): void {
     switch (message.t) {
-      case "hello-ok":
-        return;
       case "window-handle": {
         if (message.handle === null) return;
-        const handle = handleFromBase64(message.handle);
-        this.handles.set(message.windowId, handle);
-        for (const waiter of this.handleWaiters.get(message.windowId) ?? []) waiter(handle);
-        this.handleWaiters.delete(message.windowId);
+        this.handles.set(message.windowId, handleFromBase64(message.handle));
         return;
       }
       case "window-event":
@@ -101,17 +92,6 @@ export class ElectronShellHost implements ShellHost {
         return;
       }
     }
-  }
-
-  private waitForHandle(windowId: string, timeoutMs = 4000): Promise<Pointer | undefined> {
-    const existing = this.handles.get(windowId);
-    if (existing) return Promise.resolve(existing);
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => resolve(undefined), timeoutMs);
-      const waiters = this.handleWaiters.get(windowId) ?? [];
-      waiters.push((handle) => { clearTimeout(timer); resolve(handle); });
-      this.handleWaiters.set(windowId, waiters);
-    });
   }
 
   async broadcast(event: string, data: unknown): Promise<void> {
@@ -148,25 +128,18 @@ export class ElectronShellHost implements ShellHost {
   }
 
   async configureOverlayWindow(window: HostWindowRef, clickThrough: boolean): Promise<boolean> {
-    const handle = await this.waitForHandle(window.windowId);
-    if (!handle) return false;
-    // Electron does not re-apply its own window styles after creation, so unlike
-    // the Neutralino host a single confirmed apply is enough.
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      if (applyOverlayWindowStyles(handle, clickThrough)) return true;
-      await Bun.sleep(50);
-    }
-    return false;
+    // Electron owns showing these windows, so the platform transition has to be turned off
+    // on the HWND rather than sidestepped by showing them behind Electron's back.
+    disableWindowTransitions(this.handles.get(window.windowId));
+    return await this.windowCommand(window, "setIgnoreMouseEvents", { enabled: clickThrough })
+      .then(() => true, () => false);
   }
 
   setOverlayWindowVisible(window: HostWindowRef, visible: boolean): void {
-    const handle = this.handles.get(window.windowId);
-    if (handle) setOverlayWindowVisible(handle, visible);
+    void this.windowCommand(window, visible ? "show" : "hide").catch(() => {});
   }
 
   isAppProcess(processId: number): boolean {
-    // Every Electron window shares one process tree rooted at main, which is this
-    // backend's own parent.
     return processId === this.mainProcessId;
   }
 

@@ -13,19 +13,13 @@ import type { ShellHost } from "./shell-host.ts";
 export interface BackendEntryConfig {
   host: ShellHost;
   version: string;
-  /** Application root, reported in the startup-failure card. */
   applicationRoot: string;
-  /** Files whose readability is verified before anything else (Neutralino's resources.neu). */
   preflightFiles?: string[];
   /** Portable data root, or undefined when running as a normal installed app. */
   portableRoot?: string;
-  /** Absolute path to the bundled pass-through hotkey helper. */
   hotkeyHelperPath: string;
-  /** backend.log path for mirrored console output. */
   backendLogPath: string;
-  /** Log files worth pointing the user at when startup fails. */
   logPaths: string[];
-  /** Imports the launcher's `desktop.ts` once the runtime is ready. */
   loadDesktopApp: () => Promise<unknown>;
 }
 

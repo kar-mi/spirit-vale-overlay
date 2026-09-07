@@ -2,33 +2,20 @@ import { app, events, filesystem, init, os, window as neutralinoWindow } from "@
 import type { DesktopRPCSchema } from "@svoverlay/contracts/rpc";
 import { bundleLogPaths } from "@svoverlay/desktop-platform/bundle-layout";
 
-import type { BackendReady, ClientPacket, RpcPacket, ServerPacket, StartupFailure } from "../shared/protocol.ts";
+import type { BackendReady, ClientPacket, StartupFailure } from "../shared/protocol.ts";
 import { backendConnectionFromSearch } from "../shared/backend-connection.ts";
 import { defineRpc, type RpcInstance } from "../shared/rpc.ts";
 import { BootstrapRuntimeError, neutralinoPlatform, verifyBootstrapFiles } from "./bootstrap-preflight.ts";
-import { BACKEND_LOST_MESSAGE, clearBackendFailureUi, renderStartupFailure, setBackendBanner } from "./failure-ui.ts";
+import {
+  DesktopTransport,
+  StartupFailureError,
+  watchBackendReconnecting,
+  type ShellFrontendBridge,
+} from "./backend-transport.ts";
 
-type Handler = (packet: RpcPacket) => void;
 interface WindowFrame { x: number; y: number; width: number; height: number }
 
-// The launcher gets fresh tickets from the backend, so it retries ~165s to ride out a
-// restart; a child window's ticket is single-use and spent, so it concedes fast.
-const CHILD_RECONNECT_ATTEMPT_LIMIT = 5;
-const LAUNCHER_RECONNECT_ATTEMPT_LIMIT = 25;
-const RECONNECT_BASE_DELAY_MS = 250;
-const RECONNECT_MAX_DELAY_MS = 8_000;
-
-// The launcher window shows a reconnecting hint instead of the full-window failure
-// overlay while the transport retries; this is how it learns the retry state.
-let onReconnectingChange: ((reconnecting: boolean) => void) | undefined;
-
-export function watchBackendReconnecting(listener: (reconnecting: boolean) => void): void {
-  onReconnectingChange = listener;
-}
-
-function reportReconnecting(reconnecting: boolean): void {
-  onReconnectingChange?.(reconnecting);
-}
+export { watchBackendReconnecting };
 
 // @neutralinojs/lib silently queues native calls made before its socket opens, and the
 // failure card can render that early — so its buttons must wait for "ready" first.
@@ -46,146 +33,28 @@ async function openApplicationFolder(path: string): Promise<void> {
   await os.open(path).catch((error) => console.error("Opening the application folder failed.", error));
 }
 
-class DesktopTransport {
-  private socket?: WebSocket;
-  private handler?: Handler;
-  private readonly queued: RpcPacket[] = [];
-  private connecting = false;
-  private sessionReady = false;
-  private bootstrapChecked = false;
-  private reconnectAttempts = 0;
-  private reconnectTimer?: ReturnType<typeof setTimeout>;
-  private readonly launcher = backendConnectionFromSearch(location.search) === undefined;
+init();
+void events.on("ready", () => { neutralinoReady = true; });
 
-  constructor() {
-    init();
-    void events.on("ready", () => { neutralinoReady = true; });
-    void this.connect().catch((error) => this.fail(startupFailure(error)));
-    void settleInitialWindowSize();
-  }
+const bridge: ShellFrontendBridge = {
+  awaitConnection: backendConnection,
+  failureActions: { openApplicationFolder, quitApplication },
+  bootstrap: async () => {
+    const globals = globalThis as typeof globalThis & { NL_PATH?: unknown; NL_OS?: unknown };
+    if (typeof globals.NL_PATH !== "string") return;
+    await verifyBootstrapFiles({
+      applicationPath: globals.NL_PATH,
+      platform: neutralinoPlatform(typeof globals.NL_OS === "string" ? globals.NL_OS : "Windows"),
+      filesystem,
+    });
+  },
+  helloExtras: async () => ({ processId: await app.getProcessId().catch(() => undefined) }),
+  onSessionReady: registerWindowEvents,
+  onWindowCommand: (socket, command) => executeWindowCommand(socket, command.id, command.method, command.params),
+};
 
-  send(packet: RpcPacket): void {
-    if (this.socket?.readyState !== WebSocket.OPEN) {
-      this.queued.push(packet);
-      return;
-    }
-    this.socket.send(JSON.stringify({ kind: "rpc", packet } satisfies ClientPacket));
-  }
-
-  sendWindowEvent(event: string, data: unknown): void {
-    if (this.socket?.readyState !== WebSocket.OPEN) return;
-    this.socket.send(JSON.stringify({ kind: "window-event", event, data } satisfies ClientPacket));
-  }
-
-  registerHandler(handler: Handler): void {
-    this.handler = handler;
-  }
-
-  private async connect(): Promise<void> {
-    if (this.connecting) return;
-    this.connecting = true;
-    try {
-      if (this.launcher && !this.bootstrapChecked) {
-        const globals = globalThis as typeof globalThis & { NL_PATH?: unknown; NL_OS?: unknown };
-        if (typeof globals.NL_PATH === "string") {
-          await verifyBootstrapFiles({
-            applicationPath: globals.NL_PATH,
-            platform: neutralinoPlatform(typeof globals.NL_OS === "string" ? globals.NL_OS : "Windows"),
-            filesystem,
-          });
-        }
-        this.bootstrapChecked = true;
-      }
-      const connection = await backendConnection((failure) => {
-        console.warn(failure.message);
-        reportReconnecting(true);
-      });
-      clearBackendFailureUi();
-      reportReconnecting(false);
-      const socket = new WebSocket(`ws://127.0.0.1:${connection.port}/rpc`);
-      this.socket = socket;
-      socket.addEventListener("open", async () => {
-        const processId = await app.getProcessId().catch(() => undefined);
-        socket.send(JSON.stringify({ kind: "hello", ticket: connection.ticket, processId } satisfies ClientPacket));
-      });
-      socket.addEventListener("message", (event) => void this.receive(String(event.data)));
-      socket.addEventListener("close", () => this.disconnected());
-      socket.addEventListener("error", () => console.error("The desktop backend connection failed."));
-    } finally {
-      this.connecting = false;
-    }
-  }
-
-  private async receive(serialized: string): Promise<void> {
-    let packet: ServerPacket;
-    try {
-      packet = JSON.parse(serialized) as ServerPacket;
-    } catch {
-      return;
-    }
-    if (packet.kind === "ready") {
-      this.sessionReady = true;
-      this.reconnectAttempts = 0;
-      clearBackendFailureUi();
-      reportReconnecting(false);
-      for (const queued of this.queued.splice(0)) this.send(queued);
-      await registerWindowEvents(this.socket!);
-      return;
-    }
-    if (packet.kind === "rpc") {
-      this.handler?.(packet.packet);
-      return;
-    }
-    if (packet.kind === "window-command") {
-      await executeWindowCommand(this.socket!, packet.id, packet.method, packet.params);
-      return;
-    }
-    if (packet.kind === "fatal") this.fail(startupFailure(packet.message));
-  }
-
-  private fail(failure: StartupFailure): void {
-    console.error(failure.message);
-    document.body.dataset["backendError"] = failure.message;
-    reportReconnecting(false);
-    if (this.launcher) renderStartupFailure(failure, { openApplicationFolder, quitApplication });
-    else setBackendBanner(BACKEND_LOST_MESSAGE);
-  }
-
-  private disconnected(): void {
-    const wasReady = this.sessionReady;
-    this.sessionReady = false;
-    this.socket = undefined;
-    if (!wasReady) {
-      this.scheduleReconnect();
-      return;
-    }
-    if (!this.launcher) {
-      console.error("The desktop backend disconnected after the app started.");
-      document.body.dataset["backendError"] = "backend disconnected";
-      setBackendBanner(BACKEND_LOST_MESSAGE);
-      return;
-    }
-    reportReconnecting(true);
-    this.scheduleReconnect();
-  }
-
-  private scheduleReconnect(): void {
-    if (this.reconnectTimer !== undefined) return;
-    const attemptLimit = this.launcher ? LAUNCHER_RECONNECT_ATTEMPT_LIMIT : CHILD_RECONNECT_ATTEMPT_LIMIT;
-    if (this.reconnectAttempts >= attemptLimit) {
-      this.fail(startupFailure("The desktop backend connection could not be re-established."));
-      return;
-    }
-    const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts, RECONNECT_MAX_DELAY_MS);
-    this.reconnectAttempts += 1;
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = undefined;
-      void this.connect().catch((error) => this.fail(startupFailure(error)));
-    }, delay);
-  }
-}
-
-const transport = new DesktopTransport();
+const transport = new DesktopTransport(bridge, startupFailure);
+void settleInitialWindowSize();
 
 export class DesktopView<T extends { setTransport(transport: DesktopTransport): void }> {
   readonly rpc: T;
@@ -268,37 +137,20 @@ async function backendConnection(onSlow: (failure: StartupFailure) => void): Pro
   });
 }
 
-class StartupFailureError extends Error {
-  constructor(readonly failure: StartupFailure) {
-    super(failure.message);
-    this.name = "StartupFailureError";
-  }
-}
-
 function startupFailure(error: unknown): StartupFailure {
   if (error instanceof StartupFailureError) return error.failure;
-  if (error instanceof BootstrapRuntimeError) {
-    const applicationPath = neutralinoApplicationPath();
-    return {
-      ...error.details,
-      phase: "frontend bootstrap",
-      category: "bundle",
-      ...(applicationPath === undefined ? {} : {
-        applicationPath,
-        logPaths: bundleLogPaths(applicationPath),
-      }),
-    };
-  }
-  const message = error instanceof Error ? error.message : String(error);
   const applicationPath = neutralinoApplicationPath();
+  const paths = applicationPath === undefined
+    ? {}
+    : { applicationPath, logPaths: bundleLogPaths(applicationPath) };
+  if (error instanceof BootstrapRuntimeError) {
+    return { ...error.details, phase: "frontend bootstrap", category: "bundle", ...paths };
+  }
   return {
     phase: "backend handshake",
     operation: "connect",
-    message,
-    ...(applicationPath === undefined ? {} : {
-      applicationPath,
-      logPaths: bundleLogPaths(applicationPath),
-    }),
+    message: error instanceof Error ? error.message : String(error),
+    ...paths,
   };
 }
 

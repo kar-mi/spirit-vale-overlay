@@ -1,5 +1,9 @@
 import { executableBaseNames, platformExecutableName } from "./executable-names.ts";
 
+// Every path a built desktop bundle is made of, relative to the application root.
+// Startup preflight, the backend, the frontend failure card, the build scripts and the
+// release verifier all describe the same bundle, so they all read these layouts instead
+// of repeating literals that only some of them would be updated when the layout moves.
 export const bundleLayout = {
   resourceBundle: "resources.neu",
   resourcesDirectory: "resources",
@@ -16,7 +20,6 @@ export const bundleLayout = {
   backendLog: "neutralino-backend.log",
 } as const;
 
-
 export const electronBundleLayout = {
   resourcesDirectory: "resources",
   viewsDirectory: "resources/views",
@@ -30,12 +33,10 @@ export const electronBundleLayout = {
   backendLog: "electron-backend.log",
 } as const;
 
-/** The bundled Bun for the Electron build, relative to the bundle root. */
 export function electronBundledRuntimePath(platform: NodeJS.Platform = process.platform): string {
   return `${electronBundleLayout.binaryDirectory}/${platformExecutableName(executableBaseNames.bunRuntime, platform)}`;
 }
 
-/** The bundled pass-through hotkey helper for the Electron build, relative to the bundle root. */
 export function electronBundledHotkeyHelperPath(platform: NodeJS.Platform = process.platform): string {
   return `${electronBundleLayout.binaryDirectory}/${platformExecutableName(executableBaseNames.hotkeyHelper, platform)}`;
 }
