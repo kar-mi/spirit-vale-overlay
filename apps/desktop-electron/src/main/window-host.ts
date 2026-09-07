@@ -1,5 +1,5 @@
 import path from "node:path";
-import { BrowserWindow, screen } from "electron";
+import { BrowserWindow, screen, type BrowserWindowConstructorOptions } from "electron";
 import type { CreateWindowPayload } from "../shell-protocol.ts";
 
 interface Rect { x: number; y: number; width: number; height: number }
@@ -31,6 +31,7 @@ export class WindowHost {
 
   constructor(
     private readonly preloadPath: string,
+    private readonly iconPath: string,
     private readonly callbacks: WindowHostCallbacks,
   ) {}
 
@@ -52,47 +53,29 @@ export class WindowHost {
     this.callbacks.onHandle(windowId, win.getNativeWindowHandle());
   }
 
-  createLauncher(url: string, iconPath: string): BrowserWindow {
+  createLauncher(url: string): BrowserWindow {
     const win = new BrowserWindow({
       width: 1024,
       height: 720,
       show: true,
       frame: false,
-      icon: iconPath,
+      icon: this.iconPath,
       backgroundColor: "#0c110e",
-      webPreferences: { preload: this.preloadPath, contextIsolation: true, sandbox: false },
+      webPreferences: { preload: this.preloadPath, contextIsolation: true, sandbox: true },
     });
     this.register("launcher", win);
     void win.loadURL(url);
     return win;
   }
 
-  create(payload: CreateWindowPayload): BrowserWindow {
+  async create(payload: CreateWindowPayload): Promise<BrowserWindow> {
     const frame = toDip(payload.frame);
-    // Window bounds are DIPs but the backend lays tiles out in physical pixels; the preload
-    // zooms the frame back out so one CSS pixel is one physical pixel.
+    // Window bounds are DIPs but the backend lays tiles out in physical pixels. Isolated
+    // per-WebContents zoom keeps one CSS pixel aligned to one physical pixel.
     const scaleFactor = screen.getDisplayMatching(frame).scaleFactor;
-    const win = new BrowserWindow({
-      x: frame.x,
-      y: frame.y,
-      width: frame.width,
-      height: frame.height,
-      show: false,
-      frame: !payload.borderless,
-      transparent: payload.transparent,
-      resizable: payload.resizable ?? true,
-      alwaysOnTop: payload.alwaysOnTop,
-      skipTaskbar: payload.skipTaskbar,
-      hasShadow: !payload.transparent,
-      webPreferences: {
-        preload: this.preloadPath,
-        contextIsolation: true,
-        sandbox: false,
-        additionalArguments: [`--sv-zoom=${1 / scaleFactor}`],
-      },
-    });
+    const win = new BrowserWindow(childWindowOptions(payload, this.preloadPath, this.iconPath, scaleFactor, frame));
     this.register(payload.windowId, win);
-    void win.loadURL(payload.url.startsWith("/") ? `app://-${payload.url}` : payload.url);
+    await win.loadURL(payload.url.startsWith("/") ? `app://-${payload.url}` : payload.url);
     return win;
   }
 
@@ -145,6 +128,38 @@ export class WindowHost {
       if (!win.isDestroyed()) win.destroy();
     }
   }
+}
+
+export function childWindowOptions(
+  payload: CreateWindowPayload,
+  preloadPath: string,
+  iconPath: string,
+  scaleFactor: number,
+  frame: Rect,
+): BrowserWindowConstructorOptions {
+  return {
+    x: frame.x,
+    y: frame.y,
+    width: frame.width,
+    height: frame.height,
+    show: false,
+    frame: !payload.borderless,
+    transparent: payload.transparent,
+    resizable: payload.resizable ?? true,
+    alwaysOnTop: payload.alwaysOnTop,
+    skipTaskbar: payload.skipTaskbar,
+    hasShadow: !payload.transparent,
+    thickFrame: !payload.transparent,
+    roundedCorners: !payload.transparent,
+    icon: iconPath,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      sandbox: true,
+      zoomMode: "isolated",
+      zoomFactor: 1 / scaleFactor,
+    },
+  };
 }
 
 export function iconPathFor(resourcesRoot: string): string {

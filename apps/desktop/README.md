@@ -30,7 +30,7 @@ The package command writes the Windows-only `apps/desktop/dist/spirit-vale-overl
 
 ## Electron fallback shell
 
-`apps/desktop-electron` (`@svoverlay/desktop-electron`) is a second, feature-equivalent native shell that hosts the same unmodified Bun backend using Chromium instead of WebView2. Neutralino stays the default; reach for Electron only when WebView2 install problems or window/style glitches break the default build. See `.agents/electron.md` for the design.
+`apps/desktop-electron` (`@svoverlay/desktop-electron`) is a second, feature-equivalent native shell that hosts the same unmodified Bun backend using Chromium instead of WebView2. Neutralino stays the default; reach for Electron only when WebView2 install problems or window/style glitches break the default build.
 
 ```powershell
 bun run dev:electron
@@ -42,6 +42,8 @@ bun run verify:portable:electron
 The Electron ZIP is portable the same way (same `.spirit-vale-portable` marker and `data/` layout) but is ~150–200 MB larger, and Electron main additionally redirects Chromium's own `userData`/`temp` into `data/runtime/`. The two shells install and run side by side.
 
 The build signs nothing. `electron-builder.config.cjs` sets `win.signAndEditExecutable` from `process.env.CI`: CI runs electron-builder's rcedit pass and stamps the `.exe`'s VersionInfo + icon; a local `package:electron` skips it (that pass needs a symlink-bearing tool archive that only unpacks with Windows Developer Mode), so the local `.exe`'s file properties read "Electron". Window and taskbar icons are the app's own either way, set at runtime.
+
+Electron keeps the same application-owned window placement data as Neutralino. Its built-in window-state persistence is intentionally unused so the shells do not compete over window bounds. The Bun backend remains a separate process because Electron utility processes provide Node.js rather than Bun's runtime and FFI APIs.
 
 ## Runtime architecture
 

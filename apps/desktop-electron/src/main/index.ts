@@ -17,7 +17,8 @@ import {
   Notification,
   Tray,
 } from "electron";
-import { WindowHost, iconPathFor, toDip, toPhysical } from "./window-host.ts";
+import { WindowHost, iconPathFor } from "./window-host.ts";
+import type { StartupFailure } from "@svoverlay/desktop/src/shared/protocol.ts";
 import {
   LineDecoder,
   encodeMessage,
@@ -41,19 +42,26 @@ protocol.registerSchemesAsPrivileged([
   { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
 ]);
 
-const windowHost = new WindowHost(path.join(import.meta.dirname, "preload.cjs"), {
-  onWindowEvent: (windowId, event, data) => sendToBackend({ t: "window-event", windowId, event, data }),
-  onHandle: (windowId, handle) => sendToBackend({
-    t: "window-handle",
-    windowId,
-    handle: handle ? handle.toString("base64") : null,
-  }),
-});
+const windowHost = new WindowHost(
+  path.join(import.meta.dirname, "preload.cjs"),
+  iconPathFor(resourcesRoot),
+  {
+    onWindowEvent: (windowId, event, data) => sendToBackend({ t: "window-event", windowId, event, data }),
+    onHandle: (windowId, handle) => sendToBackend({
+      t: "window-handle",
+      windowId,
+      handle: handle ? handle.toString("base64") : null,
+    }),
+  },
+);
 
 const shellToken = crypto.randomBytes(24).toString("hex");
 let backendSocket: net.Socket | undefined;
 let backendProcess: ChildProcess | undefined;
 let tray: Tray | undefined;
+let quitting = false;
+let backendReportedFatal = false;
+let backendFailure: StartupFailure | undefined;
 
 function sendToBackend(event: ShellEvent): void {
   if (backendSocket?.writable) backendSocket.write(encodeMessage(event));
@@ -72,10 +80,14 @@ function reply(id: number, run: () => unknown | Promise<unknown>): void {
 function handleBackendRequest(message: ShellRequest): void {
   switch (message.t) {
     case "create-window":
-      windowHost.create(message.payload);
+      reply(message.id, () => windowHost.create(message.payload).then(() => undefined));
       return;
     case "broadcast": {
       const channel = message.event === "desktopBackendFatal" ? "sv:backend-fatal" : "sv:backend-ready";
+      if (channel === "sv:backend-fatal") {
+        backendReportedFatal = true;
+        backendFailure = message.data as StartupFailure;
+      }
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, message.data);
       return;
     }
@@ -210,9 +222,30 @@ function spawnBackend(port: number): void {
       SPIRIT_VALE_SHELL: JSON.stringify({ port, token: shellToken }),
     },
   });
-  (backendProcess as unknown as NodeJS.EventEmitter).on("exit", (code: number | null) => {
+  backendProcess.on("error", (error) => reportBackendFailure({
+    phase: "backend process",
+    operation: "spawn",
+    message: error.message,
+    applicationPath: bundleRoot,
+    logPaths: [path.join(bundleRoot, "electron-backend.log")],
+  }));
+  backendProcess.on("exit", (code: number | null) => {
     if (!app.isPackaged) console.error(`backend exited with code ${code}`);
+    if (!quitting && !backendReportedFatal) reportBackendFailure({
+      phase: "backend process",
+      operation: "run",
+      message: `The Electron backend exited unexpectedly${code === null ? "." : ` with code ${code}.`}`,
+      applicationPath: bundleRoot,
+      logPaths: [path.join(bundleRoot, "electron-backend.log")],
+    });
   });
+}
+
+function reportBackendFailure(failure: StartupFailure): void {
+  if (backendFailure) return;
+  backendReportedFatal = true;
+  backendFailure = failure;
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send("sv:backend-fatal", failure);
 }
 
 function registerAppProtocol(): void {
@@ -226,20 +259,6 @@ function registerAppProtocol(): void {
   });
 }
 
-ipcMain.handle("sv:window-action", (event, action: "minimize" | "close") => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win) return;
-  if (action === "minimize") win.minimize();
-  else win.close();
-});
-ipcMain.handle("sv:get-window-frame", (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  return win ? toPhysical(win.getBounds(), win) : { x: 0, y: 0, width: 0, height: 0 };
-});
-ipcMain.handle("sv:set-window-frame", (event, frame: { x: number; y: number; width: number; height: number }) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  win?.setBounds(toDip(frame, win));
-});
 ipcMain.handle("sv:open-path", (_event, target: string) => openExternal(target));
 ipcMain.handle("sv:quit", () => app.quit());
 
@@ -255,7 +274,10 @@ if (!singleInstance) {
   void app.whenReady().then(async () => {
     registerAppProtocol();
     spawnBackend(await startShellSocket());
-    const launcher = windowHost.createLauncher("app://-/views/launcherview/index.html", iconPathFor(resourcesRoot));
+    const launcher = windowHost.createLauncher("app://-/views/launcherview/index.html");
+    launcher.webContents.once("did-finish-load", () => {
+      if (backendFailure) launcher.webContents.send("sv:backend-fatal", backendFailure);
+    });
     // launcher has to drive the quit, or the app lingers in the tray.
     launcher.on("closed", () => app.quit());
   });
@@ -263,7 +285,6 @@ if (!singleInstance) {
   app.on("window-all-closed", () => app.quit());
 
   // Give the backend time to exit on its own before tearing anything down;
-  let quitting = false;
   app.on("before-quit", (event) => {
     tray?.destroy();
     const child = backendProcess;

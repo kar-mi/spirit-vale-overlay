@@ -1,3 +1,11 @@
+import type {
+  CreateWindowOptions,
+  MessageBoxOptions,
+  OpenDialogOptions,
+  SaveDialogOptions,
+  TrayItem,
+} from "@svoverlay/desktop/src/backend/shell-host.ts";
+
 export interface ShellSocketConfig {
   port: number;
   token: string;
@@ -15,32 +23,22 @@ export function readShellSocketConfig(): ShellSocketConfig | undefined {
   return undefined;
 }
 
-export interface CreateWindowPayload {
-  windowId: string;
-  url: string;
-  title: string;
-  frame: { x: number; y: number; width: number; height: number };
-  borderless: boolean;
-  transparent: boolean;
-  resizable: boolean | undefined;
-  alwaysOnTop: boolean;
-  skipTaskbar: boolean;
-}
+export type CreateWindowPayload = CreateWindowOptions & { windowId: string };
 
-export interface TrayItemPayload {
-  type: "item" | "divider";
-  label?: string;
-  action?: string;
-}
+type DialogRequest =
+  | { t: "dialog"; id: number; kind: "open"; options: OpenDialogOptions }
+  | { t: "dialog"; id: number; kind: "folder"; options: { title: string; defaultPath?: string } }
+  | { t: "dialog"; id: number; kind: "save"; options: SaveDialogOptions }
+  | { t: "dialog"; id: number; kind: "message"; options: MessageBoxOptions };
 
 export type ShellRequest =
   | { t: "hello"; token: string }
-  | { t: "create-window"; payload: CreateWindowPayload }
+  | { t: "create-window"; id: number; payload: CreateWindowPayload }
   | { t: "window-command"; id: number; windowId: string; method: string; params?: unknown }
   | { t: "broadcast"; event: string; data: unknown }
-  | { t: "set-tray"; icon: string; items: TrayItemPayload[] }
+  | { t: "set-tray"; icon: string; items: TrayItem[] }
   | { t: "open-external"; id: number; target: string }
-  | { t: "dialog"; id: number; kind: "open" | "folder" | "save" | "message"; options: unknown }
+  | DialogRequest
   | { t: "notification"; title: string; body: string }
   | { t: "exit" };
 

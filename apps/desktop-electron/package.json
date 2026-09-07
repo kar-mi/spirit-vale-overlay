@@ -19,7 +19,7 @@
     "preact": "^10.29.7"
   },
   "devDependencies": {
-    "electron": "^34.2.0",
+    "electron": "44.2.0",
     "electron-builder": "^25.1.8"
   }
 }

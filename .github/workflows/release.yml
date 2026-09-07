@@ -49,7 +49,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/AppData/Local/electron/Cache
-          key: electron-${{ hashFiles('apps/desktop-electron/package.json') }}
+          key: electron-${{ runner.os }}-${{ hashFiles('apps/desktop-electron/package.json', 'bun.lock') }}
       - name: Build Electron portable ZIP
         run: bun run package:electron
       - name: Verify Electron portable ZIP

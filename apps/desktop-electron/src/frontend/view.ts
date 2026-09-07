@@ -8,7 +8,7 @@ import {
   watchBackendReconnecting,
   type ShellFrontendBridge,
 } from "@svoverlay/desktop/src/frontend/backend-transport.ts";
-import type { SpiritValeBridge, WindowFrame } from "../main/preload.ts";
+import type { SpiritValeBridge } from "../main/preload.ts";
 
 declare global {
   interface Window { spiritVale: SpiritValeBridge }
@@ -19,6 +19,9 @@ export { watchBackendReconnecting };
 const SLOW_BACKEND_MS = 10_000;
 
 let ready: Promise<BackendReady> | undefined;
+let rejectReady: ((error: Error) => void) | undefined;
+let disposeReady: (() => void) | undefined;
+let readyTimer: ReturnType<typeof setTimeout> | undefined;
 
 const bridge: ShellFrontendBridge = {
   awaitConnection: (onSlow) => {
@@ -26,20 +29,41 @@ const bridge: ShellFrontendBridge = {
     const fromSearch = backendConnectionFromSearch(location.search);
     if (fromSearch) return Promise.resolve(fromSearch);
     ready ??= new Promise<BackendReady>((resolve, reject) => {
-      const timer = setTimeout(() => onSlow({
+      rejectReady = reject;
+      readyTimer = setTimeout(() => onSlow({
         phase: "backend handshake",
         operation: "connect",
         message: "The desktop backend is taking longer than expected. Required files may be delayed or temporarily blocked.",
       }), SLOW_BACKEND_MS);
-      window.spiritVale.onBackendReady((payload) => { clearTimeout(timer); resolve(payload); });
-      window.spiritVale.onBackendFatal((payload) => {
-        clearTimeout(timer);
-        reject(new StartupFailureError(payload as StartupFailure));
+      disposeReady = window.spiritVale.onBackendReady((payload) => {
+        if (readyTimer !== undefined) clearTimeout(readyTimer);
+        readyTimer = undefined;
+        rejectReady = undefined;
+        disposeReady?.();
+        disposeReady = undefined;
+        resolve(payload);
       });
     });
     return ready;
   },
-  reset: () => { ready = undefined; },
+  reset: () => {
+    if (readyTimer !== undefined) clearTimeout(readyTimer);
+    readyTimer = undefined;
+    disposeReady?.();
+    disposeReady = undefined;
+    rejectReady = undefined;
+    ready = undefined;
+  },
+  onFatal: (handler) => window.spiritVale.onBackendFatal((payload) => {
+    const failure = payload as StartupFailure;
+    if (readyTimer !== undefined) clearTimeout(readyTimer);
+    readyTimer = undefined;
+    disposeReady?.();
+    disposeReady = undefined;
+    rejectReady?.(new StartupFailureError(failure));
+    rejectReady = undefined;
+    handler(failure);
+  }),
   failureActions: {
     openApplicationFolder: (target) => void window.spiritVale.openPath(target),
     quitApplication: () => void window.spiritVale.quit(),
@@ -57,16 +81,7 @@ export class DesktopView<T extends { setTransport(transport: DesktopTransport): 
   }
 
   static defineRPC<Schema extends DesktopRPCSchema>(config: Parameters<typeof defineRpc<Schema, "webview">>[1]) {
-    const rpc = defineRpc<Schema, "webview">("webview", config as never) as RpcInstance<Schema, "webview">;
-    const request = new Proxy(rpc.request as object, {
-      get(target, property, receiver) {
-        if (property === "windowAction") return ({ action }: { action: "minimize" | "close" }) => window.spiritVale.windowAction(action);
-        if (property === "getWindowFrame") return () => window.spiritVale.getWindowFrame();
-        if (property === "setWindowFrame") return (frame: WindowFrame) => window.spiritVale.setWindowFrame(frame);
-        return Reflect.get(target, property, receiver);
-      },
-    }) as typeof rpc.request;
-    return { ...rpc, request, proxy: { ...rpc.proxy, request } } as RpcInstance<Schema, "webview">;
+    return defineRpc<Schema, "webview">("webview", config as never) as RpcInstance<Schema, "webview">;
   }
 }
 

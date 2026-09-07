@@ -27,6 +27,7 @@ export interface ShellFrontendBridge {
   helloExtras?(): Promise<Partial<ClientPacket & { kind: "hello" }>>;
   onSessionReady?(socket: WebSocket): Promise<void>;
   onWindowCommand?(socket: WebSocket, command: ServerPacket & { kind: "window-command" }): Promise<void>;
+  onFatal?(handler: (failure: StartupFailure) => void): () => void;
 }
 
 // The launcher window shows a reconnecting hint instead of the full-window failure
@@ -63,13 +64,17 @@ export class DesktopTransport {
   private bootstrapped = false;
   private reconnectAttempts = 0;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private terminalFailure = false;
   private readonly launcher = backendConnectionFromSearch(location.search) === undefined;
 
   constructor(
     private readonly bridge: ShellFrontendBridge,
     private readonly describeFailure: (error: unknown) => StartupFailure = toStartupFailure,
   ) {
-    void this.connect().catch((error) => this.fail(this.describeFailure(error)));
+    this.bridge.onFatal?.((failure) => this.fail(failure, true));
+    void this.connect().catch((error) => {
+      if (!this.terminalFailure) this.fail(this.describeFailure(error));
+    });
   }
 
   send(packet: RpcPacket): void {
@@ -134,10 +139,15 @@ export class DesktopTransport {
       if (this.socket) await this.bridge.onWindowCommand?.(this.socket, packet);
       return;
     }
-    if (packet.kind === "fatal") this.fail(this.describeFailure(packet.message));
+    if (packet.kind === "fatal") this.fail(this.describeFailure(packet.message), true);
   }
 
-  private fail(failure: StartupFailure): void {
+  private fail(failure: StartupFailure, terminal = false): void {
+    if (terminal) {
+      this.terminalFailure = true;
+      if (this.reconnectTimer !== undefined) clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = undefined;
+    }
     console.error(failure.message);
     document.body.dataset["backendError"] = failure.message;
     reportReconnecting(false);
@@ -149,6 +159,7 @@ export class DesktopTransport {
     const wasReady = this.sessionReady;
     this.sessionReady = false;
     this.socket = undefined;
+    if (this.terminalFailure) return;
     if (wasReady && !this.launcher) {
       console.error("The desktop backend disconnected after the app started.");
       document.body.dataset["backendError"] = "backend disconnected";

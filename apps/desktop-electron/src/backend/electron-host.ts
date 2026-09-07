@@ -20,7 +20,6 @@ import {
   type ShellRequest,
 } from "../shell-protocol.ts";
 
-
 function handleFromBase64(value: string): Pointer {
   const bytes = Buffer.from(value, "base64");
   const hwnd = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getBigUint64(0, true);
@@ -53,8 +52,14 @@ export class ElectronShellHost implements ShellHost {
       socket.on("data", (chunk: string) => {
         for (const message of this.decoder.push(chunk)) this.receive(message);
       });
-      socket.on("error", reject);
-      socket.on("close", () => this.ownerGone?.());
+      socket.on("error", (error) => {
+        reject(error);
+        this.rejectPending(error);
+      });
+      socket.on("close", () => {
+        this.rejectPending(new Error("The Electron shell control socket closed."));
+        this.ownerGone?.();
+      });
     });
   }
 
@@ -65,18 +70,20 @@ export class ElectronShellHost implements ShellHost {
   private request<T>(message: { t: string } & Record<string, unknown>): Promise<T> {
     const id = this.nextRequestId++;
     return new Promise<T>((resolve, reject) => {
+      if (!this.socket?.writable) {
+        reject(new Error("The Electron shell control socket is not connected."));
+        return;
+      }
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
-      this.socket?.write(encodeMessage({ ...message, id } as ShellRequest));
+      this.socket.write(encodeMessage({ ...message, id } as ShellRequest));
     });
   }
 
   private receive(message: ShellEvent): void {
     switch (message.t) {
-      case "window-handle": {
-        if (message.handle === null) return;
-        this.handles.set(message.windowId, handleFromBase64(message.handle));
+      case "window-handle":
+        if (message.handle !== null) this.handles.set(message.windowId, handleFromBase64(message.handle));
         return;
-      }
       case "window-event":
         this.context?.dispatchWindowEvent(message.windowId, message.event, message.data);
         return;
@@ -94,12 +101,17 @@ export class ElectronShellHost implements ShellHost {
     }
   }
 
+  private rejectPending(error: Error): void {
+    for (const pending of this.pending.values()) pending.reject(error);
+    this.pending.clear();
+  }
+
   async broadcast(event: string, data: unknown): Promise<void> {
     this.send({ t: "broadcast", event, data });
   }
 
   async createWindow(windowId: string, options: CreateWindowOptions): Promise<void> {
-    this.send({
+    await this.request<void>({
       t: "create-window",
       payload: {
         windowId,
@@ -128,8 +140,6 @@ export class ElectronShellHost implements ShellHost {
   }
 
   async configureOverlayWindow(window: HostWindowRef, clickThrough: boolean): Promise<boolean> {
-    // Electron owns showing these windows, so the platform transition has to be turned off
-    // on the HWND rather than sidestepped by showing them behind Electron's back.
     disableWindowTransitions(this.handles.get(window.windowId));
     return await this.windowCommand(window, "setIgnoreMouseEvents", { enabled: clickThrough })
       .then(() => true, () => false);
