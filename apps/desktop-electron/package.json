@@ -10,7 +10,7 @@
     "test": "bun test src"
   },
   "dependencies": {
-    "@kar-mi/spirit-vale-tools-capture": "3.0.1",
+    "@kar-mi/spirit-vale-tools-capture": "3.0.2",
     "@svoverlay/contracts": "workspace:*",
     "@svoverlay/desktop": "workspace:*",
     "@svoverlay/desktop-platform": "workspace:*",
